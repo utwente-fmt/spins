@@ -927,6 +927,19 @@ public class LTSMinPrinter {
 			w.appendLine(",");
 		}
 		w.appendLine("};");
+
+		w.appendLine("");
+		w.appendLine("extern \"C\" const int* spinja_get_transition_read_dependencies(int t)");
+		w.appendLine("{");
+		w.append("	if (t>=0 && t < ").append(dm.getRows()).appendLine(") return transition_dependency[t][0];");
+		w.appendLine("	return NULL;");
+		w.appendLine("}");
+		w.appendLine("");
+		w.appendLine("extern \"C\" const int* spinja_get_transition_write_dependencies(int t)");
+		w.appendLine("{");
+		w.append("	if (t>=0 && t < ").append(dm.getRows()).appendLine(") return transition_dependency[t][1];");
+		w.appendLine("	return NULL;");
+		w.appendLine("}");
 	}
 
 	private void generateBoolExpression(StringWriter w, Proctype process, Expression e) throws ParseException {
