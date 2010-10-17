@@ -38,6 +38,7 @@ import spinja.promela.compiler.optimizer.RenumberAll;
 import spinja.promela.compiler.optimizer.StateMerging;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Promela;
+import spinja.promela.compiler.ltsmin.LTSMinPrinter;
 
 public class Compile {
 	private static Specification compile(final File promFile, 
@@ -223,7 +224,11 @@ public class Compile {
 			"(default: " + defaultname + ")");
 		parser.addOption(modelname);
 
-// [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
+		final StringOption ltsmin = new StringOption('l',
+			"sets output to ltsmin \n");
+		parser.addOption(ltsmin);
+
+		// [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
 //		final BooleanOption createjar = new BooleanOption('j',
 //			"Creates an easy to execute jar-file.");
 //		parser.addOption(createjar);
@@ -295,7 +300,14 @@ public class Compile {
 			System.exit(-3);
 		}
 
-		Compile.writeFiles(spec, name, outputDir);
+//		System.out.println("ltsmin: " + ltsmin.isSet());
+
+		if (ltsmin.isSet()) {
+			System.out.println("LTSMIN!");
+			Compile.writeLTSMinFiles(spec, name, outputDir);
+		} else {
+			Compile.writeFiles(spec, name, outputDir);
+		}
 		System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
 
 // [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
@@ -304,6 +316,21 @@ public class Compile {
 //			Compile.createJar(name, spec.getNever() != null, outputDir);
 //			Compile.delete(outputDir);
 //		}
+	}
+
+	private static void writeLTSMinFiles(final Specification spec, final String name, final File outputDir) {
+		final File javaFile = new File(outputDir, name + ".SpinJa.cpp");
+
+		try {
+			final FileOutputStream fos = new FileOutputStream(javaFile);
+
+			fos.write(new LTSMinPrinter(spec).generate().getBytes());
+			fos.flush();
+			fos.close();
+		} catch (final IOException ex) {
+			System.out.println("IOException while writing java files: " + ex.getMessage());
+			System.exit(-5);
+		}
 	}
 
 	private static void writeFiles(final Specification spec, final String name, final File outputDir) {
