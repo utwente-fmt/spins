@@ -102,4 +102,12 @@ public class PrintAction extends Action implements CompoundExpression {
 		}
 		return w.toString();
 	}
+
+	public String getString() {
+		return string;
+	}
+
+	public List<Expression> getExprs() {
+		return exprs;
+	}
 }

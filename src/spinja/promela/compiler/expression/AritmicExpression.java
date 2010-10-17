@@ -199,4 +199,15 @@ public class AritmicExpression extends Expression {
 			return "(" + ex1.toString() + " ? " + ex2.toString() + " : " + ex3.toString() + ")";
 		}
 	}
+
+	public Expression getExpr1() {
+		return ex1;
+	}
+	public Expression getExpr2() {
+		return ex2;
+	}
+	public Expression getExpr3() {
+		return ex3;
+	}
+
 }

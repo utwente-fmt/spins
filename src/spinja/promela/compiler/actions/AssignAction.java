@@ -147,4 +147,8 @@ public class AssignAction extends Action {
 				return "unknown assignment type";
 		}
 	}
+
+	public Identifier getIdentifier() {
+		return id;
+	}
 }

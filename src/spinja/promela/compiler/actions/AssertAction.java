@@ -63,4 +63,8 @@ public class AssertAction extends Action {
 	public String toString() {
 		return "assert " + expr.toString();
 	}
+
+	public Expression getExpr() {
+		return expr;
+	}
 }

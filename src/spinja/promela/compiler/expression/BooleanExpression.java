@@ -129,4 +129,11 @@ public class BooleanExpression extends Expression {
 			return "";
 		}
 	}
+
+	public Expression getExpr1() {
+		return ex1;
+	}
+	public Expression getExpr2() {
+		return ex2;
+	}
 }
