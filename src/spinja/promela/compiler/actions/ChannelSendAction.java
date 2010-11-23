@@ -112,4 +112,12 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 		w.setLength(w.length() - 1);
 		return w.toString();
 	}
+
+	public Variable getVariable() {
+		return var;
+	}
+
+	public List<Expression> getExprs() {
+		return exprs;
+	}
 }

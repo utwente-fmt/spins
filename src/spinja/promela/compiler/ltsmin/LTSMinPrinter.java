@@ -11,14 +11,19 @@ import spinja.promela.compiler.automaton.Automaton;
 import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.actions.*;
+import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
+import spinja.promela.compiler.automaton.EndTransition;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
+import spinja.promela.compiler.variable.ChannelType;
+import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.CustomVariableType;
 import spinja.promela.compiler.variable.Variable;
+import spinja.promela.compiler.variable.VariableType;
 import spinja.promela.compiler.variable.VariableStore;
 import spinja.promela.compiler.expression.*;
 import spinja.util.StringWriter;
@@ -27,6 +32,11 @@ import spinja.util.StringWriter;
  * This class handles the generation of C code for LTSMin.
  * FIXME: handle state vector of length 0
  *
+ * Contains various subclasses:
+ *   - TypeDesc: contains the description of a type, only using name and array
+ *   - CStruct: handles the textual generation of a C struct typedef.
+ *   - DepRow:  handles a row of the dependency matrix
+ *   - DepMatrix: handles the dependency matrix
  * @author Freark van der Berg
  */
 public class LTSMinPrinter {
@@ -46,6 +56,199 @@ public class LTSMinPrinter {
 		public TypeDesc(String type, String array) {
 			this.type = type;
 			this.array = array;
+		}
+	}
+
+	/**
+	 * VarDescriptorArray
+	 */
+	public abstract class VarDescriptor {
+		String type;
+
+		public String getType() {
+			return type;
+		}
+
+		public void setType(String type) {
+			this.type = type;
+		}
+		
+		abstract public List<String> extractDescription();
+		abstract public String extractDeclaration();
+	}
+
+	/**
+	 * VarDescriptorArray
+	 */
+	public class VarDescriptorArray extends VarDescriptor {
+		private VarDescriptor child;
+		private int length;
+
+		public VarDescriptorArray(VarDescriptor child, int length) {
+			this.child = child;
+			this.length = length;
+		}
+
+		public int getLength() {
+			return length;
+		}
+
+		public void setLength(int length) {
+			this.length = length;
+		}
+
+		public void setChild(VarDescriptor child) {
+			this.child = child;
+		}
+		
+		public VarDescriptor getChild() {
+			return child;
+		}
+
+		public List<String> extractDescription() {
+			List<String> descs = new ArrayList<String>();
+			if(child!=null) {
+				for(int i=0; i<length; ++i) {
+					List<String> descs_child = child.extractDescription();
+					for(String s: descs_child) {
+						descs.add(s + "[" + i + "]");
+					}
+				}
+			} else {
+				throw new AssertionError("Failed to extract description: childless array");
+			}
+			return descs;
+		}
+
+		public String extractDeclaration() {
+			return child.extractDeclaration() + "[" + length + "]";
+		}
+	}
+
+	/**
+	 * VarDescriptorVar
+	 */
+	public class VarDescriptorVar extends VarDescriptor {
+		private String name;
+
+		public VarDescriptorVar(String name) {
+			this.name = name;
+		}
+
+		public void setChild(VarDescriptor child) {
+		}
+
+		public VarDescriptor getChild() {
+			return null;
+		}
+
+		public List<String> extractDescription() {
+			List<String> descs = new ArrayList<String>();
+			descs.add(name);
+			return descs;
+		}
+
+		public String extractDeclaration() {
+			return name;
+		}
+	}
+
+	/**
+	 * VarDescriptorVar
+	 */
+	public class VarDescriptorMember extends VarDescriptor {
+
+		private VarDescriptor struct;
+		private List<VarDescriptor> members;
+
+		public VarDescriptorMember(VarDescriptor struct) {
+			this.struct = struct;
+			this.members = new ArrayList<VarDescriptor>();
+		}
+
+		public void setStruct(VarDescriptor struct) {
+			this.struct = struct;
+		}
+
+		public VarDescriptor setStruct() {
+			return struct;
+		}
+
+		public void addMember(VarDescriptor member) {
+			this.members.add(member);
+		}
+
+		public List<String> extractDescription() {
+			List<String> descs = new ArrayList<String>();
+			if(struct==null) {
+				throw new AssertionError("Failed to extract description: invalid struct");
+			}
+			if(members==null) {
+				throw new AssertionError("Failed to extract description: invalid member");
+			}
+			List<String> descs_struct = struct.extractDescription();
+			for(String s_s: descs_struct) {
+				for(VarDescriptor member: members) {
+					List<String> descs_member = member.extractDescription();
+					for(String m_s: descs_member) {
+						descs.add(s_s + "." + m_s);
+					}
+				}
+			}
+			return descs;
+		}
+
+		public String extractDeclaration() {
+			return struct.extractDeclaration();
+		}
+
+	}
+
+	/**
+	 * VarDescriptorArray
+	 */
+	public class VarDescriptorChannel extends VarDescriptor {
+		private VarDescriptor child;
+		private int length;
+
+		public VarDescriptorChannel(VarDescriptor child, int length) {
+			this.child = child;
+			this.length = length;
+		}
+
+		public int getLength() {
+			return length;
+		}
+
+		public void setLength(int length) {
+			this.length = length;
+		}
+
+		public void setChild(VarDescriptor child) {
+			this.child = child;
+		}
+
+		public VarDescriptor getChild() {
+			return child;
+		}
+
+		public List<String> extractDescription() {
+			List<String> descs = new ArrayList<String>();
+			if(child!=null) {
+				for(int i=0; i<length; ++i) {
+					List<String> descs_child = child.extractDescription();
+					for(String s: descs_child) {
+						descs.add(s + ".m" + i);
+					}
+				}
+			} else {
+				throw new AssertionError("Failed to extract description: childless array");
+			}
+			return descs;
+		}
+
+		public String extractDeclaration() {
+			return child.extractDeclaration();
 		}
 	}
 
@@ -92,7 +295,7 @@ public class LTSMinPrinter {
 		 */
 		public void addMember(TypeDesc type, String varName) {
 			s.indent();
-			s.appendLine(type.type," ",varName," ",type.array,";");
+			s.appendLine(type.type," ",varName,type.array,";");
 			s.outdent();
 			//members.add(varName);
 		}
@@ -160,9 +363,12 @@ public class LTSMinPrinter {
 
 	public class DepMatrix {
 		private ArrayList<DepRow> dep_matrix;
+		private int row_length;
+
 
 		DepMatrix(int trans, int size) {
 			dep_matrix = new ArrayList();
+			row_length = size;
 			for(int i=0;i<trans;++i) {
 				dep_matrix.add(i,new DepRow(size));
 			}
@@ -190,6 +396,12 @@ public class LTSMinPrinter {
 			dr.decrWrite(dep);
 		}
 
+		public void ensureSize(int size) {
+			for(int i=dep_matrix.size();i<size;++i) {
+				dep_matrix.add(i,new DepRow(row_length));
+			}
+		}
+
 		public int getRows() {
 			return dep_matrix.size();
 		}
@@ -197,7 +409,57 @@ public class LTSMinPrinter {
 		public DepRow getRow(int trans) {
 			return dep_matrix.get(trans);
 		}
-}
+	}
+
+	public class SendAction {
+		public ChannelSendAction csa;
+		public Transition t;
+		public Proctype p;
+
+		public SendAction(ChannelSendAction csa, Transition t, Proctype p) {
+			this.csa = csa;
+			this.t = t;
+			this.p = p;
+		}
+
+	}
+
+	public class ReadAction {
+		public ChannelReadAction cra;
+		public Transition t;
+		public Proctype p;
+
+		public ReadAction(ChannelReadAction cra, Transition t, Proctype p) {
+			this.cra = cra;
+			this.t = t;
+			this.p = p;
+		}
+
+	}
+
+	public class ReadersAndWriters {
+		public List<SendAction> sendActions;
+		public List<ReadAction> readActions;
+
+		public ReadersAndWriters() {
+			sendActions = new ArrayList<SendAction>();
+			readActions = new ArrayList<ReadAction>();
+		}
+
+	}
+
+	public class AtomTransition {
+		public int trans;
+		public Transition transition;
+		public Proctype process;
+
+		public AtomTransition(int trans, Transition transition, Proctype process) {
+			this.trans = trans;
+			this.transition = transition;
+			this.process = process;
+		}
+
+	}
 
 	public static final int STATE_ELEMENT_SIZE = 4;
 
@@ -215,11 +477,17 @@ public class LTSMinPrinter {
 	public static final String C_TYPE_UINT8  = "sj_uint8";
 	public static final String C_TYPE_UINT16 = "sj_uint16";
 	public static final String C_TYPE_UINT32 = "sj_uint32";
-
+	public static final String C_TYPE_CHANNEL = "sj_channel";
 
 	private HashMap<Variable,Integer> state_var_offset;
 	private HashMap<Variable, String> state_var_desc;
 	private HashMap<Proctype,Integer> state_proc_offset;
+
+
+
+	private HashMap<ChannelVariable,ReadersAndWriters> channels;
+
+	private List<AtomTransition> atomicTransitions;
 
 	private List<Variable> state_vector_var;
 
@@ -229,8 +497,11 @@ public class LTSMinPrinter {
 	// List of processes
 	private List<Proctype> procs;
 
+	// Dependency Matrix
 	private DepMatrix dep_matrix;
-	int current_transition;
+
+	// The current transition group is currently being generated
+	private int current_transition;
 
 	// The specification of which code is to be generated,
 	// initialised by constructor
@@ -248,7 +519,7 @@ public class LTSMinPrinter {
 	/**
 	 * Creates a new LTSMinPrinter using the specified Specification.
 	 * After this, the generate() member will generate and return C code.
-	 * @param spec
+	 * @param spec The Specification using which C code is generated.
 	 */
 	public LTSMinPrinter(Specification spec) {
 		if(spec==null) {
@@ -256,6 +527,23 @@ public class LTSMinPrinter {
 		}
 		this.spec = spec;
 		c_code = null;
+
+//		VarDescriptorVar vs = new VarDescriptorVar("str");
+//		VarDescriptorVar vm = new VarDescriptorVar("mem1");
+//		VarDescriptorVar vm2 = new VarDescriptorVar("mem2");
+//
+//		VarDescriptorArray vma = new VarDescriptorArray(vm, 5);
+//		VarDescriptorArray vsa = new VarDescriptorArray(vs, 2);
+//		VarDescriptorMember v = new VarDescriptorMember(vsa);
+//
+//		v.addMember(vma);
+//		v.addMember(vm2);
+//
+//		List<String> l = v.extractDescription();
+//		for(String s: l) {
+//			System.out.println(s);
+//		}
+//		System.exit(-1);
 
 		state_var_offset = new HashMap<Variable,Integer>();
 		state_var_desc = new HashMap<Variable,String>();
@@ -265,6 +553,8 @@ public class LTSMinPrinter {
 		state_vector_var = new ArrayList<Variable>();
 		procs = new ArrayList<Proctype>();
 
+		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
+		atomicTransitions = new ArrayList<AtomTransition>();
 	}
 
 	/**
@@ -287,6 +577,10 @@ public class LTSMinPrinter {
 		// Generate static type structs
 		w.appendLine("");
 		generateTypeStructs(w);
+
+		// Generate structs describing channels and custom structs
+		w.appendLine("");
+		generateCustomStructs(w);
 
 		// Generate struct describing the state vector
 		w.appendLine("");
@@ -317,6 +611,7 @@ public class LTSMinPrinter {
 		w.appendLine("#include <stdio.h>");
 		w.appendLine("#include <string.h>");
 		w.appendLine("#include <stdint.h>");
+		w.appendLine("#include <stdlib.h>");
 		w.appendLine("");
 		w.appendLine("typedef struct transition_info");
 		w.appendLine("{");
@@ -384,6 +679,56 @@ public class LTSMinPrinter {
 		w.outdent();
 		w.appendLine("} ",C_TYPE_UINT32,";");
 
+		w.appendLine("typedef struct ",C_TYPE_CHANNEL," {");
+		w.indent();
+		w.appendLine("unsigned int isRendezVous: 2;");
+		w.appendLine("unsigned int nextRead: 15;");
+		w.appendLine("unsigned int filled: 15;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_CHANNEL,";");
+	}
+
+	private void generateCustomStruct(StringWriter w, Variable var) {
+		if(var.getType() instanceof ChannelType) {
+			CStruct struct = new CStruct(wrapNameForChannel(var.getName()));
+
+			ChannelVariable cv = (ChannelVariable)var;
+			ChannelType ct = cv.getType();
+			VariableStore vs = ct.getVariableStore();
+
+			if (ct.getBufferSize() > 0) {
+				//for(int i=0; i<ct.getBufferSize(); ++i) {
+					int j=0;
+					for(Variable v: vs.getVariables()) {
+						TypeDesc td = getCTypeOfVar(v);
+						struct.addMember(td,"m"+j);
+						++j;
+					}
+				//}
+			}
+
+			channels.put(cv,new ReadersAndWriters());
+
+			w.appendLine(struct.getCCode());
+		}
+
+	}
+
+	private void generateCustomStructs(StringWriter w) {
+		VariableStore globals = spec.getVariableStore();
+		List<Variable> vars = globals.getVariables();
+		for(Variable var: vars) {
+			generateCustomStruct(w,var);
+		}
+
+		Iterator<Proctype> it = spec.iterator();
+		for(;it.hasNext();) {
+			Proctype p = it.next();
+			List<Variable> proc_vars = p.getVariables();
+			for(Variable var: proc_vars) {
+				generateCustomStruct(w,var);
+			}
+		}
 	}
 
 	/**
@@ -413,7 +758,6 @@ public class LTSMinPrinter {
 		// Globals: initialise globals state struct and add to main state struct
 		System.out.println("== Globals");
 		CStruct sg = new CStruct(C_STATE_GLOBALS_T);
-		state.addMember(C_STATE_GLOBALS_T, C_STATE_GLOBALS);
 
 		// Globals: add globals to the global state struct
 		VariableStore globals = spec.getVariableStore();
@@ -426,7 +770,10 @@ public class LTSMinPrinter {
 		}
 
 		// Add global state struct to main state struct
-		state_members.add(sg);
+		if(!vars.isEmpty()) {
+			state_members.add(sg);
+			state.addMember(C_STATE_GLOBALS_T, C_STATE_GLOBALS);
+		}
 
 		// Processes:
 		System.out.println("== Processes");
@@ -493,6 +840,11 @@ public class LTSMinPrinter {
 	 */
 	private void generateStateCode(StringWriter w) {
 
+	// Generate state struct comment
+		for(int off=0; off<state_size/4; ++off) {
+			w.appendLine("// ",off,"\t",state_vector_desc.get(off));
+		}
+
 		// Generate state size related code
 		w.appendLine("int ",C_STATE_SIZE," = ",state_size,";");
 
@@ -551,6 +903,7 @@ public class LTSMinPrinter {
 		w.appendLine("extern \"C\" void spinja_get_initial_state( state_t *to )");
 		w.appendLine("{");
 		w.indent();
+		w.appendLine("if(state_size != sizeof(" + C_STATE_T + ")) { printf(\"state_t SIZE MISMATCH!: state=%i(%i) globals=%i\",sizeof(state_t),state_size,sizeof(state_globals_t)); }");
 		w.appendLine("memcpy(to, (char*)&",C_STATE_INITIAL,", state_size);");
 		w.outdent();
 		w.appendLine("}");
@@ -577,7 +930,11 @@ public class LTSMinPrinter {
 		} else if(offset>state_size) {
 			return "N/A";
 		} else {
-			return state_vector_desc.get(offset/4);
+			//if(state_vector_var.get(offset/4).getType() instanceof ChannelType) {
+			//	return state_vector_desc.get(offset/4) + "_desc";
+			//} else {
+				return state_vector_desc.get(offset/4);
+			//}
 		}
 	}
 
@@ -666,6 +1023,7 @@ public class LTSMinPrinter {
 		w.appendLine("transition_info_t transition_info = { NULL, t };");
 		w.appendLine("(void)model; // ignore model");
 		w.appendLine("int states_emitted = 0;");
+		w.appendLine("register int pos;");
 		w.appendLine(C_STATE_T," tmp;");
 		w.appendLine("memcpy(&tmp,in,sizeof(",C_STATE_T,"));");
 		w.appendLine();
@@ -684,20 +1042,20 @@ public class LTSMinPrinter {
 
 		// Calculate total number of transitions
 		int max_transitions = 0;
-		for(Proctype p: procs) {
-			Automaton a = p.getAutomaton();
-			Iterator<State> i = a.iterator();
-			while(i.hasNext()) {
-				State st = i.next();
-				if(st.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
-					++max_transitions;
-				} else {
-					for(Transition t: st.output) {
-						++max_transitions;
-					}
-				}
-			}
-		}
+//		for(Proctype p: procs) {
+//			Automaton a = p.getAutomaton();
+//			Iterator<State> i = a.iterator();
+//			while(i.hasNext()) {
+//				State st = i.next();
+//				if(st.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
+//					++max_transitions;
+//				} else {
+//					for(Transition t: st.output) {
+//						++max_transitions;
+//					}
+//				}
+//			}
+//		}
 
 		// Init dependency matrix
 		dep_matrix = new DepMatrix(max_transitions,state_size/4);
@@ -722,9 +1080,40 @@ public class LTSMinPrinter {
 			--say_indent;
 		}
 
+		// Generate the rendezvous transitions
+		for(Map.Entry<ChannelVariable,ReadersAndWriters> e: channels.entrySet()) {
+			ChannelVariable cv = e.getKey();
+			ReadersAndWriters raw = e.getValue();
+			for(SendAction sa: raw.sendActions) {
+				for(ReadAction ra: raw.readActions) {
+					dep_matrix.ensureSize(current_transition+1);
+					generateRendezVousAction(w,sa,ra,trans);
+					current_transition = ++trans;
+				}
+			}
+		}
+
+
 		// From the switch state we jump to the correct transition,
 		// according to the transition group 't'
-		w.appendLine("switch_state:switch(t) {");
+		w.appendLine("switch_state:");
+
+//		w.appendLine("");
+//		w.appendLine("static int atoms = 0;");
+//		for(AtomTransition at: atomicTransitions) {
+//
+//			w.appendLine("if(",C_STATE_TMP,".",wrapName(at.process.getName()),".",C_STATE_PROC_COUNTER,".var == ",at.transition.getFrom().getStateId(),") {");
+//			w.indent();
+//
+//			//w.appendLine("goto l",at.trans,";");
+//			w.appendLine("if( t != ",at.trans," ) { return 0; } else { printf(\"handled %i atomic expression so far\\n\",++atoms); }");
+//
+//			w.outdent();
+//			w.appendLine("}");
+//
+//		}
+
+		w.appendLine("switch(t) {");
 		w.indent();
 		for(int n = 0; n<trans; ++n) {
 			w.appendLine("case ",n,": goto l",n,";");
@@ -769,6 +1158,8 @@ public class LTSMinPrinter {
 		// Check if it is an ending state
 		if(state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
 
+			dep_matrix.ensureSize(current_transition+1);
+
 			// In the case of an ending state, generate a transition only
 			// changing the process counter to -1.
 			w.appendLine("l",trans,": if(",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId(),") {");
@@ -799,11 +1190,25 @@ public class LTSMinPrinter {
 
 			for(Transition t: state.output) {
 
-				assert(t!=null);
+				dep_matrix.ensureSize(current_transition+1);
+
+				System.out.println("Handling trans: " + t.getClass().getName());
+
+				// Skip handling of EndTransition, because they don't go anywhere
+				//if(t instanceof EndTransition) {
+				//	continue;
+				//}
+
+				// Checks
 				if(t==null) {
-					System.out.println("ERR");
+					System.out.println("Transition is NULL!");
 					System.exit(-1);
 				}
+				//if(t.getTo()==null) {
+				//	System.out.println("Transition's next state is NULL!");
+				//	System.exit(-1);
+				//}
+
 
 				// Guard: process counter
 				w.appendLine("l",trans,": if(",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId(),") {");
@@ -824,7 +1229,7 @@ public class LTSMinPrinter {
 					if(a!= null && a.getEnabledExpression()!=null) {
 						w.appendPrefix();
 						w.append("if(");
-						generateEnabledExpression(w,process,a);
+						generateEnabledExpression(w,process,a,t);
 						w.appendLine(") { //",a.getClass().getName());
 					} else {
 						w.appendLine("if(true) {");
@@ -835,17 +1240,25 @@ public class LTSMinPrinter {
 				}
 				w.indent();
 
-				assert(t.getTo()!=null);
-
 				// Change process counter
-				w.appendLine("",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var = ",t.getTo().getStateId(),";");
+				w.appendLine("",C_STATE_TMP,".",
+						wrapName(process.getName()),".",
+						C_STATE_PROC_COUNTER,".var = ",
+						t.getTo()==null?-1:t.getTo().getStateId(),";"
+						);
 
 				// Generate actions for this transition
 				generateStateTransition(w,process,t);
 
 				// Generate the callback and the rest
-				w.appendLine("callback(arg,&transition_info,&tmp);");
-				w.appendLine("return ",1,";");
+				//if(t.getTo()!=null) {
+					w.appendLine("callback(arg,&transition_info,&tmp);");
+					w.appendLine("return ",1,";");
+				//}
+
+				if(state.isInAtomic()) {
+					atomicTransitions.add(new AtomTransition(trans, t, process));
+				}
 
 				w.outdent();
 				w.appendLine("}");
@@ -884,7 +1297,7 @@ public class LTSMinPrinter {
 			try {
 
 				// Handle the action
-				generateAction(w,process,a);
+				generateAction(w,process,a,t);
 
 			// Handle parse exceptions
 			} catch(ParseException e) {
@@ -905,6 +1318,7 @@ public class LTSMinPrinter {
 			int s=0;
 			for(;;) {
 				w.append(dr.getReadB(s));
+				//w.append(1);
 				if(++s>=dr.getSize()) {
 					break;
 				}
@@ -914,6 +1328,7 @@ public class LTSMinPrinter {
 			s=0;
 			for(;;) {
 				w.append(dr.getWriteB(s));
+				//w.append(1);
 				if(++s>=dr.getSize()) {
 					break;
 				}
@@ -1080,7 +1495,7 @@ public class LTSMinPrinter {
 				if (ae.getToken().image.equals("%")) {
 					// Modulo takes a special notation to make sure that it
 					// returns a positive value
-					w.append("Math.abs("); //FIXME: Math.
+					w.append("abs(");
 					generateIntExpression(w,process,ex1);
 					w.append(" % ");
 					generateIntExpression(w,process,ex2);
@@ -1171,7 +1586,7 @@ public class LTSMinPrinter {
 	 * @param a The action for which C code will be generated.
 	 * @throws ParseException
 	 */
-	private void generateAction(StringWriter w, Proctype process, Action a) throws ParseException {
+	private void generateAction(StringWriter w, Proctype process, Action a, Transition t) throws ParseException {
 
 		// Handle assignment action
 		if(a instanceof AssignAction) {
@@ -1269,6 +1684,75 @@ public class LTSMinPrinter {
 				w.appendLine(sideEffect, "; // POSSIBLY THIS IS WRONG");
 			}
 
+		// Handle channel send action
+		} else if(a instanceof ChannelSendAction) {
+			ChannelSendAction csa = (ChannelSendAction)a;
+			ChannelVariable var = (ChannelVariable)csa.getVariable();
+
+			if(var.getType().getBufferSize()>0) {
+				//int offset = state_var_offset.get(var);
+				//String access = "(*(" + C_TYPE_CHANNEL + ")&" + C_STATE_T + "[" + offset + "])";
+				String access = C_STATE_TMP + "." + wrapNameForChannelDesc(state_var_desc.get(var));
+
+				//String access_buffer = "(*(" + C_TYPE_CHANNEL + ")&" + C_STATE_T + "[(" + access + ".nextRead" + access + ".filled)%" + var.getType().getBufferSize() + "])";
+				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
+				String access_buffer = C_STATE_TMP + "." + wrapNameForChannelBuffer(state_var_desc.get(var)) + "[pos]";
+
+				List<Expression> exprs = csa.getExprs();
+				for (int i = 0; i < exprs.size(); i++) {
+					final Expression expr = exprs.get(i);
+					w.appendPrefix();
+					w.append(access_buffer).append(".m").append(i).append(".var = ");
+					generateIntExpression(w, process, expr);
+					w.append(";");
+					w.appendPostfix();
+
+				}
+
+				//w.appendLine(access,".filled = (",access,".filled+1) * (",access,".filled<=",var.getType().getVariableStore().getVariables().size()+");");
+				w.appendLine("++",access, ".filled;");
+			} else {
+				ReadersAndWriters raw = channels.get(var);
+				if(raw==null) {
+					throw new AssertionError("Channel not found in list of channels!");
+				}
+
+				raw.sendActions.add(new SendAction(csa,t,process));
+			}
+
+		// Handle a channel read action
+		} else if(a instanceof ChannelReadAction) {
+			ChannelReadAction cra = (ChannelReadAction)a;
+			ChannelVariable var = (ChannelVariable)cra.getVariable();
+			
+			if(var.getType().getBufferSize()>0) {
+				String access = C_STATE_TMP + "." + wrapNameForChannelDesc(state_var_desc.get(var));
+				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
+				String access_buffer = C_STATE_TMP + "." + wrapNameForChannelBuffer(state_var_desc.get(var)) + "[pos]";
+
+				List<Expression> exprs = cra.getExprs();
+				for (int i = 0; i < exprs.size(); i++) {
+					final Expression expr = exprs.get(i);
+					if (expr instanceof Identifier) {
+						w.appendPrefix();
+						generateIntExpression(w, process, expr);
+						w.append(" = ").append(access_buffer).append(".m").append(i).append(".var");
+						w.append(";");
+						w.appendPostfix();
+					}
+				}
+
+				w.appendLine(access,".nextRead = (",access,".nextRead+1)%"+var.getType().getBufferSize()+";");
+				w.appendLine("--",access, ".filled;");
+			} else {
+				ReadersAndWriters raw = channels.get(var);
+				if(raw==null) {
+					throw new AssertionError("Channel not found in list of channels!");
+				}
+
+				raw.readActions.add(new ReadAction(cra,t,process));
+			}
+
 		// Handle not yet implemented action
 		} else {
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
@@ -1276,7 +1760,7 @@ public class LTSMinPrinter {
 
 	}
 
-	private void generateEnabledExpression(StringWriter w, Proctype process, Action a) throws ParseException {
+	private void generateEnabledExpression(StringWriter w, Proctype process, Action a, Transition t) throws ParseException {
 		// Handle assignment action
 		if(a instanceof AssignAction) {
 			w.append("true");
@@ -1289,16 +1773,97 @@ public class LTSMinPrinter {
 		} else if(a instanceof PrintAction) {
 			w.append("true");
 
-			// Handle expression action
+		// Handle expression action
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
 			generateBoolExpression(w,process,expr);
 
+		// Handle a channel send action
+		} else if(a instanceof ChannelSendAction) {
+			ChannelSendAction csa = (ChannelSendAction)a;
+			ChannelVariable var = (ChannelVariable)csa.getVariable();
+			if(var.getType().getBufferSize()>0) {
+
+				//int offset = state_var_offset.get(var);
+				//String access = "(*(" + C_TYPE_CHANNEL + ")&" + C_STATE_T + "[" + offset + "])";
+				String access = C_STATE_TMP + "." + wrapNameForChannelDesc(state_var_desc.get(var));
+
+
+				//w.appendLine("printf(\"filled=%i buffersize=%i\n\","+access+".filled,"+var.getType().getBufferSize()+") || ");
+				w.append("(");
+				//w.append(access).append(".isRendezVous && ");
+				w.append(access).append(".filled < ");
+				w.append(var.getType().getBufferSize()).append(")");
+
+//					return var + " != -1 && !_channels[" + var + "].isRendezVous() && _channels[" + var
+//				+ "].canSend()";
+			} else {
+				w.append("false");
+			}
+
+		// Handle a channel read action
+		} else if(a instanceof ChannelReadAction) {
+			ChannelReadAction cra = (ChannelReadAction)a;
+			ChannelVariable var = (ChannelVariable)cra.getVariable();
+
+			if(var.getType().getBufferSize()>0) {
+
+				String access = C_STATE_TMP + "." + wrapNameForChannelDesc(state_var_desc.get(var));
+				String access_buffer = C_STATE_TMP + "." + wrapNameForChannelBuffer(state_var_desc.get(var)) + "[" + access + ".nextRead]";
+
+				List<Expression> exprs = cra.getExprs();
+
+				w.append("(");
+				//w.append(access).append(".isRendezVous && ");
+				w.append(access).append(".filled > 0");
+
+				for (int i = 0; i < exprs.size(); i++) {
+					final Expression expr = exprs.get(i);
+					if (!(expr instanceof Identifier)) {
+						w.append(" && (");
+						w.append(access_buffer).append(".m").append(i).append(".var == ");
+						generateIntExpression(w, process, expr);
+						w.append(")");
+					}
+
+				}
+
+				w.append(")");
+			} else {
+				w.append("false");
+			}
+
+
 		// Handle not yet implemented action
 		} else {
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
+	}
+
+	private int insertVariable(CStruct sg, Variable var, String desc, String name, int current_offset) {
+
+//		String name;
+//		if(forcedName!=null && !forcedName.equals("")) {
+//			name = forcedName;
+//		} else {
+//			name = var.getName();
+//		}
+
+		if(!state_var_offset.containsKey(var)) {
+
+				System.out.println("Adding VARIABLE TO OFFSET: " + var.getName() + " " + var.hashCode());
+			// Add global to Variable->offset map and add a description
+			state_var_offset.put(var, current_offset);
+			state_var_desc.put(var, desc + name);
+
+		}
+
+		state_vector_desc.add(desc + name);
+		state_vector_var.add(var);
+		current_offset += STATE_ELEMENT_SIZE;
+
+		return current_offset;
 	}
 
 	/**
@@ -1311,39 +1876,104 @@ public class LTSMinPrinter {
 	 * @return The next free offset position.
 	 */
 	private int handleVariable(CStruct sg, Variable var, String desc, int current_offset) {
+		return handleVariable(sg,var,desc,"",current_offset, null);
+	}
+	private int handleVariable(CStruct sg, Variable var, String desc, String forcedName, int current_offset, VarDescriptor vd) {
 
-		// Add global to the global state struct
-		TypeDesc td = getCTypeOfVar(var);
-		sg.addMember(td,var.getName());
+		String name;
+		if(forcedName!=null && !forcedName.equals("")) {
+			name = forcedName;
+		} else {
+			name = var.getName();
+		}
 
-		if(var.getType().getJavaName().equals("Type")) {
+		System.out.println("HANDLING VAR: " + var.getType().getClass().getName());
 
-			// Untested
-			CustomVariableType cvt = (CustomVariableType)var.getType();
-			for(Variable v: cvt.getVariableStore().getVariables()) {
-				current_offset += handleVariable(sg,v,var.getName()+".",current_offset);
+		if(var.getType() instanceof ChannelType) {
+			ChannelVariable cv = (ChannelVariable)var;
+			ChannelType ct = cv.getType();
+//			int size = ct.getBits()/32;
+//			System.out.println("  " + name + " @" + current_offset + " (channel of size " + ct.getBufferSize() + ")");
+			VariableStore vs = ct.getVariableStore();
+
+			vd = new VarDescriptorVar(wrapNameForChannelBuffer(name));
+			if(var.getArraySize()>1) {
+				vd = new VarDescriptorArray(vd,var.getArraySize());
 			}
-		} else if(var.getType().getJavaName().equals("int")) {
-			System.out.println("  " + var.getName() + " @" + current_offset);
+			vd = new VarDescriptorArray(vd,ct.getBufferSize());
+			System.out.println(var.getName() + " has " + vs.getVariables().size());
+			vd = new VarDescriptorChannel(vd,vs.getVariables().size());
+			vd.setType(wrapNameForChannel(name));
 
-			if (var.getArraySize() > 1) {
-				state_var_offset.put(var, current_offset);
-				state_var_desc.put(var, desc + var.getName());
-				for(int i=0; i<var.getArraySize(); ++i) {
-					// Add global to Variable->offset map and add a description
-					state_vector_desc.add(desc + var.getName());
-					state_vector_var.add(var);
-					current_offset += STATE_ELEMENT_SIZE;
+			if (ct.getBufferSize() > 0) {
+
+//				// Add global to the global state struct
+//				sg.addMember(new TypeDesc(wrapNameForChannel(name),"["+ct.getBufferSize()+"]"),name);
+//
+//				for(int i=0; i<ct.getBufferSize(); ++i) {
+//					int j=0;
+//					for(Variable v: vs.getVariables()) {
+//						current_offset = insertVariable(sg, v, desc+wrapName(var.getName()) + "[" + j + "]" + ".","m"+i, current_offset);
+//						//current_offset = handleVariable(sg,v,wrapName(var.getName()) + "[" + j + "]" + ".","m"+i,current_offset);
+//						++j;
+//					}
+//				}
+
+				System.out.println("Adding CHANNEL: " + var.getName() + " " + var.hashCode());
+				current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
+				sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
+
+				for(String s: vd.extractDescription()) {
+					current_offset = insertVariable(sg, var, desc, s, current_offset);
 				}
+				sg.addMember(vd.getType(),vd.extractDeclaration());
+
 			} else {
-				// Add global to Variable->offset map and add a description
-				state_var_offset.put(var, current_offset);
-				state_var_desc.put(var, desc + var.getName());
-				state_vector_desc.add(desc + var.getName());
-				state_vector_var.add(var);
-				current_offset += STATE_ELEMENT_SIZE;
+
+				System.out.println("Adding CHANNEL: " + var.getName() + " " + var.hashCode());
+				current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
+				sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
+
+
+
+				//System.out.println("NOT YET IMPLEMENTED: RENDEZ VOUZ");
+				//System.exit(-1);
+//				// Add global to Variable->offset map and add a description
+//				state_var_offset.put(var, current_offset);
+//				state_var_desc.put(var, desc + name);
+//				state_vector_desc.add(desc + name);
+//				state_vector_var.add(var);
+//				current_offset += STATE_ELEMENT_SIZE;
 			}
 
+		} else if(var.getType() instanceof VariableType) {
+			if(var.getType().getJavaName().equals("int")) {
+				System.out.println("  " + name + " @" + current_offset + " (" + var.getType().getName() + ")");
+
+				// Add global to the global state struct
+				TypeDesc td = getCTypeOfVar(var);
+				sg.addMember(td,name);
+
+				if (var.getArraySize() > 1) {
+					for(int i=0; i<var.getArraySize(); ++i) {
+						current_offset = insertVariable(sg,var,desc,name,current_offset);
+					}
+				} else {
+					current_offset = insertVariable(sg,var,desc,name,current_offset);
+				}
+
+			} else if(var.getType().getJavaName().equals("Type")) {
+
+				// Untested
+				CustomVariableType cvt = (CustomVariableType)var.getType();
+				for(Variable v: cvt.getVariableStore().getVariables()) {
+					current_offset = handleVariable(sg,v,name+".",name,current_offset,vd);
+				}
+
+			} else {
+				System.out.println("ERROR: Unknown error trying to handle an integer");
+				System.exit(0);
+			}
 		} else {
 			System.out.println("ERROR: Unable to handle: " + var.getType().getName());
 			System.exit(0);
@@ -1354,6 +1984,18 @@ public class LTSMinPrinter {
 
 	private String wrapName(String name) {
 		return name;
+	}
+
+	private String wrapNameForChannel(String name) {
+		return "ch_"+wrapName(name)+"_t";
+	}
+
+	private String wrapNameForChannelDesc(String name) {
+		return wrapName(name);
+	}
+
+	private String wrapNameForChannelBuffer(String name) {
+		return wrapName(name)+"_buffer";
 	}
 
 	void handleAssignDependency(Proctype process, int trans, Expression e) {
@@ -1385,6 +2027,103 @@ public class LTSMinPrinter {
 			System.out.println("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 			System.exit(-1);
 		}
+	}
+
+	void generateRendezVousAction(StringWriter w, SendAction sa, ReadAction ra, int trans) {
+		ChannelSendAction csa = sa.csa;
+		ChannelReadAction cra = ra.cra;
+
+
+		if(csa.getVariable() != cra.getVariable()) {
+			throw new AssertionError("generateRendezVousAction() called with inconsequent ChannelVariable");
+		}
+		ChannelVariable var = (ChannelVariable)csa.getVariable();
+		if(var.getType().getBufferSize()>0) {
+			throw new AssertionError("generateRendezVousAction() called with non-rendezvous channel");
+		}
+
+		List<Expression> csa_exprs = csa.getExprs();
+		List<Expression> cra_exprs = cra.getExprs();
+
+		if(csa_exprs.size() != cra_exprs.size()) {
+			throw new AssertionError("generateRendezVousAction() called with incompatible actions: size mismatch");
+		}
+
+		w.appendLine("l",trans,": if(",C_STATE_TMP,".",wrapName(sa.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",sa.t.getFrom().getStateId(),
+		                        " && ",C_STATE_TMP,".",wrapName(ra.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",ra.t.getFrom().getStateId(),") {");
+		w.indent();
+
+		w.appendPrefix();
+		w.append("if( true");
+		for (int i = 0; i < cra_exprs.size(); i++) {
+			final Expression csa_expr = csa_exprs.get(i);
+			final Expression cra_expr = cra_exprs.get(i);
+			if (!(cra_expr instanceof Identifier)) {
+				w.append(" && (");
+				try {
+					generateIntExpression(w, null, csa_expr);
+				} catch(ParseException e) {
+				}
+				w.append(" == ");
+				try {
+					generateIntExpression(w, null, cra_expr);
+				} catch(ParseException e) {
+				}
+				w.append(")");
+			}
+		}
+		w.append(") {");
+		w.appendPostfix();
+
+		w.indent();
+
+		// Change process counter of sender
+		w.appendLine("",C_STATE_TMP,".",
+				wrapName(sa.p.getName()),".",
+				C_STATE_PROC_COUNTER,".var = ",
+				sa.t.getTo().getStateId(),";"
+				);
+
+		// Change process counter of receiver
+		w.appendLine("",C_STATE_TMP,".",
+				wrapName(ra.p.getName()),".",
+				C_STATE_PROC_COUNTER,".var = ",
+				ra.t.getTo().getStateId(),";"
+				);
+
+		for (int i = 0; i < cra_exprs.size(); i++) {
+			final Expression csa_expr = csa_exprs.get(i);
+			final Expression cra_expr = cra_exprs.get(i);
+			System.out.println("JAAAAAAAAAAAAAAAAAAAAAAAAAAA " + csa_expr.getClass().getName());
+			System.out.println("JAAAAAAAAAAAAAAAAAAAAAAAAAAA " + cra_expr.getClass().getName());
+			if ((cra_expr instanceof Identifier)) {
+			System.out.println("JAAAAAAA----------------------");
+				w.appendPrefix();
+				try {
+					generateIntExpression(w, null, cra_expr);
+				} catch(ParseException e) {
+					e.printStackTrace();
+				}
+				w.append(" = ");
+				try {
+					generateIntExpression(w, null, csa_expr);
+				} catch(ParseException e) {
+					e.printStackTrace();
+				}
+				w.append(";");
+				w.appendPostfix();
+			}
+		}
+
+		w.appendLine("callback(arg,&transition_info,&tmp);");
+		w.appendLine("return ",1,";");
+
+		w.outdent();
+		w.appendLine("}");
+
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("return 0;");
 	}
 
 }
