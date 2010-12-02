@@ -289,7 +289,7 @@ public class Compile {
 			if (srcDir.isSet()) {
 				outputDir = new File(userDir, srcDir.getValue());
 			} else {
-				outputDir = new File(userDir, "spinja");
+				outputDir = userDir;
 //				[07-Apr-2010 12:20 ruys] was: outputDir = new File(new File(userDir, "spinja"), "generated");
 			}
 //		} else {
@@ -303,12 +303,12 @@ public class Compile {
 //		System.out.println("ltsmin: " + ltsmin.isSet());
 
 		if (ltsmin.isSet()) {
-			System.out.println("LTSMIN!");
-			Compile.writeLTSMinFiles(spec, name, outputDir);
+			Compile.writeLTSMinFiles(spec, file.getName(), outputDir);
+			System.out.println("Written Java files for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.cpp");
 		} else {
 			Compile.writeFiles(spec, name, outputDir);
+			System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
 		}
-		System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
 
 // [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
 //		if (createjar.isSet()) {
@@ -319,7 +319,7 @@ public class Compile {
 	}
 
 	private static void writeLTSMinFiles(final Specification spec, final String name, final File outputDir) {
-		final File javaFile = new File(outputDir, name + ".SpinJa.cpp");
+		final File javaFile = new File(outputDir, name + ".spinja.cpp");
 
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);

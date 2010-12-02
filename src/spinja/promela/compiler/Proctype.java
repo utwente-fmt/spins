@@ -410,4 +410,8 @@ public class Proctype implements VariableContainer {
 	public String toString() {
 		return getName();
 	}
+
+	public int getID() {
+		return id;
+	}
 }
