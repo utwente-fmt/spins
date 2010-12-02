@@ -470,6 +470,8 @@ public class LTSMinPrinter {
 	public static final String C_STATE_SIZE = "state_size";
 	public static final String C_STATE_INITIAL = "initial";
 	public static final String C_STATE_TMP = "tmp";
+	public static final String C_STATE_PRIORITY = "prioritiseProcess";
+	public static final String C_PRIORITY = C_STATE_GLOBALS+"."+C_STATE_PRIORITY;
 	public static final String C_TYPE_INT1   = "sj_int1";
 	public static final String C_TYPE_INT8   = "sj_int8";
 	public static final String C_TYPE_INT16  = "sj_int16";
@@ -515,6 +517,8 @@ public class LTSMinPrinter {
 
 	// The CStruct state vector
 	private CStruct state;
+
+	int loss_transition_id;
 
 	/**
 	 * Creates a new LTSMinPrinter using the specified Specification.
@@ -592,7 +596,11 @@ public class LTSMinPrinter {
 
 		// Generate code for the transitions
 		w.appendLine("");
-		generateTransitions(w);
+		int t = generateTransitions(w);
+
+		// Generate code for all the transitions
+		w.appendLine("");
+		generateTransitionsAll(w,t);
 
 		// Generate Dependency Matrix
 		w.appendLine("");
@@ -759,6 +767,14 @@ public class LTSMinPrinter {
 		System.out.println("== Globals");
 		CStruct sg = new CStruct(C_STATE_GLOBALS_T);
 
+		// Add priority process
+		{
+			sg.addMember(C_TYPE_INT32, C_STATE_PRIORITY);
+			current_offset+=STATE_ELEMENT_SIZE;
+			state_vector_desc.add(C_PRIORITY);
+			state_vector_var.add(null);
+		}
+
 		// Globals: add globals to the global state struct
 		VariableStore globals = spec.getVariableStore();
 		List<Variable> vars = globals.getVariables();
@@ -840,7 +856,13 @@ public class LTSMinPrinter {
 	 */
 	private void generateStateCode(StringWriter w) {
 
-	// Generate state struct comment
+		w.appendLine("");
+		w.appendLine("extern \"C\" int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
+		w.appendLine("extern \"C\" int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
+		w.appendLine("extern \"C\" int spinja_get_successor_all_advanced( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int* emitted );");
+		w.appendLine("extern \"C\" int spinja_get_successor_advanced( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int* emitted );");
+
+		// Generate state struct comment
 		for(int off=0; off<state_size/4; ++off) {
 			w.appendLine("// ",off,"\t",state_vector_desc.get(off));
 		}
@@ -905,6 +927,7 @@ public class LTSMinPrinter {
 		w.indent();
 		w.appendLine("if(state_size != sizeof(" + C_STATE_T + ")) { printf(\"state_t SIZE MISMATCH!: state=%i(%i) globals=%i\",sizeof(state_t),state_size,sizeof(state_globals_t)); }");
 		w.appendLine("memcpy(to, (char*)&",C_STATE_INITIAL,", state_size);");
+		w.appendLine("to->",C_PRIORITY,".var = -1;");
 		w.outdent();
 		w.appendLine("}");
 
@@ -1004,28 +1027,79 @@ public class LTSMinPrinter {
 		System.out.println(s);
 	}
 
+	private void generateTransitionsAll(StringWriter w, int transitions) {
+		w.appendLine("extern \"C\" int spinja_get_successor_all_advanced( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int* emit ) {");
+		w.indent();
+
+		w.appendLine("transition_info_t transition_info = { NULL, ",loss_transition_id," };");
+		//		w.appendLine("int t=",transitions,",emitted=0;");
+//		w.appendLine("for(;t--;) {");
+		w.appendLine("int t=",0,",emitted=0;");
+		w.appendLine("if(!emit) {");
+		w.indent();
+		w.appendLine("emit = (int*)malloc(",procs.size(),"*sizeof(int));");
+		w.appendLine("memset((void*)emit,0,",procs.size(),"*sizeof(int));");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("for(;t<",transitions,";++t) {");
+		w.indent();
+		w.appendLine("emitted += spinja_get_successor_advanced(model,t,in,callback,arg,emit);");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("{");
+		w.indent();
+		w.appendLine(C_STATE_T," ",C_STATE_TMP,";");
+		for(Proctype p: procs) {
+			w.appendLine("if( emit[",p.getID(),"] == 0 && ","in->",C_PRIORITY,".var == ",state_proc_offset.get(p),") {");
+			w.indent();
+			w.appendLine("printf(\"[",state_proc_offset.get(p),"] loss of atomicity!\\n\");");
+			w.appendLine("memcpy(&",C_STATE_TMP,",in,sizeof(",C_STATE_T,"));");
+			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = -1;");
+			w.appendLine("callback(arg,&transition_info,&tmp);");
+			w.appendLine("++emitted;");
+			w.outdent();
+			w.appendLine("}");
+		}
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("return emitted;");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine();
+		w.appendLine("extern \"C\" int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg ) {");
+		w.indent();
+		w.appendLine("int emitted[",procs.size(),"];");
+		w.appendLine("return spinja_get_successor_advanced(model,t,in,callback,arg,emitted);");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine();
+		w.appendLine("extern \"C\" int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg ) {");
+		w.indent();
+		w.appendLine("return spinja_get_successor_all_advanced(model,in,callback,arg,NULL);");
+		w.outdent();
+		w.appendLine("}");
+	}
+
 	/**
 	 * Generates the state transitions.
 	 * This calls generateTransitionsFromState() for every state in every process.
 	 * @param w The StringWriter to which the code is written.
 	 */
-	private void generateTransitions(StringWriter w) {
+	private int generateTransitions(StringWriter w) {
 
 		say("== Automata");
 		++say_indent;
 
 		// Generate the start: initialise tmp
-		w.appendLine(
-			"extern \"C\" int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg )\n",
-			"{");
+		w.appendLine("extern \"C\" int spinja_get_successor_advanced( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int* emitted ) {");
 		w.indent();
 
 		w.appendLine("transition_info_t transition_info = { NULL, t };");
 		w.appendLine("(void)model; // ignore model");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("register int pos;");
-		w.appendLine(C_STATE_T," tmp;");
-		w.appendLine("memcpy(&tmp,in,sizeof(",C_STATE_T,"));");
+		w.appendLine(C_STATE_T," ",C_STATE_TMP,";");
+		w.appendLine("memcpy(&",C_STATE_TMP,",in,sizeof(",C_STATE_T,"));");
 		w.appendLine();
 
 		// Create references for global variables
@@ -1086,12 +1160,21 @@ public class LTSMinPrinter {
 			ReadersAndWriters raw = e.getValue();
 			for(SendAction sa: raw.sendActions) {
 				for(ReadAction ra: raw.readActions) {
-					dep_matrix.ensureSize(current_transition+1);
-					generateRendezVousAction(w,sa,ra,trans);
-					current_transition = ++trans;
+					//if(state_proc_offset.get(sa.p) != state_proc_offset.get(ra.p)) {
+						dep_matrix.ensureSize(current_transition+1);
+						w.appendLine("l",trans,": // ",sa.p.getName(),"[",state_proc_offset.get(sa.p),"] --> ",ra.p.getName(),"[",state_proc_offset.get(ra.p),"]");
+						generateRendezVousAction(w,sa,ra,trans);
+						current_transition = ++trans;
+					//}
 				}
 			}
 		}
+
+		// Create loss of atomicity transition
+		dep_matrix.ensureSize(current_transition+1);
+		loss_transition_id = current_transition;
+		w.appendLine("l",loss_transition_id,": return 0;");
+		current_transition = ++trans;
 
 
 		// From the switch state we jump to the correct transition,
@@ -1132,6 +1215,8 @@ public class LTSMinPrinter {
 		w.appendLine("}");
 		--say_indent;
 
+		return trans;
+
 	}
 
 	/**
@@ -1162,10 +1247,18 @@ public class LTSMinPrinter {
 
 			// In the case of an ending state, generate a transition only
 			// changing the process counter to -1.
-			w.appendLine("l",trans,": if(",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId(),") {");
+			w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - end transition");
+			w.appendLine("if( ",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId());
+			if(process.getID()<procs.size()-1) {
+				w.appendLine("#ifdef SPINDEATHMODE ");
+				w.appendLine(" && ",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var == -1");
+				w.appendLine("#endif");
+			}
+			w.appendLine(") {");
 			w.indent();
 			w.appendLine("",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var = ",-1,";");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
+			w.appendLine("++emitted[",process.getID(),"];");
 			w.appendLine("return 1;");
 			w.outdent();
 			w.appendLine("}");
@@ -1190,6 +1283,37 @@ public class LTSMinPrinter {
 
 			for(Transition t: state.output) {
 
+				// DO NOT actionise channel send/read
+				{
+					Action a = null;
+					if(t.getActionCount()>0) {
+						a = t.getAction(0);
+					}
+					if(a!= null && a instanceof ChannelSendAction) {
+							ChannelSendAction csa = (ChannelSendAction)a;
+							ChannelVariable var = (ChannelVariable)csa.getVariable();
+						if(var.getType().getBufferSize()==0) {
+							ReadersAndWriters raw = channels.get(var);
+							if(raw==null) {
+								throw new AssertionError("Channel not found in list of channels!");
+							}
+							raw.sendActions.add(new SendAction(csa,t,process));
+							continue;
+						}
+					} else if(a!= null && a instanceof ChannelReadAction) {
+						ChannelReadAction cra = (ChannelReadAction)a;
+						ChannelVariable var = (ChannelVariable)cra.getVariable();
+						if(var.getType().getBufferSize()==0) {
+							ReadersAndWriters raw = channels.get(var);
+							if(raw==null) {
+								throw new AssertionError("Channel not found in list of channels!");
+							}
+							raw.readActions.add(new ReadAction(cra,t,process));
+							continue;
+						}
+					}
+				}
+
 				dep_matrix.ensureSize(current_transition+1);
 
 				System.out.println("Handling trans: " + t.getClass().getName());
@@ -1211,7 +1335,9 @@ public class LTSMinPrinter {
 
 
 				// Guard: process counter
-				w.appendLine("l",trans,": if(",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId(),") {");
+				w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - ",t.getFrom().isInAtomic()?"atomic":"normal"," transition");
+				w.appendLine("if(",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId()," &&");
+				w.appendLine("( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," ) ) {");
 				w.indent();
 
 				// Create references for local variables
@@ -1240,6 +1366,16 @@ public class LTSMinPrinter {
 				}
 				w.indent();
 
+					if(t.getTo()==null && process.getID()<procs.size()-1) {
+						w.appendLine("#ifdef SPINDEATHMODE ");
+						w.appendLine("if(",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var != -1) {");
+						w.indent();
+						w.appendLine("return 0;");
+						w.outdent();
+						w.appendLine("}");
+						w.appendLine("#endif");
+					}
+
 				// Change process counter
 				w.appendLine("",C_STATE_TMP,".",
 						wrapName(process.getName()),".",
@@ -1250,19 +1386,24 @@ public class LTSMinPrinter {
 				// Generate actions for this transition
 				generateStateTransition(w,process,t);
 
-				// Generate the callback and the rest
-				//if(t.getTo()!=null) {
-					w.appendLine("callback(arg,&transition_info,&tmp);");
-					w.appendLine("return ",1,";");
-				//}
 
-				if(state.isInAtomic()) {
-					atomicTransitions.add(new AtomTransition(trans, t, process));
+				if(t.getTo()!=null && t.getTo().isInAtomic()) {
+					//w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",process.getID(),";");
+					w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(process),";");
+					w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg,emitted);");
+				} else {
+					w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
+					// Generate the callback and the rest
+					//if(t.getTo()!=null) {
+						w.appendLine("callback(arg,&transition_info,&tmp);");
+						w.appendLine("++emitted[",process.getID(),"];");
+						w.appendLine("return ",1,";");
+					//}
 				}
 
 				w.outdent();
-				w.appendLine("}");
 
+					w.appendLine("}");
 				w.outdent();
 				w.appendLine("}");
 				w.appendLine("return 0;");
@@ -1336,10 +1477,10 @@ public class LTSMinPrinter {
 			}
 			w.append("}}");
 			if(++t>=dm.getRows()) {
-				w.appendLine("");
+				w.appendLine("  // ",t);
 				break;
 			}
-			w.appendLine(",");
+			w.appendLine(", // ",t);
 		}
 		w.appendLine("};");
 
@@ -1464,23 +1605,23 @@ public class LTSMinPrinter {
 
 					try {
 						int i = arrayExpr.getConstantValue();
-						dep_matrix.incRead(current_transition, state_var_offset.get(var)/4+i);
+						if(current_transition<dep_matrix.getRows()) dep_matrix.incRead(current_transition, state_var_offset.get(var)/4+i);
 					} catch(ParseException pe) {
 						for(int i=0; i<var.getArraySize(); ++i) {
-							dep_matrix.incRead(current_transition, state_var_offset.get(var)/4+i);
+							if(current_transition<dep_matrix.getRows()) dep_matrix.incRead(current_transition, state_var_offset.get(var)/4+i);
 						}
 					}
 				} else {
 					w.append("tmp.");
 					w.append(state_var_desc.get(var));
 					w.append("[0].var");
-					dep_matrix.incRead(current_transition, state_var_offset.get(var)/4);
+					if(current_transition<dep_matrix.getRows()) dep_matrix.incRead(current_transition, state_var_offset.get(var)/4);
 				}
 			} else {
 				w.append("tmp.");
 				w.append(state_var_desc.get(var));
 				w.append(".var");
-				dep_matrix.incRead(current_transition, state_var_offset.get(var)/4);
+				if(current_transition<dep_matrix.getRows()) dep_matrix.incRead(current_transition, state_var_offset.get(var)/4);
 			}
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
@@ -1712,12 +1853,7 @@ public class LTSMinPrinter {
 				//w.appendLine(access,".filled = (",access,".filled+1) * (",access,".filled<=",var.getType().getVariableStore().getVariables().size()+");");
 				w.appendLine("++",access, ".filled;");
 			} else {
-				ReadersAndWriters raw = channels.get(var);
-				if(raw==null) {
-					throw new AssertionError("Channel not found in list of channels!");
-				}
-
-				raw.sendActions.add(new SendAction(csa,t,process));
+				throw new AssertionError("Trying to actionise rendezvous send!");
 			}
 
 		// Handle a channel read action
@@ -1745,12 +1881,7 @@ public class LTSMinPrinter {
 				w.appendLine(access,".nextRead = (",access,".nextRead+1)%"+var.getType().getBufferSize()+";");
 				w.appendLine("--",access, ".filled;");
 			} else {
-				ReadersAndWriters raw = channels.get(var);
-				if(raw==null) {
-					throw new AssertionError("Channel not found in list of channels!");
-				}
-
-				raw.readActions.add(new ReadAction(cra,t,process));
+				throw new AssertionError("Trying to actionise rendezvous receive!");
 			}
 
 		// Handle not yet implemented action
@@ -1799,7 +1930,8 @@ public class LTSMinPrinter {
 //					return var + " != -1 && !_channels[" + var + "].isRendezVous() && _channels[" + var
 //				+ "].canSend()";
 			} else {
-				w.append("false");
+				throw new AssertionError("Trying to actionise rendezvous send!");
+				//w.append("false");
 			}
 
 		// Handle a channel read action
@@ -1831,7 +1963,8 @@ public class LTSMinPrinter {
 
 				w.append(")");
 			} else {
-				w.append("false");
+				throw new AssertionError("Trying to actionise rendezvous receive!");
+				//w.append("false");
 			}
 
 
@@ -2029,7 +2162,10 @@ public class LTSMinPrinter {
 		}
 	}
 
-	void generateRendezVousAction(StringWriter w, SendAction sa, ReadAction ra, int trans) {
+	/**
+	 * Generate Pre code for a rendezvous couple.
+	 */
+	private void generatePreRendezVousAction(StringWriter w, SendAction sa, ReadAction ra) {
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
 
@@ -2049,8 +2185,9 @@ public class LTSMinPrinter {
 			throw new AssertionError("generateRendezVousAction() called with incompatible actions: size mismatch");
 		}
 
-		w.appendLine("l",trans,": if(",C_STATE_TMP,".",wrapName(sa.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",sa.t.getFrom().getStateId(),
-		                        " && ",C_STATE_TMP,".",wrapName(ra.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",ra.t.getFrom().getStateId(),") {");
+		w.appendLine("if(",C_STATE_TMP,".",wrapName(sa.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",sa.t.getFrom().getStateId(),
+		                        " && ",C_STATE_TMP,".",wrapName(ra.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",ra.t.getFrom().getStateId()," && ");
+		w.appendLine("( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(sa.p)," || ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(ra.p)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," ) ) {");
 		w.indent();
 
 		w.appendPrefix();
@@ -2063,11 +2200,13 @@ public class LTSMinPrinter {
 				try {
 					generateIntExpression(w, null, csa_expr);
 				} catch(ParseException e) {
+					e.printStackTrace();
 				}
 				w.append(" == ");
 				try {
 					generateIntExpression(w, null, cra_expr);
 				} catch(ParseException e) {
+					e.printStackTrace();
 				}
 				w.append(")");
 			}
@@ -2076,6 +2215,38 @@ public class LTSMinPrinter {
 		w.appendPostfix();
 
 		w.indent();
+	}
+
+	private void generatePostRendezVousAction(StringWriter w, SendAction sa, ReadAction ra) {
+		w.outdent();
+
+		if(sa.t.getFrom()!=null && sa.t.getFrom().isInAtomic()) {
+			w.appendLine("} else if(",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(sa.p),") {");
+			w.indent();
+			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = -1;");
+			//w.appendLine("return spinja_get_successor_advanced(model,t,&tmp,callback,arg);");
+			//w.appendLine("goto switch_state;");
+			w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] handled %i losses of atomicity so far\\n\",++n_losses);");
+			w.appendLine("callback(arg,&transition_info,&tmp);");
+			w.appendLine("++emitted[",sa.p.getID(),"];");
+			w.appendLine("return ",1,";");
+			//w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg);");
+			w.outdent();
+			w.appendLine("}");
+		} else {
+			w.appendLine("}");
+		}
+
+		w.outdent();
+		w.appendLine("}");
+	}
+
+	private void generateRendezVousAction(StringWriter w, SendAction sa, ReadAction ra, int trans) {
+		ChannelSendAction csa = sa.csa;
+		ChannelReadAction cra = ra.cra;
+
+		// Pre
+		generatePreRendezVousAction(w,sa,ra);
 
 		// Change process counter of sender
 		w.appendLine("",C_STATE_TMP,".",
@@ -2091,6 +2262,8 @@ public class LTSMinPrinter {
 				ra.t.getTo().getStateId(),";"
 				);
 
+		List<Expression> csa_exprs = csa.getExprs();
+		List<Expression> cra_exprs = cra.getExprs();
 		for (int i = 0; i < cra_exprs.size(); i++) {
 			final Expression csa_expr = csa_exprs.get(i);
 			final Expression cra_expr = cra_exprs.get(i);
@@ -2115,14 +2288,24 @@ public class LTSMinPrinter {
 			}
 		}
 
-		w.appendLine("callback(arg,&transition_info,&tmp);");
-		w.appendLine("return ",1,";");
 
-		w.outdent();
-		w.appendLine("}");
+		if(ra.t.getTo()!=null && ra.t.getTo().isInAtomic()) {
+			//w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",process.getID(),";");
+			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(ra.p),";");
+			w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg,emitted);");
+		} else {
+			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
+			// Generate the callback and the rest
+			//if(t.getTo()!=null) {
+				w.appendLine("callback(arg,&transition_info,&tmp);");
+				w.appendLine("++emitted[",sa.p.getID()+1,"];");
+				w.appendLine("return ",1,";");
+			//}
+		}
 
-		w.outdent();
-		w.appendLine("}");
+		// Post
+		generatePostRendezVousAction(w,sa,ra);
+
 		w.appendLine("return 0;");
 	}
 
