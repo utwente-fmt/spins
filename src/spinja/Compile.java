@@ -304,7 +304,7 @@ public class Compile {
 
 		if (ltsmin.isSet()) {
 			Compile.writeLTSMinFiles(spec, file.getName(), outputDir);
-			System.out.println("Written Java files for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.cpp");
+			System.out.println("Written Java files for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.c");
 		} else {
 			Compile.writeFiles(spec, name, outputDir);
 			System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
@@ -319,7 +319,7 @@ public class Compile {
 	}
 
 	private static void writeLTSMinFiles(final Specification spec, final String name, final File outputDir) {
-		final File javaFile = new File(outputDir, name + ".spinja.cpp");
+		final File javaFile = new File(outputDir, name + ".spinja.c");
 
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
