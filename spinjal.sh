@@ -21,8 +21,19 @@ while [ $# -gt 1 ] ; do
     shift
 done
 promela_file=$1
+output_file="$1.spinja.c"
+
+if [ -f $output_file ]; then
+	rm $output_file;
+fi
 
 java  -cp "$script_dir/spinja.jar"   spinja.Compile -o3 -l $promela_file
-g++ -fPIC -shared spinja/Pan.SpinJa.cpp -o spinja/Pan.spinja
-#javac -cp spinja.jar:. spinja/PanModel.java 
-#java  -Xss16m -Xms256m -Xmx1024m -cp spinja.jar:. spinja.PanModel $spinja_options
+if [ ! -f $output_file ]; then
+	echo "Compilation of $promela_file failed"
+	exit;
+fi
+
+g++ -fPIC -shared $output_file -o $promela_file.spinja -O0 -g $spinja_options
+if [ ! $? -eq 0 ]; then
+	echo "Compilation of $output_file failed"
+fi
