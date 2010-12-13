@@ -1043,10 +1043,10 @@ public class LTSMinPrinter {
 		}
 
 		// Add global state struct to main state struct
-		if(!vars.isEmpty()) {
-			state_members.add(sg);
-			state.addMember(C_STATE_GLOBALS_T, C_STATE_GLOBALS);
-		}
+		// Add it even if there are no global variables, since priorityProcess
+		// is a 'global'
+		state_members.add(sg);
+		state.addMember(C_STATE_GLOBALS_T, C_STATE_GLOBALS);
 
 		// Processes:
 		say("== Processes");
