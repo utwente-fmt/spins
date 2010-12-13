@@ -876,7 +876,7 @@ public class LTSMinPrinter {
 		w.appendLine("typedef union ",C_TYPE_INT1," {");
 		w.indent();
 		w.appendLine("int pad;");
-		w.appendLine("bool var;");
+		w.appendLine("unsigned int var:1;");
 		w.outdent();
 		w.appendLine("} ",C_TYPE_INT1,";");
 
