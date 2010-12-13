@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
+import spinja.promela.compiler.automaton.ElseTransition;
 import spinja.promela.compiler.automaton.EndTransition;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
@@ -1482,143 +1483,9 @@ public class LTSMinPrinter {
 
 			for(Transition t: state.output) {
 
-				// DO NOT actionise RENDEZVOUS channel send/read
-				// These will be remembered and handled later separately
-				{
-					Action a = null;
-					if(t.getActionCount()>0) {
-						a = t.getAction(0);
-					}
-					if(a!= null && a instanceof ChannelSendAction) {
-						ChannelSendAction csa = (ChannelSendAction)a;
-						ChannelVariable var = (ChannelVariable)csa.getVariable();
-						if(var.getType().getBufferSize()==0) {
+				// Generate transition
+				current_transition = trans = generateStateTransition(w,process,t,trans);
 
-							// Remember this rendezvous send action for later...
-							ReadersAndWriters raw = channels.get(var);
-							if(raw==null) {
-								throw new AssertionError("Channel not found in list of channels!");
-							}
-							raw.sendActions.add(new SendAction(csa,t,process));
-
-							// ...and go to next transition.
-							continue;
-						}
-					} else if(a!= null && a instanceof ChannelReadAction) {
-						ChannelReadAction cra = (ChannelReadAction)a;
-						ChannelVariable var = (ChannelVariable)cra.getVariable();
-						if(var.getType().getBufferSize()==0) {
-
-							// Remember this rendezvous send action for later...
-							ReadersAndWriters raw = channels.get(var);
-							if(raw==null) {
-								throw new AssertionError("Channel not found in list of channels!");
-							}
-							raw.readActions.add(new ReadAction(cra,t,process));
-
-							// ...and go to next transition.
-							continue;
-						}
-					}
-				}
-
-				// Ensure the dependency matrix is of adequate size
-				dep_matrix.ensureSize(current_transition+1);
-
-				say("Handling trans: " + t.getClass().getName());
-
-				// Checks
-				if(t==null) {
-					throw new AssertionError("State transition is NULL");
-				}
-
-				// Guard: process counter
-				w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - ",t.getFrom().isInAtomic()?"atomic":"normal"," transition");
-				w.appendLine("if(",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId()," &&");
-				w.appendLine("( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," ) ) {");
-				w.indent();
-
-				// Generate action guard using the first action in the list
-				// of the transition
-				try {
-					Action a = null;
-					if(t.getActionCount()>0) {
-						a = t.getAction(0);
-					}
-					if(a!= null && a.getEnabledExpression()!=null) {
-						w.appendPrefix();
-						w.append("if(");
-						generateEnabledExpression(w,process,a,t);
-						w.appendLine(") { //",a.getClass().getName());
-					} else {
-						w.appendLine("if(true) {");
-					}
-				} catch(ParseException e) {
-					e.printStackTrace();
-				}
-
-				// If the target state is null and this is not the last process
-				// in the list: produce code that optionally handles death of
-				// processes like Spin/SpinJa does: a process can only terminate
-				// when all processes that are higher in the list are dead.
-				w.indent();
-				if(t.getTo()==null && process.getID()<procs.size()-1) {
-					w.appendLine("#ifdef SPINDEATHMODE ");
-					w.appendLine("if(",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var != -1) {");
-					w.indent();
-					w.appendLine("return 0;");
-					w.outdent();
-					w.appendLine("}");
-					w.appendLine("#endif");
-				}
-
-				// Change process counter to the next state.
-				// For end transitions, the PC is changed to -1.
-				w.appendLine("",C_STATE_TMP,".",
-						wrapName(process.getName()),".",
-						C_STATE_PROC_COUNTER,".var = ",
-						t.getTo()==null?-1:t.getTo().getStateId(),";"
-						);
-
-				// Generate actions for this transition
-				generateStateTransition(w,process,t);
-
-				// If this transition is atomic
-				if(t.getTo()!=null && t.getTo().isInAtomic()) {
-
-					// Claim priority when taking this transition and call
-					// the get_all function and return. This makes sure atomic
-					// states are not counted as real states.
-					//w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",process.getID(),";");
-					w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(process),";");
-					w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg,emitted);");
-
-				// If this transition is not atomic
-				} else {
-
-					// Make sure no process has priority. This transition was
-					// either executed while having priority and it is now given
-					// up, or no process had priority and this remains the same.
-					w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
-
-					// Generate the callback and the rest
-					w.appendLine("callback(arg,&transition_info,&tmp);");
-					w.appendLine("++emitted[",process.getID(),"];");
-					w.appendLine("return ",1,";");
-				}
-
-				w.outdent();
-				w.appendLine("}");
-				w.outdent();
-				w.appendLine("}");
-				w.appendLine("return 0;");
-
-				// Dependency matrix: process counter
-				dep_matrix.incWrite(current_transition, state_proc_offset.get(process)/4);
-				dep_matrix.incRead(current_transition, state_proc_offset.get(process)/4);
-
-				// Keep track of the current transition ID
-				current_transition = ++trans;
 			}
 			--say_indent;
 		}
@@ -1628,6 +1495,173 @@ public class LTSMinPrinter {
 
 	}
 
+	public int generateStateTransition(StringWriter w, Proctype process, Transition t, int trans) {
+		// Checks
+		if(t==null) {
+			throw new AssertionError("State transition is NULL");
+		}
+
+		// DO NOT actionise RENDEZVOUS channel send/read
+		// These will be remembered and handled later separately
+		{
+			Action a = null;
+			if(t.getActionCount()>0) {
+				a = t.getAction(0);
+			}
+			if(a!= null && a instanceof ChannelSendAction) {
+				ChannelSendAction csa = (ChannelSendAction)a;
+				ChannelVariable var = (ChannelVariable)csa.getVariable();
+				if(var.getType().getBufferSize()==0) {
+
+					// Remember this rendezvous send action for later...
+					ReadersAndWriters raw = channels.get(var);
+					if(raw==null) {
+						throw new AssertionError("Channel not found in list of channels!");
+					}
+					raw.sendActions.add(new SendAction(csa,t,process));
+
+					// ...and go to next transition.
+					return trans;
+				}
+			} else if(a!= null && a instanceof ChannelReadAction) {
+				ChannelReadAction cra = (ChannelReadAction)a;
+				ChannelVariable var = (ChannelVariable)cra.getVariable();
+				if(var.getType().getBufferSize()==0) {
+
+					// Remember this rendezvous send action for later...
+					ReadersAndWriters raw = channels.get(var);
+					if(raw==null) {
+						throw new AssertionError("Channel not found in list of channels!");
+					}
+					raw.readActions.add(new ReadAction(cra,t,process));
+
+					// ...and go to next transition.
+					return trans;
+				}
+			}
+		}
+
+		// Ensure the dependency matrix is of adequate size
+		dep_matrix.ensureSize(trans+1);
+
+		say("Handling trans: " + t.getClass().getName());
+
+		// Guard: process counter
+		w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - ",t.getFrom().isInAtomic()?"atomic":"normal"," transition");
+		w.appendLine("if( ",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",t.getFrom().getStateId());
+		w.appendLine("&&( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," ) ) {");
+		w.indent();
+
+		// Generate action guard using the first action in the list
+		// of the transition
+		w.appendPrefix();
+		w.append("if( ");
+		generateTransitionGuard(w,process,t);
+		w.append(" ) {");
+		w.appendPostfix();
+		w.indent();
+
+		// If this is an ElseTransition, all other transitions should not be
+		// enabled, so make guards for this
+		w.appendPrefix();
+		w.append("if( true");
+		if(t instanceof ElseTransition) {
+			ElseTransition et = (ElseTransition)t;
+			for(Transition ot: t.getFrom().output) {
+				if(ot!=et) {
+					w.appendPostfix();
+					w.appendPrefix();
+					w.append("&&!(");
+					generateTransitionGuard(w,process,ot);
+					w.append(")");
+				}
+			}
+		}
+		w.append(" ) {");
+		w.appendPostfix();
+		w.indent();
+
+		// If the target state is null and this is not the last process
+		// in the list: produce code that optionally handles death of
+		// processes like Spin/SpinJa does: a process can only terminate
+		// when all processes that are higher in the list are dead.
+		if(t.getTo()==null && process.getID()<procs.size()-1) {
+			w.appendLine("#ifdef SPINDEATHMODE ");
+			w.appendLine("if(",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var != -1) {");
+			w.indent();
+			w.appendLine("return 0;");
+			w.outdent();
+			w.appendLine("}");
+			w.appendLine("#endif");
+		}
+
+		// Change process counter to the next state.
+		// For end transitions, the PC is changed to -1.
+		w.appendLine("",C_STATE_TMP,".",
+				wrapName(process.getName()),".",
+				C_STATE_PROC_COUNTER,".var = ",
+				t.getTo()==null?-1:t.getTo().getStateId(),";"
+				);
+
+		// Generate actions for this transition
+		generateStateTransitionActions(w,process,t);
+
+		// If this transition is atomic
+		if(t.getTo()!=null && t.getTo().isInAtomic()) {
+
+			// Claim priority when taking this transition. It is
+			// possible this process had already priority, so nothing
+			// changes.
+			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(process),";");
+
+		// If this transition is not atomic
+		} else {
+
+			// Make sure no process has priority. This transition was
+			// either executed while having priority and it is now given
+			// up, or no process had priority and this remains the same.
+			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
+
+		}
+
+			// Generate the callback and the rest
+		w.appendLine("callback(arg,&transition_info,&tmp);");
+		w.appendLine("++emitted[",process.getID(),"];");
+		w.appendLine("return ",1,";");
+
+		w.outdent();
+		w.appendLine("} // else");
+
+		w.outdent();
+		w.appendLine("} // guard");
+
+		w.outdent();
+		w.appendLine("} // state");
+
+		w.appendLine("return 0;");
+
+		// Dependency matrix: process counter
+		dep_matrix.incWrite(trans, state_proc_offset.get(process)/4);
+		dep_matrix.incRead(trans, state_proc_offset.get(process)/4);
+		return trans+1;
+	}
+
+	void generateTransitionGuard(StringWriter w, Proctype process, Transition t) {
+		try {
+			Action a = null;
+			if(t.getActionCount()>0) {
+				a = t.getAction(0);
+			}
+			if(a!= null && a.getEnabledExpression()!=null) {
+				generateEnabledExpression(w,process,a,t);
+			} else {
+				w.append("true");
+			}
+		} catch(ParseException e) {
+			e.printStackTrace();
+		}
+	}
+
 	/**
 	 * Generate the actions for the specified transition. The transition should
 	 * be in the specified process.
@@ -1635,7 +1669,7 @@ public class LTSMinPrinter {
 	 * @param process The transition should be in this process.
 	 * @param t The transition of which to generate the associated actions.
 	 */
-	private void generateStateTransition(StringWriter w, Proctype process, Transition t) {
+	private void generateStateTransitionActions(StringWriter w, Proctype process, Transition t) {
 
 		// Handle all the action in the transition
 		Iterator<Action> it = t.iterator();
