@@ -1125,8 +1125,6 @@ public class LTSMinPrinter {
 		w.appendLine("");
 		w.appendLine("extern \"C\" int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 		w.appendLine("extern \"C\" int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
-		w.appendLine("extern \"C\" int spinja_get_successor_all_advanced( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int* emitted );");
-		w.appendLine("extern \"C\" int spinja_get_successor_advanced( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int* emitted );");
 
 		// Generate state struct comment
 		for(int off=0; off<state_size/4; ++off) {
@@ -1306,54 +1304,19 @@ public class LTSMinPrinter {
 	}
 
 	private void generateTransitionsAll(StringWriter w, int transitions) {
-		w.appendLine("extern \"C\" int spinja_get_successor_all_advanced( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int* emit ) {");
+		w.appendLine("extern \"C\" int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 
-		w.appendLine("transition_info_t transition_info = { NULL, ",loss_transition_id," };");
 		w.appendLine("int t=",transitions,",emitted=0;");
-		w.appendLine("if(!emit) {");
-		w.indent();
-		w.appendLine("emit = (int*)malloc(",procs.size(),"*sizeof(int));");
-		w.appendLine("memset((void*)emit,0,",procs.size(),"*sizeof(int));");
-		w.outdent();
-		w.appendLine("}");
 		w.appendLine("for(;t--;) {");
 		w.indent();
-		w.appendLine("emitted += spinja_get_successor_advanced(model,t,in,callback,arg,emit);");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("{");
-		w.indent();
-		w.appendLine(C_STATE_T," ",C_STATE_TMP,";");
-		for(Proctype p: procs) {
-			w.appendLine("if( emit[",p.getID(),"] == 0 && ","in->",C_PRIORITY,".var == ",state_proc_offset.get(p),") {");
-			w.indent();
-			w.appendLine("printf(\"[",state_proc_offset.get(p),"] loss of atomicity!\\n\");");
-			w.appendLine("memcpy(&",C_STATE_TMP,",in,sizeof(",C_STATE_T,"));");
-			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = -1;");
-			w.appendLine("callback(arg,&transition_info,&tmp);");
-			w.appendLine("++emitted;");
-			w.outdent();
-			w.appendLine("}");
-		}
+		w.appendLine("emitted += spinja_get_successor(model,t,in,callback,arg);");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("return emitted;");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine();
-		w.appendLine("extern \"C\" int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg ) {");
-		w.indent();
-		w.appendLine("int emitted[",procs.size(),"];");
-		w.appendLine("return spinja_get_successor_advanced(model,t,in,callback,arg,emitted);");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine();
-		w.appendLine("extern \"C\" int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg ) {");
-		w.indent();
-		w.appendLine("return spinja_get_successor_all_advanced(model,in,callback,arg,NULL);");
-		w.outdent();
-		w.appendLine("}");
 	}
 
 	/**
@@ -1367,7 +1330,7 @@ public class LTSMinPrinter {
 		++say_indent;
 
 		// Generate the start: initialise tmp
-		w.appendLine("extern \"C\" int spinja_get_successor_advanced( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int* emitted ) {");
+		w.appendLine("extern \"C\" int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 
 		w.appendLine("transition_info_t transition_info = { NULL, t };");
@@ -1453,7 +1416,6 @@ public class LTSMinPrinter {
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
 			w.appendLine("printf(\"[",state_proc_offset.get(process),"] @%i BIG IF - handled %i losses of atomicity so far\\n\",__LINE__,++n_losses);");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
-			w.appendLine("++emitted[",process.getID(),"];");
 			w.appendLine("return ",1,";");
 			w.outdent();
 			w.appendLine("}");
@@ -1525,7 +1487,6 @@ public class LTSMinPrinter {
 			w.indent();
 			w.appendLine("",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var = ",-1,";");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
-			w.appendLine("++emitted[",process.getID(),"];");
 			w.appendLine("return 1;");
 			w.outdent();
 			w.appendLine("}");
@@ -1699,7 +1660,6 @@ public class LTSMinPrinter {
 
 			// Generate the callback and the rest
 		w.appendLine("callback(arg,&transition_info,&tmp);");
-		w.appendLine("++emitted[",process.getID(),"];");
 		w.appendLine("return ",1,";");
 
 		w.outdent();
@@ -2636,7 +2596,6 @@ public class LTSMinPrinter {
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = -1;");
 			//w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] handled %i losses of atomicity so far\\n\",++n_losses);");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
-			w.appendLine("++emitted[",sa.p.getID(),"];");
 			w.appendLine("return ",1,";");
 			//w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg);");
 			w.outdent();
@@ -2704,19 +2663,14 @@ public class LTSMinPrinter {
 		if(ra.t.getTo()!=null && ra.t.getTo().isInAtomic()) {
 			//w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",process.getID(),";");
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(ra.p),";");
-			//w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg,emitted);");
 			w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] rendezvous: transferred atomicity to ",state_proc_offset.get(ra.p)," \\n\");");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
-			w.appendLine("++emitted[",sa.p.getID(),"];");
-			w.appendLine("++emitted[",ra.p.getID(),"];");
 			w.appendLine("return ",1,";");
 		} else {
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
 			// Generate the callback and the rest
 			//if(t.getTo()!=null) {
 				w.appendLine("callback(arg,&transition_info,&tmp);");
-				w.appendLine("++emitted[",sa.p.getID(),"];");
-				w.appendLine("++emitted[",ra.p.getID(),"];");
 				w.appendLine("return ",1,";");
 			//}
 		}
