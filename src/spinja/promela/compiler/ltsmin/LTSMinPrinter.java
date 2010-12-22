@@ -715,6 +715,16 @@ public class LTSMinPrinter {
 
 	}
 
+	public class AtomicState {
+		public State s;
+		public Proctype p;
+
+		public AtomicState(State s, Proctype p) {
+			this.s = s;
+			this.p = p;
+		}
+	}
+
 	/// The size of one element in the state struct in bytes.
 	public static final int STATE_ELEMENT_SIZE = 4;
 
@@ -759,6 +769,9 @@ public class LTSMinPrinter {
 	// The current transition group is currently being generated
 	private int current_transition;
 
+	// Atomic states - of these loss of atomicity will be generated
+	private List<AtomicState> atomicStates;
+
 	// The specification of which code is to be generated,
 	// initialised by constructor
 	private final Specification spec;
@@ -772,7 +785,12 @@ public class LTSMinPrinter {
 	// The CStruct state vector
 	private CStruct state;
 
+	// The transition ID of the transition that handles loss of atomicity
 	int loss_transition_id;
+
+	// Set to true when all transitions have been parsed.
+	// After this, channels and loss of atomicity is handled.
+	boolean seenItAll = false;
 
 	/**
 	 * Creates a new LTSMinPrinter using the specified Specification.
@@ -793,6 +811,7 @@ public class LTSMinPrinter {
 		state_vector_desc = new ArrayList<String>();
 		state_vector_var = new ArrayList<Variable>();
 		procs = new ArrayList<Proctype>();
+		atomicStates = new ArrayList<AtomicState>();
 
 		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
 	}
@@ -1366,6 +1385,7 @@ public class LTSMinPrinter {
 
 			--say_indent;
 		}
+		seenItAll = true;
 
 		// Generate the rendezvous transitions
 		for(Map.Entry<ChannelVariable,ReadersAndWriters> e: channels.entrySet()) {
@@ -1387,10 +1407,38 @@ public class LTSMinPrinter {
 
 		// Create loss of atomicity transition.
 		// This is used when a process blocks inside an atomic transition.
-		// The actual code for the transition is in generateTransitionsAll().
 		dep_matrix.ensureSize(current_transition+1);
 		loss_transition_id = current_transition;
-		w.appendLine("l",loss_transition_id,": return 0;");
+		w.appendLine("l",loss_transition_id,": // loss of transitions");
+		for(AtomicState as: atomicStates) {
+			State s = as.s;
+			Proctype process = as.p;
+			assert(s.isInAtomic());
+			w.appendPrefix();
+			//w.append("if( true /* s= ").append(s.getStateId()).append(" */");
+			w.append("if( ").append(C_STATE_TMP).append(".").append(wrapName(process.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(s.getStateId());
+			w.appendPostfix();
+			w.appendPrefix();
+			w.append("&&( ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var == ").append(state_proc_offset.get(process)).append(" )");
+			for(Transition ot: s.output) {
+				w.appendPostfix();
+				w.appendPrefix();
+				w.append("&&!(");
+				generateTransitionGuard(w,process,ot);
+				w.append(")");
+			}
+			w.append(" ) {");
+			w.appendPostfix();
+			w.indent();
+			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
+			w.appendLine("printf(\"[",state_proc_offset.get(process),"] @%i BIG IF - handled %i losses of atomicity so far\\n\",__LINE__,++n_losses);");
+			w.appendLine("callback(arg,&transition_info,&tmp);");
+			w.appendLine("++emitted[",process.getID(),"];");
+			w.appendLine("return ",1,";");
+			w.outdent();
+			w.appendLine("}");
+		}
+		w.appendLine("return 0;");
 		current_transition = ++trans;
 
 		// From the switch state we jump to the correct transition,
@@ -1476,6 +1524,11 @@ public class LTSMinPrinter {
 			// counter to the next state and any actions the transition does.
 			++say_indent;
 			//int outs = 0;
+
+			// If this is an atomic state, add it to the list
+			if(state.isInAtomic()) {
+				atomicStates.add(new AtomicState(state,process));
+			}
 
 			if(state.output==null) {
 				throw new AssertionError("State's output list is NULL");
@@ -2194,8 +2247,40 @@ public class LTSMinPrinter {
 				w.append(access).append(".filled < ");
 				w.append(var.getType().getBufferSize()).append(")");
 
+			} else if(seenItAll) {
+				ReadersAndWriters raw = channels.get(var);
+				w.append("false");
+				for(ReadAction ra: raw.readActions) {
+					List<Expression> csa_exprs = csa.getExprs();
+					List<Expression> cra_exprs = ra.cra.getExprs();
+					w.appendPostfix();
+					w.appendPrefix();
+					w.append(" || ( (");
+					w.append(C_STATE_TMP).append(".").append(wrapName(ra.p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(ra.t.getFrom().getStateId());
+					w.append(" )");
+					for (int i = 0; i < cra_exprs.size(); i++) {
+						final Expression csa_expr = csa_exprs.get(i);
+						final Expression cra_expr = cra_exprs.get(i);
+						if (!(cra_expr instanceof Identifier)) {
+							w.append(" && (");
+							try {
+								generateIntExpression(w, null, csa_expr);
+							} catch(ParseException e) {
+								e.printStackTrace();
+							}
+							w.append(" == ");
+							try {
+								generateIntExpression(w, null, cra_expr);
+							} catch(ParseException e) {
+								e.printStackTrace();
+							}
+							w.append(")");
+						}
+					}
+					w.append(")");
+				}
 			} else {
-				throw new AssertionError("Trying to actionise rendezvous send!");
+				throw new AssertionError("Trying to actionise rendezvous send before all others!");
 			}
 
 		// Handle a channel read action
@@ -2225,8 +2310,40 @@ public class LTSMinPrinter {
 				}
 
 				w.append(")");
+			} else if(seenItAll) {
+				ReadersAndWriters raw = channels.get(var);
+				w.append("false");
+				for(SendAction sa: raw.sendActions) {
+					List<Expression> csa_exprs = sa.csa.getExprs();
+					List<Expression> cra_exprs = cra.getExprs();
+					w.appendPostfix();
+					w.appendPrefix();
+					w.append(" || ( (");
+					w.append(C_STATE_TMP).append(".").append(wrapName(sa.p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(sa.t.getFrom().getStateId());
+					w.append(" )");
+					for (int i = 0; i < cra_exprs.size(); i++) {
+						final Expression csa_expr = csa_exprs.get(i);
+						final Expression cra_expr = cra_exprs.get(i);
+						if (!(cra_expr instanceof Identifier)) {
+							w.append(" && (");
+							try {
+								generateIntExpression(w, null, csa_expr);
+							} catch(ParseException e) {
+								e.printStackTrace();
+							}
+							w.append(" == ");
+							try {
+								generateIntExpression(w, null, cra_expr);
+							} catch(ParseException e) {
+								e.printStackTrace();
+							}
+							w.append(")");
+						}
+					}
+					w.append(")");
+				}
 			} else {
-				throw new AssertionError("Trying to actionise rendezvous receive!");
+				throw new AssertionError("Trying to actionise rendezvous receive before all others!");
 			}
 
 
@@ -2497,8 +2614,6 @@ public class LTSMinPrinter {
 			w.appendLine("} else if(",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(sa.p),") {");
 			w.indent();
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = -1;");
-			//w.appendLine("return spinja_get_successor_advanced(model,t,&tmp,callback,arg);");
-			//w.appendLine("goto switch_state;");
 			//w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] handled %i losses of atomicity so far\\n\",++n_losses);");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
 			w.appendLine("++emitted[",sa.p.getID(),"];");
@@ -2569,13 +2684,19 @@ public class LTSMinPrinter {
 		if(ra.t.getTo()!=null && ra.t.getTo().isInAtomic()) {
 			//w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",process.getID(),";");
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(ra.p),";");
-			w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg,emitted);");
+			//w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg,emitted);");
+			w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] rendezvous: transferred atomicity to ",state_proc_offset.get(ra.p)," \\n\");");
+			w.appendLine("callback(arg,&transition_info,&tmp);");
+			w.appendLine("++emitted[",sa.p.getID(),"];");
+			w.appendLine("++emitted[",ra.p.getID(),"];");
+			w.appendLine("return ",1,";");
 		} else {
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
 			// Generate the callback and the rest
 			//if(t.getTo()!=null) {
 				w.appendLine("callback(arg,&transition_info,&tmp);");
-				w.appendLine("++emitted[",sa.p.getID()+1,"];");
+				w.appendLine("++emitted[",sa.p.getID(),"];");
+				w.appendLine("++emitted[",ra.p.getID(),"];");
 				w.appendLine("return ",1,";");
 			//}
 		}
