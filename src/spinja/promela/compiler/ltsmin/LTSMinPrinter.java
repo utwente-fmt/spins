@@ -1198,11 +1198,31 @@ public class LTSMinPrinter {
 		w.appendLine("}");
 
 		// Generate state printer
-		w.appendLine("void print_state(",C_STATE_T," &s) {");
+		w.appendLine("void print_state(",C_STATE_T,"* s) {");
+		w.indent();
+		w.appendLine("if(!s) return;");
 		for(int i=0; i<state_size; i+=4) {
 			String v = getStateDescription(i);
-			w.appendLine("    printf(\"",v,": %8i\\n\",s.",v,");");
+			Variable var = state_vector_var.get(i/4);
+			if(var==null) {
+				w.appendLine("printf(\"",v,": %i\\n\",s->",v,".var);");
+			} else if(var instanceof ChannelVariable) {
+				ChannelVariable cv = (ChannelVariable)var;
+				if(cv.getType().getBufferSize()==0) {
+					w.appendLine("printf(\"[CH] ",v,": rendezvous\\n\");");
+				} else {
+					w.appendLine("printf(\"[CH] ",v,": nextRead=%i, filled=%i\\n\",s->",v,".nextRead,s->",v,".filled);");
+				}
+			} else if(var.getArraySize()>1) {
+				for(int j=0; i<state_size && j<var.getArraySize(); ++j, i+=4) {
+					w.appendLine("printf(\"",v,": %i\\n\",s->",v,"[",j,"].var);");
+				}
+			} else {
+				w.appendLine("printf(\"",v,": %i\\n\",s->",v,".var);");
+				//w.appendLine("printf(\"",v,": %i\\n\",s->",v,".var);");
+			}
 		}
+		w.outdent();
 		w.appendLine("}");
 		
 	}
@@ -2129,7 +2149,7 @@ public class LTSMinPrinter {
 			w.appendLine(") {");
 			w.indent();
 			w.appendLine("printf(\"Assertion violated: ",as.getExpr().toString(), "\\n\");");
-			w.appendLine("print_state(tmp);");
+			w.appendLine("print_state(&tmp);");
 			w.outdent();
 			w.appendLine("}");
 
