@@ -295,17 +295,18 @@ public class Compile {
 //		} else {
 //			outputDir = Compile.generateTmpDir(userDir);
 //		}
-		if (!outputDir.exists() && !outputDir.mkdirs()) {
-			System.out.println("Error: could not generate directory " + outputDir.getName());
-			System.exit(-3);
-		}
 
 //		System.out.println("ltsmin: " + ltsmin.isSet());
 
 		if (ltsmin.isSet()) {
 			Compile.writeLTSMinFiles(spec, file.getName(), outputDir);
-			System.out.println("Written Java files for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.c");
+			System.out.println("Written C model for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.c");
 		} else {
+			outputDir = new File(userDir, "spinja");
+			if (!outputDir.exists() && !outputDir.mkdirs()) {
+				System.out.println("Error: could not generate directory " + outputDir.getName());
+				System.exit(-3);
+			}
 			Compile.writeFiles(spec, name, outputDir);
 			System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
 		}
