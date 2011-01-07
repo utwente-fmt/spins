@@ -2283,12 +2283,12 @@ public class LTSMinPrinter {
 
 			} else if(seenItAll) {
 				ReadersAndWriters raw = channels.get(var);
-				w.append("false");
+				w.append("(false");
 				for(ReadAction ra: raw.readActions) {
 					List<Expression> csa_exprs = csa.getExprs();
 					List<Expression> cra_exprs = ra.cra.getExprs();
-					w.appendPostfix();
-					w.appendPrefix();
+					//w.appendPostfix();
+					//w.appendPrefix();
 					w.append(" || ( (");
 					w.append(C_STATE_TMP).append(".").append(wrapName(ra.p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(ra.t.getFrom().getStateId());
 					w.append(" )");
@@ -2313,6 +2313,7 @@ public class LTSMinPrinter {
 					}
 					w.append(")");
 				}
+				w.append(")");
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send before all others!");
 			}
@@ -2346,12 +2347,12 @@ public class LTSMinPrinter {
 				w.append(")");
 			} else if(seenItAll) {
 				ReadersAndWriters raw = channels.get(var);
-				w.append("false");
+				w.append("(false");
 				for(SendAction sa: raw.sendActions) {
 					List<Expression> csa_exprs = sa.csa.getExprs();
 					List<Expression> cra_exprs = cra.getExprs();
-					w.appendPostfix();
-					w.appendPrefix();
+					//w.appendPostfix();
+					//w.appendPrefix();
 					w.append(" || ( (");
 					w.append(C_STATE_TMP).append(".").append(wrapName(sa.p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(sa.t.getFrom().getStateId());
 					w.append(" )");
@@ -2376,6 +2377,7 @@ public class LTSMinPrinter {
 					}
 					w.append(")");
 				}
+				w.append(")");
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous receive before all others!");
 			}
