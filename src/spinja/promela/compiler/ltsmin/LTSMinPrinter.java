@@ -749,6 +749,7 @@ public class LTSMinPrinter {
 	public static final String C_TYPE_UINT16 = "sj_uint16";
 	public static final String C_TYPE_UINT32 = "sj_uint32";
 	public static final String C_TYPE_CHANNEL = "sj_channel";
+	public static final String C_TYPE_PROC_COUNTER = C_TYPE_INT32;
 
 	private HashMap<Variable,Integer> state_var_offset;
 	private HashMap<Variable, String> state_var_desc;
@@ -1091,7 +1092,7 @@ public class LTSMinPrinter {
 			state_vector_var.add(null);
 
 			// Add process counter to process state struct
-			proc_sg.addMember(C_STATE_PROC_COUNTER);
+			proc_sg.addMember(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER);
 
 			//Fix the offset
 			++current_offset;
