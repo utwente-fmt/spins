@@ -1195,7 +1195,7 @@ public class LTSMinPrinter {
 				Variable v = state_vector_var.get(i);
 
 				// If it is null, this location is probably a state descriptor
-				// so the initial state is 0
+				// or priorityProcess variable so the initial state is 0
 				if(v==null) {
 					w.append("0");
 
@@ -1239,6 +1239,8 @@ public class LTSMinPrinter {
 		for(int i=0; i<state_size; ++i) {
 			String v = getStateDescription(i);
 			Variable var = state_vector_var.get(i);
+
+			// PC or PriorityProcess
 			if(var==null) {
 				w.appendLine("printf(\"",v,": %i\\n\",s->",v,".var);");
 			} else if(var instanceof ChannelVariable) {
@@ -1402,7 +1404,9 @@ public class LTSMinPrinter {
 		// Current number of transitions
 		int trans = 0;
 
-		// Generate the transitions for all processes
+		// Generate the normal transitions for all processes.
+		// This does not include: rendezvous, else, timeout.
+		// Loss of atomicity is handled separately as well.
 		for(Proctype p: procs) {
 			say("[Proc] " + p.getName());
 			++say_indent;
@@ -1817,11 +1821,12 @@ public class LTSMinPrinter {
 			w.append("}}");
 
 			// If this was the last row
-			if(++t>=dm.getRows()) {
+			if(t>=dm.getRows()-1) {
 				w.appendLine("  // ",t);
 				break;
 			}
 			w.appendLine(", // ",t);
+			++t;
 		}
 
 		// Close array
