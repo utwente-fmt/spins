@@ -2838,10 +2838,10 @@ public class LTSMinPrinter {
 				w.appendLine("case ",i,": return \"",C_TYPE_PROC_COUNTER,"\";");
 			} else if(var.getArraySize()>1) {
 				for(int j=0; i<state_size && j<var.getArraySize(); ++j, ++i) {
-					w.appendLine("case ",i,": return \"",getCTypeOfVarReal(state_vector_var.get(i)),"[",j,"]\";");
+					w.appendLine("case ",i,": return \"",getCTypeOfVarReal(var),"[",j,"]\";");
 				}
 			} else {
-				w.appendLine("case ",i,": return \"",getCTypeOfVarReal(state_vector_var.get(i)),"\";");
+				w.appendLine("case ",i,": return \"",getCTypeOfVarReal(var),"\";");
 			}
 		}
 		w.appendLine("default: return \"N/A\";");
