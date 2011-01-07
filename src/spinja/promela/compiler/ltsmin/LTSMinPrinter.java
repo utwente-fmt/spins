@@ -1289,6 +1289,8 @@ public class LTSMinPrinter {
 	 * @return The C typedef name for the given variable.
 	 */
 	private String getCTypeOfVarReal(Variable v) {
+		if(v==null) throw new AssertionError("ERROR: Variable is NULL");
+		if(v.getType()==null) throw new AssertionError("ERROR: Type is NULL of: " + v.getName());
 		switch(v.getType().getBits()) {
 			case 1:
 				return "bool";
