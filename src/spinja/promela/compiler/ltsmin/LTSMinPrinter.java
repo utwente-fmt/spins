@@ -578,6 +578,7 @@ public class LTSMinPrinter {
 		 * @param dep The dependency to increase.
 		 */
 		public void incRead(int transition, int dep) {
+			if(transition<0 || transition>=dep_matrix.size()) return;
 			DepRow dr = dep_matrix.get(transition);
 			assert(dr!=null);
 			dr.incRead(dep);
@@ -588,6 +589,7 @@ public class LTSMinPrinter {
 		 * @param dep The dependency to increase.
 		 */
 		public void incWrite(int transition, int dep) {
+			if(transition<0 || transition>=dep_matrix.size()) return;
 			DepRow dr = dep_matrix.get(transition);
 			assert(dr!=null);
 			dr.incWrite(dep);
@@ -598,6 +600,7 @@ public class LTSMinPrinter {
 		 * @param dep The dependency to decrease.
 		 */
 		public void decrRead(int transition, int dep) {
+			if(transition<0 || transition>=dep_matrix.size()) return;
 			DepRow dr = dep_matrix.get(transition);
 			assert(dr!=null);
 			dr.decrRead(dep);
@@ -608,6 +611,7 @@ public class LTSMinPrinter {
 		 * @param dep The dependency to decrease.
 		 */
 		public void decrWrite(int transition, int dep) {
+			if(transition<0 || transition>=dep_matrix.size()) return;
 			DepRow dr = dep_matrix.get(transition);
 			assert(dr!=null);
 			dr.decrWrite(dep);
