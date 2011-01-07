@@ -876,6 +876,7 @@ public class LTSMinPrinter {
 		w.appendLine("#include <stdio.h>");
 		w.appendLine("#include <string.h>");
 		w.appendLine("#include <stdint.h>");
+		w.appendLine("#include <stdbool.h>");
 		w.appendLine("#include <stdlib.h>");
 		w.appendLine("");
 		w.appendLine("typedef struct transition_info");
@@ -1125,8 +1126,8 @@ public class LTSMinPrinter {
 
 		// Generate forward declaration of functions
 		w.appendLine("");
-		w.appendLine("extern \"C\" int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
-		w.appendLine("extern \"C\" int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
+		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
+		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 
 		// Generate state struct comment
 		for(int off=0; off<state_size; ++off) {
@@ -1136,7 +1137,7 @@ public class LTSMinPrinter {
 		// Generate state size related code
 		w.appendLine("int ",C_STATE_SIZE," = ",state_size,";");
 
-		w.appendLine("extern \"C\" int spinja_get_state_size() {");
+		w.appendLine("extern int spinja_get_state_size() {");
 		w.indent();
 		w.appendLine("return ",C_STATE_SIZE,";");
 		w.outdent();
@@ -1188,7 +1189,7 @@ public class LTSMinPrinter {
 		}
 		w.appendLine("};");
 
-		w.appendLine("extern \"C\" void spinja_get_initial_state( state_t *to )");
+		w.appendLine("extern void spinja_get_initial_state( state_t *to )");
 		w.appendLine("{");
 		w.indent();
 		w.appendLine("if(state_size*",STATE_ELEMENT_SIZE," != sizeof(" + C_STATE_T + ")) { printf(\"state_t SIZE MISMATCH!: state=%i(%i) globals=%i\",sizeof(state_t),state_size*",STATE_ELEMENT_SIZE,",sizeof(state_globals_t)); }");
@@ -1304,7 +1305,7 @@ public class LTSMinPrinter {
 	}
 
 	private void generateTransitionsAll(StringWriter w, int transitions) {
-		w.appendLine("extern \"C\" int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 
 		w.appendLine("int t=",transitions,",emitted=0;");
@@ -1330,7 +1331,7 @@ public class LTSMinPrinter {
 		++say_indent;
 
 		// Generate the start: initialise tmp
-		w.appendLine("extern \"C\" int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 
 		w.appendLine("transition_info_t transition_info = { NULL, t };");
@@ -1439,7 +1440,7 @@ public class LTSMinPrinter {
 		w.appendLine("}");
 
 		// Generate the spinja_get_transition_groups hook
-		w.appendLine("extern \"C\" int spinja_get_transition_groups() {");
+		w.appendLine("extern int spinja_get_transition_groups() {");
 		w.indent();
 		w.appendLine("return ",trans,";");
 		w.outdent();
@@ -1779,13 +1780,13 @@ public class LTSMinPrinter {
 
 		// Function to access the dependency matrix
 		w.appendLine("");
-		w.appendLine("extern \"C\" const int* spinja_get_transition_read_dependencies(int t)");
+		w.appendLine("extern const int* spinja_get_transition_read_dependencies(int t)");
 		w.appendLine("{");
 		w.append("	if (t>=0 && t < ").append(dm.getRows()).appendLine(") return transition_dependency[t][0];");
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 		w.appendLine("");
-		w.appendLine("extern \"C\" const int* spinja_get_transition_write_dependencies(int t)");
+		w.appendLine("extern const int* spinja_get_transition_write_dependencies(int t)");
 		w.appendLine("{");
 		w.append("	if (t>=0 && t < ").append(dm.getRows()).appendLine(") return transition_dependency[t][1];");
 		w.appendLine("	return NULL;");
