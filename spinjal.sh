@@ -33,7 +33,7 @@ if [ ! -f $output_file ]; then
 	exit;
 fi
 
-g++ -fPIC -shared $output_file -o $promela_file.spinja -O0 -g $spinja_options
+gcc -fPIC -shared $output_file -o $promela_file.spinja -O0 -g $spinja_options
 if [ ! $? -eq 0 ]; then
 	echo "Compilation of $output_file failed"
 fi
