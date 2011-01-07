@@ -729,6 +729,19 @@ public class LTSMinPrinter {
 		}
 	}
 
+	public class TimeoutTransition {
+		public int trans;
+		public Proctype p;
+		public Transition t;
+
+		public TimeoutTransition(int trans, Proctype p, Transition t) {
+			this.trans = trans;
+			this.p = p;
+			this.t = t;
+		}
+
+	}
+
 	/// The size of one element in the state struct in bytes.
 	public static final int STATE_ELEMENT_SIZE = 4;
 
@@ -794,6 +807,9 @@ public class LTSMinPrinter {
 	// After this, channels and loss of atomicity is handled.
 	boolean seenItAll = false;
 
+	// List of transition with a TimeoutExpression
+	List<TimeoutTransition> timeout_transitions;
+
 	/**
 	 * Creates a new LTSMinPrinter using the specified Specification.
 	 * After this, the generate() member will generate and return C code.
@@ -814,6 +830,7 @@ public class LTSMinPrinter {
 		state_vector_var = new ArrayList<Variable>();
 		procs = new ArrayList<Proctype>();
 		atomicStates = new ArrayList<AtomicState>();
+		timeout_transitions = new ArrayList<TimeoutTransition>();
 
 		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
 	}
@@ -858,6 +875,10 @@ public class LTSMinPrinter {
 		// Generate code for all the transitions
 		w.appendLine("");
 		generateTransitionsAll(w,t);
+
+		// Generate code for timeout expression
+		w.appendLine("");
+		generateTimeoutExpression(w);
 
 		// Generate Dependency Matrix
 		w.appendLine("");
@@ -1132,6 +1153,7 @@ public class LTSMinPrinter {
 		w.appendLine("");
 		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
+		w.appendLine("static int timeout_expression(",C_STATE_T," ",C_STATE_TMP,", int trans);");
 
 		// Generate state struct comment
 		for(int off=0; off<state_size; ++off) {
@@ -1178,7 +1200,7 @@ public class LTSMinPrinter {
 						w.append("0");
 					} else {
 						try {
-							generateIntExpression(w, null, e,-1);
+							generateIntExpression(w, null, null, e,-1);
 						} catch(ParseException pe) {
 							pe.printStackTrace();
 							System.exit(0);
@@ -1811,10 +1833,10 @@ public class LTSMinPrinter {
 	 * @param e The expression of which the code will be generated.
 	 * @throws ParseException
 	 */
-	private void generateBoolExpression(StringWriter w, Proctype process, Expression e, int trans) throws ParseException {
+	private void generateBoolExpression(StringWriter w, Proctype process, Transition t, Expression e, int trans) throws ParseException {
 		if(e instanceof Identifier) {
 			w.append("(");
-			generateIntExpression(w,process,e,trans);
+			generateIntExpression(w,process,t,e,trans);
 			w.append(" != 0 )");
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
@@ -1823,21 +1845,21 @@ public class LTSMinPrinter {
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
 				w.append("(").append(ae.getToken().image);
-				generateIntExpression(w,process,ex1,trans);
+				generateIntExpression(w,process,t,ex1,trans);
 				w.append(" != 0)");
 			} else if (ex3 == null) {
 				w.append("(");
-				generateIntExpression(w,process,ex1,trans);
+				generateIntExpression(w,process,t,ex1,trans);
 				w.append(" ").append(ae.getToken().image).append(" ");
-				generateIntExpression(w,process,ex2,trans);
+				generateIntExpression(w,process,t,ex2,trans);
 				w.append(" != 0)");
 			} else { // Can only happen with the x?1:0 expression
 				w.append("(");
-				generateBoolExpression(w,process,ex1,trans);
+				generateBoolExpression(w,process,t,ex1,trans);
 				w.append(" ? ");
-				generateBoolExpression(w,process,ex2,trans);
+				generateBoolExpression(w,process,t,ex2,trans);
 				w.append(" : ");
-				generateBoolExpression(w,process,ex3,trans);
+				generateBoolExpression(w,process,t,ex3,trans);
 				w.append(")");
 			}
 		} else if(e instanceof BooleanExpression) {
@@ -1846,13 +1868,13 @@ public class LTSMinPrinter {
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
 				w.append("(").append(be.getToken().image);
-				generateBoolExpression(w,process,ex1,trans);
+				generateBoolExpression(w,process,t,ex1,trans);
 				w.append(")");
 			} else {
 				w.append("(");
-				generateBoolExpression(w,process,ex1,trans);
+				generateBoolExpression(w,process,t,ex1,trans);
 				w.append(" ").append(be.getToken().image).append(" ");
-				generateBoolExpression(w,process,ex2,trans);
+				generateBoolExpression(w,process,t,ex2,trans);
 				w.append(")");
 			}
 		} else if(e instanceof ChannelLengthExpression) {
@@ -1862,9 +1884,9 @@ public class LTSMinPrinter {
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
-			generateIntExpression(w,process,ce.getExpr1(),trans);
+			generateIntExpression(w,process,t,ce.getExpr1(),trans);
 			w.append(" ").append(ce.getToken().image).append(" ");
-			generateIntExpression(w,process,ce.getExpr2(),trans);
+			generateIntExpression(w,process,t,ce.getExpr2(),trans);
 			w.append(")");
 		} else if(e instanceof CompoundExpression) {
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
@@ -1894,7 +1916,9 @@ public class LTSMinPrinter {
 		} else if(e instanceof RunExpression) {
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof TimeoutExpression) {
-			throw new ParseException("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			// Prevent adding of this transition if it was already seen
+			if(!seenItAll) timeout_transitions.add(new TimeoutTransition(trans, process, t));
+			w.append("timeout_expression(").append(C_STATE_TMP).append(",").append(trans).append(")");
 		} else {
 			System.out.println("WARNING: Possibly using bad expression");
 			w.append(e.getIntExpression());
@@ -1908,7 +1932,7 @@ public class LTSMinPrinter {
 	 * @param e The expression of which the code will be generated.
 	 * @throws ParseException
 	 */
-	private void generateIntExpression(StringWriter w, Proctype process, Expression e, int trans) throws ParseException {
+	private void generateIntExpression(StringWriter w, Proctype process, Transition t, Expression e, int trans) throws ParseException {
 		//say("Parsing: " + e.toString());
 		if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
@@ -1920,7 +1944,7 @@ public class LTSMinPrinter {
 					w.append("tmp.");
 					w.append(state_var_desc.get(var));
 					w.append("[");
-					generateIntExpression(w,process,arrayExpr,trans);
+					generateIntExpression(w,process,t,arrayExpr,trans);
 					w.append("].var");
 
 					try {
@@ -1950,32 +1974,32 @@ public class LTSMinPrinter {
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
 				w.append("(").append(ae.getToken().image);
-				generateIntExpression(w, process, ex1,trans);
+				generateIntExpression(w, process, t, ex1,trans);
 				w.append(")");
 			} else if (ex3 == null) {
 				if (ae.getToken().image.equals("%")) {
 					// Modulo takes a special notation to make sure that it
 					// returns a positive value
 					w.append("abs(");
-					generateIntExpression(w,process,ex1,trans);
+					generateIntExpression(w,process,t,ex1,trans);
 					w.append(" % ");
-					generateIntExpression(w,process,ex2,trans);
+					generateIntExpression(w,process,t,ex2,trans);
 					w.append(")");
 				} else {
 
 					w.append("(");
-					generateIntExpression(w,process,ex1,trans);
+					generateIntExpression(w,process,t,ex1,trans);
 					w.append(" ").append(ae.getToken().image).append(" ");
-					generateIntExpression(w,process,ex2,trans);
+					generateIntExpression(w,process,t,ex2,trans);
 					w.append(")");
 				}
 			} else {
 				w.append("(");
-				generateBoolExpression(w,process,ex1,trans);
+				generateBoolExpression(w,process,t,ex1,trans);
 				w.append(" ? ");
-				generateIntExpression(w,process,ex2,trans);
+				generateIntExpression(w,process,t,ex2,trans);
 				w.append(" : ");
-				generateIntExpression(w,process,ex3,trans);
+				generateIntExpression(w,process,t,ex3,trans);
 				w.append(")");
 			}
 		} else if(e instanceof BooleanExpression) {
@@ -1984,13 +2008,13 @@ public class LTSMinPrinter {
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
 				w.append("(").append(be.getToken().image);
-				generateIntExpression(w,process,ex1,trans);
+				generateIntExpression(w,process,t,ex1,trans);
 				w.append( " ? 1 : 0)");
 			} else {
 				w.append("(");
-				generateIntExpression(w,process,ex1,trans);
+				generateIntExpression(w,process,t,ex1,trans);
 				w.append(" ").append(be.getToken().image).append(" ");
-				generateBoolExpression(w,process,ex2,trans);
+				generateBoolExpression(w,process,t,ex2,trans);
 				w.append(" ? 1 : 0)");
 			}
 		} else if(e instanceof ChannelLengthExpression) {
@@ -2000,9 +2024,9 @@ public class LTSMinPrinter {
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
-			generateIntExpression(w,process,ce.getExpr1(),trans);
+			generateIntExpression(w,process,t,ce.getExpr1(),trans);
 			w.append(" ").append(ce.getToken().image).append(" ");
-			generateIntExpression(w,process,ce.getExpr2(),trans);
+			generateIntExpression(w,process,t,ce.getExpr2(),trans);
 			w.append(" ? 1 : 0)");
 		} else if(e instanceof CompoundExpression) {
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
@@ -2059,15 +2083,15 @@ public class LTSMinPrinter {
 					try {
 						int value = as.getExpr().getConstantValue();
 						w.appendPrefix();
-						generateIntExpression(w,process,id,trans);
+						generateIntExpression(w,process,t,id,trans);
 						w.append(" = ").append(value & id.getVariable().getType().getMaskInt()).append(";");
 						w.appendPostfix();
 					} catch (ParseException ex) {
 						// Could not get Constant value
 						w.appendPrefix();
-						generateIntExpression(w,process,id,trans);
+						generateIntExpression(w,process,t,id,trans);
 						w.append(" = ");
-						generateIntExpression(w,process,as.getExpr(),trans);
+						generateIntExpression(w,process,t,as.getExpr(),trans);
 						w.append((mask == null ? "" : " & " + mask));
 						w.append(";");
 						w.appendPostfix();
@@ -2076,14 +2100,14 @@ public class LTSMinPrinter {
 				case PromelaConstants.INCR:
 					if (mask == null) {
 						w.appendPrefix();
-						generateIntExpression(w,process,id,trans);
+						generateIntExpression(w,process,t,id,trans);
 						w.append("++;");
 						w.appendPostfix();
 					} else {
 						w.appendPrefix();
-						generateIntExpression(w,process,id,trans);
+						generateIntExpression(w,process,t,id,trans);
 						w.append(" = (");
-						generateIntExpression(w,process,id,trans);
+						generateIntExpression(w,process,t,id,trans);
 						w.append(" + 1) & ").append(mask).append(";");
 						w.appendPostfix();
 					}
@@ -2091,14 +2115,14 @@ public class LTSMinPrinter {
 				case PromelaConstants.DECR:
 					if (mask == null) {
 						w.appendPrefix();
-						generateIntExpression(w,process,id,trans);
+						generateIntExpression(w,process,t,id,trans);
 						w.append("--;");
 						w.appendPostfix();
 					} else {
 						w.appendPrefix();
-						generateIntExpression(w,process,id,trans);
+						generateIntExpression(w,process,t,id,trans);
 						w.appendLine(" = (");
-						generateIntExpression(w,process,id,trans);
+						generateIntExpression(w,process,t,id,trans);
 						w.append(" - 1) & ");
 						w.append(mask);
 						w.append(";");
@@ -2115,12 +2139,14 @@ public class LTSMinPrinter {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
 
+			w.appendPrefix();
 			w.append("if(!");
-			generateBoolExpression(w,process,e,trans);
-			w.appendLine(") {");
+			generateBoolExpression(w,process,t,e,trans);
+			w.append(") {");
+			w.appendPostfix();
 			w.indent();
 			w.appendLine("printf(\"Assertion violated: ",as.getExpr().toString(), "\\n\");");
-			w.appendLine("print_state(&tmp);");
+			w.appendLine("print_state(&",C_STATE_TMP,");");
 			w.outdent();
 			w.appendLine("}");
 
@@ -2132,7 +2158,7 @@ public class LTSMinPrinter {
 			w.appendPrefix().append("printf(").append(string);
 			for (final Expression expr : exprs) {
 				w.append(", ");
-				generateIntExpression(w,process,expr,trans);
+				generateIntExpression(w,process,t,expr,trans);
 			}
 			w.append(");").appendPostfix();
 
@@ -2161,7 +2187,7 @@ public class LTSMinPrinter {
 					final Expression expr = exprs.get(i);
 					w.appendPrefix();
 					w.append(access_buffer).append(".m").append(i).append(".var = ");
-					generateIntExpression(w, process, expr,trans);
+					generateIntExpression(w, process, t, expr,trans);
 					w.append(";");
 					w.appendPostfix();
 
@@ -2187,7 +2213,7 @@ public class LTSMinPrinter {
 					final Expression expr = exprs.get(i);
 					if (expr instanceof Identifier) {
 						w.appendPrefix();
-						generateIntExpression(w, process, expr,trans);
+						generateIntExpression(w, process, t, expr,trans);
 						w.append(" = ").append(access_buffer).append(".m").append(i).append(".var");
 						w.append(";");
 						w.appendPostfix();
@@ -2224,7 +2250,7 @@ public class LTSMinPrinter {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
-			generateBoolExpression(w,process,expr,trans);
+			generateBoolExpression(w,process,t,expr,trans);
 
 		// Handle a channel send action
 		} else if(a instanceof ChannelSendAction) {
@@ -2255,13 +2281,13 @@ public class LTSMinPrinter {
 						if (!(cra_expr instanceof Identifier)) {
 							w.append(" && (");
 							try {
-								generateIntExpression(w, null, csa_expr,trans);
+								generateIntExpression(w, null, null, csa_expr,trans);
 							} catch(ParseException e) {
 								e.printStackTrace();
 							}
 							w.append(" == ");
 							try {
-								generateIntExpression(w, null, cra_expr,trans);
+								generateIntExpression(w, null, null, cra_expr,trans);
 							} catch(ParseException e) {
 								e.printStackTrace();
 							}
@@ -2294,7 +2320,7 @@ public class LTSMinPrinter {
 					if (!(expr instanceof Identifier)) {
 						w.append(" && (");
 						w.append(access_buffer).append(".m").append(i).append(".var == ");
-						generateIntExpression(w, process, expr,trans);
+						generateIntExpression(w, process, t, expr,trans);
 						w.append(")");
 					}
 
@@ -2318,13 +2344,13 @@ public class LTSMinPrinter {
 						if (!(cra_expr instanceof Identifier)) {
 							w.append(" && (");
 							try {
-								generateIntExpression(w, null, csa_expr,trans);
+								generateIntExpression(w, null, null, csa_expr,trans);
 							} catch(ParseException e) {
 								e.printStackTrace();
 							}
 							w.append(" == ");
 							try {
-								generateIntExpression(w, null, cra_expr,trans);
+								generateIntExpression(w, null, null, cra_expr,trans);
 							} catch(ParseException e) {
 								e.printStackTrace();
 							}
@@ -2342,6 +2368,76 @@ public class LTSMinPrinter {
 		} else {
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
+	}
+
+	public void generateTimeoutExpression(StringWriter w, TimeoutTransition tt) {
+		for(Proctype p: procs) {
+			Automaton a = p.getAutomaton();
+			Iterator<State> i = a.iterator();
+			while(i.hasNext()) {
+				State st = i.next();
+
+				// Cull other states of the current process
+				//if(tt.p == p && tt.t.getFrom() != st) {
+				//	continue;
+				//}
+
+				// Check if this state has an ElseTransition
+				// If so, skip the transition, because this state
+				// always has an active outgoing transition
+				for(Transition trans: st.output) {
+					if(trans instanceof ElseTransition) {
+						continue;
+					}
+				}
+
+				for(Transition trans: st.output) {
+					boolean skip = false;
+					for(TimeoutTransition tt2: timeout_transitions) {
+						if(tt2.t == trans) skip = true;
+					}
+					if(skip) continue;
+					w.appendPostfix();
+					w.appendPrefix();
+					w.append("&&!(");
+					w.append(C_STATE_TMP).append(".").append(wrapName(p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(trans.getFrom().getStateId());
+					w.append("&&( ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var == ").append(state_proc_offset.get(p)).append(" || ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var<0").append(" )");
+					w.append("&&");
+					generateTransitionGuard(w,p,trans,-1);
+					w.append(")");
+				}
+
+			}
+		}
+	}
+	public void generateTimeoutExpression(StringWriter w) {
+		if(timeout_transitions.isEmpty()) return;
+
+		w.appendLine("static int timeout_expression(",C_STATE_T," ",C_STATE_TMP,", int trans) {");
+		w.indent();
+		w.appendLine("switch(trans) {");
+
+		for(TimeoutTransition tt: timeout_transitions) {
+			w.appendLine("case ",tt.trans,":");
+			w.indent();
+			w.appendPrefix();
+			w.append("return true ");
+			generateTimeoutExpression(w,tt);
+			w.append(";");
+			w.appendPostfix();
+			w.appendLine("break;");
+			w.outdent();
+		}
+		w.appendLine("default:");
+		w.indent();
+		w.appendLine("printf(\"Error: no timeout expression specified for transition %i\\n\",trans);");
+		w.appendLine("exit(-1);");
+		w.outdent();
+		w.appendLine("}");
+
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
 	}
 
 	private int insertVariable(CStruct sg, Variable var, String desc, String name, int current_offset) {
@@ -2576,13 +2672,13 @@ public class LTSMinPrinter {
 			if (!(cra_expr instanceof Identifier)) {
 				w.append(" && (");
 				try {
-					generateIntExpression(w, null, csa_expr,trans);
+					generateIntExpression(w, null, null, csa_expr,trans);
 				} catch(ParseException e) {
 					e.printStackTrace();
 				}
 				w.append(" == ");
 				try {
-					generateIntExpression(w, null, cra_expr,trans);
+					generateIntExpression(w, null, null, cra_expr,trans);
 				} catch(ParseException e) {
 					e.printStackTrace();
 				}
@@ -2656,13 +2752,13 @@ public class LTSMinPrinter {
 			if ((cra_expr instanceof Identifier)) {
 				w.appendPrefix();
 				try {
-					generateIntExpression(w, null, cra_expr,trans);
+					generateIntExpression(w, null, null, cra_expr,trans);
 				} catch(ParseException e) {
 					e.printStackTrace();
 				}
 				w.append(" = ");
 				try {
-					generateIntExpression(w, null, csa_expr,trans);
+					generateIntExpression(w, null, null, csa_expr,trans);
 				} catch(ParseException e) {
 					e.printStackTrace();
 				}
