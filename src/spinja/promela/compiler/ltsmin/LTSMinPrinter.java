@@ -863,6 +863,10 @@ public class LTSMinPrinter {
 		w.appendLine("");
 		generateDepMatrix(w,dep_matrix);
 
+		// Generate state descriptors
+		w.appendLine("");
+		generateStateDescriptors(w);
+
 		c_code = w.toString();
 		return c_code;
 	}
@@ -1213,6 +1217,10 @@ public class LTSMinPrinter {
 					w.appendLine("printf(\"[CH] ",v,": rendezvous\\n\");");
 				} else {
 					w.appendLine("printf(\"[CH] ",v,": nextRead=%i, filled=%i\\n\",s->",v,".nextRead,s->",v,".filled);");
+					++i;
+					for(;i<state_size && var==state_vector_var.get(i); ++i) {
+						w.appendLine("printf(\"",v,": %i\\n\",s->",getStateDescription(i),".var);");
+					}
 				}
 			} else if(var.getArraySize()>1) {
 				for(int j=0; i<state_size && j<var.getArraySize(); ++j, ++i) {
@@ -2681,5 +2689,52 @@ public class LTSMinPrinter {
 		
 		w.appendLine("return 0;");
 	}
+//
+	public void generateStateDescriptors(StringWriter w) {
+		w.appendLine("extern const char* spinja_get_state_variable_name(int var) {");
+		w.indent();
+
+		w.appendLine("switch(var) {");
+		w.indent();
+
+		for(int i=0; i<state_size; ++i) {
+			w.appendLine("case ",i,": return \"",getStateDescription(i),"\";");
+		}
+		w.appendLine("default: return \"N/A\";");
+
+		w.outdent();
+		w.appendLine("}");
+
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("extern const char* spinja_get_state_variable_type(int var) {");
+		w.indent();
+
+		w.appendLine("switch(var) {");
+		w.indent();
+
+		for(int i=0; i<state_size; ++i) {
+			Variable var = state_vector_var.get(i);
+			if(var==null) {
+				w.appendLine("case ",i,": return \"",C_TYPE_PROC_COUNTER,"\";");
+			} else if(var.getArraySize()>1) {
+				for(int j=0; i<state_size && j<var.getArraySize(); ++j, ++i) {
+					w.appendLine("case ",i,": return \"",getCTypeOfVarReal(state_vector_var.get(i)),"[",j,"]\";");
+				}
+			} else {
+				w.appendLine("case ",i,": return \"",getCTypeOfVarReal(state_vector_var.get(i)),"\";");
+			}
+		}
+		w.appendLine("default: return \"N/A\";");
+
+		w.outdent();
+		w.appendLine("}");
+
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+}
 
 }
