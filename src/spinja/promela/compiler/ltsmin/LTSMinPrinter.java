@@ -849,6 +849,8 @@ public class LTSMinPrinter {
 			return c_code;
 		}
 
+		long start_t = System.currentTimeMillis();
+
 		// Generate header code
 		generateHeader(w);
 
@@ -887,6 +889,12 @@ public class LTSMinPrinter {
 		// Generate state descriptors
 		w.appendLine("");
 		generateStateDescriptors(w);
+
+		long end_t = System.currentTimeMillis();
+
+		// Generate statistics
+		w.appendLine("");
+		generateStatistics(w,start_t,end_t);
 
 		c_code = w.toString();
 		return c_code;
@@ -1269,6 +1277,15 @@ public class LTSMinPrinter {
 			return "N/A";
 		} else {
 			return state_vector_desc.get(offset);
+		}
+	}
+
+	private String getStateType(int offset) {
+		if(offset>=state_size) {
+			return "N/A";
+		} else {
+			Variable v = state_vector_var.get(offset);
+			return v==null?C_TYPE_PROC_COUNTER:getCTypeOfVarReal(v);
 		}
 	}
 
@@ -2833,6 +2850,31 @@ public class LTSMinPrinter {
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
-}
+	}
+
+	public void generateStatistics(StringWriter w, long start_t, long end_t) {
+		String old_prefix = w.getPrefix();
+		w.setPrefix(" * ");
+		w.appendLine("/*");
+		w.indent();
+
+		w.appendLine("Generated in: ",end_t-start_t,"ms");
+		w.appendLine("");
+
+		w.appendLine("State vector:");
+		w.setPrefix(" *  - ");
+		for(int i=0; i<state_size; ++i) {
+			w.appendPrefix();
+			w.append(getStateDescription(i));
+			w.append(": ");
+			w.append(getStateType(i));
+			w.appendPostfix();
+		}
+		w.setPrefix(" * ");
+
+		w.outdent();
+		w.appendLine(" */");
+		w.setPrefix(old_prefix);
+	}
 
 }

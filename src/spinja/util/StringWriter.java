@@ -22,8 +22,8 @@ package spinja.util;
  * @author Marc de Jonge
  */
 public final class StringWriter {
-	private final String prefix;
-	private final String postfix;
+	private String prefix;
+	private String postfix;
 	private char[] buffer;
 	private int used;
 	private int indented;
@@ -309,4 +309,13 @@ public final class StringWriter {
 	public String getPrefix() {
 		return prefix;
 	}
+
+	public void setPostfix(String postfix) {
+		this.postfix = postfix;
+	}
+
+	public void setPrefix(String prefix) {
+		this.prefix = prefix;
+	}
+
 }
