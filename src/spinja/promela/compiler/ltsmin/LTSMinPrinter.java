@@ -1550,6 +1550,7 @@ public class LTSMinPrinter {
 			// changing the process counter to -1.
 			w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - end transition");
 			w.appendLine("if( ",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId());
+			w.appendLine("&&( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," ) ) {");
 			if(process.getID()<procs.size()-1) {
 				w.appendLine("#ifdef SPINDEATHMODE ");
 				w.appendLine(" && ",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var == -1 /* spin death mode */");
