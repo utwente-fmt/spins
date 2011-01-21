@@ -39,6 +39,7 @@ import spinja.promela.compiler.optimizer.StateMerging;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Promela;
 import spinja.promela.compiler.ltsmin.LTSMinPrinter;
+import spinja.promela.compiler.parser.Preprocessor;
 
 public class Compile {
 	private static Specification compile(final File promFile, 
@@ -46,6 +47,7 @@ public class Compile {
 		                                 final boolean useStateMerging,
 		                                 final boolean verbose) {
 		try {
+			Preprocessor.setFilename(promFile.getName());
 			if (verbose)
 				System.out.print("Start parsing " + promFile.getName() + "...");
 			final Promela prom = new Promela(new FileInputStream(promFile));
@@ -102,7 +104,7 @@ public class Compile {
 		} catch (final FileNotFoundException ex) {
 			System.out.println("Promela file " + promFile.getName() + " could not be found.");
 		} catch (final ParseException ex) {
-			System.out.println("Parse exception in file " + promFile.getName() + ": "
+			System.out.println("Parse exception in file " + Preprocessor.getFileName() + ": "
 								+ ex.getMessage());
 		}
 		return null;
