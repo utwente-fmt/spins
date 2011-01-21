@@ -803,6 +803,9 @@ public class LTSMinPrinter {
 	// The transition ID of the transition that handles loss of atomicity
 	int loss_transition_id;
 
+	// State vector offset of the prioritiseProcess variable
+	int offset_priority;
+
 	// Set to true when all transitions have been parsed.
 	// After this, channels and loss of atomicity is handled.
 	boolean seenItAll = false;
@@ -1062,6 +1065,7 @@ public class LTSMinPrinter {
 	 *   - state;
 	 *   - state_vector_var;
 	 *   - state_vector_desc.
+	 *   - offset_priority
 	 * @param w The StringWriter to which the code is written.
 	 * @return C code for the state structs.
 	 */
@@ -1083,6 +1087,7 @@ public class LTSMinPrinter {
 		// Add priority process
 		{
 			sg.addMember(C_TYPE_INT32, C_STATE_PRIORITY);
+			offset_priority = current_offset;
 			++current_offset;
 			state_vector_desc.add(C_PRIORITY);
 			state_vector_var.add(null);
@@ -1457,6 +1462,12 @@ public class LTSMinPrinter {
 			w.appendPostfix();
 			w.appendPrefix();
 			w.append("&&( ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var == ").append(state_proc_offset.get(process)).append(" )");
+
+			// Dependency matrix: process counter, prioritiseProcess
+			dep_matrix.incRead(trans, state_proc_offset.get(process));
+			dep_matrix.incRead(trans, offset_priority);
+			dep_matrix.incWrite(trans, offset_priority);
+
 			for(Transition ot: s.output) {
 				w.appendPostfix();
 				w.appendPrefix();
@@ -1471,6 +1482,7 @@ public class LTSMinPrinter {
 			w.appendLine("printf(\"[",state_proc_offset.get(process),"] @%i BIG IF - handled %i losses of atomicity so far\\n\",__LINE__,++n_losses);");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
 			w.appendLine("return ",1,";");
+			generateDependencymatrixStats(w,dep_matrix,trans);
 			w.outdent();
 			w.appendLine("}");
 		}
@@ -1528,13 +1540,19 @@ public class LTSMinPrinter {
 
 			dep_matrix.ensureSize(trans+1);
 
+			// Dependency matrix: process counter, prioritiseProcess
+			dep_matrix.incWrite(trans, state_proc_offset.get(process));
+			dep_matrix.incRead(trans, state_proc_offset.get(process));
+			dep_matrix.incWrite(trans, offset_priority);
+			dep_matrix.incRead(trans, offset_priority);
+
 			// In the case of an ending state, generate a transition only
 			// changing the process counter to -1.
 			w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - end transition");
 			w.appendLine("if( ",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId());
 			if(process.getID()<procs.size()-1) {
 				w.appendLine("#ifdef SPINDEATHMODE ");
-				w.appendLine(" && ",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var == -1");
+				w.appendLine(" && ",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var == -1 /* spin death mode */");
 				w.appendLine("#endif");
 			}
 			w.appendLine(") {");
@@ -1542,13 +1560,10 @@ public class LTSMinPrinter {
 			w.appendLine("",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var = ",-1,";");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
 			w.appendLine("return 1;");
+			generateDependencymatrixStats(w,dep_matrix,trans);
 			w.outdent();
 			w.appendLine("}");
 			w.appendLine("return 0;");
-
-			// Dependency matrix: process counter
-			dep_matrix.incWrite(trans, state_proc_offset.get(process));
-			dep_matrix.incRead(trans, state_proc_offset.get(process));
 
 			// Keep track of the current transition ID
 			++trans;
@@ -1631,6 +1646,12 @@ public class LTSMinPrinter {
 
 		// Ensure the dependency matrix is of adequate size
 		dep_matrix.ensureSize(trans+1);
+
+		// Dependency matrix: process counter, prioritiseProcess
+		dep_matrix.incWrite(trans, state_proc_offset.get(process));
+		dep_matrix.incRead(trans, state_proc_offset.get(process));
+		dep_matrix.incWrite(trans, offset_priority);
+		dep_matrix.incRead(trans, offset_priority);
 
 		say("Handling trans: " + t.getClass().getName());
 
@@ -1721,6 +1742,8 @@ public class LTSMinPrinter {
 
 		w.outdent();
 		w.appendLine("} // guard");
+
+		generateDependencymatrixStats(w,dep_matrix,trans);
 
 		w.outdent();
 		w.appendLine("} // state");
@@ -2204,6 +2227,10 @@ public class LTSMinPrinter {
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
 				String access_buffer = C_STATE_TMP + "." + wrapNameForChannelBuffer(state_var_desc.get(var)) + "[pos]";
 
+				// Dependency matrix: channel variable
+				dep_matrix.incRead(trans, state_var_offset.get(var));
+				dep_matrix.incWrite(trans, state_var_offset.get(var));
+
 				List<Expression> exprs = csa.getExprs();
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
@@ -2213,6 +2240,8 @@ public class LTSMinPrinter {
 					w.append(";");
 					w.appendPostfix();
 
+					// Dependency matrix: channel variable
+					dep_matrix.incWrite(trans, state_var_offset.get(var)+i+1);
 				}
 
 				w.appendLine("++",access, ".filled;");
@@ -2230,15 +2259,23 @@ public class LTSMinPrinter {
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
 				String access_buffer = C_STATE_TMP + "." + wrapNameForChannelBuffer(state_var_desc.get(var)) + "[pos]";
 
+				// Dependency matrix: channel variable
+				dep_matrix.incRead(trans, state_var_offset.get(var));
+				dep_matrix.incWrite(trans, state_var_offset.get(var));
+
 				List<Expression> exprs = cra.getExprs();
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
 					if (expr instanceof Identifier) {
+						handleAssignDependency(process,trans,expr);
 						w.appendPrefix();
 						generateIntExpression(w, process, t, expr,trans);
 						w.append(" = ").append(access_buffer).append(".m").append(i).append(".var");
 						w.append(";");
 						w.appendPostfix();
+
+						// Dependency matrix: channel variable
+						dep_matrix.incRead(trans, state_var_offset.get(var)+i+1);
 					}
 				}
 
@@ -2286,6 +2323,9 @@ public class LTSMinPrinter {
 				w.append(access).append(".filled < ");
 				w.append(var.getType().getBufferSize()).append(")");
 
+				// Dependency matrix: channel variable
+				dep_matrix.incRead(trans, state_var_offset.get(var));
+
 			} else if(seenItAll) {
 				ReadersAndWriters raw = channels.get(var);
 				w.append("(false");
@@ -2297,6 +2337,10 @@ public class LTSMinPrinter {
 					w.append(" || ( (");
 					w.append(C_STATE_TMP).append(".").append(wrapName(ra.p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(ra.t.getFrom().getStateId());
 					w.append(" )");
+
+					// Dependency matrix: process counter
+					dep_matrix.incRead(trans, state_proc_offset.get(ra.p));
+
 					for (int i = 0; i < cra_exprs.size(); i++) {
 						final Expression csa_expr = csa_exprs.get(i);
 						final Expression cra_expr = cra_exprs.get(i);
@@ -2338,6 +2382,9 @@ public class LTSMinPrinter {
 				w.append("(");
 				w.append(access).append(".filled > 0");
 
+				// Dependency matrix: channel variable
+				dep_matrix.incRead(trans, state_var_offset.get(var));
+
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
 					if (!(expr instanceof Identifier)) {
@@ -2361,6 +2408,10 @@ public class LTSMinPrinter {
 					w.append(" || ( (");
 					w.append(C_STATE_TMP).append(".").append(wrapName(sa.p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(sa.t.getFrom().getStateId());
 					w.append(" )");
+
+					// Dependency matrix: process counter
+					dep_matrix.incRead(trans, state_proc_offset.get(sa.p));
+
 					for (int i = 0; i < cra_exprs.size(); i++) {
 						final Expression csa_expr = csa_exprs.get(i);
 						final Expression cra_expr = cra_exprs.get(i);
@@ -2423,11 +2474,15 @@ public class LTSMinPrinter {
 					if(skip) continue;
 					w.appendPostfix();
 					w.appendPrefix();
+
+					dep_matrix.incRead(tt.trans, state_proc_offset.get(p));
+					dep_matrix.incRead(tt.trans, offset_priority);
+
 					w.append("&&!(");
 					w.append(C_STATE_TMP).append(".").append(wrapName(p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(trans.getFrom().getStateId());
 					w.append("&&( ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var == ").append(state_proc_offset.get(p)).append(" || ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var<0").append(" )");
 					w.append("&&");
-					generateTransitionGuard(w,p,trans,-1);
+					generateTransitionGuard(w,p,trans,tt.trans);
 					w.append(")");
 				}
 
@@ -2683,6 +2738,14 @@ public class LTSMinPrinter {
 			throw new AssertionError("generateRendezVousAction() called with incompatible actions: size mismatch");
 		}
 
+		// Dependency matrix: process counter, prioritiseProcess
+		dep_matrix.incRead(trans, state_proc_offset.get(sa.p));
+		dep_matrix.incRead(trans, state_proc_offset.get(ra.p));
+		dep_matrix.incRead(trans, offset_priority);
+		dep_matrix.incWrite(trans, state_proc_offset.get(sa.p));
+		dep_matrix.incWrite(trans, state_proc_offset.get(ra.p));
+		dep_matrix.incWrite(trans, offset_priority);
+
 		w.appendLine("if(",C_STATE_TMP,".",wrapName(sa.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",sa.t.getFrom().getStateId(),
 		                        " && ",C_STATE_TMP,".",wrapName(ra.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",ra.t.getFrom().getStateId()," && ");
 		w.appendLine("( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(sa.p)," || ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(ra.p)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," ) ) {");
@@ -2718,7 +2781,7 @@ public class LTSMinPrinter {
 	/**
 	 * Generate Post code for a rendezvous couple.
 	 */
-	private void generatePostRendezVousAction(StringWriter w, SendAction sa, ReadAction ra) {
+	private void generatePostRendezVousAction(StringWriter w, SendAction sa, ReadAction ra, int trans) {
 		w.outdent();
 
 		if(sa.t.getFrom()!=null && sa.t.getFrom().isInAtomic()) {
@@ -2734,6 +2797,8 @@ public class LTSMinPrinter {
 		} else {
 			w.appendLine("}");
 		}
+
+		generateDependencymatrixStats(w,dep_matrix,trans);
 
 		w.outdent();
 		w.appendLine("}");
@@ -2807,7 +2872,7 @@ public class LTSMinPrinter {
 		}
 
 		// Post
-		generatePostRendezVousAction(w,sa,ra);
+		generatePostRendezVousAction(w,sa,ra,trans);
 		
 		w.appendLine("return 0;");
 	}
@@ -2884,4 +2949,18 @@ public class LTSMinPrinter {
 		w.setPrefix(old_prefix);
 	}
 
+	public void generateDependencymatrixStats(StringWriter w, DepMatrix dep_matrix, int trans) {
+		w.appendPrefix();
+		DepRow row = dep_matrix.getRow(trans);
+		w.append("// read: ");
+		for(int i=0; i<row.getSize(); ++i) {
+			w.append(" ").append(row.getReadB(i));
+		}
+		w.appendPostfix().appendPrefix();
+		w.append("// write:");
+		for(int i=0; i<row.getSize(); ++i) {
+			w.append(" ").append(row.getWriteB(i));
+		}
+		w.appendPostfix();
+	}
 }
