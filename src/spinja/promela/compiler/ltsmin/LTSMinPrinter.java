@@ -1479,7 +1479,7 @@ public class LTSMinPrinter {
 			w.appendPostfix();
 			w.indent();
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
-			w.appendLine("printf(\"[",state_proc_offset.get(process),"] @%i BIG IF - handled %i losses of atomicity so far\\n\",__LINE__,++n_losses);");
+			//DBG w.appendLine("printf(\"[",state_proc_offset.get(process),"] @%i BIG IF - handled %i losses of atomicity so far\\n\",__LINE__,++n_losses);");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
 			w.appendLine("return ",1,";");
 			generateDependencymatrixStats(w,dep_matrix,trans);
@@ -2860,7 +2860,7 @@ public class LTSMinPrinter {
 		if(ra.t.getTo()!=null && ra.t.getTo().isInAtomic()) {
 			//w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",process.getID(),";");
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(ra.p),";");
-			w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] rendezvous: transferred atomicity to ",state_proc_offset.get(ra.p)," \\n\");");
+			//DBG w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] rendezvous: transferred atomicity to ",state_proc_offset.get(ra.p)," \\n\");");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
 			w.appendLine("return ",1,";");
 		} else {
