@@ -2879,19 +2879,64 @@ public class LTSMinPrinter {
 	}
 //
 	public void generateStateDescriptors(StringWriter w) {
-		w.appendLine("extern const char* spinja_get_state_variable_name(int var) {");
+
+		// Generate static list of names
+		w.appendLine("static const char* var_names[] = {");
 		w.indent();
 
-		w.appendLine("switch(var) {");
-		w.indent();
-
-		for(int i=0; i<state_size; ++i) {
-			w.appendLine("case ",i,": return \"",getStateDescription(i),"\";");
+		w.appendPrefix();
+		w.append("\"").append(getStateDescription(0)).append("\"");
+		for(int i=1; i<state_size; ++i) {
+			w.append(",");
+			w.appendPostfix();
+			w.appendPrefix();
+			w.append("\"").append(getStateDescription(i)).append("\"");
 		}
-		w.appendLine("default: return \"N/A\";");
+		w.appendPostfix();
 
 		w.outdent();
-		w.appendLine("}");
+		w.appendLine("};");
+
+		// Generate static list of types
+		w.appendLine("");
+		w.appendLine("static const char* var_types[] = {");
+		w.indent();
+
+		int i = 0;
+		for(;;) {
+
+			w.appendPrefix();
+
+			Variable var = state_vector_var.get(i);
+			if(var==null) {
+				w.append("\"").append(C_TYPE_PROC_COUNTER).append("\"");
+			} else if(var.getArraySize()>1) {
+				w.append("\"").append(getCTypeOfVarReal(var)).append("[0]\"");
+				for(int j=1; i<state_size && j<var.getArraySize(); ++j, ++i) {
+					w.append(",");
+					w.appendPostfix();
+					w.appendPrefix();
+					w.append("\"").append(getCTypeOfVarReal(var)).append("[").append(j).append("]\"");
+				}
+			} else {
+				w.append("\"").append(getCTypeOfVarReal(var)).append("\"");
+			}
+
+			if(++i==state_size) break;
+			w.append(",");
+			w.appendPostfix();
+		}
+		w.appendPostfix();
+
+		w.outdent();
+		w.appendLine("};");
+
+		w.appendLine("");
+		w.appendLine("extern const char* spinja_get_state_variable_name(unsigned int var) {");
+		w.indent();
+
+		w.appendLine("assert(var < ",state_size," && \"spinja_get_state_variable_name: invalid variable\");");
+		w.appendLine("return var_names[var];");
 
 		w.outdent();
 		w.appendLine("}");
@@ -2900,29 +2945,11 @@ public class LTSMinPrinter {
 		w.appendLine("extern const char* spinja_get_state_variable_type(int var) {");
 		w.indent();
 
-		w.appendLine("switch(var) {");
-		w.indent();
-
-		for(int i=0; i<state_size; ++i) {
-			Variable var = state_vector_var.get(i);
-			if(var==null) {
-				w.appendLine("case ",i,": return \"",C_TYPE_PROC_COUNTER,"\";");
-			} else if(var.getArraySize()>1) {
-				for(int j=0; i<state_size && j<var.getArraySize(); ++j, ++i) {
-					w.appendLine("case ",i,": return \"",getCTypeOfVarReal(var),"[",j,"]\";");
-				}
-			} else {
-				w.appendLine("case ",i,": return \"",getCTypeOfVarReal(var),"\";");
-			}
-		}
-		w.appendLine("default: return \"N/A\";");
+		w.appendLine("assert(var < ",state_size," && \"spinja_get_state_variable_type: invalid variable\");");
+		w.appendLine("return var_types[var];");
 
 		w.outdent();
 		w.appendLine("}");
-
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("");
 	}
 
 	public void generateStatistics(StringWriter w, long start_t, long end_t) {
