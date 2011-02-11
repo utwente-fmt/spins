@@ -820,7 +820,7 @@ public class LTSMinPrinter {
 	int offset_priority;
 
 	// Set to true when all transitions have been parsed.
-	// After this, channels and loss of atomicity is handled.
+	// After this, channels, else, timeout, and loss of atomicity is handled.
 	boolean seenItAll = false;
 
 	// List of transition with a TimeoutExpression
@@ -1643,6 +1643,11 @@ public class LTSMinPrinter {
 
 		// DO NOT actionise RENDEZVOUS channel send/read
 		// These will be remembered and handled later separately
+		// Check only for the normal process, not for the never claim
+		// The never claim process is not allowed to contain message passing
+		// statements.
+		// "This means that a never claim may not contain assignment or message
+		// passing statements." @ http://spinroot.com/spin/Man/never.html)
 		{
 			Action a = null;
 			if(t.getActionCount()>0) {
@@ -1745,7 +1750,7 @@ public class LTSMinPrinter {
 		// If this is an ElseTransition, all other transitions should not be
 		// enabled, so make guards for this
 		w.appendPrefix();
-		w.append("if( true");
+		w.append("if( true /* Else */");
 		if(t instanceof ElseTransition) {
 			ElseTransition et = (ElseTransition)t;
 			for(Transition ot: t.getFrom().output) {
@@ -2517,10 +2522,21 @@ public class LTSMinPrinter {
 		}
 	}
 
+	/**
+	 * Generate the timeout expression for the specified TimeoutTransition.
+	 * This will generate the expression that NO transition is enabled. The
+	 * dependency matrix is fixed accordingly. If tt is null,
+	 * @param w
+	 * @param tt
+	 */
 	public void generateTimeoutExpression(StringWriter w, TimeoutTransition tt) {
+
+		// Loop over all processes
 		for(Proctype p: procs) {
 			Automaton a = p.getAutomaton();
 			Iterator<State> i = a.iterator();
+
+			// Loop over all states of the process
 			while(i.hasNext()) {
 				State st = i.next();
 
@@ -2538,18 +2554,24 @@ public class LTSMinPrinter {
 					}
 				}
 
+				// Loop over all transitions of the state
 				for(Transition trans: st.output) {
+
+					// Skip Timeout transitions
 					boolean skip = false;
 					for(TimeoutTransition tt2: timeout_transitions) {
 						if(tt2.t == trans) skip = true;
 					}
 					if(skip) continue;
+
 					w.appendPostfix();
 					w.appendPrefix();
 
 					dep_matrix.incRead(tt.trans, state_proc_offset.get(p));
 					dep_matrix.incRead(tt.trans, offset_priority);
 
+					// Add the expression that the current ttransition from the
+					// current state in the curren process is not enabled.
 					w.append("&&!(");
 					w.append(C_STATE_TMP).append(".").append(wrapName(p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(trans.getFrom().getStateId());
 					w.append("&&( ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var == ").append(state_proc_offset.get(p)).append(" || ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var<0").append(" )");
@@ -3023,6 +3045,12 @@ public class LTSMinPrinter {
 		w.appendLine("}");
 	}
 
+	/**
+	 * Generates some general statistics about the generated model.
+	 * @param w
+	 * @param start_t Time the generation started.
+	 * @param end_t Time the generation ended.
+	 */
 	public void generateStatistics(StringWriter w, long start_t, long end_t) {
 		String old_prefix = w.getPrefix();
 		w.setPrefix(" * ");
@@ -3048,6 +3076,13 @@ public class LTSMinPrinter {
 		w.setPrefix(old_prefix);
 	}
 
+	/**
+	 * Generates some statistics about the dependency matrix, written in
+	 * comments.
+	 * @param w
+	 * @param dep_matrix
+	 * @param trans
+	 */
 	public void generateDependencymatrixStats(StringWriter w, DepMatrix dep_matrix, int trans) {
 		w.appendPrefix();
 		DepRow row = dep_matrix.getRow(trans);
