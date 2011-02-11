@@ -742,6 +742,19 @@ public class LTSMinPrinter {
 
 	}
 
+	public class ElseTransitionItem {
+		public int trans;
+		public ElseTransition t;
+		public Proctype p;
+
+		public ElseTransitionItem(int trans, ElseTransition t, Proctype p) {
+			this.trans = trans;
+			this.t = t;
+			this.p = p;
+		}
+
+	}
+
 	/// The size of one element in the state struct in bytes.
 	public static final int STATE_ELEMENT_SIZE = 4;
 
@@ -813,6 +826,10 @@ public class LTSMinPrinter {
 	// List of transition with a TimeoutExpression
 	List<TimeoutTransition> timeout_transitions;
 
+	// List of Elsetransitions
+	// These will be generated after normal transitions
+	List<ElseTransitionItem> else_transitions;
+
 	/**
 	 * Creates a new LTSMinPrinter using the specified Specification.
 	 * After this, the generate() member will generate and return C code.
@@ -834,6 +851,7 @@ public class LTSMinPrinter {
 		procs = new ArrayList<Proctype>();
 		atomicStates = new ArrayList<AtomicState>();
 		timeout_transitions = new ArrayList<TimeoutTransition>();
+		else_transitions = new ArrayList<ElseTransitionItem>();
 
 		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
 	}
@@ -1429,6 +1447,24 @@ public class LTSMinPrinter {
 		}
 		seenItAll = true;
 
+		// Generate Else Transitions
+		for(ElseTransitionItem eti: else_transitions) {
+			Proctype never = spec.getNever();
+			if(never!=null) {
+				Automaton never_a = never.getAutomaton();
+				Iterator<State> never_i = never_a.iterator();
+
+				while(never_i.hasNext()) {
+					State never_state = never_i.next();
+					for(Transition never_t: never_state.output) {
+						trans = generateStateTransition(w, eti.p, eti.t, trans,never_t);
+					}
+				}
+			} else {
+				trans = generateStateTransition(w, eti.p, eti.t, trans, null);
+			}
+		}
+
 		// Generate the rendezvous transitions
 		for(Map.Entry<ChannelVariable,ReadersAndWriters> e: channels.entrySet()) {
 			ChannelVariable cv = e.getKey();
@@ -1645,6 +1681,19 @@ public class LTSMinPrinter {
 			}
 		}
 
+		// DO NOT try to generate Else transitions immediately,
+		// but buffer it until every state has been visited.
+		// This is because during the normal generation, some transitions
+		// are not generated (e.g. rendezvous), so their enabledness is
+		// unknown.
+		//
+		{
+			if(!seenItAll && t instanceof ElseTransition) {
+				else_transitions.add(new ElseTransitionItem(-1,(ElseTransition)t,process));
+				return trans;
+			}
+		}
+
 		// Ensure the dependency matrix is of adequate size
 		dep_matrix.ensureSize(trans+1);
 
@@ -1654,19 +1703,41 @@ public class LTSMinPrinter {
 		dep_matrix.incWrite(trans, offset_priority);
 		dep_matrix.incRead(trans, offset_priority);
 
-		say("Handling trans: " + t.getClass().getName());
-
+		if(never_t!=null) {
+			say("Handling trans: " + t.getClass().getName() + " || " + never_t.getClass().getName());
+		} else {
+			say("Handling trans: " + t.getClass().getName());
+		}
 		// Guard: process counter
-		w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - ",t.getFrom().isInAtomic()?"atomic":"normal"," transition");
+		w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - ",t.getFrom().isInAtomic()?"atomic ":"normal ",t instanceof ElseTransition?"else ":"","transition");
 		w.appendLine("if( ",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",t.getFrom().getStateId());
-		w.appendLine("&&( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," ) ) {");
+		w.appendLine("&&( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," )");
+		if(never_t!=null) {
+			w.appendLine("&&( ",C_STATE_TMP,".",wrapName(spec.getNever().getName()),".",C_STATE_PROC_COUNTER,".var == ",never_t.getFrom().getStateId(),") ) {");
+		} else {
+			w.removePostfix();
+			w.append(") {");
+			w.appendPostfix();
+		}
 		w.indent();
 
 		// Generate action guard using the first action in the list
 		// of the transition
+		w.appendLine("if( true /* Guards */");
+
 		w.appendPrefix();
-		w.append("if( ");
+		w.append("&&( ");
 		generateTransitionGuard(w,process,t,trans);
+		w.append(")");
+
+		if(never_t != null) {
+			w.appendPostfix();
+			w.appendPrefix();
+			w.append("&&(");
+			generateTransitionGuard(w,spec.getNever(),never_t,trans);
+			w.append(")");
+		}
+
 		w.append(" ) {");
 		w.appendPostfix();
 		w.indent();
