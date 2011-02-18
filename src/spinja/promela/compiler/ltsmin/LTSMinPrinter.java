@@ -776,6 +776,7 @@ public class LTSMinPrinter {
 	public static final String C_TYPE_UINT32 = "sj_uint32";
 	public static final String C_TYPE_CHANNEL = "sj_channel";
 	public static final String C_TYPE_PROC_COUNTER = C_TYPE_INT32;
+	public static final String C_TYPE_PROC_COUNTER_ = "int";
 
 	private HashMap<Variable,Integer> state_var_offset;
 	private HashMap<Variable, String> state_var_desc;
@@ -2991,35 +2992,46 @@ public class LTSMinPrinter {
 		w.appendLine("};");
 
 		// Generate static list of types
+		List<String> types = new ArrayList<String>();
+		int translation[] = new int[state_size];
+
+		int i = 0;
+		for(;i<state_size;) {
+			Variable var = state_vector_var.get(i);
+			if(var==null) {
+				int idx = types.indexOf(C_TYPE_PROC_COUNTER_);
+				if(idx<0) {
+					types.add(C_TYPE_PROC_COUNTER_);
+					idx = types.size()-1;
+				}
+				translation[i++] = idx;
+			} else if(var.getArraySize()>1) {
+				int idx = types.indexOf(getCTypeOfVar(var).type);
+				if(idx<0) {
+					types.add(getCTypeOfVar(var).type);
+					idx = types.size()-1;
+				}
+				for(int end=i+var.getArraySize();i<end;) {
+					translation[i++] = idx;
+				}
+			} else {
+				int idx = types.indexOf(getCTypeOfVar(var).type);
+				if(idx<0) {
+					types.add(getCTypeOfVar(var).type);
+					idx = types.size()-1;
+				}
+				translation[i++] = idx;
+			}
+		}
+
 		w.appendLine("");
 		w.appendLine("static const char* var_types[] = {");
 		w.indent();
 
-		int i = 0;
-		for(;;) {
-
-			w.appendPrefix();
-
-			Variable var = state_vector_var.get(i);
-			if(var==null) {
-				w.append("\"").append(C_TYPE_PROC_COUNTER).append("\"");
-			} else if(var.getArraySize()>1) {
-				w.append("\"").append(getCTypeOfVarReal(var)).append("[0]\"");
-				for(int j=1; i<state_size && j<var.getArraySize(); ++j, ++i) {
-					w.append(",");
-					w.appendPostfix();
-					w.appendPrefix();
-					w.append("\"").append(getCTypeOfVarReal(var)).append("[").append(j).append("]\"");
-				}
-			} else {
-				w.append("\"").append(getCTypeOfVarReal(var)).append("\"");
-			}
-
-			if(++i==state_size) break;
-			w.append(",");
-			w.appendPostfix();
+		for(String s: types) {
+			w.appendLine("\"",s,"\",");
 		}
-		w.appendPostfix();
+		w.appendLine("\"\"");
 
 		w.outdent();
 		w.appendLine("};");
@@ -3035,11 +3047,30 @@ public class LTSMinPrinter {
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("extern const char* spinja_get_state_variable_type(int var) {");
+		w.appendLine("extern int spinja_get_type_count() {");
+		w.indent();
+
+		w.appendLine("return ",types.size(),";");
+
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("extern const char* spinja_get_type_name(int type) {");
+		w.indent();
+
+		w.appendLine("assert(type < ",types.size()," && \"spinja_get_type_name: invalid type\");");
+		w.appendLine("return var_types[type];");
+
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("extern int spinja_get_state_variable_type(int var) {");
 		w.indent();
 
 		w.appendLine("assert(var < ",state_size," && \"spinja_get_state_variable_type: invalid variable\");");
-		w.appendLine("return var_types[var];");
+		w.appendLine("return 0;");
 
 		w.outdent();
 		w.appendLine("}");
