@@ -3049,6 +3049,8 @@ public class LTSMinPrinter {
 					e.printStackTrace();
 				}
 				w.append(" = ");
+
+				handleAssignDependency(ra.p,trans,cra_expr);
 				try {
 					generateIntExpression(w, null, null, csa_expr,trans);
 				} catch(ParseException e) {
