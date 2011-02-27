@@ -939,6 +939,7 @@ public class LTSMinPrinter {
 		w.appendLine("#include <stdint.h>");
 		w.appendLine("#include <stdbool.h>");
 		w.appendLine("#include <stdlib.h>");
+		w.appendLine("#include <assert.h>");
 		w.appendLine("");
 		w.appendLine("typedef struct transition_info");
 		w.appendLine("{");
