@@ -1435,7 +1435,7 @@ public class LTSMinPrinter {
 	private int generateTransitions(StringWriter w) {
 		generateTransitions_pre(w);
 		int trans = generateTransitions_mid(w,0);
-		generateTransitions_post(w,trans);
+		trans = generateTransitions_post(w,trans);
 		return trans;
 	}
 
