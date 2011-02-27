@@ -3147,6 +3147,27 @@ public class LTSMinPrinter {
 		w.appendLine("};");
 
 		w.appendLine("");
+		for(String s: types) {
+			w.appendLine("static const char* const var_type_",s,"[] = {");
+			w.indent();
+			w.appendLine("\"\"");
+			w.outdent();
+			w.appendLine("};");
+		}
+
+		w.appendLine("");
+		w.appendLine("static const char* const * const var_type_values[] = {");
+		w.indent();
+
+		for(String s: types) {
+			w.appendLine("var_type_",s,",");
+		}
+		w.appendLine("NULL");
+
+		w.outdent();
+		w.appendLine("};");
+
+		w.appendLine("");
 		w.appendLine("extern const char* spinja_get_state_variable_name(unsigned int var) {");
 		w.indent();
 
@@ -3171,6 +3192,25 @@ public class LTSMinPrinter {
 
 		w.appendLine("assert(type < ",types.size()," && \"spinja_get_type_name: invalid type\");");
 		w.appendLine("return var_types[type];");
+
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("extern int spinja_get_type_value_count(int type) {");
+		w.indent();
+
+		w.appendLine("assert(type < ",types.size()," && \"spinja_get_type_value_count: invalid type\");");
+		w.appendLine("return 0;"); /* FIXME */
+
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("extern const char* spinja_get_type_value_name(int type, int value) {");
+		w.indent();
+
+		w.appendLine("return var_type_values[type][value];");
 
 		w.outdent();
 		w.appendLine("}");
