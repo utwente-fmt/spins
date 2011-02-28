@@ -586,7 +586,7 @@ State assign(State start, State breakNode, boolean inAtomic): {
 /*** Special dstep statement parsing ***/
 
 void dstep_sequence(ActionContainer cont): {
-	Token t;
+	Token t, id;
 	Expression expr;
 	OptionAction opt;
 }{
@@ -628,9 +628,10 @@ void dstep_sequence(ActionContainer cont): {
 |	t=<GOTO> <IDENTIFIER>
 	{ throw new MyParseException("Goto-statements are not supported in a d_step", t); }
 	(delim() (dstep_sequence(cont))?)?
-|	t=<PRINT> <LPAREN> <STRING>
-	(<COMMA> arg_lst(null))? <RPAREN>
-	//TODO
+|	t=<PRINT> <LPAREN> id=<STRING>
+	{ PrintAction pa = new PrintAction(t, id.image); }
+	(<COMMA> arg_lst(pa))? <RPAREN>
+	{ cont.addAction(pa); }
 	(delim() (dstep_sequence(cont))?)?
 |	t=<ASSERT> expr=expr()
 	{ cont.addAction(new AssertAction(t, expr)); }
