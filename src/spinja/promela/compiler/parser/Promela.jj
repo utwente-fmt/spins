@@ -202,7 +202,7 @@ Specification spec(String name): {
 void module(): {
 }{
 	utype()
-|	LOOKAHEAD(mtype()) mtype()
+|	LOOKAHEAD(1) mtype()
 | 	inline()
 |	one_decl(specification.getVariableStore())
 |	proctype()
