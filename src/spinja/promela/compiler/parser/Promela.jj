@@ -70,6 +70,7 @@ TOKEN : {	/* Keywords */
 |	<NOTRACE: "notrace">
 |	<TYPEDEF: "typedef">
 |	<MTYPE: "mtype">
+| 	<INLINE: "inline">
 |	<BIT: "bit">
 |	<BOOL: "bool">
 |	<BYTE: "byte">
@@ -202,6 +203,7 @@ void module(): {
 }{
 	utype()
 |	LOOKAHEAD(mtype()) mtype()
+| 	inline()
 |	one_decl(specification.getVariableStore())
 |	proctype()
 |	init()
@@ -315,6 +317,13 @@ void mtype(): {
 	(<COMMA> id=<IDENTIFIER>
 	{ specification.addMType(id.image); }
 	)* <RCURLY>
+}
+
+void inline(): {
+	Token t;
+}{
+	t = <INLINE>
+	{ throw new MyParseException("Inlines are not yet supported!", t); }
 }
 
 /*** Here the declarations start ***/
