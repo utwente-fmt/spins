@@ -28,13 +28,13 @@ import spinja.promela.compiler.variable.VariableAccess;
 import spinja.util.StringWriter;
 
 public class ChannelReadAction extends Action implements CompoundExpression {
-	private final Variable var;
+	private final Identifier id;
 
 	private final List<Expression> exprs;
 
-	public ChannelReadAction(final Token token, final Variable var) {
+	public ChannelReadAction(final Token token, final Identifier id) {
 		super(token);
-		this.var = var;
+		this.id = id;
 		exprs = new ArrayList<Expression>();
 	}
 
@@ -56,7 +56,7 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 
 	@Override
 	public boolean isLocal(final Proctype proc) {
-		if (!proc.isXR(var)) {
+		if (!proc.isXR(id.getVariable())) {
 			return false;
 		}
 		for (final Expression expr : exprs) {
@@ -80,15 +80,15 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 	public void printEnabledFunction(final StringWriter w) throws ParseException {
 		w.appendLine("public boolean isEnabled() {");
 		w.indent();
-		w.appendLine("if(", var, " == -1 || _channels[", var, "].isRendezVous() || !_channels[",
-			var, "].canRead()) {");
+		w.appendLine("if(", id, " == -1 || _channels[", id, "].isRendezVous() || !_channels[",
+			id, "].canRead()) {");
 		w.indent();
 		w.appendLine("return false;");
 		w.outdent();
 		w.appendLine("} else {");
 		w.indent();
 
-		w.appendLine("int[] _tmp = _channels[", var, "].peek();");
+		w.appendLine("int[] _tmp = _channels[", id, "].peek();");
 		w.appendLine("if(_tmp.length != ", exprs.size(),
 			") throw new UnexpectedStateException(\"Channel returned the wrong number of variables\");");
 		boolean first = true;
@@ -116,9 +116,9 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 		w.appendLine();
 		w.appendLine("public boolean canReadRendezvous(int[] _values) {");
 		w.indent();
-		w.appendLine("return _channels[", var, "].isRendezVous()");
+		w.appendLine("return _channels[", id, "].isRendezVous()");
 		w.appendLine("         && _values.length == ", exprs.size() + 1);
-		w.appendLine("         && _values[0] == ", var);
+		w.appendLine("         && _values[0] == ", id);
 		for (int i = 0; i < exprs.size(); i++) {
 			if (!(exprs.get(i) instanceof Identifier)) {
 				w.appendLine("         && _values[", i + 1, "] == ", exprs.get(i)
@@ -144,7 +144,7 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 
 	@Override
 	public void printTakeStatement(final StringWriter w) throws ParseException {
-		w.appendLine("int[] _tmp = _channels[", var, "].read();");
+		w.appendLine("int[] _tmp = _channels[", id, "].read();");
 		for (int i = 0; i < exprs.size(); i++) {
 			final Expression expr = exprs.get(i);
 			if (expr instanceof Identifier) {
@@ -159,7 +159,7 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 
 	@Override
 	public void printUndoStatement(final StringWriter w) throws ParseException {
-		w.appendPrefix().append("_channels[").append(var).append("].sendFirst(");
+		w.appendPrefix().append("_channels[").append(id).append("].sendFirst(");
 		for (final Expression expr : exprs) {
 			w.append(expr.getIntExpression()).append(", ");
 		}
@@ -170,7 +170,7 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 	@Override
 	public String toString() {
 		final StringWriter w = new StringWriter();
-		w.append(var.getName()).append("?");
+		w.append(id).append("?");
 		for (final Expression expr : exprs) {
 			w.append(expr.toString()).append(",");
 		}

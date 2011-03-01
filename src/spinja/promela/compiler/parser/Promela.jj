@@ -539,7 +539,7 @@ State channel_statement(State start, State breakNode, boolean inAtomic): {
 	expr=varref()
 	( t=<LNOT> 
 	  {
-	  	ChannelSendAction send = new ChannelSendAction(t, ((Identifier)expr).getVariable());
+	  	ChannelSendAction send = new ChannelSendAction(t, (Identifier)expr);
 		start.newTransition(send, end);
 	  }
 	  send_args(send)
@@ -548,12 +548,12 @@ State channel_statement(State start, State breakNode, boolean inAtomic): {
 	  send_args(null)
 	| t=<CH_READ>
 	  ( {
-	  	  ChannelReadAction read = new ChannelReadAction(t, ((Identifier)expr).getVariable());
+	  	  ChannelReadAction read = new ChannelReadAction(t, (Identifier)expr);
 		  start.newTransition(read, end);
 	    }
 	    recv_args(read)
 	  | {
-	  	  //ChannelCopyAction copy = new ChannelCopyAction(t, ((Identifier)expr).getVariable());
+	  	  //ChannelCopyAction copy = new ChannelCopyAction(t, (Identifier)expr);
 		  //start.newTransition(copy, end);
 		  throw new MyParseException("Non-removing receive is not yet supported!", t);
 	    }
