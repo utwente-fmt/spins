@@ -842,9 +842,9 @@ Expression mul_expr(): {
 	Token t;
 }{
 	ex1=unary_expr()
-	  ((t=<TIMES> | t=<DIVIDE> | t=<MODULO>) ex2=mul_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }
-	  )?
+	  ((t=<TIMES> | t=<DIVIDE> | t=<MODULO>) ex2=unary_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -853,9 +853,9 @@ Expression add_expr(): {
 	Token t;
 }{
 	ex1=mul_expr()
-	  ((t=<PLUS> | t=<MINUS>) ex2=add_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }	  
-	  )?
+	  ((t=<PLUS> | t=<MINUS>) ex2=mul_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }	  
+	  )*
 	{ return ex1; }
 }
 
@@ -864,9 +864,9 @@ Expression shift_expr(): {
 	Token t;
 }{
 	ex1=add_expr()
-	  ((t=<LSHIFT> | t=<RSHIFT>) ex2=shift_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }
-	  )?
+	  ((t=<LSHIFT> | t=<RSHIFT>) ex2=add_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -875,9 +875,9 @@ Expression cmp_expr(): {
 	Token t;
 }{
 	ex1=shift_expr()
-	  ((t=<LT> | t=<GT> | t=<LTE> | t=<GTE>) ex2=cmp_expr()
-	  { return new CompareExpression(t, ex1, ex2); }
-	  )?
+	  ((t=<LT> | t=<GT> | t=<LTE> | t=<GTE>) ex2=shift_expr()
+	  { ex1 = new CompareExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -886,9 +886,9 @@ Expression eq_expr(): {
 	Token t;
 }{
 	ex1=cmp_expr()
-	  ((t=<EQ> | t=<NEQ>) ex2=eq_expr()
-	  { return new CompareExpression(t, ex1, ex2); }
-	  )?
+	  ((t=<EQ> | t=<NEQ>) ex2=cmp_expr()
+	  { ex1 = new CompareExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -897,9 +897,9 @@ Expression and_expr(): {
 	Token t;
 }{
 	ex1=eq_expr() 
-	  (t=<BAND> ex2=and_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }	
-	  )?
+	  (t=<BAND> ex2=eq_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }	
+	  )*
 	{ return ex1; }
 }
 
@@ -908,9 +908,9 @@ Expression xor_expr(): {
 	Token t;
 }{
 	ex1=and_expr() 
-	  (t=<XOR> ex2=xor_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }	
-	  )?
+	  (t=<XOR> ex2=and_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }	
+	  )*
 	{ return ex1; }
 }
 
@@ -919,9 +919,9 @@ Expression or_expr(): {
 	Token t;
 }{
 	ex1=xor_expr() 
-	  (t=<BOR> ex2=or_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }	
-	  )?
+	  (t=<BOR> ex2=xor_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }	
+	  )*
 	{ return ex1; }
 }
 
@@ -930,9 +930,9 @@ Expression land_expr(): {
 	Token t;
 }{
 	ex1=or_expr() 
-	  (t=<LAND> ex2=land_expr()
-	  { return new BooleanExpression(t, ex1, ex2); }
-	  )?
+	  (t=<LAND> ex2=or_expr()
+	  { ex1 = new BooleanExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -941,9 +941,9 @@ Expression lor_expr(): {
 	Token t;
 }{
 	ex1=land_expr() 
-	  (t=<LOR> ex2=lor_expr()
-	  { return new BooleanExpression(t, ex1, ex2); }
-	  )?
+	  (t=<LOR> ex2=land_expr()
+	  { ex1 = new BooleanExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
