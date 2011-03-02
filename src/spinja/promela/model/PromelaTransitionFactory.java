@@ -181,7 +181,7 @@ public abstract class PromelaTransitionFactory {
 			assert getProcess()._sid == stateFrom;
 			getProcess()._sid = stateTo;
 			getProcess()._model._exclusive = takeAtomic ? getProcess()._pid : PromelaModel._NO_PROCESS;
-			getProcess().sendTransitionTakenEvent(this);
+			getProcess()._model.sendTransitionTakenEvent(this);
 		}
 
 		@Override
@@ -190,7 +190,7 @@ public abstract class PromelaTransitionFactory {
 			undoImpl();
 			getProcess()._model._exclusive = old_exclusive;
 			getProcess()._sid = stateFrom;
-			getProcess().sendTransitionUndoEvent(this);
+			getProcess()._model.sendTransitionUndoEvent(this);
 		}
 	}
 }
