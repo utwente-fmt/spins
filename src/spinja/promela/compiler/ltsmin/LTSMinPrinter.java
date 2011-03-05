@@ -866,7 +866,9 @@ public class LTSMinPrinter {
 	 */
 	public String generate() {
 
-		StringWriter w = new StringWriter();
+		StringWriter header   = new StringWriter();
+		StringWriter structs  = new StringWriter();
+		StringWriter w        = new StringWriter();
 
 		// Cache generate() requests
 		if(c_code!=null) {
@@ -876,19 +878,23 @@ public class LTSMinPrinter {
 		long start_t = System.currentTimeMillis();
 
 		// Generate header code
-		generateHeader(w);
+		generateHeader(header);
 
 		// Generate static type structs
-		w.appendLine("");
-		generateTypeStructs(w);
+		structs.appendLine("");
+		generateTypeStructs(structs);
 
 		// Generate structs describing channels and custom structs
-		w.appendLine("");
-		generateCustomStructs(w);
+		structs.appendLine("");
+		generateCustomStructs(structs);
 
 		// Generate struct describing the state vector
-		w.appendLine("");
-		generateStateStructs(w);
+		structs.appendLine("");
+		generateStateStructs(structs);
+
+		// Generate defines describing when a process is allowed to die
+		header.appendLine("");
+		generateAllowedDeath(header);
 
 		// Generate code for initial state and state size
 		w.appendLine("");
@@ -924,7 +930,7 @@ public class LTSMinPrinter {
 		w.appendLine("");
 		generateStatistics(w,start_t,end_t);
 
-		c_code = w.toString();
+		c_code = header.toString() + structs.toString() + w.toString();
 		return c_code;
 	}
 
@@ -948,6 +954,28 @@ public class LTSMinPrinter {
 		w.appendLine("int  group;");
 		w.outdent();
 		w.appendLine("} transition_info_t;");
+	}
+
+	private void generateAllowedDeath(StringWriter w) {
+
+		if(procs.isEmpty()) throw new AssertionError("generateAllowedDeath: process list is empty, please call after generateStateStructs()");
+
+		w.appendLine("#ifdef SPINDEATHMODE ");
+		{
+			for(int i=0; i<procs.size()-1; ++i) {
+				Proctype process = procs.get(i);
+				w.appendLine("#define ALLOWED_DEATH_",wrapName(process.getName()),"() (",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var == -1)");
+			}
+			w.appendLine("#define ALLOWED_DEATH_",wrapName(procs.get(procs.size()-1).getName()),"() (1)");
+		}
+		w.appendLine("#else");
+		{
+			for(int i=0; i<procs.size(); ++i) {
+				Proctype process = procs.get(i);
+				w.appendLine("#define ALLOWED_DEATH_",wrapName(process.getName()),"() (1)");
+			}
+		}
+		w.appendLine("#endif");
 	}
 
 	/**
@@ -1663,13 +1691,8 @@ public class LTSMinPrinter {
 			// changing the process counter to -1.
 			w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - end transition");
 			w.appendLine("if( ",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",state.getStateId());
-			w.appendLine("&&( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," ) ) {");
-			if(process.getID()<procs.size()-1) {
-				w.appendLine("#ifdef SPINDEATHMODE ");
-				w.appendLine(" && ",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var == -1 /* spin death mode */");
-				w.appendLine("#endif");
-			}
-			w.appendLine(") {");
+			w.appendLine("&&( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," )");
+			w.appendLine("&&( ALLOWED_DEATH_",wrapName(process.getName()),"() ) ) {");
 			w.indent();
 			w.appendLine("",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var = ",-1,";");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
@@ -1803,6 +1826,12 @@ public class LTSMinPrinter {
 		w.appendLine("l",trans,": // ",process.getName(),"[",state_proc_offset.get(process),"] - ",t.getFrom().isInAtomic()?"atomic ":"normal ",t instanceof ElseTransition?"else ":"","transition");
 		w.appendLine("if( ",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",t.getFrom().getStateId());
 		w.appendLine("&&( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," )");
+
+		// Check if the process is allowed to die if the target state is null
+		if(t.getTo()==null) {
+			w.appendLine("&&( ALLOWED_DEATH_",wrapName(process.getName()),"() )");
+		}
+
 		if(never_t!=null) {
 			w.appendLine("&&( ",C_STATE_TMP,".",wrapName(spec.getNever().getName()),".",C_STATE_PROC_COUNTER,".var == ",never_t.getFrom().getStateId(),") ) {");
 		} else {
@@ -1865,20 +1894,6 @@ public class LTSMinPrinter {
 		w.appendPostfix();
 		w.indent();
 
-		// If the target state is null and this is not the last process
-		// in the list: produce code that optionally handles death of
-		// processes like Spin/SpinJa does: a process can only terminate
-		// when all processes that are higher in the list are dead.
-		if(t.getTo()==null && process.getID()<procs.size()-1) {
-			w.appendLine("#ifdef SPINDEATHMODE ");
-			w.appendLine("if(",C_STATE_TMP,".",wrapName(procs.get(process.getID()+1).getName()),".",C_STATE_PROC_COUNTER,".var != -1) {");
-			w.indent();
-			w.appendLine("return 0;");
-			w.outdent();
-			w.appendLine("}");
-			w.appendLine("#endif");
-		}
-
 		// Change process counter to the next state.
 		// For end transitions, the PC is changed to -1.
 		w.appendLine("",C_STATE_TMP,".",
@@ -1940,6 +1955,9 @@ public class LTSMinPrinter {
 
 	void generateTransitionGuard(StringWriter w, Proctype process, Transition t, int trans) {
 		try {
+
+			w.append("(");
+
 			Action a = null;
 			if(t.getActionCount()>0) {
 				a = t.getAction(0);
@@ -1949,6 +1967,12 @@ public class LTSMinPrinter {
 			} else {
 				w.append("true");
 			}
+			if(t.getTo()==null) {
+				w.append(" && ( ALLOWED_DEATH_").append(wrapName(process.getName())).append("() )");
+			}
+
+			w.append(")");
+
 		} catch(ParseException e) {
 			e.printStackTrace();
 		}
