@@ -79,12 +79,13 @@ public abstract class PromelaProcess extends Process<PromelaTransition> {
 	}
 
 	@Override
-	public PromelaTransition nextTransition(PromelaTransition last) {
+	public PromelaTransition nextTransition(final PromelaTransition last) {
 		if (_model._exclusive != PromelaModel._NO_PROCESS && _model._exclusive != _pid) {
 			return null;
 		}
 
 		int[] msg = null;
+		PromelaTransitionFactory timeoutFactory = null;
 		PromelaTransitionFactory elseFactory = null;
 		PromelaTransitionFactory factory = null;
 
@@ -117,6 +118,8 @@ public abstract class PromelaProcess extends Process<PromelaTransition> {
 				}
 			} else if (last == null && factory.isElse()) {
 				elseFactory = factory;
+			} else if (timeoutFactory == null && factory.canTimeout()) {
+				timeoutFactory = factory;
 			}
 			factory = factory.getNext();
 		}
@@ -125,6 +128,25 @@ public abstract class PromelaProcess extends Process<PromelaTransition> {
 			return elseFactory.newTransition();
 		} else if(_model._exclusive == _pid && last == null) {
 			return _model.newEndAtomic();
+		}
+
+		if (timeoutFactory != null && !_model._timeout && !_model._ignore_timeout) {
+			_model._ignore_timeout = true;
+			for (int i = _model._nrProcs - 1; i >= 0; i--) {
+				if (i != _pid && _model._procs[i].nextTransition(null) != null) {
+					_model._ignore_timeout = false;
+					return null;
+				}
+			}
+			_model._ignore_timeout = false;
+			_model._timeout = true;
+			if (timeoutFactory.isEnabled()) {
+				_model._timeout = false;
+				return timeoutFactory.newTransition();
+			}
+			PromelaTransition next = nextTransition(last);
+			_model._timeout = false;
+			return next;
 		}
 
 		return null;

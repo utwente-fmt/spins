@@ -97,6 +97,10 @@ public abstract class PromelaTransitionFactory {
 	public boolean canReadRendezvous(final int[] msg) {
 		return false;
 	}
+	
+	public boolean canTimeout() {
+		return false;
+	}
 
 	@Override
 	public String toString() {

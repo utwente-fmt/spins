@@ -73,6 +73,8 @@ public abstract class PromelaModel extends ConcurrentModel<PromelaTransition> {
 
 	protected boolean _timeout;
 
+	protected boolean _ignore_timeout;
+
 	protected final int _global_size;
 
 	protected int _process_size;
