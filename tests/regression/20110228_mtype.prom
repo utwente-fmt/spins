@@ -1,0 +1,12 @@
+/* Author: Stefan Vijzelaar <s.j.j.vijzelaar@vu.nl>
+ * Date: 2011-02-28
+ * SPIN: 0.9.2
+ * Description: Invalid mtype declarations are not handled by the mtype
+ *   grammar, causing an unintuitive error message.
+ */
+
+mtype = { a b c };
+
+init {
+	mtype type = b;
+}

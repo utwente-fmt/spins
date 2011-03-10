@@ -1,0 +1,20 @@
+/* Author: Stefan Vijzelaar <s.j.j.vijzelaar@vu.nl>
+ * Date: 2011-03-02
+ * SPIN: 0.9.2
+ * Description: An end transition is not detected by the never claim, 
+ *   causing a failure in recognizing a property that does occur.
+ */
+
+byte a = 0;
+
+init {
+   a = 1;
+   a = 2;
+}
+
+never {
+   do
+   :: a != 2;
+   :: a == 2 -> break;
+   od
+}
