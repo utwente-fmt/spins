@@ -909,8 +909,9 @@ public class LTSMinPrinter {
 		generateTransitionsAll(w,t);
 
 		// Generate code for timeout expression
+		header.appendLine("");
 		w.appendLine("");
-		generateTimeoutExpression(w);
+		generateTimeoutExpression(header,w);
 
 		// Generate Dependency Matrix
 		w.appendLine("");
@@ -1245,7 +1246,6 @@ public class LTSMinPrinter {
 		w.appendLine("");
 		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
-		w.appendLine("static int timeout_expression(",C_STATE_T," ",C_STATE_TMP,", int trans);");
 
 		// Generate state struct comment
 		for(int off=0; off<state_size; ++off) {
@@ -2172,7 +2172,7 @@ public class LTSMinPrinter {
 			} else {
 				// Prevent adding of this transition if it was already seen
 				if(!seenItAll) timeout_transitions.add(new TimeoutTransition(trans, process, t));
-				w.append("timeout_expression(").append(C_STATE_TMP).append(",").append(trans).append(")");
+				w.append("TIMEOUT_").append(trans).append("()");
 			}
 		} else {
 			System.out.println("WARNING: Possibly using bad expression");
@@ -2716,34 +2716,21 @@ public class LTSMinPrinter {
 			}
 		}
 	}
-	public void generateTimeoutExpression(StringWriter w) {
+	public void generateTimeoutExpression(StringWriter header, StringWriter w) {
 		if(timeout_transitions.isEmpty()) return;
 
-		w.appendLine("static int timeout_expression(",C_STATE_T," ",C_STATE_TMP,", int trans) {");
-		w.indent();
-		w.appendLine("switch(trans) {");
 
 		for(TimeoutTransition tt: timeout_transitions) {
-			w.appendLine("case ",tt.trans,":");
-			w.indent();
-			w.appendPrefix();
-			w.append("return true ");
-			generateTimeoutExpression(w,tt);
-			w.append(";");
-			w.appendPostfix();
-			w.appendLine("break;");
-			w.outdent();
-		}
-		w.appendLine("default:");
-		w.indent();
-		w.appendLine("printf(\"Error: no timeout expression specified for transition %i\\n\",trans);");
-		w.appendLine("exit(-1);");
-		w.outdent();
-		w.appendLine("}");
 
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("");
+			header.appendLine("#define TIMEOUT_",tt.trans,"() ( true \\");
+			String old_postfix = header.getPostfix();
+			header.setPostfix("\\"+old_postfix);
+			generateTimeoutExpression(header,tt);
+			header.appendPostfix();
+			header.setPostfix(old_postfix);
+			header.appendLine(")");
+
+		}
 	}
 
 	private int insertVariable(CStruct sg, Variable var, String desc, String name, int current_offset) {
