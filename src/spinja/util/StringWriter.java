@@ -22,6 +22,7 @@ package spinja.util;
  * @author Marc de Jonge
  */
 public final class StringWriter {
+	private String preprefix;
 	private String prefix;
 	private String postfix;
 	private char[] buffer;
@@ -60,6 +61,23 @@ public final class StringWriter {
 	 *            The size of the underlying buffer.
 	 */
 	public StringWriter(final String prefix, final String postfix, final int size) {
+		this("",prefix,postfix,size);
+	}
+
+	/**
+	 * Constructor of StringWriter.
+	 *
+	 * @param preprefix
+	 *            The preprefix string.
+	 * @param prefix
+	 *            The prefix string.
+	 * @param postfix
+	 *            The postfix string.
+	 * @param size
+	 *            The size of the underlying buffer.
+	 */
+	public StringWriter(final String preprefix, final String prefix, final String postfix, final int size) {
+		this.preprefix = preprefix;
 		this.prefix = prefix;
 		this.postfix = postfix;
 		buffer = new char[size];
@@ -131,11 +149,23 @@ public final class StringWriter {
 	}
 
 	/**
-	 * Appends the prefix a number of times to the buffer (see {@link #getIndentLevel()}).
+	 * Appends the preprefix once to the buffer.
+	 *
+	 * @return This StringWriter
+	 */
+	public StringWriter appendPrePrefix() {
+		append(preprefix);
+		return this;
+	}
+
+	/**
+	 * Appends the preprefix once to the buffer.
+	 * Then, appends the prefix a number of times to the buffer (see {@link #getIndentLevel()}).
 	 * 
 	 * @return This StringWriter
 	 */
 	public StringWriter appendPrefix() {
+		appendPrePrefix();
 		for (int i = 0; i < indented; i++) {
 			append(prefix);
 		}
@@ -310,12 +340,20 @@ public final class StringWriter {
 		return prefix;
 	}
 
+	public String getPrePrefix() {
+		return preprefix;
+	}
+
 	public void setPostfix(String postfix) {
 		this.postfix = postfix;
 	}
 
 	public void setPrefix(String prefix) {
 		this.prefix = prefix;
+	}
+
+	public void setPrePrefix(String preprefix) {
+		this.preprefix = preprefix;
 	}
 
 }
