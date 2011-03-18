@@ -26,19 +26,14 @@ public abstract class PromelaProcess extends Process<PromelaTransition> {
 
 	protected final int _pid;
 
-	private final int _nrChannelBefore;
-
-	public PromelaProcess(PromelaModel promelaModel, final State[] table, final int startState) {
+	public PromelaProcess(PromelaModel promelaModel, int pid, final State[] table, final int startState) {
 		_model = promelaModel;
-		_pid = _model._nrProcs;
+		_pid = pid;
 		_stateTable = table;
-		_nrChannelBefore = _model._nrChannels;
 		this._sid = startState;
 	}
 
-	int getNrChannelsBefore() {
-		return _nrChannelBefore;
-	}
+	abstract public int getChannelCount();
 
 	@Override
 	public int getId() {
