@@ -1,0 +1,13 @@
+/* Author: Stefan Vijzelaar <s.j.j.vijzelaar@vu.nl>
+ * Date: 2011-03-21
+ * SPIN: 0.9.2
+ * Description: Not always encoding parameters causes problems for BFS.
+ */
+
+init {
+	run a(1);
+}
+
+proctype a(int n) {
+	assert(n == 1);
+}
