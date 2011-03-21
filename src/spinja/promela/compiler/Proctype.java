@@ -130,6 +130,7 @@ public class Proctype implements VariableContainer {
 		varStore.addVariable(var);
 		if (isArgument) {
 			arguments.add(var);
+			var.setWritten(true);
 		}
 	}
 
