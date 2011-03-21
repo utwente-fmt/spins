@@ -26,7 +26,7 @@ public interface DataWriter {
 	 * @param value
 	 *            The boolean value that is written.
 	 */
-	public void writeBoolean(final boolean value);
+	public void writeBoolean(final int value);
 
 	/**
 	 * Writes the lowest 8-bits of the value into the internal storage.

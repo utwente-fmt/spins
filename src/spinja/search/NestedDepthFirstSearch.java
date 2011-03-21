@@ -66,7 +66,7 @@ public abstract class NestedDepthFirstSearch<M extends Model<T>, T extends Trans
 	@Override
 	protected byte[] storeModel() {
 		storage.init(model.getSize() + 1);
-		storage.writeBoolean(toggle);
+		storage.writeBoolean(toggle ? 1 : 0);
 		model.encode(storage);
 		return storage.getBuffer();
 	}

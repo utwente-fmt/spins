@@ -45,8 +45,8 @@ public class ByteArrayStorage implements DataWriter, DataReader {
 		mark = storedMark;
 	}
 
-	public void writeBoolean(final boolean value) {
-		buffer[mark++] = (byte) (value ? 1 : 0);
+	public void writeBoolean(final int value) {
+		buffer[mark++] = (byte) value;
 	}
 
 	public void writeByte(final int value) {
@@ -65,12 +65,12 @@ public class ByteArrayStorage implements DataWriter, DataReader {
 		buffer[mark++] = (byte) (value >>> 24);
 	}
 
-	public boolean readBoolean() {
-		return buffer[mark++] != 0;
+	public int readBoolean() {
+		return buffer[mark++] & 0x1;
 	}
 
-	public boolean peekBoolean() {
-		return buffer[mark] != 0;
+	public int peekBoolean() {
+		return buffer[mark] & 0x1;
 	}
 
 	public int readByte() {

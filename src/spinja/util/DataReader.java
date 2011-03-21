@@ -40,13 +40,13 @@ public interface DataReader {
 	 * Reads a boolean value from the storage and moves the pointer to the next place.
 	 * @return The boolean value.
 	 */
-	public boolean readBoolean();
+	public int readBoolean();
 
 	/**
 	 * Reads a boolean value from the storage, but keeps the pointer in the same place.
 	 * @return The boolean value.
 	 */
-	public boolean peekBoolean();
+	public int peekBoolean();
 
 	/**
 	 * Reads a byte value from the storage and moves the pointer 8 bits ahead.
