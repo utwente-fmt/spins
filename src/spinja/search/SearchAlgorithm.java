@@ -323,8 +323,8 @@ public abstract class SearchAlgorithm<M extends Model<T>,
 				maxSize = state.length;
 			}
 
-			if (getDepth() - 1 > maxDepth) {
-				maxDepth = getDepth() - 1;
+			if (getDepth() > maxDepth) {
+				maxDepth = getDepth();
 			}
 		}
 		freeMemory();

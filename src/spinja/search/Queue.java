@@ -70,12 +70,13 @@ public class Queue {
 	}
 
 	public synchronized State remove() {
-		if (head == null) {
+		if (filled == 0) {
 			return null;
 		}
 		if (head == nextDepth) {
 			head = head.next;
 			add(nextDepth);
+			filled--;
 			depth++;
 		}
 		State res = head;
@@ -87,6 +88,10 @@ public class Queue {
 
 	public int size() {
 		return filled;
+	}
+	
+	public int depth() {
+		return depth;
 	}
 
 	public void clear() {

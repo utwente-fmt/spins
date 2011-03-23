@@ -38,8 +38,6 @@ public class BreadthFirstSearch<M extends Model<T>, T extends Transition> extend
 
 	protected Queue.State fromState;
 
-	private int depth;
-
 	protected T last;
 
 	public BreadthFirstSearch(final M model, final StateStore store,
@@ -54,7 +52,6 @@ public class BreadthFirstSearch<M extends Model<T>, T extends Transition> extend
 		final TransitionCalculator<M, T> nextTransition) {
 		super(model, store, checkForDeadlocks, maxErrors, errorExceedDepth, nextTransition);
 		this.queue = queue;
-		depth = 0;
 	}
 
 	@Override
@@ -80,7 +77,7 @@ public class BreadthFirstSearch<M extends Model<T>, T extends Transition> extend
 
 	@Override
 	public int getDepth() {
-		return depth;
+		return queue.depth();
 	}
 	
 	@Override
