@@ -261,6 +261,17 @@ public abstract class SearchAlgorithm<M extends Model<T>,
 
 			// Make sure that the state matches the model
 			assert checkModelState();
+
+			// Remember the largest state size and the largest depth that is
+			// reached
+			if (state.length > maxSize) {
+				maxSize = state.length;
+			}
+
+			if (getDepth() > maxDepth) {
+				maxDepth = getDepth();
+			}			
+
 			final Transition next = nextTransition();
 
 			if (next == null) {
@@ -314,17 +325,6 @@ public abstract class SearchAlgorithm<M extends Model<T>,
 					printedDepthWarning = true;
 				}
 				undoTransition();
-				continue;
-			}
-
-			// Remember the largest state size and the largest depth that is
-			// reached
-			if (state.length > maxSize) {
-				maxSize = state.length;
-			}
-
-			if (getDepth() > maxDepth) {
-				maxDepth = getDepth();
 			}
 		}
 		freeMemory();

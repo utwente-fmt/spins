@@ -282,8 +282,8 @@ public class Run extends Thread {
 				model, nextTransition);
 		} else if (impl.isSet("BFS")) {
 			algo = new BreadthFirstSearch<ConcurrentModel<PromelaTransition>, PromelaTransition>(
-				model, store, errorExceedDepth.isSet(), nrErrors.getValue(),
-				!ignoreInvalidEnd.isSet(), nextTransition);
+				model, store, !ignoreInvalidEnd.isSet(), nrErrors.getValue(),
+				errorExceedDepth.isSet(), nextTransition);
 		} else if (concurrent.getValue() > 1) {
 			algo = new ConcurrentBFSearch<ConcurrentModel<PromelaTransition>, PromelaTransition>(
 				concurrent.getValue(), model, store, !ignoreInvalidEnd.isSet(),

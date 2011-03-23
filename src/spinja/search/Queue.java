@@ -55,7 +55,7 @@ public class Queue {
 	public Queue() {
 		tail = head = nextDepth;
 		filled = 0;
-		depth = 0;
+		depth = -1;
 	}
 
 	public synchronized boolean add(State newState) {

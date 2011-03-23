@@ -88,7 +88,7 @@ public class BreadthFirstSearch<M extends Model<T>, T extends Transition> extend
 	@Override
 	protected T nextTransition() {
 		final T next = nextTransition.next(model, last);
-		last = next;
+		last = next == null ? last : next;
 		return next;
 	}
 
@@ -135,6 +135,7 @@ public class BreadthFirstSearch<M extends Model<T>, T extends Transition> extend
 	@Override
 	protected void stateDone() {
 		fromState = null;
+		last = null;
 	}
 
 	@Override
