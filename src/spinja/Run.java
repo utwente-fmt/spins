@@ -106,7 +106,7 @@ public class Run extends Thread {
 		"prints the version number and exits");
 
 	private final NumberOption hashEntries = new NumberOption('w',
-		"sets the number of entries in the hash table to 2^N", 21, 3, 31);
+		"sets the number of entries in the hash table to 2^N", 21, 3, 30);
 
 	private byte done = 0;
 
