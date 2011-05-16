@@ -240,6 +240,7 @@ void proctype(): {
 			new EndTransition(s);
 		}
 		setGotos();
+		currentProc = null;
 	}
 }
 
@@ -275,6 +276,7 @@ void init(): {
 			new EndTransition(s);
 		}
 		setGotos();
+		currentProc = null;
 	}
 }
 
@@ -294,6 +296,7 @@ void never(): {
 			new NeverEndTransition(s);
 		}
 		setGotos();
+		currentProc = null;
 	}
 }
 
