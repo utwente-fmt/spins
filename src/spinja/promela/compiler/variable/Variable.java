@@ -14,6 +14,7 @@
 
 package spinja.promela.compiler.variable;
 
+import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.util.StringWriter;
@@ -30,10 +31,16 @@ public class Variable {
 
 	private boolean isRead, isWritten;
 
+	private Proctype owner;
+
 	public Variable(final VariableType type, final String name, final int arraySize) {
+		this(type,name,arraySize,null);
+	}
+	public Variable(final VariableType type, final String name, final int arraySize, Proctype owner) {
 		this.name = name;
 		this.arraySize = arraySize;
 		this.type = type;
+		this.owner = owner;
 		isRead = false;
 		isWritten = false;
 	}
@@ -44,6 +51,10 @@ public class Variable {
 
 	public void setType(VariableType type) {
 		this.type = type;
+	}
+
+	public Proctype getOwner() {
+		return owner;
 	}
 
 	public Expression getInitExpr() {

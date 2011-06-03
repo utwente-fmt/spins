@@ -324,7 +324,7 @@ public class Compile {
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
 
-			fos.write(new LTSMinPrinter(spec).generate().getBytes());
+			fos.write(new LTSMinPrinter(spec,name).generate().getBytes());
 			fos.flush();
 			fos.close();
 		} catch (final IOException ex) {
