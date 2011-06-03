@@ -34,6 +34,8 @@ import spinja.promela.compiler.optimizer.RenumberAll;
 import spinja.promela.compiler.optimizer.StateMerging;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Promela;
+import spinja.promela.compiler.ltsmin.LTSMinPrinter;
+import spinja.promela.compiler.parser.Preprocessor;
 
 public class Compile {
 	private static Specification compile(final File promFile, 
@@ -41,6 +43,7 @@ public class Compile {
 		                                 final boolean useStateMerging,
 		                                 final boolean verbose) {
 		try {
+			Preprocessor.setFilename(promFile.getName());
 			if (verbose)
 				System.out.print("Start parsing " + promFile.getName() + "...");
 			final Promela prom = new Promela(new FileInputStream(promFile));
@@ -97,7 +100,7 @@ public class Compile {
 		} catch (final FileNotFoundException ex) {
 			System.out.println("Promela file " + promFile.getName() + " could not be found.");
 		} catch (final ParseException ex) {
-			System.out.println("Parse exception in file " + promFile.getName() + ": "
+			System.out.println("Parse exception in file " + Preprocessor.getFileName() + ": "
 								+ ex.getMessage());
 		}
 		return null;
@@ -220,7 +223,11 @@ public class Compile {
 			"(default: " + defaultname + ")");
 		parser.addOption(modelname);
 
-// [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
+		final StringOption ltsmin = new StringOption('l',
+			"sets output to ltsmin \n");
+		parser.addOption(ltsmin);
+
+		// [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
 //		final BooleanOption createjar = new BooleanOption('j',
 //			"Creates an easy to execute jar-file.");
 //		parser.addOption(createjar);
@@ -281,19 +288,27 @@ public class Compile {
 			if (srcDir.isSet()) {
 				outputDir = new File(userDir, srcDir.getValue());
 			} else {
-				outputDir = new File(userDir, "spinja");
+				outputDir = userDir;
 //				[07-Apr-2010 12:20 ruys] was: outputDir = new File(new File(userDir, "spinja"), "generated");
 			}
 //		} else {
 //			outputDir = Compile.generateTmpDir(userDir);
 //		}
-		if (!outputDir.exists() && !outputDir.mkdirs()) {
-			System.out.println("Error: could not generate directory " + outputDir.getName());
-			System.exit(-3);
-		}
 
-		Compile.writeFiles(spec, name, outputDir);
-		System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
+//		System.out.println("ltsmin: " + ltsmin.isSet());
+
+		if (ltsmin.isSet()) {
+			Compile.writeLTSMinFiles(spec, file.getName(), outputDir);
+			System.out.println("Written C model for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.c");
+		} else {
+			outputDir = new File(userDir, "spinja");
+			if (!outputDir.exists() && !outputDir.mkdirs()) {
+				System.out.println("Error: could not generate directory " + outputDir.getName());
+				System.exit(-3);
+			}
+			Compile.writeFiles(spec, name, outputDir);
+			System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
+		}
 
 // [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
 //		if (createjar.isSet()) {
@@ -301,6 +316,21 @@ public class Compile {
 //			Compile.createJar(name, spec.getNever() != null, outputDir);
 //			Compile.delete(outputDir);
 //		}
+	}
+
+	private static void writeLTSMinFiles(final Specification spec, final String name, final File outputDir) {
+		final File javaFile = new File(outputDir, name + ".spinja.c");
+
+		try {
+			final FileOutputStream fos = new FileOutputStream(javaFile);
+
+			fos.write(new LTSMinPrinter(spec).generate().getBytes());
+			fos.flush();
+			fos.close();
+		} catch (final IOException ex) {
+			System.out.println("IOException while writing java files: " + ex.getMessage());
+			System.exit(-5);
+		}
 	}
 
 	private static void writeFiles(final Specification spec, final String name, final File outputDir) {

@@ -146,4 +146,7 @@ public class ChannelType extends VariableType {
 		types.add(type);
 	}
 
+	public VariableStore getVariableStore() {
+		return vars;
+	}
 }

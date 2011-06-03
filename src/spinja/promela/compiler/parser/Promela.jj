@@ -168,6 +168,23 @@ SKIP : { // Skip whitespace and comments
 |	"\t"
 |	"\n"
 |	"/*" : IN_COMMENT
+|	"#" : PREPROCESSOR_OUTPUT
+}
+
+<PREPROCESSOR_OUTPUT> SKIP:
+{
+     "\n" {
+	 Preprocessor.process(input_stream,image.toString());
+	}: DEFAULT
+}
+
+<PREPROCESSOR_OUTPUT> MORE:
+{
+ "\\\n"
+ |
+ "\\\r\n"
+ |
+ < ~[] >
 }
 
 <IN_COMMENT> SKIP: {
