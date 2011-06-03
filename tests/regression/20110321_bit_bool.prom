@@ -1,0 +1,13 @@
+/* Author: Stefan Vijzelaar <s.j.j.vijzelaar@vu.nl>
+ * Date: 2011-03-21
+ * SPIN: 0.9.2
+ * Description: Models with bit and or bool types did not compile.
+ */
+
+bit a;
+bool b;
+
+init {
+	a = 1;
+	b = true;
+}

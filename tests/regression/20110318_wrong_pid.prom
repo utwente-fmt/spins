@@ -1,0 +1,19 @@
+/* Author: Stefan Vijzelaar <s.j.j.vijzelaar@vu.nl>
+ * Date: 2011-03-18
+ * SPIN: 0.9.2
+ * Description: Decoding states in a BFS causes a() to get a wrong pid.
+ */
+
+init {
+	assert(_pid == 0);
+	run a();
+	run b();
+}
+
+proctype a() {
+	assert(_pid <= 1);
+}
+
+proctype b() {
+	assert(_pid <= 2);
+}

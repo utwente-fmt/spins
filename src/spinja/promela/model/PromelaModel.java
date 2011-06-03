@@ -73,6 +73,8 @@ public abstract class PromelaModel extends ConcurrentModel<PromelaTransition> {
 
 	protected boolean _timeout;
 
+	protected boolean _ignore_timeout;
+
 	protected final int _global_size;
 
 	protected int _process_size;
@@ -201,7 +203,7 @@ public abstract class PromelaModel extends ConcurrentModel<PromelaTransition> {
 	public Channel[] endProcess() {
 		_process_size -= _procs[--_nrProcs].getSize();
 
-		int extraChannels = _nrChannels - _procs[_nrProcs].getNrChannelsBefore();
+		int extraChannels = _procs[_nrProcs].getChannelCount();
 		_procs[_nrProcs] = null;
 
 		if (extraChannels > 0) {

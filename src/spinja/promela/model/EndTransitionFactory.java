@@ -61,7 +61,7 @@ public class EndTransitionFactory extends PromelaTransitionFactory {
 			@Override
 			public void take() throws ValidationException {
 				_backup_channels = getProcess()._model.endProcess();
-				getProcess().sendTransitionTakenEvent(this);
+				getProcess()._model.sendTransitionTakenEvent(this);
 			}
 
 			@Override
@@ -78,7 +78,7 @@ public class EndTransitionFactory extends PromelaTransitionFactory {
 				} catch (final TooManyChannelsException ex) {
 					throw new Error("Can not restore model, too many channels.");
 				}
-				getProcess().sendTransitionUndoEvent(this);
+				getProcess()._model.sendTransitionUndoEvent(this);
 			}
 			
 			@Override

@@ -294,6 +294,15 @@ public abstract class Transition implements Iterable<Action>, ActionContainer {
 			w.removePostfix().outdent().appendLine("};");
 		}
 		w.outdent().appendLine("}");
+		
+		if (getText().indexOf("timeout") >= 0) {
+			w.appendLine("public final boolean canTimeout() {").indent();
+			w.appendLine("return true;");
+			w.outdent().appendLine("}");
+			w.appendLine("public final boolean isLocal() {").indent();
+			w.appendLine("return false;");
+			w.outdent().appendLine("}");
+		}
 		w.outdent().appendLine("}");
 	}
 

@@ -24,18 +24,17 @@ import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
-import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableAccess;
 import spinja.util.StringWriter;
 
 public class ChannelSendAction extends Action implements CompoundExpression {
-	private final Variable var;
+	private final Identifier id;
 
 	private final List<Expression> exprs;
 
-	public ChannelSendAction(final Token token, final Variable var) {
+	public ChannelSendAction(final Token token, final Identifier id) {
 		super(token);
-		this.var = var;
+		this.id = id;
 		exprs = new ArrayList<Expression>();
 	}
 
@@ -48,13 +47,13 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 
 	@Override
 	public String getEnabledExpression() {
-		return var + " != -1 && !_channels[" + var + "].isRendezVous() && _channels[" + var
+		return id + " != -1 && !_channels[" + id + "].isRendezVous() && _channels[" + id
 				+ "].canSend()";
 	}
 
 	@Override
 	public boolean isLocal(final Proctype proc) {
-		if (!proc.isXS(var)) {
+		if (!proc.isXS(id.getVariable())) {
 			return false;
 		}
 		for (final Expression expr : exprs) {
@@ -71,8 +70,8 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 	public void printExtraFunctions(final StringWriter w) {
 		w.appendLine("public int[] getRendezvous() {");
 		w.indent();
-		w.appendLine("if(!_channels[", var, "].isRendezVous()) return null;");
-		w.appendPrefix().append("return new int[]{").append(var);
+		w.appendLine("if(!_channels[", id, "].isRendezVous()) return null;");
+		w.appendPrefix().append("return new int[]{").append(id);
 		for (final Expression expr : exprs) {
 			w.append(", ").append(expr.toString());
 		}
@@ -84,7 +83,7 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 
 	@Override
 	public void printTakeStatement(final StringWriter w) throws ParseException {
-		w.appendPrefix().append("_channels[").append(var).append("].send(");
+		w.appendPrefix().append("_channels[").append(id).append("].send(");
 		for (final Expression expr : exprs) {
 			w.append(expr.getIntExpression()).append(", ");
 		}
@@ -99,13 +98,13 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 
 	@Override
 	public void printUndoStatement(final StringWriter w) {
-		w.appendLine("_channels[", var, "].readLast();");
+		w.appendLine("_channels[", id, "].readLast();");
 	}
 
 	@Override
 	public String toString() {
 		final StringWriter w = new StringWriter();
-		w.append(var.getName()).append("!");
+		w.append(id).append("!");
 		for (final Expression expr : exprs) {
 			w.append(expr.toString()).append(",");
 		}

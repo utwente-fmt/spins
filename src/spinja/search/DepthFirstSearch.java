@@ -99,7 +99,7 @@ public class DepthFirstSearch<M extends Model<T>, T extends Transition> extends
 
 	@Override
 	public int getDepth() {
-		return stack.getSize();
+		return stack.getSize() - 1;
 	}
 
 	@SuppressWarnings("unchecked")

@@ -70,6 +70,7 @@ TOKEN : {	/* Keywords */
 |	<NOTRACE: "notrace">
 |	<TYPEDEF: "typedef">
 |	<MTYPE: "mtype">
+| 	<INLINE: "inline">
 |	<BIT: "bit">
 |	<BOOL: "bool">
 |	<BYTE: "byte">
@@ -201,7 +202,8 @@ Specification spec(String name): {
 void module(): {
 }{
 	utype()
-|	LOOKAHEAD(mtype()) mtype()
+|	LOOKAHEAD(1) mtype()
+| 	inline()
 |	one_decl(specification.getVariableStore())
 |	proctype()
 |	init()
@@ -315,6 +317,13 @@ void mtype(): {
 	(<COMMA> id=<IDENTIFIER>
 	{ specification.addMType(id.image); }
 	)* <RCURLY>
+}
+
+void inline(): {
+	Token t;
+}{
+	t = <INLINE>
+	{ throw new MyParseException("Inlines are not yet supported!", t); }
 }
 
 /*** Here the declarations start ***/
@@ -530,7 +539,7 @@ State channel_statement(State start, State breakNode, boolean inAtomic): {
 	expr=varref()
 	( t=<LNOT> 
 	  {
-	  	ChannelSendAction send = new ChannelSendAction(t, ((Identifier)expr).getVariable());
+	  	ChannelSendAction send = new ChannelSendAction(t, (Identifier)expr);
 		start.newTransition(send, end);
 	  }
 	  send_args(send)
@@ -539,12 +548,12 @@ State channel_statement(State start, State breakNode, boolean inAtomic): {
 	  send_args(null)
 	| t=<CH_READ>
 	  ( {
-	  	  ChannelReadAction read = new ChannelReadAction(t, ((Identifier)expr).getVariable());
+	  	  ChannelReadAction read = new ChannelReadAction(t, (Identifier)expr);
 		  start.newTransition(read, end);
 	    }
 	    recv_args(read)
 	  | {
-	  	  //ChannelCopyAction copy = new ChannelCopyAction(t, ((Identifier)expr).getVariable());
+	  	  //ChannelCopyAction copy = new ChannelCopyAction(t, (Identifier)expr);
 		  //start.newTransition(copy, end);
 		  throw new MyParseException("Non-removing receive is not yet supported!", t);
 	    }
@@ -586,7 +595,7 @@ State assign(State start, State breakNode, boolean inAtomic): {
 /*** Special dstep statement parsing ***/
 
 void dstep_sequence(ActionContainer cont): {
-	Token t;
+	Token t, id;
 	Expression expr;
 	OptionAction opt;
 }{
@@ -628,9 +637,10 @@ void dstep_sequence(ActionContainer cont): {
 |	t=<GOTO> <IDENTIFIER>
 	{ throw new MyParseException("Goto-statements are not supported in a d_step", t); }
 	(delim() (dstep_sequence(cont))?)?
-|	t=<PRINT> <LPAREN> <STRING>
-	(<COMMA> arg_lst(null))? <RPAREN>
-	//TODO
+|	t=<PRINT> <LPAREN> id=<STRING>
+	{ PrintAction pa = new PrintAction(t, id.image); }
+	(<COMMA> arg_lst(pa))? <RPAREN>
+	{ cont.addAction(pa); }
 	(delim() (dstep_sequence(cont))?)?
 |	t=<ASSERT> expr=expr()
 	{ cont.addAction(new AssertAction(t, expr)); }
@@ -791,9 +801,9 @@ Expression base_expr(): {
 	t=<IDENTIFIER> <LBRACK> lor_expr() <RBRACK> <AT> <IDENTIFIER>
 	{ throw new MyParseException("At expressions are not yet supported!", t); }
 |	ex1=varref()
-	  ( t=<CH_READ> <LBRACK> recv_args(null) <RBRACK>
+	  ( t=<CH_READ> <LBRACK> //recv_args(null) <RBRACK>
 	  { throw new MyParseException("Channel read with brackets are not yet supported!", t); }
-	  | t=<CH_READ_RAND> <LBRACK> recv_args(null) <RBRACK>
+	  | t=<CH_READ_RAND> <LBRACK> //recv_args(null) <RBRACK>
 	  { throw new MyParseException("Channel random read with brackets are not yet supported!", t); }
 	  )?
 	{ return ex1; }
@@ -832,9 +842,9 @@ Expression mul_expr(): {
 	Token t;
 }{
 	ex1=unary_expr()
-	  ((t=<TIMES> | t=<DIVIDE> | t=<MODULO>) ex2=mul_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }
-	  )?
+	  ((t=<TIMES> | t=<DIVIDE> | t=<MODULO>) ex2=unary_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -843,9 +853,9 @@ Expression add_expr(): {
 	Token t;
 }{
 	ex1=mul_expr()
-	  ((t=<PLUS> | t=<MINUS>) ex2=add_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }	  
-	  )?
+	  ((t=<PLUS> | t=<MINUS>) ex2=mul_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }	  
+	  )*
 	{ return ex1; }
 }
 
@@ -854,9 +864,9 @@ Expression shift_expr(): {
 	Token t;
 }{
 	ex1=add_expr()
-	  ((t=<LSHIFT> | t=<RSHIFT>) ex2=shift_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }
-	  )?
+	  ((t=<LSHIFT> | t=<RSHIFT>) ex2=add_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -865,9 +875,9 @@ Expression cmp_expr(): {
 	Token t;
 }{
 	ex1=shift_expr()
-	  ((t=<LT> | t=<GT> | t=<LTE> | t=<GTE>) ex2=cmp_expr()
-	  { return new CompareExpression(t, ex1, ex2); }
-	  )?
+	  ((t=<LT> | t=<GT> | t=<LTE> | t=<GTE>) ex2=shift_expr()
+	  { ex1 = new CompareExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -876,9 +886,9 @@ Expression eq_expr(): {
 	Token t;
 }{
 	ex1=cmp_expr()
-	  ((t=<EQ> | t=<NEQ>) ex2=eq_expr()
-	  { return new CompareExpression(t, ex1, ex2); }
-	  )?
+	  ((t=<EQ> | t=<NEQ>) ex2=cmp_expr()
+	  { ex1 = new CompareExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -887,9 +897,9 @@ Expression and_expr(): {
 	Token t;
 }{
 	ex1=eq_expr() 
-	  (t=<BAND> ex2=and_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }	
-	  )?
+	  (t=<BAND> ex2=eq_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }	
+	  )*
 	{ return ex1; }
 }
 
@@ -898,9 +908,9 @@ Expression xor_expr(): {
 	Token t;
 }{
 	ex1=and_expr() 
-	  (t=<XOR> ex2=xor_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }	
-	  )?
+	  (t=<XOR> ex2=and_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }	
+	  )*
 	{ return ex1; }
 }
 
@@ -909,9 +919,9 @@ Expression or_expr(): {
 	Token t;
 }{
 	ex1=xor_expr() 
-	  (t=<BOR> ex2=or_expr()
-	  { return new AritmicExpression(t, ex1, ex2); }	
-	  )?
+	  (t=<BOR> ex2=xor_expr()
+	  { ex1 = new AritmicExpression(t, ex1, ex2); }	
+	  )*
 	{ return ex1; }
 }
 
@@ -920,9 +930,9 @@ Expression land_expr(): {
 	Token t;
 }{
 	ex1=or_expr() 
-	  (t=<LAND> ex2=land_expr()
-	  { return new BooleanExpression(t, ex1, ex2); }
-	  )?
+	  (t=<LAND> ex2=or_expr()
+	  { ex1 = new BooleanExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 
@@ -931,9 +941,9 @@ Expression lor_expr(): {
 	Token t;
 }{
 	ex1=land_expr() 
-	  (t=<LOR> ex2=lor_expr()
-	  { return new BooleanExpression(t, ex1, ex2); }
-	  )?
+	  (t=<LOR> ex2=land_expr()
+	  { ex1 = new BooleanExpression(t, ex1, ex2); }
+	  )*
 	{ return ex1; }
 }
 

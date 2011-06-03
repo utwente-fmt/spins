@@ -106,7 +106,7 @@ public class Run extends Thread {
 		"prints the version number and exits");
 
 	private final NumberOption hashEntries = new NumberOption('w',
-		"sets the number of entries in the hash table to 2^N", 21, 3, 31);
+		"sets the number of entries in the hash table to 2^N", 21, 3, 30);
 
 	private byte done = 0;
 
@@ -281,8 +281,8 @@ public class Run extends Thread {
 				model, nextTransition);
 		} else if (impl.isSet("BFS")) {
 			algo = new BreadthFirstSearch<ConcurrentModel<PromelaTransition>, PromelaTransition>(
-				model, store, errorExceedDepth.isSet(), nrErrors.getValue(),
-				!ignoreInvalidEnd.isSet(), nextTransition);
+				model, store, !ignoreInvalidEnd.isSet(), nrErrors.getValue(),
+				errorExceedDepth.isSet(), nextTransition);
 		} else if (concurrent.getValue() > 1) {
 			algo = new ConcurrentBFSearch<ConcurrentModel<PromelaTransition>, PromelaTransition>(
 				concurrent.getValue(), model, store, !ignoreInvalidEnd.isSet(),

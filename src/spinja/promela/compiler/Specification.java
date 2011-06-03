@@ -153,6 +153,7 @@ public class Specification implements Iterable<Proctype> {
 		// genarateNextTransition(w);
 		generateStore(w);
 		generateToString(w);
+		generateGetChannelCount(w);
 		generateProctypes(w);
 
 		w.outdent().appendLine("}");
@@ -284,7 +285,7 @@ public class Specification implements Iterable<Proctype> {
 					w.indent();
 					for (int i = 0; i < procs.size(); i++) {
 						w.appendLine("case ", i, ": _procs[_i] = new ", procs.get(i).getName(),
-							"(true); break;");
+							"(true, _i); break;");
 					}
 					w.appendLine("default: return false;");
 					w.outdent();
@@ -326,6 +327,15 @@ public class Specification implements Iterable<Proctype> {
 		w.appendLine("}");
 		w.appendLine("return sb.toString();");
 		w.outdent().appendLine("}");
+		w.appendLine();
+	}
+	
+	protected void generateGetChannelCount(final StringWriter w) {
+		w.appendLine("public int getChannelCount() {");
+		w.indent();
+		w.appendLine("return ", varStore.getChannelCount(), ";");
+		w.outdent();
+		w.appendLine("}");
 	}
 
 	private void generateVariables(final StringWriter w) {

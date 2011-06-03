@@ -31,6 +31,9 @@ public class RemoveUselessGotos implements GraphOptimizer {
 				Transition possibleGoto = null;
 				if (next != null && next.sizeOut() == 1
 					&& (possibleGoto = next.getOut(0)) instanceof GotoTransition) {
+					if (out.getTo() == possibleGoto.getTo()) {
+						continue;
+					}
 					out.changeTo(possibleGoto.getTo());
 					if (next == automaton.getStartState()) {
 						automaton.setStartState(out.getTo());

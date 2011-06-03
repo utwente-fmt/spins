@@ -104,12 +104,12 @@ public class NeverClaimModel extends ConcurrentModel<PromelaTransition> implemen
 	}
 	
 	public boolean decode(DataReader reader) {
-		_turn = reader.readBoolean();
+		_turn = reader.readBoolean() == 1;
 		return neverProc.decode(reader)  && model.decode(reader);
 	}
 	
 	public void encode(DataWriter writer) {
-		writer.writeBoolean(_turn);
+		writer.writeBoolean(_turn ? 1 : 0);
 		neverProc.encode(writer);
 		model.encode(writer);
 	}

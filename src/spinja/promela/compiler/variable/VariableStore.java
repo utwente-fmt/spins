@@ -112,6 +112,19 @@ public class VariableStore implements VariableContainer {
         }
         return false;
     }
+    
+    /**
+     * @return The number of assigned channel variables in the current store.
+     */
+    public int getChannelCount() {
+    	int count = 0;
+    	for (final Variable var : vars) {
+    		if (var instanceof ChannelVariable && var.getType() != ChannelType.UNASSIGNED_CHANNEL) {
+    			count += var.getArraySize();
+    		}
+    	}
+    	return count;
+    }
 
     /**
      * Prints the definitions needed to define the variables that are stored in this store.

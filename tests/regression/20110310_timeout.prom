@@ -1,0 +1,9 @@
+/* Author: Stefan Vijzelaar <s.j.j.vijzelaar@vu.nl>
+ * Date: 2011-03-10
+ * SPIN: 0.9.2
+ * Description: The timeout should occur, but is never enabled.
+ */
+
+init {
+	timeout;
+}

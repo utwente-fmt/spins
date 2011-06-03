@@ -1,0 +1,11 @@
+/* Author: Stefan Vijzelaar <s.j.j.vijzelaar@vu.nl>
+ * Date: 2011-02-28
+ * SPIN: 0.9.2
+ * Description: Polling a channel causes a NullPointerException in the Parser.
+ */
+
+chan channel = [0] of { byte };
+
+init {
+	channel?[1];
+}

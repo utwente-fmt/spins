@@ -188,6 +188,6 @@ public final class ProbingHashTable extends StateStore {
 	 */
 	@Override
 	public final synchronized int getStored() {
-		return stored;
+		return stored + (overflow == null ? 0 : overflow.getStored());
 	}
 }
