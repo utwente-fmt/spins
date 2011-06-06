@@ -180,8 +180,13 @@ public class Proctype implements VariableContainer {
 	protected void generateConstructor(final StringWriter w) throws ParseException {
 		w.appendLine("public ", getName(), "(boolean decoding, int pid) {").indent();
 		{
-			w.appendLine("super(", getSpecification().getName(), "Model.this, pid, new State[",
-				automaton.size(), "], ", automaton.getStartState().getStateId(), ");");
+			if (specification.getNever() == this) {
+				w.appendLine("super(", getSpecification().getName(), "Model.this, 0, new State[",
+					automaton.size(), "], ", automaton.getStartState().getStateId(), ");");
+			} else {
+				w.appendLine("super(", getSpecification().getName(), "Model.this, pid, new State[",
+					automaton.size(), "], ", automaton.getStartState().getStateId(), ");");
+			}
 			w.appendLine();
 			// Generate the table
 			automaton.generateTable(w);
