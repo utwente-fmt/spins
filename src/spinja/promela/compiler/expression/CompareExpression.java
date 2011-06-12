@@ -54,6 +54,17 @@ public class CompareExpression extends Expression {
 	}
 
 	@Override
+	public boolean equals(Object o) {
+		if (o == null)
+			return false;
+		if (!(o instanceof CompareExpression))
+			return false;
+		CompareExpression ce = (CompareExpression)o;
+		return ex1.equals(ce.getExpr1()) && ex2.equals(ce.getExpr2())
+			&& getToken().equals(ce.getToken());
+	}
+	
+	@Override
 	public String getBoolExpression() throws ParseException {
 		return "(" + ex1.getIntExpression() + " " + getToken().image + " " + ex2.getIntExpression()
 				+ ")";

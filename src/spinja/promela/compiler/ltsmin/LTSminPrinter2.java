@@ -26,6 +26,7 @@ import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
 import spinja.promela.compiler.ltsmin.LTSMinPrinter.GuardMatrix;
 import spinja.promela.compiler.ltsmin.LTSMinPrinter.PCIdentifier;
+import spinja.promela.compiler.ltsmin.LTSMinPrinter.PriorityIdentifier;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -228,8 +229,24 @@ public class LTSminPrinter2 {
 		Proctype p;
 		int linenum;
 	}
-
-	static PCGuardTuple last = null;
+	
+	static boolean isAtomicGuard(LTSminGuardBase g) {
+		if (!(g instanceof LTSminGuard))
+			return false;
+		LTSminGuard gg = (LTSminGuard)g;
+		if (!(gg.expr instanceof CompareExpression || gg.expr instanceof BooleanExpression))
+			return false;
+		if (gg.expr instanceof CompareExpression) {
+			CompareExpression ce = (CompareExpression)gg.expr;
+			return ce.getExpr1() instanceof PriorityIdentifier;
+		}
+		BooleanExpression be = (BooleanExpression)gg.expr;
+		return isAtomicGuard(new LTSminGuard(0, be.getExpr1())) &&
+			   isAtomicGuard(new LTSminGuard(0, be.getExpr2()));
+	}
+	
+	static PCGuardTuple lastPCG = null;
+	static LTSminGuard lastAG = null;
 	
 	static PCGuardTuple getPCGuard(LTSminGuardBase g) {
 		if (!(g instanceof LTSminGuard))
@@ -271,11 +288,14 @@ public class LTSminPrinter2 {
 
 		List<LTSminTransitionBase> transitions = model.getTransitions();
 		int trans = 0;
-		last = null;
+		lastPCG = null;
+		lastAG = null;
 		for(LTSminTransitionBase t: transitions) {
 			generateATransition(w, t, trans);
 			++trans;
 		}
+		w.outdent();
+		w.appendLine("}");
 		w.outdent();
 		w.appendLine("}");
 		
@@ -289,32 +309,45 @@ public class LTSminPrinter2 {
 		if(transition instanceof LTSminTransition) {
 			LTSminTransition t = (LTSminTransition)transition;
 
-			assert (t.getGuards().size() > 0); //assume there is a guard
+			assert (t.getGuards().size() > 1); //assume there are two guards
 			LTSminGuardBase gg = t.getGuards().get(0);
-			PCGuardTuple now = getPCGuard(gg);
-			assert (now != null); //assume the first guard is always the PC guard
+			PCGuardTuple curPCG = getPCGuard(gg);
+			assert (curPCG != null); //assume the first guard is always the PC guard
 			
-			if (!now.equals(last)) {
-				if (last != null)
+			assert (isAtomicGuard(t.getGuards().get(1)));
+			LTSminGuard curAG = (LTSminGuard)t.getGuards().get(1);
+			
+			boolean boundary = false;
+			if (!curAG.equals(lastAG)) {
+				if (lastAG != null) {
+					w.outdent().appendLine("}");
+					w.outdent().appendLine("}");
+				}
+				w.appendPrefix().append("if(");
+				generateGuard(w, curAG);
+				w.append(") {").appendPostfix().indent();
+				lastAG = curAG;
+				boundary = true;
+			}
+			
+			if (boundary || !curPCG.equals(lastPCG)) {
+				if (!boundary && lastPCG != null)
 					w.outdent().appendLine("}");
 				w.appendPrefix().append("if(");
 				generateGuard(w, gg);
 				w.append(") {").appendPostfix().indent();
-				last = now;
+				lastPCG = curPCG;
 			}
 
-			w.appendPrefix().append("if (");
+			w.appendPrefix().append("if (true");
 			//t.generateNonPCGuardsC(w);
 			int count = 0;
 			for(LTSminGuardBase g: t.getGuards()) {
-				if (count == 0) {
-					++count;
-					continue;
-				}
-				if (count > 1)
-					w.appendPostfix().appendPrefix().append("&&");
-				generateGuard(w, g);
 				++count;
+				if (count < 3) // 0 == PCGuard && 1 == PriorityGuard
+					continue;
+				w.appendPostfix().appendPrefix().append("&&");
+				generateGuard(w, g);
 			}
 			w.appendLine(") {");
 			w.indent();

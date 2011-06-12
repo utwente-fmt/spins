@@ -1252,7 +1252,13 @@ public class LTSMinPrinter {
 		public PriorityIdentifier() {
 			super(new Token(PromelaConstants.PRIORITY, C_STATE_TMP + "." + C_PRIORITY),priorVar);
 		}
-
+		
+		@Override
+		public boolean equals(Object o) {
+			if (o == null)
+				return false;
+			return o instanceof PriorityIdentifier;
+		}
 	}
 
 	class PCIdentifier extends Identifier {

@@ -2,8 +2,12 @@
 /* JavaCCOptions:TOKEN_EXTENDS=,KEEP_LINE_COL=null,SUPPORT_CLASS_VISIBILITY_PUBLIC=true */
 package spinja.promela.compiler.parser;
 
+import spinja.promela.compiler.expression.CompareExpression;
+
 /**
  * Describes the input token stream.
+ * 
+ * TODO: Flyweight
  */
 
 public class Token implements java.io.Serializable {
@@ -71,6 +75,16 @@ public class Token implements java.io.Serializable {
   public Object getValue() {
     return null;
   }
+
+	@Override
+	public boolean equals(Object o) {
+		if (o == null)
+			return false;
+		if (!(o instanceof Token))
+			return false;
+		Token ce = (Token)o;
+		return kind==ce.kind && image.equals(ce.image);
+	}
 
   /**
    * No-argument constructor

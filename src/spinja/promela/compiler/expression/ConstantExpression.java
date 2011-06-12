@@ -63,6 +63,16 @@ public class ConstantExpression extends Expression {
 	}
 
 	@Override
+	public boolean equals(Object o) {
+		if (o == null)
+			return false;
+		if (!(o instanceof ConstantExpression))
+			return false;
+		ConstantExpression ce = (ConstantExpression)o;
+		return nr == ce.nr && getToken().equals(ce.getToken());
+	}
+	
+	@Override
 	public int getConstantValue() {
 		return nr;
 	}
