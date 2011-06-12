@@ -2921,8 +2921,8 @@ public class LTSMinPrinter {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
 			final String sideEffect = expr.getSideEffect();
-			if (sideEffect != null) {
-				throw new AssertionError("This is probably wrong...");
+			if (sideEffect != null) { ///this is a RunExp TODO: support Process nrActive!=0
+				//throw new AssertionError("This is probably wrong...");
 				//w.appendLine(sideEffect, "; // POSSIBLY THIS IS WRONG");
 			}
 

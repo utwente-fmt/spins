@@ -283,7 +283,7 @@ public class LTSminPrinter2 {
 		
 		// Count atomic states
 		w.appendLine("#ifdef COUNTATOMIC").indent();
-		w.appendLine(	"if(t==1 && spinja_is_atomic(model,in))printf(\"handled atomic statements so far: %i\\n\",++n_atomics);").outdent();
+		w.appendLine(	"if(spinja_is_atomic(model,in))printf(\"handled atomic statements so far: %i\\n\",++n_atomics);").outdent();
 		w.appendLine("#endif");
 
 		List<LTSminTransitionBase> transitions = model.getTransitions();
