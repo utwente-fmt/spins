@@ -2,6 +2,8 @@ package spinja.promela.compiler.ltsmin;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssertAction;
 import spinja.promela.compiler.actions.AssignAction;
@@ -23,8 +25,10 @@ import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
 import spinja.promela.compiler.ltsmin.LTSMinPrinter.GuardMatrix;
+import spinja.promela.compiler.ltsmin.LTSMinPrinter.PCIdentifier;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
+import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 import spinja.util.StringWriter;
@@ -35,10 +39,12 @@ import spinja.util.StringWriter;
  */
 public class LTSminPrinter2 {
 
+	public static final String IN_VAR = "in";
 	public static final String MEMBERACCESS = "->";
 	public static final String TMP_ACCESS = LTSMinPrinter.C_STATE_TMP + "->";
+	public static final String IN_ACCESS = IN_VAR + "->";
 	public static final String TMP_ACCESS_GLOBALS = TMP_ACCESS + LTSMinPrinter.C_STATE_GLOBALS + ".";
-	public static final String TMP_PRIORITY = TMP_ACCESS_GLOBALS + LTSMinPrinter.C_STATE_PRIORITY;
+	public static final String ACCESS_PRIORITY = LTSMinPrinter.C_STATE_GLOBALS +"."+ LTSMinPrinter.C_STATE_PRIORITY;
 
 	static void generateModel(StringWriter w, LTSminModel model) {
 		generateHeader(w,model);
@@ -179,7 +185,7 @@ public class LTSminPrinter2 {
 					if(e==null) {
 						w.append("0");
 					} else {
-						generateIntExpression(w, e);
+						generateIntExpression(w, e, "UNKNOWN_INIT_VALUE");
 					}
 				}
 				if(++i>=model.getStateVector().size()) {
@@ -199,31 +205,146 @@ public class LTSminPrinter2 {
 		w.outdent();
 		w.appendLine("}");
 	}
-	static void generateGetAll(StringWriter w, LTSminModel model) {
-		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
-		w.indent();
-		w.appendLine("int t=",model.getTransitions().size(),",emitted=0;");
-		w.appendLine("for(;t--;) {");
-		w.indent();
-		w.appendLine("emitted += spinja_get_successor(model,t,in,callback,arg);");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("return emitted;");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine();
+	
+	static void generateACallback(StringWriter w, int trans) {
+		w.appendLine("transition_info.group = "+ trans +";");
+		w.appendLine("callback(arg,&transition_info,tmp);");
+		w.appendLine("++states_emitted;");
 	}
-	static void generateGetNext(StringWriter w, LTSminModel model) {
-		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
-		w.indent();
 
-		w.appendLine("transition_info_t transition_info = { NULL, t };");
+	static class PCGuardTuple {
+		public PCGuardTuple(Proctype p, int linenum) {
+			this.linenum = linenum;
+			this.p = p;
+		}
+		public boolean equals(Object o) {
+			if (o == null)
+				return false;
+			if (!(o instanceof PCGuardTuple))
+				return false;
+			PCGuardTuple other = (PCGuardTuple)o;
+			return other.p == p && other.linenum == linenum;
+		}
+		Proctype p;
+		int linenum;
+	}
+
+	static PCGuardTuple last = null;
+	
+	static PCGuardTuple getPCGuard(LTSminGuardBase g) {
+		if (!(g instanceof LTSminGuard))
+			return null;
+		LTSminGuard gg = (LTSminGuard)g;
+		if (!(gg.expr instanceof CompareExpression))
+			return null;
+		CompareExpression ce = (CompareExpression)gg.expr;
+		if (!(ce.getExpr1() instanceof PCIdentifier))
+			return null;
+		PCIdentifier pi = (PCIdentifier)ce.getExpr1();
+		
+		if (!(ce.getExpr2() instanceof ConstantExpression))
+			return null;
+		ConstantExpression constant = (ConstantExpression)ce.getExpr2();
+		int l = constant.getNumber();
+		
+		return new PCGuardTuple(pi.getProcess(), l);
+	}
+	
+	static void generateGetAll(StringWriter w, LTSminModel model) {
+		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+		w.indent();
+		w.appendLine("transition_info_t transition_info = { NULL, -1 };");
 		w.appendLine("(void)model; // ignore model");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("register int pos;");
 		w.appendLine(LTSMinPrinter.C_STATE_T," local_state;");
 		w.appendLine(LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP," = &local_state;");
-		w.appendLine("memcpy(",LTSMinPrinter.C_STATE_TMP,",in,sizeof(",LTSMinPrinter.C_STATE_T,"));");
+		w.appendLine();
+		w.appendLine("static int n_losses = 0;");
+		w.appendLine("static int n_atomics = 0;");
+		w.appendLine();
+		
+		// Count atomic states
+		w.appendLine("#ifdef COUNTATOMIC").indent();
+		w.appendLine(	"if(t==1 && spinja_is_atomic(model,in))printf(\"handled atomic statements so far: %i\\n\",++n_atomics);").outdent();
+		w.appendLine("#endif");
+
+		List<LTSminTransitionBase> transitions = model.getTransitions();
+		int trans = 0;
+		last = null;
+		for(LTSminTransitionBase t: transitions) {
+			generateATransition(w, t, trans);
+			++trans;
+		}
+		w.outdent();
+		w.appendLine("}");
+		
+		w.appendLine("return states_emitted;");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine();
+	}
+
+	static void generateATransition(StringWriter w, LTSminTransitionBase transition, int trans) {
+		if(transition instanceof LTSminTransition) {
+			LTSminTransition t = (LTSminTransition)transition;
+
+			assert (t.getGuards().size() > 0); //assume there is a guard
+			LTSminGuardBase gg = t.getGuards().get(0);
+			PCGuardTuple now = getPCGuard(gg);
+			assert (now != null); //assume the first guard is always the PC guard
+			
+			if (!now.equals(last)) {
+				if (last != null)
+					w.outdent().appendLine("}");
+				w.appendPrefix().append("if(");
+				generateGuard(w, gg);
+				w.append(") {").appendPostfix().indent();
+				last = now;
+			}
+
+			w.appendPrefix().append("if (");
+			//t.generateNonPCGuardsC(w);
+			int count = 0;
+			for(LTSminGuardBase g: t.getGuards()) {
+				if (count == 0) {
+					++count;
+					continue;
+				}
+				if (count > 1)
+					w.appendPostfix().appendPrefix().append("&&");
+				generateGuard(w, g);
+				++count;
+			}
+			w.appendLine(") {");
+			w.indent();
+			w.appendLine("memcpy(", LTSMinPrinter.C_STATE_TMP,", ", IN_VAR , ", sizeof(", LTSMinPrinter.C_STATE_T,"));");
+			List<Action> actions = t.getActions();
+			for(Action a: actions) {
+				generateAction(w,a);
+			}
+			generateACallback(w,trans);
+			w.outdent();
+			w.appendLine("}");
+		} else if (transition instanceof LTSminTransitionCombo) {
+			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
+			for(LTSminTransitionBase tb: t.transitions) {
+				generateTransition(w, tb);
+			}
+		} else {
+			w.appendLine("/** UNSUPPORTED: ",transition.getClass().getSimpleName()," **/");
+		}
+	}
+	
+	static void generateGetNext(StringWriter w, LTSminModel model) {
+		w.appendLine("int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+		w.indent();
+
+		w.appendLine("transition_info_t transition_info = { NULL, t };");
+		w.appendLine("(void)model; // ignore model");
+		w.appendLine("register int pos;");
+		w.appendLine(LTSMinPrinter.C_STATE_T," local_state;");
+		w.appendLine(LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP," = &local_state;");
 		w.appendLine();
 
 		w.appendLine("static int n_losses = 0;");
@@ -255,6 +376,7 @@ public class LTSminPrinter2 {
 
 		w.outdent();
 		w.appendLine("}");
+		w.appendLine();
 	}
 
 	static void generateTransition(StringWriter w, LTSminTransitionBase transition) {
@@ -268,6 +390,7 @@ public class LTSminPrinter2 {
 			}
 			w.append(" ) {").appendPostfix();
 			w.indent();
+			w.appendLine("memcpy(", LTSMinPrinter.C_STATE_TMP, ", ", IN_VAR, ", sizeof(", LTSMinPrinter.C_STATE_T,"));");
 			List<Action> actions = t.getActions();
 			for(Action a: actions) {
 				generateAction(w,a);
@@ -283,11 +406,12 @@ public class LTSminPrinter2 {
 		} else {
 			w.appendLine("/** UNSUPPORTED: ",transition.getClass().getSimpleName()," **/");
 		}
-	} 
+	}
+
 	static void generateGuard(StringWriter w, LTSminGuardBase guard) {
 		if(guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
-			generateBoolExpression(w,g.expr);
+			generateBoolExpression(w,g.expr, IN_ACCESS);
 		} else if(guard instanceof LTSminGuardNand) {
 			LTSminGuardNand g = (LTSminGuardNand)guard;
 			w.append("!( true");
@@ -316,6 +440,7 @@ public class LTSminPrinter2 {
 			w.appendLine("/** UNSUPPORTED: ",guard.getClass().getSimpleName()," **/");
 		}
 	}
+
 	static void generateAction(StringWriter w, Action a) {
 		// Handle assignment action
 		if(a instanceof AssignAction) {
@@ -327,15 +452,15 @@ public class LTSminPrinter2 {
 					try {
 						int value = as.getExpr().getConstantValue();
 						w.appendPrefix();
-						generateIntExpression(w,id);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" = ").append(value & id.getVariable().getType().getMaskInt()).append(";");
 						w.appendPostfix();
 					} catch (ParseException ex) {
 						// Could not get Constant value
 						w.appendPrefix();
-						generateIntExpression(w,id);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" = ");
-						generateIntExpression(w,as.getExpr());
+						generateIntExpression(w, as.getExpr(), IN_ACCESS);
 						w.append((mask == null ? "" : " & " + mask));
 						w.append(";");
 						w.appendPostfix();
@@ -344,14 +469,14 @@ public class LTSminPrinter2 {
 				case PromelaConstants.INCR:
 					if (mask == null) {
 						w.appendPrefix();
-						generateIntExpression(w,id);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append("++;");
 						w.appendPostfix();
 					} else {
 						w.appendPrefix();
-						generateIntExpression(w,id);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" = (");
-						generateIntExpression(w,id);
+						generateIntExpression(w, id, IN_ACCESS);
 						w.append(" + 1) & ").append(mask).append(";");
 						w.appendPostfix();
 					}
@@ -359,14 +484,14 @@ public class LTSminPrinter2 {
 				case PromelaConstants.DECR:
 					if (mask == null) {
 						w.appendPrefix();
-						generateIntExpression(w,id);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append("--;");
 						w.appendPostfix();
 					} else {
 						w.appendPrefix();
-						generateIntExpression(w,id);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.appendLine(" = (");
-						generateIntExpression(w,id);
+						generateIntExpression(w, id, IN_ACCESS);
 						w.append(" - 1) & ");
 						w.append(mask);
 						w.append(";");
@@ -392,7 +517,7 @@ public class LTSminPrinter2 {
 
 			w.appendPrefix();
 			w.append("if(!");
-			generateBoolExpression(w,e);
+			generateBoolExpression(w, e, IN_ACCESS);
 			w.append(") {");
 			w.appendPostfix();
 			w.indent();
@@ -409,7 +534,7 @@ public class LTSminPrinter2 {
 			w.appendPrefix().append("printf(").append(string);
 			for (final Expression expr : exprs) {
 				w.append(", ");
-				generateIntExpression(w,expr);
+				generateIntExpression(w, expr, IN_ACCESS);
 			}
 			w.append(");").appendPostfix();
 
@@ -450,7 +575,7 @@ public class LTSminPrinter2 {
 					final Expression expr = exprs.get(i);
 					w.appendPrefix();
 					w.append(access_buffer).append(".m").append(i).append(".var = ");
-					generateIntExpression(w, expr);
+					generateIntExpression(w, expr, IN_ACCESS);
 					w.append(";");
 					w.appendPostfix();
 
@@ -489,7 +614,7 @@ public class LTSminPrinter2 {
 					final Expression expr = exprs.get(i);
 					if (expr instanceof Identifier) {
 						w.appendPrefix();
-						generateIntExpression(w, expr);
+						generateIntExpression(w, expr, TMP_ACCESS);
 						w.append(" = ").append(access_buffer).append(".m").append(i).append(".var");
 						w.append(";");
 						w.appendPostfix();
@@ -514,26 +639,28 @@ public class LTSminPrinter2 {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
 	}
+
 	static void generateCallback(StringWriter w) {
 		w.appendLine("callback(arg,&transition_info,tmp);");
 		w.appendLine("return ",1,";");
 	}
-	static void generateIntExpression(StringWriter w, Expression e) {
+
+	static void generateIntExpression(StringWriter w, Expression e, String access) {
 		//w.append("|").append(e.getClass().getSimpleName()).append("|");
 		if(e instanceof LTSMinPrinter.PCExpression) {
 			LTSMinPrinter.PCExpression pc = (LTSMinPrinter.PCExpression)e;
-			w.append(TMP_ACCESS).append(pc.getProcessName()).append(".pc.var");
+			w.append(access).append(pc.getProcessName()).append(".pc.var");
 		} else if(e instanceof LTSMinPrinter.PriorityExpression) {
-			w.append(TMP_PRIORITY).append(".var");
+			w.append(access + ACCESS_PRIORITY).append(".var");
 		} else if(e instanceof LTSMinPrinter.PCIdentifier) {
 			LTSMinPrinter.PCIdentifier pc = (LTSMinPrinter.PCIdentifier)e;
-			w.append(TMP_ACCESS).append(LTSMinPrinter.wrapName(pc.getProcess().getName())).append(".pc.var");
+			w.append(access).append(LTSMinPrinter.wrapName(pc.getProcess().getName())).append(".pc.var");
 		} else if(e instanceof LTSMinPrinter.PriorityIdentifier) {
-			w.append(TMP_PRIORITY).append(".var");
+			w.append(access + ACCESS_PRIORITY).append(".var");
 		} else if(e instanceof LTSMinPrinter.ChannelSizeExpression) {
 			LTSMinPrinter.ChannelSizeExpression cse = (LTSMinPrinter.ChannelSizeExpression)e;
 			Variable var = cse.getVariable();
-			w.append(TMP_ACCESS);
+			w.append(access);
 			if(var.getOwner()==null) {
 				w.append("globals.");
 			} else {
@@ -548,7 +675,7 @@ public class LTSminPrinter2 {
 			if (var.getArraySize() > 1) {
 				if (arrayExpr != null) {
 					//w.append(var.getName());
-					w.append(TMP_ACCESS);
+					w.append(access);
 					if(var.getOwner()==null) {
 						w.append("globals.");
 					} else {
@@ -557,7 +684,7 @@ public class LTSminPrinter2 {
 					}
 					w.append(LTSMinPrinter.wrapName(var.getName()));
 					w.append("[");
-					generateIntExpression(w,arrayExpr);
+					generateIntExpression(w,arrayExpr,access);
 					w.append("].var");
 
 					try {
@@ -569,7 +696,7 @@ public class LTSminPrinter2 {
 //						}
 					}
 				} else {
-					w.append(TMP_ACCESS);
+					w.append(access);
 					if(var.getOwner()==null) {
 						w.append("globals.");
 					} else {
@@ -581,7 +708,7 @@ public class LTSminPrinter2 {
 					//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var));
 				}
 			} else {
-				w.append(TMP_ACCESS);
+				w.append(access);
 				if(var.getOwner()==null) {
 					w.append("globals.");
 				} else {
@@ -599,32 +726,32 @@ public class LTSminPrinter2 {
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
 				w.append("(").append(ae.getToken().image);
-				generateIntExpression(w, ex1);
+				generateIntExpression(w, ex1, access);
 				w.append(")");
 			} else if (ex3 == null) {
 				if (ae.getToken().image.equals("%")) {
 					// Modulo takes a special notation to make sure that it
 					// returns a positive value
 					w.append("abs(");
-					generateIntExpression(w,ex1);
+					generateIntExpression(w, ex1, access);
 					w.append(" % ");
-					generateIntExpression(w,ex2);
+					generateIntExpression(w, ex2, access);
 					w.append(")");
 				} else {
 
 					w.append("(");
-					generateIntExpression(w,ex1);
+					generateIntExpression(w, ex1, access);
 					w.append(" ").append(ae.getToken().image).append(" ");
-					generateIntExpression(w,ex2);
+					generateIntExpression(w, ex2, access);
 					w.append(")");
 				}
 			} else {
 				w.append("(");
-				generateBoolExpression(w,ex1);
+				generateBoolExpression(w, ex1, access);
 				w.append(" ? ");
-				generateIntExpression(w,ex2);
+				generateIntExpression(w, ex2, access);
 				w.append(" : ");
-				generateIntExpression(w,ex3);
+				generateIntExpression(w, ex3, access);
 				w.append(")");
 			}
 		} else if(e instanceof BooleanExpression) {
@@ -633,13 +760,13 @@ public class LTSminPrinter2 {
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
 				w.append("(").append(be.getToken().image);
-				generateIntExpression(w,ex1);
+				generateIntExpression(w, ex1, access);
 				w.append( " ? 1 : 0)");
 			} else {
 				w.append("(");
-				generateIntExpression(w,ex1);
+				generateIntExpression(w, ex1, access);
 				w.append(" ").append(be.getToken().image).append(" ");
-				generateBoolExpression(w,ex2);
+				generateBoolExpression(w,ex2, access);
 				w.append(" ? 1 : 0)");
 			}
 		} else if(e instanceof ChannelLengthExpression) {
@@ -649,9 +776,9 @@ public class LTSminPrinter2 {
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
-			generateIntExpression(w,ce.getExpr1());
+			generateIntExpression(w, ce.getExpr1(), access);
 			w.append(" ").append(ce.getToken().image).append(" ");
-			generateIntExpression(w,ce.getExpr2());
+			generateIntExpression(w, ce.getExpr2(), access);
 			w.append(" ? 1 : 0)");
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
@@ -678,8 +805,8 @@ public class LTSminPrinter2 {
 			LTSMinPrinter.ChannelTopExpression cte = (LTSMinPrinter.ChannelTopExpression)e;
 			ChannelReadAction cra =cte.getChannelReadAction();
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
-			String access = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-			String access_buffer = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[" + access + ".nextRead]";
+			String chan_access = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
+			String access_buffer = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[" + chan_access + ".nextRead]";
 			w.append(access_buffer).append(".m").append(cte.getElem()).append(".var");
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
@@ -693,10 +820,11 @@ public class LTSminPrinter2 {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}
 	}
-	static void generateBoolExpression(StringWriter w, Expression e) {
+	
+	static void generateBoolExpression(StringWriter w, Expression e, String access) {
 		if(e instanceof Identifier) {
 			w.append("(");
-			generateIntExpression(w,e);
+			generateIntExpression(w, e, access);
 			w.append(" != 0 )");
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
@@ -705,21 +833,21 @@ public class LTSminPrinter2 {
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
 				w.append("(").append(ae.getToken().image);
-				generateIntExpression(w,ex1);
+				generateIntExpression(w, ex1, access);
 				w.append(" != 0)");
 			} else if (ex3 == null) {
 				w.append("(");
-				generateIntExpression(w,ex1);
+				generateIntExpression(w, ex1, access);
 				w.append(" ").append(ae.getToken().image).append(" ");
-				generateIntExpression(w,ex2);
+				generateIntExpression(w, ex2, access);
 				w.append(" != 0)");
 			} else { // Can only happen with the x?1:0 expression
 				w.append("(");
-				generateBoolExpression(w,ex1);
+				generateBoolExpression(w, ex1, access);
 				w.append(" ? ");
-				generateBoolExpression(w,ex2);
+				generateBoolExpression(w, ex2, access);
 				w.append(" : ");
-				generateBoolExpression(w,ex3);
+				generateBoolExpression(w, ex3, access);
 				w.append(")");
 			}
 		} else if(e instanceof BooleanExpression) {
@@ -728,13 +856,13 @@ public class LTSminPrinter2 {
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
 				w.append("(").append(be.getToken().image);
-				generateBoolExpression(w,ex1);
+				generateBoolExpression(w, ex1, access);
 				w.append(")");
 			} else {
 				w.append("(");
-				generateBoolExpression(w,ex1);
+				generateBoolExpression(w, ex1, access);
 				w.append(" ").append(be.getToken().image).append(" ");
-				generateBoolExpression(w,ex2);
+				generateBoolExpression(w, ex2, access);
 				w.append(")");
 			}
 		} else if(e instanceof ChannelLengthExpression) {
@@ -744,9 +872,9 @@ public class LTSminPrinter2 {
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
-			generateIntExpression(w,ce.getExpr1());
+			generateIntExpression(w, ce.getExpr1(), access);
 			w.append(" ").append(ce.getToken().image).append(" ");
-			generateIntExpression(w,ce.getExpr2());
+			generateIntExpression(w, ce.getExpr2(), access);
 			w.append(")");
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
