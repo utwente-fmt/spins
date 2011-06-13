@@ -370,7 +370,7 @@ void ivar(VariableContainer store, VariableType type): {
 }{
 	id=<IDENTIFIER> 
 	(<LBRACK> c=constant() <RBRACK> { arraySize = c.getNumber(); })? 
-	{ Variable var = new Variable(type, id.image, arraySize); }
+	{ Variable var = new Variable(type, id.image, arraySize,currentProc);}
 	(<ASSIGN> 
 	  expr=lor_expr()
 	  {	var.setInitExpr(expr); }

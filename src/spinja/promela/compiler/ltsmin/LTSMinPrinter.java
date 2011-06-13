@@ -11,8 +11,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Set;
 import spinja.promela.compiler.automaton.ElseTransition;
-import spinja.promela.compiler.automaton.EndTransition;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelType;
@@ -22,6 +22,8 @@ import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
 import spinja.promela.compiler.variable.VariableStore;
 import spinja.promela.compiler.expression.*;
+import spinja.promela.compiler.parser.Token;
+import spinja.promela.compiler.variable.VariableAccess;
 import spinja.util.StringWriter;
 
 /**
@@ -42,7 +44,7 @@ public class LTSMinPrinter {
 	 * type name and an optional array component.
 	 * Instances are returned by getCTypeOfVar().
 	 */
-	public class TypeDesc {
+	static public class TypeDesc {
 		public String type;
 		public String array;
 		public TypeDesc() {
@@ -459,7 +461,7 @@ public class LTSMinPrinter {
 	 * Describes a row in the dependency matrix. It holds the dependency for
 	 * both read and write operations per transition.
 	 */
-	public class DepRow {
+	static public class DepRow {
 		private ArrayList<Integer> reads;
 		private ArrayList<Integer> writes;
 
@@ -560,7 +562,7 @@ public class LTSMinPrinter {
 	/**
 	 *
 	 */
-	public class DepMatrix {
+	static public class DepMatrix {
 		private ArrayList<DepRow> dep_matrix;
 		private int row_length;
 
@@ -732,12 +734,12 @@ public class LTSMinPrinter {
 	public class TimeoutTransition {
 		public int trans;
 		public Proctype p;
-		public Transition t;
+		public LTSminTransition lt;
 
-		public TimeoutTransition(int trans, Proctype p, Transition t) {
+		public TimeoutTransition(int trans, Proctype p, LTSminTransition lt) {
 			this.trans = trans;
 			this.p = p;
-			this.t = t;
+			this.lt = lt;
 		}
 
 	}
@@ -754,6 +756,110 @@ public class LTSMinPrinter {
 		}
 
 	}
+
+	static public class GuardMatrix {
+		private List<Expression> guards;
+		private List< List<Integer> > co_matrix;
+		private List< List<Integer> > dep_matrix;
+		private List< List<Expression> > trans_matrix;
+
+		private final int width;
+
+		public GuardMatrix(int width) {
+			this.width = width;
+			guards = new ArrayList<Expression>();
+			co_matrix = new ArrayList< List<Integer> >();
+			dep_matrix = new ArrayList< List<Integer> >();
+			trans_matrix = new ArrayList< List<Expression> >();
+		}
+
+		public int addGuard(int trans, Expression g) {
+
+			int idx = getGuard(g);
+			if(idx>=0) return idx;
+
+			guards.add(g);
+			for(int i=co_matrix.size(); i-->0;) {
+				co_matrix.get(i).add(1);
+			}
+
+			{
+				List<Integer> row = new ArrayList<Integer>(guards.size());
+				co_matrix.add(row);
+				for(int i=row.size(); i-->0;) {
+					row.set(i,1);
+				}
+			}
+
+			{
+				List<Integer> row = new ArrayList<Integer>(width);
+				dep_matrix.add(row);
+				for(int i=row.size(); i-->0;) {
+					row.set(i,1);
+				}
+			}
+
+			{
+				for(int i=trans_matrix.size();i<=trans;++i) {
+					trans_matrix.add(i,new ArrayList<Expression>());
+				}
+				trans_matrix.get(trans).add(g);
+			}
+
+			return co_matrix.size()-1;
+		}
+
+		public int getGuard(Expression g) {
+			for(int i = guards.size(); i-->0;) {
+				if(guards.get(i).equals(g)) return i;
+			}
+			return -1;
+		}
+
+		public List< List<Integer> > getDepMatrix() {
+			return dep_matrix;
+		}
+
+		public List< List<Integer> > getCoMatrix() {
+			return co_matrix;
+		}
+
+		public List< List<Expression> > getTransMatrix() {
+			return trans_matrix;
+		}
+
+		public List<Expression> getGuards() {
+			return guards;
+		}
+
+	}
+
+//	public class Guard {
+//		public int trans;
+//		public Expression expr;
+//
+//		public Guard(int trans, Expression expr) {
+//			this.trans = trans;
+//			this.expr = expr;
+//		}
+//
+//		public Expression getExpr() {
+//			return expr;
+//		}
+//
+//		public void setExpr(Expression expr) {
+//			this.expr = expr;
+//		}
+//
+//		public int getTrans() {
+//			return trans;
+//		}
+//
+//		public void setTrans(int trans) {
+//			this.trans = trans;
+//		}
+//
+//	}
 
 	/// The size of one element in the state struct in bytes.
 	public static final int STATE_ELEMENT_SIZE = 4;
@@ -819,6 +925,10 @@ public class LTSMinPrinter {
 	// The transition ID of the transition that handles loss of atomicity
 	int loss_transition_id;
 
+	// The transition ID of the transition that handles total timeout
+	int total_timeout_id;
+	LTSminTransition lt_total_timeout;
+
 	// State vector offset of the prioritiseProcess variable
 	int offset_priority;
 
@@ -833,12 +943,27 @@ public class LTSMinPrinter {
 	// These will be generated after normal transitions
 	List<ElseTransitionItem> else_transitions;
 
+	GuardMatrix guard_matrix;
+
+	private HashMap<Proctype,Identifier> PCIDs;
+
+	private PriorityIdentifier priorityIdentifier;
+
+	// List of all generated transitions
+	// These will be valid after generateTransitions()
+	//List<LTSminTransition> transitions;
+
+	//List<Guard> guards;
+
+	LTSminModel model;
+
 	/**
 	 * Creates a new LTSMinPrinter using the specified Specification.
 	 * After this, the generate() member will generate and return C code.
 	 * @param spec The Specification using which C code is generated.
+	 * @param name The name to give the model.
 	 */
-	public LTSMinPrinter(Specification spec) {
+	public LTSMinPrinter(Specification spec, String name) {
 		if(spec==null) {
 			// error
 		}
@@ -856,7 +981,14 @@ public class LTSMinPrinter {
 		timeout_transitions = new ArrayList<TimeoutTransition>();
 		else_transitions = new ArrayList<ElseTransitionItem>();
 
+//		transitions = new ArrayList<LTSminTransition>();
+//		guards = new ArrayList<Guard>();
+
+		model = new LTSminModel(name);
+
 		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
+		PCIDs = new HashMap<Proctype,Identifier>();
+		priorityIdentifier = new PriorityIdentifier();
 	}
 
 	/**
@@ -913,26 +1045,47 @@ public class LTSMinPrinter {
 		w.appendLine("");
 		generateTimeoutExpression(header,w);
 
+		// Generate code for total time out expression
+		if(spec.getNever()!=null) {
+		header.appendLine("");
+			generateTotalTimeout(header);
+		}
+
 		// Generate Dependency Matrix
 		w.appendLine("");
 		generateDepMatrix(w,dep_matrix);
+
+		// Generate Guard Matrix
+		w.appendLine("");
+		generateGuardMatrix(w,guard_matrix);
 
 		// Generate state descriptors
 		w.appendLine("");
 		generateStateDescriptors(w);
 
-		long end_t = System.currentTimeMillis();
-
 		// Generate buchi is accepting
 		w.appendLine("");
 		generateBuchiIsAccepting(w);
+
+		// Generate is atomic
+		w.appendLine("");
+		generateIsAtomic(w);
+
+		long end_t = System.currentTimeMillis();
 
 		// Generate statistics
 		w.appendLine("");
 		generateStatistics(w,start_t,end_t);
 
-		c_code = header.toString() + structs.toString() + w.toString();
+		//w.append("/*");
+		w.clear();
+		LTSminDMWalker.walkModel(model);
+		LTSminPrinter2.generateModel(w, model);
+		c_code = w.toString();
 		return c_code;
+		//w.append("*/");
+		//c_code = header.toString() + structs.toString() + w.toString();
+		//return c_code;
 	}
 
 	/**
@@ -940,7 +1093,7 @@ public class LTSMinPrinter {
 	 * Model independent.
 	 * @param w The StringWriter to which the code is written.
 	 */
-	private void generateHeader(StringWriter w) {
+	static private void generateHeader(StringWriter w) {
 		w.appendLine("#include <stdio.h>");
 		w.appendLine("#include <string.h>");
 		w.appendLine("#include <stdint.h>");
@@ -965,9 +1118,11 @@ public class LTSMinPrinter {
 		{
 			for(int i=0; i<procs.size()-1; ++i) {
 				Proctype process = procs.get(i);
+				//if(process.getID() != i) throw new AssertionError("Process ID inconsistent: " + process.getID() + " != " + i);
 				w.appendLine("#define ALLOWED_DEATH_",wrapName(process.getName()),"() (",C_STATE_TMP,".",wrapName(procs.get(i+1).getName()),".",C_STATE_PROC_COUNTER,".var == -1)");
 			}
 			w.appendLine("#define ALLOWED_DEATH_",wrapName(procs.get(procs.size()-1).getName()),"() (1)");
+			if(spec.getNever()!=null) w.appendLine("#define ALLOWED_DEATH_",wrapName(spec.getNever().getName()),"() (1)");
 		}
 		w.appendLine("#else");
 		{
@@ -975,7 +1130,9 @@ public class LTSMinPrinter {
 				Proctype process = procs.get(i);
 				w.appendLine("#define ALLOWED_DEATH_",wrapName(process.getName()),"() (1)");
 			}
+			if(spec.getNever()!=null) w.appendLine("#define ALLOWED_DEATH_",wrapName(spec.getNever().getName()),"() (1)");
 		}
+
 		w.appendLine("#endif");
 	}
 
@@ -985,7 +1142,7 @@ public class LTSMinPrinter {
 	 * Model independent.
 	 * @param w The StringWriter to which the code is written.
 	 */
-	private void generateTypeStructs(StringWriter w) {
+	static public void generateTypeStructs(StringWriter w) {
 
 		w.appendLine("typedef union ",C_TYPE_INT1," {");
 		w.indent();
@@ -1065,12 +1222,15 @@ public class LTSMinPrinter {
 			ChannelType ct = cv.getType();
 			VariableStore vs = ct.getVariableStore();
 
+			LTSminTypeStruct ls = new LTSminTypeStruct(wrapNameForChannel(var.getName()));
+
 			// Only generate members for non-rendezvous channels
 			if (ct.getBufferSize() > 0) {
 				int j=0;
 				for(Variable v: vs.getVariables()) {
 					TypeDesc td = getCTypeOfVar(v);
 					struct.addMember(td,"m"+j);
+					ls.members.add(new LTSminTypeBasic(td.type,"m"+j));
 					++j;
 				}
 			}
@@ -1078,10 +1238,37 @@ public class LTSMinPrinter {
 			// Remember this channel variable, to keep track of
 			channels.put(cv,new ReadersAndWriters());
 
+			model.addType(ls);
+
 			// Write the typedef to w
 			w.appendLine(struct.getCCode());
 		}
 
+	}
+
+	static Variable priorVar = new Variable(VariableType.INT, C_STATE_TMP + "." + C_PRIORITY, 1);
+	class PriorityIdentifier extends Identifier {
+
+		public PriorityIdentifier() {
+			super(new Token(PromelaConstants.PRIORITY, C_STATE_TMP + "." + C_PRIORITY),priorVar);
+		}
+
+	}
+
+	class PCIdentifier extends Identifier {
+		private Proctype process;
+
+		public Proctype getProcess() {
+			return process;
+		}
+
+		public PCIdentifier(Proctype process) {
+			//super(new Token(PromelaConstants.PC_VALUE, C_STATE_TMP + "." + wrapName(process.getName())),new Variable(VariableType.INT, C_STATE_TMP + "." + wrapName(process.getName()), 1));
+			super(new Token(PromelaConstants.PC_VALUE, C_STATE_TMP + "." + wrapName(process.getName())),processIdentifiers.get(process));
+			this.process = process;
+		}
+
+		
 	}
 
 	/**
@@ -1107,6 +1294,7 @@ public class LTSMinPrinter {
 			for(Variable var: proc_vars) {
 				generateCustomStruct(w,var);
 			}
+			PCIDs.put(p,new PCIdentifier(p));
 		}
 	}
 
@@ -1121,9 +1309,13 @@ public class LTSMinPrinter {
 	 *   - state_vector_var;
 	 *   - state_vector_desc.
 	 *   - offset_priority
+	 *   - procs
 	 * @param w The StringWriter to which the code is written.
 	 * @return C code for the state structs.
 	 */
+	public Variable never_var;
+	public List<Variable> procs_var = new ArrayList<Variable>();
+	public HashMap<Proctype,Variable> processIdentifiers = new HashMap<Proctype, Variable>();
 	private void generateStateStructs(StringWriter w) {
 
 		// Current offset in the state struct
@@ -1135,17 +1327,23 @@ public class LTSMinPrinter {
 		// The main state struct
 		state = new CStruct(C_STATE_T);
 
+		LTSminTypeStruct ls_t = new LTSminTypeStruct(C_STATE_T);
+
 		// Globals: initialise globals state struct and add to main state struct
 		say("== Globals");
 		CStruct sg = new CStruct(C_STATE_GLOBALS_T);
+		LTSminTypeStruct ls_g = new LTSminTypeStruct(C_STATE_GLOBALS_T);
+		model.addType(ls_g);
 
 		// Add priority process
 		{
+			ls_g.members.add(new LTSminTypeBasic(C_TYPE_INT32, C_STATE_PRIORITY));
 			sg.addMember(C_TYPE_INT32, C_STATE_PRIORITY);
 			offset_priority = current_offset;
 			++current_offset;
 			state_vector_desc.add(C_PRIORITY);
 			state_vector_var.add(null);
+			model.addElement(new LTSminStateElement(priorVar));
 		}
 
 		// Globals: add globals to the global state struct
@@ -1154,8 +1352,7 @@ public class LTSMinPrinter {
 		for(Variable var: vars) {
 
 			// Add global to the global state struct and fix the offset
-			current_offset = handleVariable(sg,var,C_STATE_GLOBALS+".",current_offset);
-
+			current_offset = handleVariable(sg,var,C_STATE_GLOBALS+".",current_offset,ls_g);
 		}
 
 		// Add global state struct to main state struct
@@ -1164,17 +1361,23 @@ public class LTSMinPrinter {
 		state_members.add(sg);
 		state.addMember(C_STATE_GLOBALS_T, C_STATE_GLOBALS);
 
+		ls_t.members.add(new LTSminTypeBasic(C_STATE_GLOBALS_T, C_STATE_GLOBALS));
+
 		// Add Never process
 		{
 			Proctype p = spec.getNever();
 			if(p!=null) {
 				String name = wrapName(p.getName());
 
+				LTSminTypeStruct ls_p = new LTSminTypeStruct("state_"+name+"_t");
+				//ls_t.members.add(ls_p);
+				ls_t.members.add(new LTSminTypeBasic("state_"+name+"_t",wrapName(name)));
 				CStruct proc_never = new CStruct("state_"+name+"_t");
 				state.addMember("state_"+name+"_t", name);
 
 				// Add
 				proc_never.addMember(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER);
+				ls_p.members.add(new LTSminTypeBasic(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER));
 
 				// Add process to Proctype->offset map and add a description
 				state_proc_offset.put(p, current_offset);
@@ -1186,6 +1389,10 @@ public class LTSMinPrinter {
 
 				// Add process state struct to main state struct
 				state_members.add(proc_never);
+				never_var = new Variable(VariableType.INT, C_STATE_TMP + "." + wrapName(p.getName()), 1);
+				model.addElement(new LTSminStateElement(never_var));
+				model.addType(ls_p);
+				processIdentifiers.put(p,never_var);
 			}
 		}
 
@@ -1205,6 +1412,8 @@ public class LTSMinPrinter {
 			CStruct proc_sg = new CStruct("state_"+name+"_t"); // fix name
 			state.addMember("state_"+name+"_t", name); //fix name
 
+			LTSminTypeStruct ls_p = new LTSminTypeStruct("state_"+name+"_t");
+			ls_t.members.add(new LTSminTypeBasic("state_"+name+"_t",wrapName(name)));
 			// Add process to Proctype->offset map and add a description
 			state_proc_offset.put(p, current_offset);
 			state_vector_desc.add(name + "." + C_STATE_PROC_COUNTER);
@@ -1212,18 +1421,28 @@ public class LTSMinPrinter {
 
 			// Add process counter to process state struct
 			proc_sg.addMember(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER);
+			ls_p.members.add(new LTSminTypeBasic(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER));
 
 			//Fix the offset
 			++current_offset;
 
+			{
+				Variable var = new Variable(VariableType.INT, C_STATE_TMP + "." + wrapName(p.getName()), 1);
+				procs_var.add(var);
+				model.addElement(new LTSminStateElement(var,name+"."+var.getName()));
+				processIdentifiers.put(p,var);
+			}
+			
 			// Locals: add locals to the process state struct
 			List<Variable> proc_vars = p.getVariables();
 			for(Variable var: proc_vars) {
-				current_offset = handleVariable(proc_sg,var,name + ".",current_offset);
+				current_offset = handleVariable(proc_sg,var,name + ".",current_offset,ls_p);
 			}
 
 			// Add process state struct to main state struct
 			state_members.add(proc_sg);
+			model.addType(ls_p);
+
 		}
 
 		// Generate all state structs
@@ -1233,6 +1452,7 @@ public class LTSMinPrinter {
 		w.appendLine(state.getCCode());
 
 		state_size = current_offset;
+		model.addType(ls_t);
 
 	}
 
@@ -1246,6 +1466,8 @@ public class LTSMinPrinter {
 		w.appendLine("");
 		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
+		//w.appendLine("static int timeout_expression(",C_STATE_T," ",C_STATE_TMP,", int trans);");
+		w.appendLine("int spinja_is_atomic(void* model, ",C_STATE_T,"* ",C_STATE_TMP,");");
 
 		// Generate state struct comment
 		for(int off=0; off<state_size; ++off) {
@@ -1292,7 +1514,7 @@ public class LTSMinPrinter {
 						w.append("0");
 					} else {
 						try {
-							generateIntExpression(w, null, null, e,-1);
+							generateIntExpression(w, null, e,-1, new LTSminTransition());
 						} catch(ParseException pe) {
 							pe.printStackTrace();
 							System.exit(0);
@@ -1381,7 +1603,7 @@ public class LTSMinPrinter {
 	 * @param v The Variable of which the C typedef is wanted.
 	 * @return The C typedef name for the given variable.
 	 */
-	private TypeDesc getCTypeOfVar(Variable v) {
+	static public TypeDesc getCTypeOfVar(Variable v) {
 		TypeDesc td = new TypeDesc();
 		switch(v.getType().getBits()) {
 			case 1:
@@ -1433,16 +1655,17 @@ public class LTSMinPrinter {
 	// Helper functionality for debugging
 	int say_indent = 0;
 	private void say(String s) {
-//		for(int n=say_indent; n-->0;) {
-//			System.out.print("  ");
-//		}
-//		System.out.println(s);
+		for(int n=say_indent; n-->0;) {
+			System.out.print("  ");
+		}
+		System.out.println(s);
 	}
 
 	private void generateTransitionsAll(StringWriter w, int transitions) {
 		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 
+		//w.appendLine("transition_info_t transition_info = { NULL, ",loss_transition_id," };");
 		w.appendLine("int t=",transitions,",emitted=0;");
 		w.appendLine("for(;t--;) {");
 		w.indent();
@@ -1486,6 +1709,17 @@ public class LTSMinPrinter {
 		w.appendLine("memcpy(&",C_STATE_TMP,",in,sizeof(",C_STATE_T,"));");
 		w.appendLine();
 
+		w.appendLine("static int n_losses = 0;");
+		w.appendLine("static int n_atomics = 0;");
+		w.appendLine();
+
+		// Count atomic states
+		w.appendLine("#ifdef COUNTATOMIC");
+		w.indent();
+		w.appendLine("if(t==1 && spinja_is_atomic(model,in)) printf(\"handled atomic statements so far: %i\\n\",++n_atomics);");
+		w.outdent();
+		w.appendLine("#endif");
+
 		// Jump to switch state
 		w.appendLine();
 		w.appendLine("goto switch_state;");
@@ -1493,6 +1727,7 @@ public class LTSMinPrinter {
 
 		// Init dependency matrix
 		dep_matrix = new DepMatrix(1,state_size);
+		guard_matrix = new GuardMatrix(state_size);
 
 	}
 
@@ -1559,6 +1794,13 @@ public class LTSMinPrinter {
 			for(SendAction sa: raw.sendActions) {
 				for(ReadAction ra: raw.readActions) {
 					//if(state_proc_offset.get(sa.p) != state_proc_offset.get(ra.p)) {
+
+						// Add transition
+						if(model.getTransitions().size() != trans) throw new AssertionError("Transition not set at correct location in the transition array");
+
+						LTSminTransition lt = new LTSminTransition(sa.p);
+						model.getTransitions().add(lt);
+
 						dep_matrix.ensureSize(trans+1);
 						w.appendLine("l",trans,": // ",sa.p.getName(),"[",state_proc_offset.get(sa.p),"] --> ",ra.p.getName(),"[",state_proc_offset.get(ra.p),"]");
 
@@ -1570,11 +1812,11 @@ public class LTSMinPrinter {
 							while(never_i.hasNext()) {
 								State never_state = never_i.next();
 								for(Transition never_t: never_state.output) {
-										generateRendezVousAction(w,sa,ra,trans,never_t);
+									generateRendezVousAction(w,sa,ra,trans,never_t,lt);
 								}
 							}
 						} else {
-							generateRendezVousAction(w,sa,ra,trans,null);
+							generateRendezVousAction(w,sa,ra,trans,null,lt);
 						}
 
 						++trans;
@@ -1590,45 +1832,154 @@ public class LTSMinPrinter {
 	private int generateTransitions_post(StringWriter w, int trans) {
 		// Create loss of atomicity transition.
 		// This is used when a process blocks inside an atomic transition.
-		dep_matrix.ensureSize(trans+1);
-		loss_transition_id = trans;
-		w.appendLine("l",loss_transition_id,": // loss of transitions");
-		for(AtomicState as: atomicStates) {
-			State s = as.s;
-			Proctype process = as.p;
-			assert(s.isInAtomic());
-			w.appendPrefix();
-			//w.append("if( true /* s= ").append(s.getStateId()).append(" */");
-			w.append("if( ").append(C_STATE_TMP).append(".").append(wrapName(process.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(s.getStateId());
-			w.appendPostfix();
-			w.appendPrefix();
-			w.append("&&( ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var == ").append(state_proc_offset.get(process)).append(" )");
 
-			// Dependency matrix: process counter, prioritiseProcess
-			dep_matrix.incRead(trans, state_proc_offset.get(process));
-			dep_matrix.incRead(trans, offset_priority);
-			dep_matrix.incWrite(trans, offset_priority);
+		// Add transition
+		{
+			if(model.getTransitions().size() != trans) throw new AssertionError("Transition not set at correct location in the transition array");
+			LTSminTransitionCombo ltc = new LTSminTransitionCombo("loss of atomicity");
+			model.getTransitions().add(ltc);
 
-			for(Transition ot: s.output) {
+			dep_matrix.ensureSize(trans+1);
+			loss_transition_id = trans;
+			w.appendLine("l",loss_transition_id,": // loss of transitions");
+			for(AtomicState as: atomicStates) {
+
+				LTSminTransition lt = new LTSminTransition(as.p);
+				ltc.addTransition(lt);
+				
+				State s = as.s;
+				Proctype process = as.p;
+				assert(s.isInAtomic());
+				w.appendPrefix();
+				//w.append("if( true /* s= ").append(s.getStateId()).append(" */");
+				w.append("if( ").append(C_STATE_TMP).append(".").append(wrapName(process.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(s.getStateId());
 				w.appendPostfix();
 				w.appendPrefix();
-				w.append("&&!(");
-				generateTransitionGuard(w,process,ot,trans);
-				w.append(")");
+				w.append("&&( ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var == ").append(state_proc_offset.get(process)).append(" )");
+
+				// Dependency matrix: process counter, prioritiseProcess
+				dep_matrix.incRead(trans, state_proc_offset.get(process));
+				dep_matrix.incRead(trans, offset_priority);
+				dep_matrix.incWrite(trans, offset_priority);
+
+				guard_matrix.addGuard(trans,makePCGuard(s,process));
+				guard_matrix.addGuard(trans,makeAtomicGuard(process));
+
+				lt.addGuard(new LTSminGuard(trans, makePCGuard(s, process)));
+				lt.addGuard(new LTSminGuard(trans, makeExclusiveAtomicGuard(process)));
+
+
+				for(Transition ot: s.output) {
+					LTSminGuardNand gnand = new LTSminGuardNand();
+					w.appendPostfix();
+					w.appendPrefix();
+					w.append("&&!(");
+					generateTransitionGuard(w,process,ot,trans,gnand);
+					w.append(")");
+
+					lt.addGuard(gnand);
+				}
+				w.append(" ) {");
+				w.appendPostfix();
+				w.indent();
+				w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
+				lt.addAction(new AssignAction(
+										new Token(PromelaConstants.ASSIGN,"="),
+										priorityIdentifier,
+										new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"), -1)));
+				w.appendLine("printf(\"[",state_proc_offset.get(process),"] @%i BIG IF - handled %i losses of atomicity so far\\n\",__LINE__,++n_losses);");
+				w.appendLine("callback(arg,&transition_info,&tmp);");
+				w.appendLine("return ",1,";");
+				generateDependencymatrixStats(w,dep_matrix,trans);
+				w.outdent();
+				w.appendLine("}");
 			}
-			w.append(" ) {");
-			w.appendPostfix();
-			w.indent();
-			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
-			//DBG w.appendLine("printf(\"[",state_proc_offset.get(process),"] @%i BIG IF - handled %i losses of atomicity so far\\n\",__LINE__,++n_losses);");
-			w.appendLine("callback(arg,&transition_info,&tmp);");
-			w.appendLine("return ",1,";");
-			generateDependencymatrixStats(w,dep_matrix,trans);
-			w.outdent();
-			w.appendLine("}");
+			w.appendLine("return 0;");
+			++trans;
 		}
-		w.appendLine("return 0;");
-		++trans;
+
+		// Add total timeout transition in case of a never claim.
+		// This is because otherwise accepting cycles might not be found,
+		// although the never claim is violated.
+		if(spec.getNever()!=null) {
+			{
+				// Add transition
+				if(model.getTransitions().size() != trans) throw new AssertionError("Transition not set at correct location in the transition array");
+				LTSminTransition lt = lt_total_timeout = new LTSminTransition("total timeout");
+				model.getTransitions().add(lt);
+
+				dep_matrix.ensureSize(trans+1);
+				total_timeout_id = trans;
+				w.appendLine("l",total_timeout_id,": // total timeout");
+
+	//			w.appendPrefix().append("if( ");
+	//			generateTotalTimeoutExpression(w, total_timeout);
+	//			w.append(" ) {").appendPostfix();
+				w.appendPrefix();
+				w.append("if( TOTAL_TIMEOUT() && ( false");
+
+				LTSminGuardOr gor = new LTSminGuardOr();
+				lt.addGuard(gor);
+
+				Iterator<State> i = spec.getNever().getAutomaton().iterator();
+				while(i.hasNext()) {
+					State s = i.next();
+					if(s.isAcceptState()) {
+						w.append(" || ").append(C_STATE_TMP).append(".").append(wrapName(spec.getNever().getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(s.getStateId());
+						gor.addGuard(new LTSminGuard(trans, makePCGuard(s, spec.getNever())));
+					}
+				}
+				w.append(" ) ) {");
+				w.appendPostfix();
+				w.indent();
+				w.appendLine("callback(arg,&transition_info,&tmp);");
+				w.appendLine("return ",1,";");
+				generateDependencymatrixStats(w,dep_matrix,trans);
+				w.outdent();
+				w.appendLine("}");
+
+				w.appendLine("return 0;");
+				++trans;
+			}
+
+			// Add accepting cycle in the end state of never claim
+			{
+				// Add transition
+				if(model.getTransitions().size() != trans) throw new AssertionError("Transition not set at correct location in the transition array");
+				LTSminTransition lt = new LTSminTransition("cycle");
+				model.getTransitions().add(lt);
+
+				dep_matrix.ensureSize(trans+1);
+				w.appendLine("#ifndef NOENDACCEPT");
+				w.appendLine("l",trans,": // never claim end transition");
+				w.appendPrefix();
+				w.append("if( false ");
+
+				LTSminGuardOr gor = new LTSminGuardOr();
+				lt.addGuard(gor);
+
+				Iterator<State> i = spec.getNever().getAutomaton().iterator();
+				while(i.hasNext()) {
+					State s = i.next();
+					if(s.isEndingState()) {
+						w.append(" || ").append(C_STATE_TMP).append(".").append(wrapName(spec.getNever().getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(s.getStateId());
+						gor.addGuard(new LTSminGuard(trans,makePCGuard(s, spec.getNever())));
+					}
+				}
+				w.append(" ) {");
+				w.appendPostfix();
+				w.indent();
+				w.appendLine("callback(arg,&transition_info,&tmp);");
+				w.appendLine("return ",1,";");
+				generateDependencymatrixStats(w,dep_matrix,trans);
+				w.outdent();
+				w.appendLine("}");
+				w.appendLine("return 0;");
+				w.appendLine("#endif");
+				++trans;
+			}
+
+		}
 
 		// From the switch state we jump to the correct transition,
 		// according to the transition group 't'
@@ -1679,6 +2030,11 @@ public class LTSMinPrinter {
 		// Check if it is an ending state
 		if(state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
 
+			// Add transition
+			if(model.getTransitions().size() != trans) throw new AssertionError("Transition now set at correct location in the transition array");
+			LTSminTransition lt = new LTSminTransition(process);
+			model.getTransitions().add(lt);
+
 			dep_matrix.ensureSize(trans+1);
 
 			// Dependency matrix: process counter, prioritiseProcess
@@ -1686,6 +2042,14 @@ public class LTSMinPrinter {
 			dep_matrix.incRead(trans, state_proc_offset.get(process));
 			dep_matrix.incWrite(trans, offset_priority);
 			dep_matrix.incRead(trans, offset_priority);
+
+			guard_matrix.addGuard(trans,makePCGuard(state,process));
+			guard_matrix.addGuard(trans,makeAtomicGuard(process));
+			guard_matrix.addGuard(trans,makeAllowedToDie(process));
+
+			lt.addGuard(new LTSminGuard(trans, makePCGuard(state, process)));
+			lt.addGuard(new LTSminGuard(trans, makeAtomicGuard(process)));
+			lt.addGuard(new LTSminGuard(trans, makeAllowedToDie(process)));
 
 			// In the case of an ending state, generate a transition only
 			// changing the process counter to -1.
@@ -1699,8 +2063,13 @@ public class LTSMinPrinter {
 			w.appendLine("return 1;");
 			generateDependencymatrixStats(w,dep_matrix,trans);
 			w.outdent();
-			w.appendLine("}");
+			w.appendLine("} // state");
 			w.appendLine("return 0;");
+
+			lt.addAction(new AssignAction(
+									new Token(PromelaConstants.ASSIGN,"="),
+									new PCIdentifier(process),
+									new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"),-1)));
 
 			// Keep track of the current transition ID
 			++trans;
@@ -1749,6 +2118,9 @@ public class LTSMinPrinter {
 		if(t==null) {
 			throw new AssertionError("State transition is NULL");
 		}
+
+		// If the from state is atomic, ignore the never transition
+		if(t.getFrom().isInAtomic()) never_t = null;
 
 		// DO NOT actionise RENDEZVOUS channel send/read
 		// These will be remembered and handled later separately
@@ -1808,6 +2180,11 @@ public class LTSMinPrinter {
 			}
 		}
 
+		// Add transition
+		if(model.getTransitions().size() != trans) throw new AssertionError("Transition not set at correct location in the transition array");
+		LTSminTransition lt = new LTSminTransition(process);
+		model.getTransitions().add(lt);
+
 		// Ensure the dependency matrix is of adequate size
 		dep_matrix.ensureSize(trans+1);
 
@@ -1827,13 +2204,23 @@ public class LTSMinPrinter {
 		w.appendLine("if( ",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",t.getFrom().getStateId());
 		w.appendLine("&&( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," )");
 
+		guard_matrix.addGuard(trans,makePCGuard(t.getFrom(),process));
+		guard_matrix.addGuard(trans,makeAtomicGuard(process));
+
+		lt.addGuard(new LTSminGuard(trans, makePCGuard(t.getFrom(), process)));
+		lt.addGuard(new LTSminGuard(trans, makeAtomicGuard(process)));
+
 		// Check if the process is allowed to die if the target state is null
 		if(t.getTo()==null) {
 			w.appendLine("&&( ALLOWED_DEATH_",wrapName(process.getName()),"() )");
+//			guard_matrix.addGuard(trans,makeAllowedToDie(process));
+//			lt.addGuard(new LTSminGuard(trans, makeAllowedToDie(process)));
 		}
 
 		if(never_t!=null) {
 			w.appendLine("&&( ",C_STATE_TMP,".",wrapName(spec.getNever().getName()),".",C_STATE_PROC_COUNTER,".var == ",never_t.getFrom().getStateId(),") ) {");
+			guard_matrix.addGuard(trans,makePCGuard(never_t.getFrom(),spec.getNever()));
+			lt.addGuard(new LTSminGuard(trans, makePCGuard(never_t.getFrom(),spec.getNever())));
 		} else {
 			w.removePostfix();
 			w.append(") {");
@@ -1847,14 +2234,14 @@ public class LTSMinPrinter {
 
 		w.appendPrefix();
 		w.append("&&( ");
-		generateTransitionGuard(w,process,t,trans);
+		generateTransitionGuard(w,process,t,trans,lt);
 		w.append(")");
 
 		if(never_t != null) {
 			w.appendPostfix();
 			w.appendPrefix();
 			w.append("&&(");
-			generateTransitionGuard(w,spec.getNever(),never_t,trans);
+			generateTransitionGuard(w,spec.getNever(),never_t,trans,lt);
 			w.append(")");
 		}
 
@@ -1873,7 +2260,7 @@ public class LTSMinPrinter {
 					w.appendPostfix();
 					w.appendPrefix();
 					w.append("&&!(");
-					generateTransitionGuard(w,process,ot,trans);
+					generateTransitionGuard(w,process,ot,trans,lt);
 					w.append(")");
 				}
 			}
@@ -1885,7 +2272,7 @@ public class LTSMinPrinter {
 					w.appendPostfix();
 					w.appendPrefix();
 					w.append("&&!(");
-					generateTransitionGuard(w,spec.getNever(),ot,trans);
+					generateTransitionGuard(w,spec.getNever(),ot,trans,lt);
 					w.append(")");
 				}
 			}
@@ -1894,43 +2281,71 @@ public class LTSMinPrinter {
 		w.appendPostfix();
 		w.indent();
 
-		// Change process counter to the next state.
-		// For end transitions, the PC is changed to -1.
-		w.appendLine("",C_STATE_TMP,".",
-				wrapName(process.getName()),".",
-				C_STATE_PROC_COUNTER,".var = ",
-				t.getTo()==null?-1:t.getTo().getStateId(),";"
-				);
+		// If there is no never claim or the target state of the never
+		// transition is not atomic, then generate action code of the system
+		// transition. Otherwise (if there is a claim and the target state is
+		// atomic), do not generate system transition code.
+		// The dying transition (when never_t.getTo()==null) is not considered
+		// atomic
+		if(never_t == null || never_t.getTo()==null || !never_t.getTo().isInAtomic()) {
+			// Change process counter to the next state.
+			// For end transitions, the PC is changed to -1.
+			w.appendLine("",C_STATE_TMP,".",
+					wrapName(process.getName()),".",
+					C_STATE_PROC_COUNTER,".var = ",
+					t.getTo()==null?-1:t.getTo().getStateId(),";"
+					);
+
+			lt.addAction(new AssignAction(
+									new Token(PromelaConstants.ASSIGN,"="),
+									new PCIdentifier(process),
+									new ConstantExpression(new Token(PromelaConstants.NUMBER,""+(t.getTo()==null?-1:t.getTo().getStateId())),t.getTo()==null?-1:t.getTo().getStateId())));
+			if(t.getTo()==null) lt.addAction(new ResetProcessAction(process));
+
+			// Generate actions for this transition
+			generateStateTransitionActions(w,process,t,trans,lt);
+
+			// If this transition is atomic
+			if(t.getTo()!=null && t.getTo().isInAtomic()) {
+
+				// Claim priority when taking this transition. It is
+				// possible this process had already priority, so nothing
+				// changes.
+				w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(process),";");
+
+				lt.addAction(new AssignAction(
+										new Token(PromelaConstants.ASSIGN,"="),
+										priorityIdentifier,
+										new ConstantExpression(new Token(PromelaConstants.NUMBER,""+state_proc_offset.get(process)), state_proc_offset.get(process))));
+			// If this transition is not atomic
+			} else {
+
+				// Make sure no process has priority. This transition was
+				// either executed while having priority and it is now given
+				// up, or no process had priority and this remains the same.
+				w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
+				lt.addAction(new AssignAction(
+										new Token(PromelaConstants.ASSIGN,"="),
+										priorityIdentifier,
+										new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"), -1)));
+
+			}
+		}
+
+		// If there is a never claim, generate the PC update code
 		if(never_t != null) {
 			w.appendLine("",C_STATE_TMP,".",
 					wrapName(spec.getNever().getName()),".",
 					C_STATE_PROC_COUNTER,".var = ",
 					never_t.getTo()==null?-1:never_t.getTo().getStateId(),";"
 					);
+			lt.addAction(new AssignAction(
+									new Token(PromelaConstants.ASSIGN,"="),
+									new PCIdentifier(spec.getNever()),
+									new ConstantExpression(new Token(PromelaConstants.NUMBER,""+(never_t.getTo()==null?-1:never_t.getTo().getStateId())),never_t.getTo()==null?-1:never_t.getTo().getStateId())));
 		}
 
-		// Generate actions for this transition
-		generateStateTransitionActions(w,process,t,trans);
-
-		// If this transition is atomic
-		if(t.getTo()!=null && t.getTo().isInAtomic()) {
-
-			// Claim priority when taking this transition. It is
-			// possible this process had already priority, so nothing
-			// changes.
-			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(process),";");
-
-		// If this transition is not atomic
-		} else {
-
-			// Make sure no process has priority. This transition was
-			// either executed while having priority and it is now given
-			// up, or no process had priority and this remains the same.
-			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
-
-		}
-
-			// Generate the callback and the rest
+		// Generate the callback and the rest
 		w.appendLine("callback(arg,&transition_info,&tmp);");
 		w.appendLine("return ",1,";");
 
@@ -1953,7 +2368,14 @@ public class LTSMinPrinter {
 		return trans+1;
 	}
 
-	void generateTransitionGuard(StringWriter w, Proctype process, Transition t, int trans) {
+	/**
+	 * Generates the guard C code of a transition.
+	 * @param w The StringWriter to which the code is written.
+	 * @param process The state should be in this process.
+	 * @param t The transition of which the guard will be generated.
+	 * @param trans The transition group ID to use for generation.
+	 */
+	void generateTransitionGuard(StringWriter w, Proctype process, Transition t, int trans, LTSminGuardContainer lt) {
 		try {
 
 			w.append("(");
@@ -1963,16 +2385,17 @@ public class LTSMinPrinter {
 				a = t.getAction(0);
 			}
 			if(a!= null && a.getEnabledExpression()!=null) {
-				generateEnabledExpression(w,process,a,t,trans);
+				generateEnabledExpression(w,process,a,t,trans,lt);
 			} else {
-				w.append("true");
+				w.append("true /* no EE */");
 			}
 			if(t.getTo()==null) {
+				lt.addGuard(new LTSminGuard(trans,makeAllowedToDie(process)));
 				w.append(" && ( ALLOWED_DEATH_").append(wrapName(process.getName())).append("() )");
 			}
 
 			w.append(")");
-
+			
 		} catch(ParseException e) {
 			e.printStackTrace();
 		}
@@ -1985,7 +2408,7 @@ public class LTSMinPrinter {
 	 * @param process The transition should be in this process.
 	 * @param t The transition of which to generate the associated actions.
 	 */
-	private void generateStateTransitionActions(StringWriter w, Proctype process, Transition t, int trans) {
+	private void generateStateTransitionActions(StringWriter w, Proctype process, Transition t, int trans, LTSminTransition lt) {
 
 		// Handle all the action in the transition
 		Iterator<Action> it = t.iterator();
@@ -1994,7 +2417,8 @@ public class LTSMinPrinter {
 			try {
 
 				// Handle the action
-				generateAction(w,process,a,t,trans);
+				generateAction(w,process,a,trans,lt);
+				lt.addAction(a);
 
 			// Handle parse exceptions
 			} catch(ParseException e) {
@@ -2023,8 +2447,8 @@ public class LTSMinPrinter {
 
 			// Insert all read dependencies of the current row
 			for(;;) {
-				w.append(dr.getReadB(s));
-				//w.append(1);
+				//w.append(dr.getReadB(s));
+				w.append(1);
 
 				if(++s>=dr.getSize()) {
 					break;
@@ -2038,8 +2462,8 @@ public class LTSMinPrinter {
 
 			// Insert all write dependencies of the current row
 			for(;;) {
-				w.append(dr.getWriteB(s));
-				//w.append(1);
+				//w.append(dr.getWriteB(s));
+				w.append(1);
 				if(++s>=dr.getSize()) {
 					break;
 				}
@@ -2076,6 +2500,71 @@ public class LTSMinPrinter {
 		w.appendLine("}");
 	}
 
+	private void generateGuardMatrix(StringWriter w, GuardMatrix gm) {
+		List<List<Integer>> dp_matrix = gm.getDepMatrix();
+		List<List<Integer>> co_matrix = gm.getCoMatrix();
+		List<List<Expression>> trans_matrix = gm.getTransMatrix();
+		List<Expression> guards = gm.getGuards();
+		w.appendLine("/*");
+		String old_preprefix = w.getPrePrefix();
+		w.setPrePrefix(" * ");
+
+		w.appendLine("");
+		w.appendLine("Guard list:");
+
+		for(int g=0; g<guards.size(); ++g) {
+			w.appendLine("  - ",guards.get(g).toString());
+		}
+
+		w.appendLine("");
+		w.appendLine("Guard-Dependency Matrix:");
+
+		for(int g=0; g<dp_matrix.size(); ++g) {
+			w.appendPrefix();
+
+			List<Integer> row = dp_matrix.get(g);
+
+			for(int s=0; s<row.size(); ++s) {
+				w.append(row.get(s)).append(", ");
+			}
+
+			w.appendPostfix();
+		}
+
+		w.appendLine("");
+		w.appendLine("Co-Enabled Matrix:");
+
+		for(int g=0; g<co_matrix.size(); ++g) {
+			w.appendPrefix();
+
+			List<Integer> row = co_matrix.get(g);
+
+			for(int s=0; s<row.size(); ++s) {
+				w.append(row.get(s)).append(", ");
+			}
+
+			w.appendPostfix();
+		}
+
+		w.appendLine("");
+		w.appendLine("Transition-Guard Matrix:");
+		for(int g=0; g<trans_matrix.size(); ++g) {
+			w.appendPrefix();
+
+			List<Expression> row = trans_matrix.get(g);
+
+			for(int s=0; s<row.size(); ++s) {
+				w.append(guards.indexOf(row.get(s))).append(", ");
+			}
+
+			w.appendPostfix();
+		}
+
+		w.setPrePrefix(old_preprefix);
+
+		w.appendLine(" */");
+	}
+
 	/**
 	 * Generates the code for the given expression. The result is a boolean
 	 * expression.
@@ -2084,10 +2573,11 @@ public class LTSMinPrinter {
 	 * @param e The expression of which the code will be generated.
 	 * @throws ParseException
 	 */
-	private void generateBoolExpression(StringWriter w, Proctype process, Transition t, Expression e, int trans) throws ParseException {
+	private boolean timeoutFalse = false;
+	private void generateBoolExpression(StringWriter w, Proctype process, Expression e, int trans, LTSminGuardContainer lt) throws ParseException {
 		if(e instanceof Identifier) {
 			w.append("(");
-			generateIntExpression(w,process,t,e,trans);
+			generateIntExpression(w,process,e,trans,lt);
 			w.append(" != 0 )");
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
@@ -2096,21 +2586,21 @@ public class LTSMinPrinter {
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
 				w.append("(").append(ae.getToken().image);
-				generateIntExpression(w,process,t,ex1,trans);
+				generateIntExpression(w,process,ex1,trans,lt);
 				w.append(" != 0)");
 			} else if (ex3 == null) {
 				w.append("(");
-				generateIntExpression(w,process,t,ex1,trans);
+				generateIntExpression(w,process,ex1,trans,lt);
 				w.append(" ").append(ae.getToken().image).append(" ");
-				generateIntExpression(w,process,t,ex2,trans);
+				generateIntExpression(w,process,ex2,trans,lt);
 				w.append(" != 0)");
 			} else { // Can only happen with the x?1:0 expression
 				w.append("(");
-				generateBoolExpression(w,process,t,ex1,trans);
+				generateBoolExpression(w,process,ex1,trans,lt);
 				w.append(" ? ");
-				generateBoolExpression(w,process,t,ex2,trans);
+				generateBoolExpression(w,process,ex2,trans,lt);
 				w.append(" : ");
-				generateBoolExpression(w,process,t,ex3,trans);
+				generateBoolExpression(w,process,ex3,trans,lt);
 				w.append(")");
 			}
 		} else if(e instanceof BooleanExpression) {
@@ -2119,13 +2609,13 @@ public class LTSMinPrinter {
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
 				w.append("(").append(be.getToken().image);
-				generateBoolExpression(w,process,t,ex1,trans);
+				generateBoolExpression(w,process,ex1,trans,lt);
 				w.append(")");
 			} else {
 				w.append("(");
-				generateBoolExpression(w,process,t,ex1,trans);
+				generateBoolExpression(w,process,ex1,trans,lt);
 				w.append(" ").append(be.getToken().image).append(" ");
-				generateBoolExpression(w,process,t,ex2,trans);
+				generateBoolExpression(w,process,ex2,trans,lt);
 				w.append(")");
 			}
 		} else if(e instanceof ChannelLengthExpression) {
@@ -2135,9 +2625,9 @@ public class LTSMinPrinter {
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
-			generateIntExpression(w,process,t,ce.getExpr1(),trans);
+			generateIntExpression(w,process,ce.getExpr1(),trans,lt);
 			w.append(" ").append(ce.getToken().image).append(" ");
-			generateIntExpression(w,process,t,ce.getExpr2(),trans);
+			generateIntExpression(w,process,ce.getExpr2(),trans,lt);
 			w.append(")");
 		} else if(e instanceof CompoundExpression) {
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
@@ -2167,11 +2657,14 @@ public class LTSMinPrinter {
 		} else if(e instanceof RunExpression) {
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof TimeoutExpression) {
-			if(process==spec.getNever()) {
+			if( timeoutFalse ) {
+				w.append("false /* timeout-false */");
+			} else if (process == spec.getNever()) {
 				w.append("false /* never-timeout */ ");
 			} else {
 				// Prevent adding of this transition if it was already seen
-				if(!seenItAll) timeout_transitions.add(new TimeoutTransition(trans, process, t));
+				//if(!seenItAll) timeout_transitions.add(new TimeoutTransition(trans, process, lt));
+				//w.append("timeout_expression(").append(C_STATE_TMP).append(",").append(trans).append(")");
 				w.append("TIMEOUT_").append(trans).append("()");
 			}
 		} else {
@@ -2187,7 +2680,7 @@ public class LTSMinPrinter {
 	 * @param e The expression of which the code will be generated.
 	 * @throws ParseException
 	 */
-	private void generateIntExpression(StringWriter w, Proctype process, Transition t, Expression e, int trans) throws ParseException {
+	private void generateIntExpression(StringWriter w, Proctype process, Expression e, int trans, LTSminGuardContainer lt) throws ParseException {
 		//say("Parsing: " + e.toString());
 		if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
@@ -2199,7 +2692,7 @@ public class LTSMinPrinter {
 					w.append("tmp.");
 					w.append(state_var_desc.get(var));
 					w.append("[");
-					generateIntExpression(w,process,t,arrayExpr,trans);
+					generateIntExpression(w,process,arrayExpr,trans,lt);
 					w.append("].var");
 
 					try {
@@ -2229,32 +2722,32 @@ public class LTSMinPrinter {
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
 				w.append("(").append(ae.getToken().image);
-				generateIntExpression(w, process, t, ex1,trans);
+				generateIntExpression(w, process, ex1,trans,lt);
 				w.append(")");
 			} else if (ex3 == null) {
 				if (ae.getToken().image.equals("%")) {
 					// Modulo takes a special notation to make sure that it
 					// returns a positive value
 					w.append("abs(");
-					generateIntExpression(w,process,t,ex1,trans);
+					generateIntExpression(w,process,ex1,trans,lt);
 					w.append(" % ");
-					generateIntExpression(w,process,t,ex2,trans);
+					generateIntExpression(w,process,ex2,trans,lt);
 					w.append(")");
 				} else {
 
 					w.append("(");
-					generateIntExpression(w,process,t,ex1,trans);
+					generateIntExpression(w,process,ex1,trans,lt);
 					w.append(" ").append(ae.getToken().image).append(" ");
-					generateIntExpression(w,process,t,ex2,trans);
+					generateIntExpression(w,process,ex2,trans,lt);
 					w.append(")");
 				}
 			} else {
 				w.append("(");
-				generateBoolExpression(w,process,t,ex1,trans);
+				generateBoolExpression(w,process,ex1,trans,lt);
 				w.append(" ? ");
-				generateIntExpression(w,process,t,ex2,trans);
+				generateIntExpression(w,process,ex2,trans,lt);
 				w.append(" : ");
-				generateIntExpression(w,process,t,ex3,trans);
+				generateIntExpression(w,process,ex3,trans,lt);
 				w.append(")");
 			}
 		} else if(e instanceof BooleanExpression) {
@@ -2263,13 +2756,13 @@ public class LTSMinPrinter {
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
 				w.append("(").append(be.getToken().image);
-				generateIntExpression(w,process,t,ex1,trans);
+				generateIntExpression(w,process,ex1,trans,lt);
 				w.append( " ? 1 : 0)");
 			} else {
 				w.append("(");
-				generateIntExpression(w,process,t,ex1,trans);
+				generateIntExpression(w,process,ex1,trans,lt);
 				w.append(" ").append(be.getToken().image).append(" ");
-				generateBoolExpression(w,process,t,ex2,trans);
+				generateBoolExpression(w,process,ex2,trans,lt);
 				w.append(" ? 1 : 0)");
 			}
 		} else if(e instanceof ChannelLengthExpression) {
@@ -2279,9 +2772,9 @@ public class LTSMinPrinter {
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
-			generateIntExpression(w,process,t,ce.getExpr1(),trans);
+			generateIntExpression(w,process,ce.getExpr1(),trans,lt);
 			w.append(" ").append(ce.getToken().image).append(" ");
-			generateIntExpression(w,process,t,ce.getExpr2(),trans);
+			generateIntExpression(w,process,ce.getExpr2(),trans,lt);
 			w.append(" ? 1 : 0)");
 		} else if(e instanceof CompoundExpression) {
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
@@ -2326,7 +2819,7 @@ public class LTSMinPrinter {
 	 * @param a The action for which C code will be generated.
 	 * @throws ParseException
 	 */
-	private void generateAction(StringWriter w, Proctype process, Action a, Transition t, int trans) throws ParseException {
+	public void generateAction(StringWriter w, Proctype process, Action a, int trans, LTSminTransition lt) throws ParseException {
 
 		// Handle assignment action
 		if(a instanceof AssignAction) {
@@ -2338,15 +2831,15 @@ public class LTSMinPrinter {
 					try {
 						int value = as.getExpr().getConstantValue();
 						w.appendPrefix();
-						generateIntExpression(w,process,t,id,trans);
+						generateIntExpression(w,process,id,trans,lt);
 						w.append(" = ").append(value & id.getVariable().getType().getMaskInt()).append(";");
 						w.appendPostfix();
 					} catch (ParseException ex) {
 						// Could not get Constant value
 						w.appendPrefix();
-						generateIntExpression(w,process,t,id,trans);
+						generateIntExpression(w,process,id,trans,lt);
 						w.append(" = ");
-						generateIntExpression(w,process,t,as.getExpr(),trans);
+						generateIntExpression(w,process,as.getExpr(),trans,lt);
 						w.append((mask == null ? "" : " & " + mask));
 						w.append(";");
 						w.appendPostfix();
@@ -2355,14 +2848,14 @@ public class LTSMinPrinter {
 				case PromelaConstants.INCR:
 					if (mask == null) {
 						w.appendPrefix();
-						generateIntExpression(w,process,t,id,trans);
+						generateIntExpression(w,process,id,trans,lt);
 						w.append("++;");
 						w.appendPostfix();
 					} else {
 						w.appendPrefix();
-						generateIntExpression(w,process,t,id,trans);
+						generateIntExpression(w,process,id,trans,lt);
 						w.append(" = (");
-						generateIntExpression(w,process,t,id,trans);
+						generateIntExpression(w,process,id,trans,lt);
 						w.append(" + 1) & ").append(mask).append(";");
 						w.appendPostfix();
 					}
@@ -2370,14 +2863,14 @@ public class LTSMinPrinter {
 				case PromelaConstants.DECR:
 					if (mask == null) {
 						w.appendPrefix();
-						generateIntExpression(w,process,t,id,trans);
+						generateIntExpression(w,process,id,trans,lt);
 						w.append("--;");
 						w.appendPostfix();
 					} else {
 						w.appendPrefix();
-						generateIntExpression(w,process,t,id,trans);
+						generateIntExpression(w,process,id,trans,lt);
 						w.appendLine(" = (");
-						generateIntExpression(w,process,t,id,trans);
+						generateIntExpression(w,process,id,trans,lt);
 						w.append(" - 1) & ");
 						w.append(mask);
 						w.append(";");
@@ -2396,7 +2889,7 @@ public class LTSMinPrinter {
 
 			w.appendPrefix();
 			w.append("if(!");
-			generateBoolExpression(w,process,t,e,trans);
+			generateBoolExpression(w,process,e,trans,lt);
 			w.append(") {");
 			w.appendPostfix();
 			w.indent();
@@ -2413,7 +2906,7 @@ public class LTSMinPrinter {
 			w.appendPrefix().append("printf(").append(string);
 			for (final Expression expr : exprs) {
 				w.append(", ");
-				generateIntExpression(w,process,t,expr,trans);
+				generateIntExpression(w,process,expr,trans,lt);
 			}
 			w.append(");").appendPostfix();
 
@@ -2423,7 +2916,8 @@ public class LTSMinPrinter {
 			Expression expr = ea.getExpression();
 			final String sideEffect = expr.getSideEffect();
 			if (sideEffect != null) {
-				w.appendLine(sideEffect, "; // POSSIBLY THIS IS WRONG");
+				throw new AssertionError("This is probably wrong...");
+				//w.appendLine(sideEffect, "; // POSSIBLY THIS IS WRONG");
 			}
 
 		// Handle channel send action
@@ -2446,7 +2940,7 @@ public class LTSMinPrinter {
 					final Expression expr = exprs.get(i);
 					w.appendPrefix();
 					w.append(access_buffer).append(".m").append(i).append(".var = ");
-					generateIntExpression(w, process, t, expr,trans);
+					generateIntExpression(w, process, expr,trans,lt);
 					w.append(";");
 					w.appendPostfix();
 
@@ -2463,7 +2957,7 @@ public class LTSMinPrinter {
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
-			
+
 			if(var.getType().getBufferSize()>0) {
 				String access = C_STATE_TMP + "." + wrapNameForChannelDesc(state_var_desc.get(var));
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
@@ -2479,7 +2973,7 @@ public class LTSMinPrinter {
 					if (expr instanceof Identifier) {
 						handleAssignDependency(process,trans,expr);
 						w.appendPrefix();
-						generateIntExpression(w, process, t, expr,trans);
+						generateIntExpression(w, process, expr,trans,lt);
 						w.append(" = ").append(access_buffer).append(".m").append(i).append(".var");
 						w.append(";");
 						w.appendPostfix();
@@ -2502,7 +2996,18 @@ public class LTSMinPrinter {
 
 	}
 
-	private void generateEnabledExpression(StringWriter w, Proctype process, Action a, Transition t, int trans) throws ParseException {
+	/**
+	 * Generates the C code denoting when the specified Action is enabled.
+	 * The enabledness of rendezvous channel actions can only be determined
+	 * after all other transitions have been visited (when seenItAll is true).
+	 * @param w The StringWriter to which the code is written.
+	 * @param process The action should be in this process.
+	 * @param a The action for which C code will be generated.
+	 * @param t The transition the action is in.
+	 * @param trans The transition group ID to use for generation.
+	 * @throws ParseException
+	 */
+	private void generateEnabledExpression(StringWriter w, Proctype process, Action a, Transition t, int trans, LTSminGuardContainer lt) throws ParseException {
 		// Handle assignment action
 		if(a instanceof AssignAction) {
 			w.append("true");
@@ -2519,7 +3024,8 @@ public class LTSMinPrinter {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
-			generateBoolExpression(w,process,t,expr,trans);
+			generateBoolExpression(w,process,expr,trans,lt);
+			lt.addGuard(new LTSminGuard(trans, expr));
 
 		// Handle a channel send action
 		} else if(a instanceof ChannelSendAction) {
@@ -2533,12 +3039,17 @@ public class LTSMinPrinter {
 				w.append(access).append(".filled < ");
 				w.append(var.getType().getBufferSize()).append(")");
 
+				guard_matrix.addGuard(trans,makeChannelUnfilledGuard(var));
+				lt.addGuard(new LTSminGuard(trans,makeChannelUnfilledGuard(var)));
+
 				// Dependency matrix: channel variable
 				dep_matrix.incRead(trans, state_var_offset.get(var));
 
 			} else if(seenItAll) {
 				ReadersAndWriters raw = channels.get(var);
 				w.append("(false");
+				LTSminGuardOr gor = new LTSminGuardOr();
+				lt.addGuard(gor);
 				for(ReadAction ra: raw.readActions) {
 					List<Expression> csa_exprs = csa.getExprs();
 					List<Expression> cra_exprs = ra.cra.getExprs();
@@ -2548,6 +3059,10 @@ public class LTSMinPrinter {
 					w.append(C_STATE_TMP).append(".").append(wrapName(ra.p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(ra.t.getFrom().getStateId());
 					w.append(" )");
 
+					LTSminGuardAnd gand = new LTSminGuardAnd();
+					gor.addGuard(gand);
+					gand.addGuard(new LTSminGuard(trans, makePCGuard(ra.t.getFrom(), ra.p)));
+
 					// Dependency matrix: process counter
 					dep_matrix.incRead(trans, state_proc_offset.get(ra.p));
 
@@ -2555,15 +3070,16 @@ public class LTSMinPrinter {
 						final Expression csa_expr = csa_exprs.get(i);
 						final Expression cra_expr = cra_exprs.get(i);
 						if (!(cra_expr instanceof Identifier)) {
+							gand.addGuard(new LTSminGuard(trans,new CompareExpression(new Token(PromelaConstants.EQ,"=="),csa_expr,cra_expr)));
 							w.append(" && (");
 							try {
-								generateIntExpression(w, null, null, csa_expr,trans);
+								generateIntExpression(w, null, csa_expr,trans,lt);
 							} catch(ParseException e) {
 								e.printStackTrace();
 							}
 							w.append(" == ");
 							try {
-								generateIntExpression(w, null, null, cra_expr,trans);
+								generateIntExpression(w, null, cra_expr,trans,lt);
 							} catch(ParseException e) {
 								e.printStackTrace();
 							}
@@ -2592,16 +3108,23 @@ public class LTSMinPrinter {
 				w.append("(");
 				w.append(access).append(".filled > 0");
 
+				guard_matrix.addGuard(trans,makeChannelHasContentsGuard(var));
+				lt.addGuard(new LTSminGuard(trans,makeChannelHasContentsGuard(var)));
+
 				// Dependency matrix: channel variable
 				dep_matrix.incRead(trans, state_var_offset.get(var));
 
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
 					if (!(expr instanceof Identifier)) {
+
 						w.append(" && (");
 						w.append(access_buffer).append(".m").append(i).append(".var == ");
-						generateIntExpression(w, process, t, expr,trans);
+						generateIntExpression(w, process, expr,trans,lt);
 						w.append(")");
+						//throw new AssertionError("add guard addition here");
+
+						lt.addGuard(new LTSminGuard(trans,new CompareExpression(new Token(PromelaConstants.EQ,"=="),new ChannelTopExpression(cra, i),expr)));
 					}
 
 				}
@@ -2610,6 +3133,8 @@ public class LTSMinPrinter {
 			} else if(seenItAll) {
 				ReadersAndWriters raw = channels.get(var);
 				w.append("(false");
+				LTSminGuardOr gor = new LTSminGuardOr();
+				lt.addGuard(gor);
 				for(SendAction sa: raw.sendActions) {
 					List<Expression> csa_exprs = sa.csa.getExprs();
 					List<Expression> cra_exprs = cra.getExprs();
@@ -2622,19 +3147,24 @@ public class LTSMinPrinter {
 					// Dependency matrix: process counter
 					dep_matrix.incRead(trans, state_proc_offset.get(sa.p));
 
+					LTSminGuardAnd gand = new LTSminGuardAnd();
+					gor.addGuard(gand);
+					gand.addGuard(new LTSminGuard(trans, makePCGuard(sa.t.getFrom(), sa.p)));
+
 					for (int i = 0; i < cra_exprs.size(); i++) {
 						final Expression csa_expr = csa_exprs.get(i);
 						final Expression cra_expr = cra_exprs.get(i);
 						if (!(cra_expr instanceof Identifier)) {
+							gand.addGuard(new LTSminGuard(trans,new CompareExpression(new Token(PromelaConstants.EQ,"=="),csa_expr,cra_expr)));
 							w.append(" && (");
 							try {
-								generateIntExpression(w, null, null, csa_expr,trans);
+								generateIntExpression(w, null, csa_expr,trans,lt);
 							} catch(ParseException e) {
 								e.printStackTrace();
 							}
 							w.append(" == ");
 							try {
-								generateIntExpression(w, null, null, cra_expr,trans);
+								generateIntExpression(w, null, cra_expr,trans,lt);
 							} catch(ParseException e) {
 								e.printStackTrace();
 							}
@@ -2659,8 +3189,8 @@ public class LTSMinPrinter {
 	 * Generate the timeout expression for the specified TimeoutTransition.
 	 * This will generate the expression that NO transition is enabled. The
 	 * dependency matrix is fixed accordingly. If tt is null,
-	 * @param w
-	 * @param tt
+	 * @param w The StringWriter to which the code is written.
+	 * @param tt The TimeoutTransition to generate code for.
 	 */
 	public void generateTimeoutExpression(StringWriter w, TimeoutTransition tt) {
 
@@ -2681,21 +3211,23 @@ public class LTSMinPrinter {
 				// Check if this state has an ElseTransition
 				// If so, skip the transition, because this state
 				// always has an active outgoing transition
+				boolean hasElse = false;
 				for(Transition trans: st.output) {
 					if(trans instanceof ElseTransition) {
-						continue;
+						hasElse = true;
 					}
 				}
+				if(hasElse) continue;
 
 				// Loop over all transitions of the state
 				for(Transition trans: st.output) {
 
-					// Skip Timeout transitions
-					boolean skip = false;
-					for(TimeoutTransition tt2: timeout_transitions) {
-						if(tt2.t == trans) skip = true;
-					}
-					if(skip) continue;
+					// Skip transitions with a timeout expression
+//					boolean skip = false;
+//					for(TimeoutTransition tt2: timeout_transitions) {
+//						if(tt2.t == trans) skip = true;
+//					}
+//					if(skip) continue;
 
 					w.appendPostfix();
 					w.appendPrefix();
@@ -2703,24 +3235,47 @@ public class LTSMinPrinter {
 					dep_matrix.incRead(tt.trans, state_proc_offset.get(p));
 					dep_matrix.incRead(tt.trans, offset_priority);
 
+					tt.lt.addGuard(new LTSminGuard(tt.trans,makeAllowedToDie(p)));
+					tt.lt.addGuard(new LTSminGuard(tt.trans,makeAtomicGuard(p)));
+
 					// Add the expression that the current ttransition from the
 					// current state in the curren process is not enabled.
 					w.append("&&!(");
 					w.append(C_STATE_TMP).append(".").append(wrapName(p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(trans.getFrom().getStateId());
 					w.append("&&( ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var == ").append(state_proc_offset.get(p)).append(" || ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var<0").append(" )");
 					w.append("&&");
-					generateTransitionGuard(w,p,trans,tt.trans);
+					timeoutFalse = true;
+					generateTransitionGuard(w,p,trans,tt.trans,tt.lt);
+					timeoutFalse = false;
 					w.append(")");
 				}
 
 			}
 		}
 	}
+
+	/**
+	 *
+	 * @param header The StringWriter to which the #define code will be written to.
+	 * @param w
+	 */
 	public void generateTimeoutExpression(StringWriter header, StringWriter w) {
 		if(timeout_transitions.isEmpty()) return;
 
+		//w.appendLine("static int timeout_expression(",C_STATE_T," ",C_STATE_TMP,", int trans) {");
+		//w.indent();
+		//w.appendLine("switch(trans) {");
 
 		for(TimeoutTransition tt: timeout_transitions) {
+			//w.appendLine("case ",tt.trans,":");
+			//w.indent();
+			//w.appendPrefix();
+			//w.append("return true ");
+			//generateTimeoutExpression(w,tt);
+			//w.append(";");
+			//w.appendPostfix();
+			//w.appendLine("break;");
+			//w.outdent();
 
 			header.appendLine("#define TIMEOUT_",tt.trans,"() ( true \\");
 			String old_postfix = header.getPostfix();
@@ -2730,6 +3285,87 @@ public class LTSMinPrinter {
 			header.setPostfix(old_postfix);
 			header.appendLine(")");
 
+		}
+		//w.appendLine("default:");
+		//w.indent();
+		//w.appendLine("printf(\"Error: no timeout expression specified for transition %i\\n\",trans);");
+		//w.appendLine("exit(-1);");
+		//w.outdent();
+		//w.appendLine("}");
+
+		//w.outdent();
+		//w.appendLine("}");
+		//w.appendLine("");
+	}
+
+	/**
+	 * Generates #define code for the total timeout expression.
+	 * @param w The StringWriter to which the #define code will be written to.
+	 */
+	public void generateTotalTimeout(StringWriter w) {
+		w.appendPrefix().append("#define TOTAL_TIMEOUT() ( true ");
+		String old_postfix = w.getPostfix();
+		w.setPostfix(" \\"+old_postfix);
+		generateTotalTimeoutExpression(w,total_timeout_id, lt_total_timeout);
+		w.setPostfix(old_postfix);
+		w.append(")").appendPostfix();
+	}
+	/**
+	 * Generate the total timeout expression. This expression is true iff
+	 * no transition is enabled, including 'normal' time out transitions.
+	 * The dependency matrix is fixed accordingly.
+	 * @param w The StringWriter to which the code is written.
+	 * @param tt The TimeoutTransition to generate code for.
+	 */
+	public void generateTotalTimeoutExpression(StringWriter w, int trans, LTSminTransition lt) {
+
+		// Loop over all processes
+		for(Proctype p: procs) {
+			Automaton a = p.getAutomaton();
+			Iterator<State> i = a.iterator();
+
+			// Loop over all states of the process
+			while(i.hasNext()) {
+				State st = i.next();
+
+				// Cull other states of the current process
+				//if(tt.p == p && tt.t.getFrom() != st) {
+				//	continue;
+				//}
+
+				// Check if this state has an ElseTransition
+				// If so, skip the transition, because this state
+				// always has an active outgoing transition
+				for(Transition t: st.output) {
+					if(t instanceof ElseTransition) {
+						continue;
+					}
+				}
+
+				// Loop over all transitions of the state
+				for(Transition t: st.output) {
+
+					w.appendPostfix();
+					w.appendPrefix();
+
+					dep_matrix.incRead(trans, state_proc_offset.get(p));
+					dep_matrix.incRead(trans, offset_priority);
+
+					// Add the expression that the current ttransition from the
+					// current state in the curren process is not enabled.
+					LTSminGuardNand gnand = new LTSminGuardNand();
+					lt.addGuard(gnand);
+					gnand.addGuard(new LTSminGuard(trans, makePCGuard(st, p)));
+					gnand.addGuard(new LTSminGuard(trans, makeAtomicGuard(p)));
+					w.append("&&!(");
+					w.append(C_STATE_TMP).append(".").append(wrapName(p.getName())).append(".").append(C_STATE_PROC_COUNTER).append(".var == ").append(t.getFrom().getStateId());
+					w.append("&&( ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var == ").append(state_proc_offset.get(p)).append(" || ").append(C_STATE_TMP).append(".").append(C_PRIORITY).append(".var<0").append(" )");
+					w.append("&&");
+					generateTransitionGuard(w,p,t,trans,gnand);
+					w.append(")");
+				}
+
+			}
 		}
 	}
 
@@ -2760,8 +3396,8 @@ public class LTSMinPrinter {
 	 * @param current_offset The offset at which the variable should be put.
 	 * @return The next free offset position.
 	 */
-	private int handleVariable(CStruct sg, Variable var, String desc, int current_offset) {
-		return handleVariable(sg,var,desc,"",current_offset, null);
+	private int handleVariable(CStruct sg, Variable var, String desc, int current_offset, LTSminTypeStruct ls) {
+		return handleVariable(sg,var,desc,"",current_offset, ls, null);
 	}
 
 	/**
@@ -2775,7 +3411,7 @@ public class LTSMinPrinter {
 	 * of the variable.
 	 * @return The next free offset position.
 	 */
-	private int handleVariable(CStruct sg, Variable var, String desc, String forcedName, int current_offset, VarDescriptor vd) {
+	private int handleVariable(CStruct sg, Variable var, String desc, String forcedName, int current_offset, LTSminTypeStruct ls, VarDescriptor vd) {
 
 		String name;
 		if(forcedName!=null && !forcedName.equals("")) {
@@ -2805,17 +3441,22 @@ public class LTSMinPrinter {
 				say("Adding CHANNEL: " + var.getName() + " " + var.hashCode());
 				current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
 				sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
-
+				ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
+				model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 				for(String s: vd.extractDescription()) {
 					current_offset = insertVariable(sg, var, desc, s, current_offset);
+					model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 				}
 				sg.addMember(vd.getType(),vd.extractDeclaration());
+				ls.members.add(new LTSminTypeBasic(vd.getType(), vd.extractDeclaration()));
 
 			} else {
 
 				say("Adding CHANNEL: " + var.getName() + " " + var.hashCode());
 				current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
 				sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
+				ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
+				model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 
 			}
 
@@ -2826,13 +3467,16 @@ public class LTSMinPrinter {
 				// Add global to the global state struct
 				TypeDesc td = getCTypeOfVar(var);
 				sg.addMember(td,name);
+				ls.members.add(new LTSminTypeBasic(td.type, name,var.getArraySize()));
 
 				if (var.getArraySize() > 1) {
 					for(int i=0; i<var.getArraySize(); ++i) {
 						current_offset = insertVariable(sg,var,desc,name,current_offset);
+						model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 					}
 				} else {
 					current_offset = insertVariable(sg,var,desc,name,current_offset);
+					model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 				}
 
 			} else if(var.getType().getJavaName().equals("Type")) {
@@ -2840,7 +3484,7 @@ public class LTSMinPrinter {
 				// Untested
 				CustomVariableType cvt = (CustomVariableType)var.getType();
 				for(Variable v: cvt.getVariableStore().getVariables()) {
-					current_offset = handleVariable(sg,v,name+".",name,current_offset,vd);
+					current_offset = handleVariable(sg,v,name+".",name,current_offset,ls,vd);
 				}
 
 			} else {
@@ -2858,7 +3502,7 @@ public class LTSMinPrinter {
 	 * @param name The name to clean.
 	 * @return The cleaned name.
 	 */
-	private String wrapName(String name) {
+	static public String wrapName(String name) {
 		return name;
 	}
 
@@ -2868,7 +3512,7 @@ public class LTSMinPrinter {
 	 * @param name The name to use to generate a channel name.
 	 * @return The generated, clean channel name.
 	 */
-	private String wrapNameForChannel(String name) {
+	static public String wrapNameForChannel(String name) {
 		return "ch_"+wrapName(name)+"_t";
 	}
 
@@ -2878,7 +3522,7 @@ public class LTSMinPrinter {
 	 * @param name The name to use to generate a channel descriptor name.
 	 * @return The generated, clean channel descriptor name.
 	 */
-	private String wrapNameForChannelDesc(String name) {
+	static public String wrapNameForChannelDesc(String name) {
 		return wrapName(name);
 	}
 
@@ -2888,7 +3532,7 @@ public class LTSMinPrinter {
 	 * @param name The name to use to generate a channel buffer name.
 	 * @return The generated, clean channel buffer name.
 	 */
-	private String wrapNameForChannelBuffer(String name) {
+	static public String wrapNameForChannelBuffer(String name) {
 		return wrapName(name)+"_buffer";
 	}
 
@@ -2899,7 +3543,7 @@ public class LTSMinPrinter {
 	 * @param trans The transition ID in which the expression resides.
 	 * @param e The expression to check for dependencies.
 	 */
-	void handleAssignDependency(Proctype process, int trans, Expression e) {
+	private void handleAssignDependency(Proctype process, int trans, Expression e) {
 		if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
@@ -2932,7 +3576,7 @@ public class LTSMinPrinter {
 	/**
 	 * Generate Pre code for a rendezvous couple.
 	 */
-	private void generatePreRendezVousAction(StringWriter w, SendAction sa, ReadAction ra, int trans) {
+	private void generatePreRendezVousAction(StringWriter w, SendAction sa, ReadAction ra, int trans, LTSminTransition lt) {
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
 
@@ -2960,26 +3604,33 @@ public class LTSMinPrinter {
 		dep_matrix.incWrite(trans, state_proc_offset.get(ra.p));
 		dep_matrix.incWrite(trans, offset_priority);
 
+		guard_matrix.addGuard(trans,makePCGuard(sa.t.getFrom(), sa.p));
+		guard_matrix.addGuard(trans,makePCGuard(ra.t.getFrom(), ra.p));
+
+		lt.addGuard(new LTSminGuard(trans,makePCGuard(sa.t.getFrom(), sa.p)));
+		lt.addGuard(new LTSminGuard(trans,makePCGuard(ra.t.getFrom(), ra.p)));
+
 		w.appendLine("if(",C_STATE_TMP,".",wrapName(sa.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",sa.t.getFrom().getStateId(),
 		                        " && ",C_STATE_TMP,".",wrapName(ra.p.getName()),".",C_STATE_PROC_COUNTER,".var == ",ra.t.getFrom().getStateId()," && ");
 		w.appendLine("( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(sa.p)," || ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(ra.p)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," ) ) {");
 		w.indent();
 
 		w.appendPrefix();
-		w.append("if( true");
+		w.append("if( true /* Channel matches */");
 		for (int i = 0; i < cra_exprs.size(); i++) {
 			final Expression csa_expr = csa_exprs.get(i);
 			final Expression cra_expr = cra_exprs.get(i);
 			if (!(cra_expr instanceof Identifier)) {
+				lt.addGuard(new LTSminGuard(trans,new CompareExpression(new Token(PromelaConstants.EQ,"=="),csa_expr,cra_expr)));
 				w.append(" && (");
 				try {
-					generateIntExpression(w, null, null, csa_expr,trans);
+					generateIntExpression(w, null, csa_expr,trans,lt);
 				} catch(ParseException e) {
 					e.printStackTrace();
 				}
 				w.append(" == ");
 				try {
-					generateIntExpression(w, null, null, cra_expr,trans);
+					generateIntExpression(w, null, cra_expr,trans,lt);
 				} catch(ParseException e) {
 					e.printStackTrace();
 				}
@@ -2998,19 +3649,20 @@ public class LTSMinPrinter {
 	private void generatePostRendezVousAction(StringWriter w, SendAction sa, ReadAction ra, int trans) {
 		w.outdent();
 
-		if(sa.t.getFrom()!=null && sa.t.getFrom().isInAtomic()) {
-			w.appendLine("} else if(",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(sa.p),") {");
-			w.indent();
-			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = -1;");
-			//w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] handled %i losses of atomicity so far\\n\",++n_losses);");
-			w.appendLine("callback(arg,&transition_info,&tmp);");
-			w.appendLine("return ",1,";");
-			//w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg);");
-			w.outdent();
+//		if(sa.t.getFrom()!=null && sa.t.getFrom().isInAtomic()) {
+//			w.appendLine("} else if(",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(sa.p),") {");
+//			w.indent();
+//			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = -1;");
+//			w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] rendezvous: lost atomicity\\n\");");
+//			//w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] handled %i losses of atomicity so far\\n\",++n_losses);");
+//			w.appendLine("callback(arg,&transition_info,&tmp);");
+//			w.appendLine("return ",1,";");
+//			//w.appendLine("return spinja_get_successor_all_advanced(model,&tmp,callback,arg);");
+//			w.outdent();
+//			w.appendLine("}");
+//		} else {
 			w.appendLine("}");
-		} else {
-			w.appendLine("}");
-		}
+//		}
 
 		generateDependencymatrixStats(w,dep_matrix,trans);
 
@@ -3026,12 +3678,12 @@ public class LTSMinPrinter {
 	 * @param ra The ReadAction component.
 	 * @param trans The transition ID to use for the generated transition.
 	 */
-	private void generateRendezVousAction(StringWriter w, SendAction sa, ReadAction ra, int trans, Transition never_t) {
+	private void generateRendezVousAction(StringWriter w, SendAction sa, ReadAction ra, int trans, Transition never_t, LTSminTransition lt) {
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
 
 		// Pre
-		generatePreRendezVousAction(w,sa,ra,trans);
+		generatePreRendezVousAction(w,sa,ra,trans,lt);
 
 		// Change process counter of sender
 		w.appendLine("",C_STATE_TMP,".",
@@ -3047,15 +3699,28 @@ public class LTSMinPrinter {
 				ra.t.getTo().getStateId(),";"
 				);
 
+		lt.addAction(new AssignAction(
+								new Token(PromelaConstants.ASSIGN,"="),
+								new PCIdentifier(sa.p),
+								new ConstantExpression(new Token(PromelaConstants.NUMBER,""+sa.t.getTo().getStateId()),sa.t.getTo().getStateId())));
+		lt.addAction(new AssignAction(
+								new Token(PromelaConstants.ASSIGN,"="),
+								new PCIdentifier(ra.p),
+								new ConstantExpression(new Token(PromelaConstants.NUMBER,""+ra.t.getTo().getStateId()),ra.t.getTo().getStateId())));
+
 		List<Expression> csa_exprs = csa.getExprs();
 		List<Expression> cra_exprs = cra.getExprs();
 		for (int i = 0; i < cra_exprs.size(); i++) {
 			final Expression csa_expr = csa_exprs.get(i);
 			final Expression cra_expr = cra_exprs.get(i);
 			if ((cra_expr instanceof Identifier)) {
+				lt.addAction(new AssignAction(
+									new Token(PromelaConstants.ASSIGN,"="),
+									(Identifier)cra_expr,
+									csa_expr));
 				w.appendPrefix();
 				try {
-					generateIntExpression(w, null, null, cra_expr,trans);
+					generateIntExpression(w, null, cra_expr,trans,lt);
 				} catch(ParseException e) {
 					e.printStackTrace();
 				}
@@ -3063,7 +3728,7 @@ public class LTSMinPrinter {
 
 				handleAssignDependency(ra.p,trans,cra_expr);
 				try {
-					generateIntExpression(w, null, null, csa_expr,trans);
+					generateIntExpression(w, null, csa_expr,trans,lt);
 				} catch(ParseException e) {
 					e.printStackTrace();
 				}
@@ -3072,14 +3737,26 @@ public class LTSMinPrinter {
 			}
 		}
 
+//		if(ra.t.getFrom()!=null && ra.t.getFrom().isInAtomic()) {
+//			w.appendLine("printf(\"handled atomic statements so far: %i\\n\",++n_atomics);");
+//		}
+
 		if(ra.t.getTo()!=null && ra.t.getTo().isInAtomic()) {
 			//w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",process.getID(),";");
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",state_proc_offset.get(ra.p),";");
-			//DBG w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] rendezvous: transferred atomicity to ",state_proc_offset.get(ra.p)," \\n\");");
+			lt.addAction(new AssignAction(
+									new Token(PromelaConstants.ASSIGN,"="),
+									priorityIdentifier,
+									new ConstantExpression(new Token(PromelaConstants.NUMBER,""+state_proc_offset.get(ra.p)), state_proc_offset.get(ra.p))));
+			w.appendLine("printf(\"[",state_proc_offset.get(sa.p),"] rendezvous: transferred atomicity to ",state_proc_offset.get(ra.p)," \\n\");");
 			w.appendLine("callback(arg,&transition_info,&tmp);");
 			w.appendLine("return ",1,";");
 		} else {
 			w.appendLine(C_STATE_TMP,".",C_PRIORITY,".var = ",-1,";");
+				lt.addAction(new AssignAction(
+										new Token(PromelaConstants.ASSIGN,"="),
+										priorityIdentifier,
+										new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"), -1)));
 			// Generate the callback and the rest
 			//if(t.getTo()!=null) {
 				w.appendLine("callback(arg,&transition_info,&tmp);");
@@ -3092,8 +3769,8 @@ public class LTSMinPrinter {
 		
 		w.appendLine("return 0;");
 	}
-//
-	public void generateStateDescriptors(StringWriter w) {
+
+	private void generateStateDescriptors(StringWriter w) {
 
 		// Generate static list of names
 		w.appendLine("static const char* var_names[] = {");
@@ -3156,6 +3833,32 @@ public class LTSMinPrinter {
 
 		w.outdent();
 		w.appendLine("};");
+
+//		int i = 0;
+//		for(;;) {
+//
+//			w.appendPrefix();
+//
+//			Variable var = state_vector_var.get(i);
+//			if(var==null) {
+//				w.append("\"").append(C_TYPE_PROC_COUNTER).append("\"");
+//			} else if(var.getArraySize()>1) {
+//				w.append("\"").append(getCTypeOfVarReal(var)).append("[0]\"");
+//				for(int j=1; i<state_size && j<var.getArraySize(); ++j, ++i) {
+//					w.append(",");
+//					w.appendPostfix();
+//					w.appendPrefix();
+//					w.append("\"").append(getCTypeOfVarReal(var)).append("[").append(j).append("]\"");
+//				}
+//			} else {
+//				w.append("\"").append(getCTypeOfVarReal(var)).append("\"");
+//			}
+//
+//			if(++i==state_size) break;
+//			w.append(",");
+//			w.appendPostfix();
+//		}
+//		w.appendPostfix();
 
 		w.appendLine("");
 		for(String s: types) {
@@ -3235,6 +3938,7 @@ public class LTSMinPrinter {
 
 		w.outdent();
 		w.appendLine("}");
+
 	}
 
 	/**
@@ -3243,17 +3947,19 @@ public class LTSMinPrinter {
 	 * @param start_t Time the generation started.
 	 * @param end_t Time the generation ended.
 	 */
-	public void generateStatistics(StringWriter w, long start_t, long end_t) {
+	private void generateStatistics(StringWriter w, long start_t, long end_t) {
+		String old_preprefix = w.getPrePrefix();
 		String old_prefix = w.getPrefix();
-		w.setPrefix(" * ");
 		w.appendLine("/*");
-		w.indent();
+
+		w.setPrePrefix(" * ");
+		w.setPrefix("  ");
 
 		w.appendLine("Generated in: ",end_t-start_t,"ms");
 		w.appendLine("");
 
 		w.appendLine("State vector:");
-		w.setPrefix(" *  - ");
+		w.setPrePrefix(" *  - ");
 		for(int i=0; i<state_size; ++i) {
 			w.appendPrefix();
 			w.append(getStateDescription(i));
@@ -3261,11 +3967,15 @@ public class LTSMinPrinter {
 			w.append(getStateType(i));
 			w.appendPostfix();
 		}
-		w.setPrefix(" * ");
+		w.setPrePrefix(" * ");
 
-		w.outdent();
-		w.appendLine(" */");
+		w.appendLine("");
+		model.prettyPrint(w,this);
+
+		w.setPrePrefix(old_preprefix);
 		w.setPrefix(old_prefix);
+
+		w.appendLine(" */");
 	}
 
 	/**
@@ -3275,7 +3985,7 @@ public class LTSMinPrinter {
 	 * @param dep_matrix
 	 * @param trans
 	 */
-	public void generateDependencymatrixStats(StringWriter w, DepMatrix dep_matrix, int trans) {
+	private void generateDependencymatrixStats(StringWriter w, DepMatrix dep_matrix, int trans) {
 		w.appendPrefix();
 		DepRow row = dep_matrix.getRow(trans);
 		w.append("// read: ");
@@ -3290,15 +4000,11 @@ public class LTSMinPrinter {
 		w.appendPostfix();
 	}
 
-	public void generateBuchiIsAccepting(StringWriter w) {
-		w.appendLine("int spinja_have_property() {");
-		w.indent();
-		w.appendLine("return ",spec.getNever()==null?0:1,";");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("");
+	private void generateBuchiIsAccepting(StringWriter w) {
 		w.appendLine("int spinja_buchi_is_accepting(void* model, ",C_STATE_T,"* ",C_STATE_TMP,") {");
 		w.indent();
+
+		//w.appendLine("printf(\"buchi try!\\n\");");
 
 		if(spec.getNever()!=null) {
 			say("Buchi has " + spec.getNever().getAutomaton().size());
@@ -3307,13 +4013,15 @@ public class LTSMinPrinter {
 			while(i.hasNext()) {
 				State s = i.next();
 
-				if(s.isAcceptState()/*||s.isEndingState()*/) {
+				if(s.isAcceptState()||s.isEndingState()) {
 					say("Buchi accepts: " + s.getStateId());
 					if(!first) {
-						w.removePostfix();
+						if(s.isEndingState()) {w.append("#ifndef NOENDACCEPT").appendPostfix(); w.appendPrefix();}
+						else w.removePostfix();
 						w.append(" else ");
 						first = false;
 					} else {
+						if(s.isEndingState()) {w.append("#ifndef NOENDACCEPT").appendPostfix(); }
 						w.appendPrefix();
 					}
 					w.append("if( ")
@@ -3327,9 +4035,11 @@ public class LTSMinPrinter {
 					 .append(" ) {");
 					w.appendPostfix();
 					w.indent();
+					//w.appendLine("printf(\"buchi accept found!\\n\");");
 					w.appendLine("return 1;");
 					w.outdent();
 					w.appendLine("}");
+					if(s.isEndingState()) {w.append("#endif").appendPostfix(); w.appendLine("");}
 				} else {
 					say("Buchi does NOT accept: " + s.getStateId());
 				}
@@ -3340,4 +4050,292 @@ public class LTSMinPrinter {
 		w.outdent();
 		w.appendLine("}");
 	}
+
+	private void generateIsAtomic(StringWriter w) {
+		w.appendLine("int spinja_is_atomic(void* model, ",C_STATE_T,"* ",C_STATE_TMP,") {");
+		w.indent();
+
+		w.appendLine("return ",C_STATE_TMP,"->",C_PRIORITY,".var >= 0;");
+
+		w.outdent();
+		w.appendLine("}");
+	}
+
+	private void generateGuards(StringWriter w) {
+
+		/* function: get_guard_count */
+
+		w.appendLine("int get_guard_count() {");
+		w.indent();
+
+		w.appendLine("return ",0,";");
+
+		w.outdent();
+		w.appendLine("}");
+
+		/* function: get_guard_matrix */
+
+		w.appendLine("");
+
+		/* function: get_guards */
+
+		/* function: get_all_guards */
+
+		/* function: get_guard */
+
+		/* function: get_guard_all */
+
+	}
+
+	private void extractGuards(Expression e, int trans) {
+		if(e instanceof AritmicExpression) {
+			AritmicExpression ae = (AritmicExpression)e;
+			Expression e1 = ae.getExpr1();
+			Expression e2 = ae.getExpr2();
+			Expression e3 = ae.getExpr3();
+			if(e3!=null) {
+			} else if (e2 != null) {
+				if(ae.getToken().image.equals("&&")) {
+					extractGuards(e1,trans);
+					extractGuards(e2,trans);
+				}
+			} else if (e1 != null) {
+			} else {
+			}
+		}
+
+		System.out.println("Adding guard: " + e.toString());
+	}
+
+	class PCExpression extends Expression {
+		private String processName;
+
+		public String getProcessName() {
+			return processName;
+		}
+
+		public void setProcessName(String processName) {
+			this.processName = processName;
+		}
+
+		public PCExpression(String processName) {
+			super(new Token(PromelaConstants.NUMBER,C_STATE_TMP + "." + wrapName(processName) + "." + C_STATE_PROC_COUNTER));
+			this.processName = processName;
+		}
+		public Set<VariableAccess> readVariables() {
+			return null;
+		}
+		public VariableType getResultType() throws ParseException {
+			return null;
+		}
+
+		@Override
+		public String getIntExpression() {
+			return C_STATE_TMP + "." + wrapName(processName) + "." + C_STATE_PROC_COUNTER;
+		}
+	}
+
+	class PriorityExpression extends Expression {
+
+		public PriorityExpression() {
+			super(new Token(PromelaConstants.NUMBER,C_STATE_TMP + "." + C_PRIORITY));
+		}
+		public Set<VariableAccess> readVariables() {
+			return null;
+		}
+		public VariableType getResultType() throws ParseException {
+			return null;
+		}
+
+		@Override
+		public String getIntExpression() {
+			return C_STATE_TMP + "." + C_PRIORITY;
+		}
+
+	}
+
+	class ChannelSizeExpression extends Expression {
+		private ChannelVariable var;
+
+		public ChannelSizeExpression(ChannelVariable var) {
+			super(new Token(PromelaConstants.NUMBER,wrapNameForChannelDesc(state_var_desc.get(var))+".filled"));
+			this.var = var;
+		}
+		public Set<VariableAccess> readVariables() {
+			return null;
+		}
+		public VariableType getResultType() throws ParseException {
+			return null;
+		}
+
+		public Variable getVariable() {
+			return var;
+		}
+
+		@Override
+		public String getIntExpression() {
+			return "("+C_STATE_TMP + "." + wrapNameForChannelDesc(state_var_desc.get(var))+".filled)";
+		}
+
+	}
+
+	class ChannelTopExpression extends Expression {
+		private ChannelReadAction cra;
+		private int elem;
+
+		public ChannelTopExpression(ChannelReadAction cra, int elem) {
+			super(new Token(PromelaConstants.NUMBER,"[" + wrapNameForChannelDesc(state_var_desc.get(cra.getVariable()))+".nextRead].m"+elem));
+			this.cra = cra;
+			this.elem = elem;
+		}
+		public Set<VariableAccess> readVariables() {
+			return null;
+		}
+		public VariableType getResultType() throws ParseException {
+			return null;
+		}
+
+		public ChannelReadAction getChannelReadAction() {
+			return cra;
+		}
+
+		public int getElem() {
+			return elem;
+		}
+
+		@Override
+		public String getIntExpression() {
+			return "(["+C_STATE_TMP + "." + wrapNameForChannelDesc(state_var_desc.get(cra.getVariable()))+".nextRead].m" + elem + ")";
+		}
+
+	}
+
+	class ChannelTailExpression extends Expression {
+		private ChannelReadAction cra;
+		private int elem;
+
+		public ChannelTailExpression(ChannelReadAction cra, int elem) {
+			super(new Token(PromelaConstants.NUMBER,"[" + wrapNameForChannelDesc(state_var_desc.get(cra.getVariable()))+".nextRead].m"+elem));
+			this.cra = cra;
+			this.elem = elem;
+		}
+		public Set<VariableAccess> readVariables() {
+			return null;
+		}
+		public VariableType getResultType() throws ParseException {
+			return null;
+		}
+
+		public ChannelReadAction getChannelReadAction() {
+			return cra;
+		}
+
+		public int getElem() {
+			return elem;
+		}
+
+		@Override
+		public String getIntExpression() {
+			return "(["+C_STATE_TMP + "." + wrapNameForChannelDesc(state_var_desc.get(cra.getVariable()))+".nextRead].m" + elem + ")";
+		}
+
+	}
+
+	class ResetProcessAction extends Action {
+		private Proctype process;
+		private Variable procVar;
+
+		public ResetProcessAction(Proctype process) {
+			super(new Token(PromelaConstants.ASSIGN, "=reset="));
+			this.process = process;
+			this.procVar = processIdentifiers.get(process);
+		}
+
+		public Proctype getProcess() {
+			return process;
+		}
+
+		public Variable getProcVar() {
+			return procVar;
+		}
+
+		@Override
+		public String toString() {
+			return "";
+		}
+
+		@Override
+		public String getEnabledExpression() throws ParseException {
+			throw new UnsupportedOperationException("Not supported yet.");
+		}
+
+		@Override
+		public void printTakeStatement(StringWriter w) throws ParseException {
+			throw new UnsupportedOperationException("Not supported yet.");
+		}
+
+	}
+
+	private Expression makePCGuard(State s, Proctype p) {
+		Expression left = new PCIdentifier(p);
+		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+s.getStateId()), s.getStateId());
+		Expression e = new CompareExpression(new Token(PromelaConstants.EQ,"=="), left, right);
+		return e;
+	}
+
+	private Expression makePCDeathGuard(Proctype p) {
+		Expression left = new PCIdentifier(p);
+		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"), -1);
+		Expression e = new CompareExpression(new Token(PromelaConstants.EQ,"=="), left, right);
+		return e;
+	}
+	private Expression makePCDeathGuardN(Proctype p) {
+		Expression left = new PCIdentifier(p);
+		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"0"), 0);
+		Expression e = new CompareExpression(new Token(PromelaConstants.GTE,">="), left, right);
+		return e;
+	}
+
+	private Expression makeAllowedToDie(Proctype p) {
+		int i = procs.indexOf(p) + 1;
+		if(i<procs.size()) {
+			return makePCDeathGuard(procs.get(i));
+		} else {
+			return new ConstantExpression(new Token(PromelaConstants.TRUE,"1"), 1);
+		}
+	}
+
+	private Expression makeAtomicGuard(Proctype p) {
+		Expression left = new PriorityIdentifier();
+		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"0"), 0);
+		Expression e = new CompareExpression(new Token(PromelaConstants.LT,"<"), left, right);
+
+		Expression left2 = new PriorityIdentifier();
+		Expression right2 = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+state_proc_offset.get(p)), state_proc_offset.get(p));
+		Expression e2 = new CompareExpression(new Token(PromelaConstants.EQ,"=="), left2, right2);
+
+		return new BooleanExpression(new Token(PromelaConstants.LOR,"||"), e, e2);
+	}
+
+	private Expression makeExclusiveAtomicGuard(Proctype p) {
+		Expression left2 = new PriorityIdentifier();
+		Expression right2 = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+state_proc_offset.get(p)), state_proc_offset.get(p));
+		return new CompareExpression(new Token(PromelaConstants.EQ,"=="), left2, right2);
+	}
+
+	private Expression makeChannelUnfilledGuard(ChannelVariable var) {
+		Expression left = new ChannelSizeExpression(var);
+		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+var.getType().getBufferSize()), var.getType().getBufferSize());
+		Expression e = new CompareExpression(new Token(PromelaConstants.LT,"<"), left, right);
+		return e;
+	}
+
+	private Expression makeChannelHasContentsGuard(ChannelVariable var) {
+		Expression left = new ChannelSizeExpression(var);
+		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"0"), 0);
+		Expression e = new CompareExpression(new Token(PromelaConstants.GT,">"), left, right);
+		return e;
+	}
+
 }
+
