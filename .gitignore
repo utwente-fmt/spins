@@ -11,3 +11,4 @@ src/spinja/promela/compiler/parser/Parse*
 src/spinja/promela/compiler/parser/Token*
 src/spinja/promela/compiler/parser/SimpleCharStream*
 build
+spinja.jar
