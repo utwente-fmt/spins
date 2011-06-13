@@ -362,7 +362,7 @@ public class LTSminPrinter2 {
 		} else if (transition instanceof LTSminTransitionCombo) {
 			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
 			for(LTSminTransitionBase tb: t.transitions) {
-				generateTransition(w, tb);
+				generateATransition(w, tb, trans);
 			}
 		} else {
 			w.appendLine("/** UNSUPPORTED: ",transition.getClass().getSimpleName()," **/");
