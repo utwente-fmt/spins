@@ -900,9 +900,6 @@ public class LTSMinPrinter {
 	// Textual description of the state vector, per integer
 	private List<String> state_vector_desc;
 
-	// List of processes
-	private List<Proctype> procs;
-
 	// Dependency Matrix
 	private DepMatrix dep_matrix;
 
@@ -976,7 +973,6 @@ public class LTSMinPrinter {
 		state = null;
 		state_vector_desc = new ArrayList<String>();
 		state_vector_var = new ArrayList<Variable>();
-		procs = new ArrayList<Proctype>();
 		atomicStates = new ArrayList<AtomicState>();
 		timeout_transitions = new ArrayList<TimeoutTransition>();
 		else_transitions = new ArrayList<ElseTransitionItem>();
@@ -1112,22 +1108,22 @@ public class LTSMinPrinter {
 
 	private void generateAllowedDeath(StringWriter w) {
 
-		if(procs.isEmpty()) throw new AssertionError("generateAllowedDeath: process list is empty, please call after generateStateStructs()");
+		assert (spec.iterator().hasNext());
 
 		w.appendLine("#ifdef SPINDEATHMODE ");
 		{
-			for(int i=0; i<procs.size()-1; ++i) {
-				Proctype process = procs.get(i);
-				//if(process.getID() != i) throw new AssertionError("Process ID inconsistent: " + process.getID() + " != " + i);
-				w.appendLine("#define ALLOWED_DEATH_",wrapName(process.getName()),"() (",C_STATE_TMP,".",wrapName(procs.get(i+1).getName()),".",C_STATE_PROC_COUNTER,".var == -1)");
+			Iterator<Proctype> it = spec.iterator();
+			for (Proctype process : spec) {
+				String next  = it.hasNext() ? wrapName(it.next().getName()) : "1";
+				w.appendLine("#define ALLOWED_DEATH_",wrapName(process.getName()),
+							 "() (",C_STATE_TMP,".",next,
+							 ".",C_STATE_PROC_COUNTER,".var == -1)");
 			}
-			w.appendLine("#define ALLOWED_DEATH_",wrapName(procs.get(procs.size()-1).getName()),"() (1)");
 			if(spec.getNever()!=null) w.appendLine("#define ALLOWED_DEATH_",wrapName(spec.getNever().getName()),"() (1)");
 		}
 		w.appendLine("#else");
 		{
-			for(int i=0; i<procs.size(); ++i) {
-				Proctype process = procs.get(i);
+			for(Proctype process : spec) {
 				w.appendLine("#define ALLOWED_DEATH_",wrapName(process.getName()),"() (1)");
 			}
 			if(spec.getNever()!=null) w.appendLine("#define ALLOWED_DEATH_",wrapName(spec.getNever().getName()),"() (1)");
@@ -1261,7 +1257,7 @@ public class LTSMinPrinter {
 		}
 	}
 
-	class PCIdentifier extends Identifier {
+	static class PCIdentifier extends Identifier {
 		private Proctype process;
 
 		public Proctype getProcess() {
@@ -1293,9 +1289,7 @@ public class LTSMinPrinter {
 		}
 
 		// Locals
-		Iterator<Proctype> it = spec.iterator();
-		for(;it.hasNext();) {
-			Proctype p = it.next();
+		for(Proctype p : spec) {
 			List<Variable> proc_vars = p.getVariables();
 			for(Variable var: proc_vars) {
 				generateCustomStruct(w,var);
@@ -1321,7 +1315,7 @@ public class LTSMinPrinter {
 	 */
 	public Variable never_var;
 	public List<Variable> procs_var = new ArrayList<Variable>();
-	public HashMap<Proctype,Variable> processIdentifiers = new HashMap<Proctype, Variable>();
+	static public HashMap<Proctype,Variable> processIdentifiers = new HashMap<Proctype, Variable>();
 	private void generateStateStructs(StringWriter w) {
 
 		// Current offset in the state struct
@@ -1404,12 +1398,7 @@ public class LTSMinPrinter {
 
 		// Processes:
 		say("== Processes");
-		Iterator<Proctype> it = spec.iterator();
-		for(;it.hasNext();) {
-			Proctype p = it.next();
-
-			procs.add(p);
-
+		for(Proctype p : spec) {
 			// Process' name
 			String name = wrapName(p.getName());
 
@@ -1747,7 +1736,7 @@ public class LTSMinPrinter {
 		// Generate the normal transitions for all processes.
 		// This does not include: rendezvous, else, timeout.
 		// Loss of atomicity is handled separately as well.
-		for(Proctype p: procs) {
+		for(Proctype p: spec) {
 			say("[Proc] " + p.getName());
 			++say_indent;
 
@@ -3201,7 +3190,7 @@ public class LTSMinPrinter {
 	public void generateTimeoutExpression(StringWriter w, TimeoutTransition tt) {
 
 		// Loop over all processes
-		for(Proctype p: procs) {
+		for(Proctype p: spec) {
 			Automaton a = p.getAutomaton();
 			Iterator<State> i = a.iterator();
 
@@ -3326,7 +3315,7 @@ public class LTSMinPrinter {
 	public void generateTotalTimeoutExpression(StringWriter w, int trans, LTSminTransition lt) {
 
 		// Loop over all processes
-		for(Proctype p: procs) {
+		for(Proctype p: spec) {
 			Automaton a = p.getAutomaton();
 			Iterator<State> i = a.iterator();
 
@@ -4303,9 +4292,10 @@ public class LTSMinPrinter {
 	}
 
 	private Expression makeAllowedToDie(Proctype p) {
-		int i = procs.indexOf(p) + 1;
-		if(i<procs.size()) {
-			return makePCDeathGuard(procs.get(i));
+		Iterator<Proctype> it = spec.iterator();
+		while (it.hasNext() && !it.next().equals(p)) {}
+		if(it.hasNext()) {
+			return makePCDeathGuard(it.next());
 		} else {
 			return new ConstantExpression(new Token(PromelaConstants.TRUE,"1"), 1);
 		}
