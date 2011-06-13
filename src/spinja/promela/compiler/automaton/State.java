@@ -19,7 +19,6 @@ import java.util.Iterator;
 import java.util.List;
 
 import spinja.promela.compiler.actions.Action;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 /**
  * A {@link State} within a {@link Automaton} is simply a state that contains the following
@@ -74,7 +73,7 @@ public class State {
 				}
 
 				public void remove() {
-					throw new NotImplementedException();
+					throw new UnsupportedOperationException();
 				}
 			};
 		};
@@ -100,7 +99,7 @@ public class State {
 				}
 
 				public void remove() {
-					throw new NotImplementedException();
+					throw new UnsupportedOperationException();
 				}
 			};
 		};
