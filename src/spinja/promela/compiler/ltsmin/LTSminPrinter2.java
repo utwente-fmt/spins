@@ -1,5 +1,7 @@
 package spinja.promela.compiler.ltsmin;
 
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.*;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,6 +34,7 @@ import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
+import spinja.promela.compiler.variable.VariableAccess;
 import spinja.util.StringWriter;
 
 /**
@@ -45,7 +48,16 @@ public class LTSminPrinter2 {
 	public static final String TMP_ACCESS = LTSMinPrinter.C_STATE_TMP + "->";
 	public static final String IN_ACCESS = IN_VAR + "->";
 	public static final String TMP_ACCESS_GLOBALS = TMP_ACCESS + LTSMinPrinter.C_STATE_GLOBALS + ".";
+	public static final String IN_ACCESS_GLOBALS = IN_ACCESS + LTSMinPrinter.C_STATE_GLOBALS + ".";
+	public static final String TMP_NUM_PROCS = TMP_ACCESS_GLOBALS + C_NUM_PROCS_VAR +".var";
+	public static final String IN_NUM_PROCS = IN_ACCESS_GLOBALS + C_NUM_PROCS_VAR +".var";
 	public static final String ACCESS_PRIORITY = LTSMinPrinter.C_STATE_GLOBALS +"."+ LTSMinPrinter.C_STATE_PRIORITY;
+	public static final int    PM_MAX_PROCS = 256;
+
+	private static String getPC(String p_name, String access) {
+		return access + LTSMinPrinter.wrapName(p_name) +
+				"."+ LTSMinPrinter.C_STATE_PROC_COUNTER +".var";
+	}
 
 	static void generateModel(StringWriter w, LTSminModel model) {
 		generateHeader(w,model);
@@ -69,6 +81,7 @@ public class LTSminPrinter2 {
 		w.appendLine("typedef ");
 		generateType(w,type);
 		w.appendLine(type.getName(),";");
+		w.appendLine("");
 	}
 	static void generateType(StringWriter w, LTSminType type) {
 		if(type instanceof LTSminTypeStruct) {
@@ -156,6 +169,8 @@ public class LTSminPrinter2 {
 	}
 
 	static void generateInitialState(StringWriter w, LTSminModel model) {
+		int activePIDs = 0;
+		
 		// Generate initial state
 		w.append(LTSMinPrinter.C_STATE_T);
 		w.append(" ");
@@ -182,11 +197,20 @@ public class LTSminPrinter2 {
 				// so the initial state will be set to whatever the initial
 				// expression is
 				} else {
-					Expression e = v.getInitExpr();
-					if(e==null) {
-						w.append("0");
+					if (v.getOwner() != null && //if this is the program counter of a process: //TODO: could be clearer:
+						v.getName().equals(LTSMinPrinter.C_STATE_TMP + "." + LTSMinPrinter.wrapName(v.getOwner().getName()))) {
+						switch (v.getOwner().getNrActive()) {
+						case 0: w.append("-1"); break; //use run to start this proc
+						case 1: w.append("0"); activePIDs++; break; //start at the initial state
+						default: throw new AssertionError("active[n] not yet supported"); //TODO: extend state vector and introduce anonymous processes
+						}
 					} else {
-						generateIntExpression(w, e, "UNKNOWN_INIT_VALUE");
+						Expression e = v.getInitExpr();
+						if(e==null) {
+							w.append("0");
+						} else {
+							generateIntExpression(w, e, "UNKNOWN_INIT_VALUE");
+						}
 					}
 				}
 				if(++i>=model.getStateVector().size()) {
@@ -196,7 +220,8 @@ public class LTSminPrinter2 {
 			}
 		}
 		w.appendLine("};");
-
+		w.appendLine("");
+		
 		w.appendLine("extern void spinja_get_initial_state( state_t *to )");
 		w.appendLine("{");
 		w.indent();
@@ -575,12 +600,47 @@ public class LTSminPrinter2 {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
-//			final String sideEffect = expr.getSideEffect();
-//			if (sideEffect != null) {
-//				throw new AssertionError("This is probably wrong...");
-//				//w.appendLine(sideEffect, "; // POSSIBLY THIS IS WRONG");
-//			}
+			String sideEffect;
+			try {
+				sideEffect = expr.getSideEffect();
+				if (sideEffect != null) {
+					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
+					assert (expr instanceof RunExpression);
+					RunExpression re = (RunExpression)expr;
+					Proctype pe = re.getSpecification().getProcess(re.getId()); //TODO: anonymous processes (multiple runs on one proctype)
 
+					//only one dynamic process supported atm
+					w.appendLine("if (-1 != "+ getPC(pe.getName(), IN_ACCESS) +") {");
+					w.appendLine("	printf (\"SpinJa only supports a maximum " +
+							"one dynamic process creation and only for " +
+							"nonactive proctypes.\\n\");");
+					w.appendLine("	printf (\"Exiting on "+ re +".\\n\");");
+					w.appendLine("	exit (1);");
+					w.appendLine("}");
+					
+					Action ae;
+					ae = new AssignAction(
+							new Token(PromelaConstants.ASSIGN,"="),
+							new PCIdentifier(pe),
+							new ConstantExpression(new Token(PromelaConstants.NUMBER,""+0), 0)
+						);
+					generateAction(w, ae);
+					w.appendLine("++("+ TMP_NUM_PROCS +");");
+					//write to the arguments of the target process
+					for (VariableAccess va: re.readVariables()) {
+						Variable v = va.getVar();
+						Proctype p = v.getOwner();
+						ae = new AssignAction(
+								new Token(PromelaConstants.ASSIGN,"="),
+								new PCIdentifier(p),
+								v.getInitExpr()
+							);
+						generateAction(w, ae);
+					}
+				}
+			} catch (ParseException e) {
+				e.printStackTrace();
+			}
 		// Handle channel send action
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
@@ -813,8 +873,6 @@ public class LTSminPrinter2 {
 			w.append(" ").append(ce.getToken().image).append(" ");
 			generateIntExpression(w, ce.getExpr2(), access);
 			w.append(" ? 1 : 0)");
-		} else if(e instanceof CompoundExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
 			ConstantExpression ce = (ConstantExpression)e;
 			switch (ce.getToken().kind) {
@@ -846,8 +904,13 @@ public class LTSminPrinter2 {
 		} else if(e instanceof MTypeReference) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof RunExpression) {
+			//we define the "instantiation number" as: next_pid+1 (http://spinroot.com/spin/Man/run.html)
+			//otherwise the first process can never be started if all proctypes are nonactive.
+			w.append("("+ IN_NUM_PROCS +" != "+ (PM_MAX_PROCS-1)
+					 	+" ? " + IN_NUM_PROCS +"+1 : 0)");
+		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-		} else if(e instanceof TimeoutExpression) {
+		}  else if(e instanceof TimeoutExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
@@ -935,7 +998,7 @@ public class LTSminPrinter2 {
 		} else if(e instanceof MTypeReference) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof RunExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			w.append("("+ IN_NUM_PROCS +" != "+ (PM_MAX_PROCS-1) +" ? 1 : 0)");
 		} else if(e instanceof TimeoutExpression) {
 //			if( timeoutFalse ) {
 //				w.append("false /* timeout-false */");

@@ -868,6 +868,7 @@ public class LTSMinPrinter {
 	public static final String C_STATE_GLOBALS_T = "state_globals_t";
 	public static final String C_STATE_GLOBALS = "globals";
 	public static final String C_STATE_PROC_COUNTER = "pc";
+	public static final String C_NUM_PROCS_VAR = "_nr_pr";
 	public static final String C_STATE_SIZE = "state_size";
 	public static final String C_STATE_INITIAL = "initial";
 	public static final String C_STATE_TMP = "tmp";
@@ -886,6 +887,8 @@ public class LTSMinPrinter {
 	public static final String C_TYPE_PROC_COUNTER = C_TYPE_INT32;
 	public static final String C_TYPE_PROC_COUNTER_ = "int";
 
+	public static final Variable _NR_PR = new Variable(VariableType.BYTE, C_NUM_PROCS_VAR, 1);
+	
 	private HashMap<Variable,Integer> state_var_offset;
 	private HashMap<Variable, String> state_var_desc;
 	private HashMap<Proctype,Integer> state_proc_offset;
@@ -1348,9 +1351,9 @@ public class LTSMinPrinter {
 
 		// Globals: add globals to the global state struct
 		VariableStore globals = spec.getVariableStore();
+		globals.addVariable(_NR_PR);
 		List<Variable> vars = globals.getVariables();
 		for(Variable var: vars) {
-
 			// Add global to the global state struct and fix the offset
 			current_offset = handleVariable(sg,var,C_STATE_GLOBALS+".",current_offset,ls_g);
 		}
@@ -1420,9 +1423,8 @@ public class LTSMinPrinter {
 
 			//Fix the offset
 			++current_offset;
-
 			{
-				Variable var = new Variable(VariableType.INT, C_STATE_TMP + "." + wrapName(p.getName()), 1);
+				Variable var = new Variable(VariableType.INT, C_STATE_TMP + "." + wrapName(p.getName()), 1, p);
 				procs_var.add(var);
 				model.addElement(new LTSminStateElement(var,name+"."+var.getName()));
 				processIdentifiers.put(p,var);

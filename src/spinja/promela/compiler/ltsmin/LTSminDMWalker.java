@@ -1,7 +1,7 @@
 package spinja.promela.compiler.ltsmin;
 
-import java.util.ArrayList;
 import java.util.List;
+
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssertAction;
 import spinja.promela.compiler.actions.AssignAction;
@@ -26,8 +26,10 @@ import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
+import spinja.promela.compiler.variable.VariableAccess;
 import spinja.util.StringWriter;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.DepMatrix;
+import spinja.promela.compiler.ltsmin.LTSMinPrinter.*;
+
 /**
  *
  * @author FIB
@@ -168,15 +170,15 @@ public class LTSminDMWalker {
 			}
 			DMAssign(params,id);
 
-		} else if(a instanceof LTSMinPrinter.ResetProcessAction) {
-			LTSMinPrinter.ResetProcessAction rpa = (LTSMinPrinter.ResetProcessAction)a;
+		} else if(a instanceof ResetProcessAction) {
+			ResetProcessAction rpa = (ResetProcessAction)a;
 			DMIncWrite(params, rpa.getProcVar(),0);
 			for(Variable v: rpa.getProcess().getVariables()) {
 				DMIncWriteEntire(params, v);
 			}
 
-		} else if(a instanceof LTSMinPrinter.ResetProcessAction) {
-			LTSMinPrinter.ResetProcessAction rpa = (LTSMinPrinter.ResetProcessAction)a;
+		} else if(a instanceof ResetProcessAction) {
+			ResetProcessAction rpa = (ResetProcessAction)a;
 			rpa.getProcess();
 
 		// Handle assert action
@@ -199,7 +201,24 @@ public class LTSminDMWalker {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
-
+			String sideEffect;
+			try {
+				sideEffect = expr.getSideEffect();
+				if (sideEffect != null) {
+					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
+					assert (expr instanceof RunExpression);
+					DMIncWrite(params, LTSMinPrinter._NR_PR, 0);
+					RunExpression re = (RunExpression)expr;
+				
+					//write to the arguments of the target process
+					for (VariableAccess va: re.readVariables()) {
+						Variable v = va.getVar();
+						DMIncWrite(params, v, 0);
+					}
+				}
+			} catch (ParseException e) {
+				e.printStackTrace();
+			}
 		// Handle channel send action
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
@@ -242,7 +261,7 @@ public class LTSminDMWalker {
 						// Dependency matrix: channel variable
 						//dep_matrix.incRead(trans, state_var_offset.get(var)+i+1);
 						DMIncRead(params, var, i+1);
-						DMAssign(params,expr);
+						DMAssign(params,(Identifier)expr);
 					}
 				}
 
@@ -257,18 +276,18 @@ public class LTSminDMWalker {
 	}
 
 	static void walkIntExpression(Params params, Expression e) {
-		if(e instanceof LTSMinPrinter.PCExpression) {
+		if(e instanceof PCExpression) {
 			throw new AssertionError("hopefully this is never reached");
-		} else if(e instanceof LTSMinPrinter.PriorityExpression) {
+		} else if(e instanceof PriorityExpression) {
 			throw new AssertionError("hopefully this is never reached");
-		} else if(e instanceof LTSMinPrinter.PCIdentifier) {
-			LTSMinPrinter.PCIdentifier pc = (LTSMinPrinter.PCIdentifier)e;
+		} else if(e instanceof PCIdentifier) {
+			PCIdentifier pc = (PCIdentifier)e;
 			DMIncRead(params,pc.getVariable(),0);
-		} else if(e instanceof LTSMinPrinter.PriorityIdentifier) {
-			LTSMinPrinter.PriorityIdentifier pi = (LTSMinPrinter.PriorityIdentifier)e;
+		} else if(e instanceof PriorityIdentifier) {
+			PriorityIdentifier pi = (PriorityIdentifier)e;
 			DMIncRead(params,pi.getVariable(),0);
-		} else if(e instanceof LTSMinPrinter.ChannelSizeExpression) {
-			LTSMinPrinter.ChannelSizeExpression cse = (LTSMinPrinter.ChannelSizeExpression)e;
+		} else if(e instanceof ChannelSizeExpression) {
+			ChannelSizeExpression cse = (ChannelSizeExpression)e;
 			Variable var = cse.getVariable();
 			DMIncRead(params,cse.getVariable(),0);
 		} else if(e instanceof Identifier) {
@@ -338,11 +357,13 @@ public class LTSminDMWalker {
 			CompareExpression ce = (CompareExpression)e;
 			walkIntExpression(params,ce.getExpr1());
 			walkIntExpression(params,ce.getExpr2());
+		} else if(e instanceof RunExpression) {
+			DMIncRead(params, LTSMinPrinter._NR_PR, 0);
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
-		} else if(e instanceof LTSMinPrinter.ChannelTopExpression) {
-			LTSMinPrinter.ChannelTopExpression cte = (LTSMinPrinter.ChannelTopExpression)e;
+		} else if(e instanceof ChannelTopExpression) {
+			ChannelTopExpression cte = (ChannelTopExpression)e;
 			ChannelReadAction cra =cte.getChannelReadAction();
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
 
@@ -408,7 +429,7 @@ public class LTSminDMWalker {
 		} else if(e instanceof MTypeReference) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof RunExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			DMIncRead(params, LTSMinPrinter._NR_PR, 0);
 		} else if(e instanceof TimeoutExpression) {
 			DMIncReadAll(params); // should be optimized
 		} else {
@@ -472,37 +493,32 @@ public class LTSminDMWalker {
 		}
 	}
 
-	static void DMAssign(Params params, Expression e) {
-		if(e instanceof Identifier) {
-			Identifier id = (Identifier)e;
-			Variable var = id.getVariable();
-			Expression arrayExpr = id.getArrayExpr();
-			if (var.getArraySize() > 1) {
-				if (arrayExpr != null) {
-					try {
-						int i = arrayExpr.getConstantValue();
+	static void DMAssign(Params params, Identifier id) {
+		Variable var = id.getVariable();
+		Expression arrayExpr = id.getArrayExpr();
+		if (var.getArraySize() > 1) {
+			if (arrayExpr != null) {
+				try {
+					int i = arrayExpr.getConstantValue();
+					DMDecrRead(params,var,i);
+					DMIncWrite(params,var,i);
+				} catch(ParseException pe) {
+					for(int i=0; i<var.getArraySize(); ++i) {
 						DMDecrRead(params,var,i);
 						DMIncWrite(params,var,i);
-					} catch(ParseException pe) {
-						for(int i=0; i<var.getArraySize(); ++i) {
-							DMDecrRead(params,var,i);
-							DMIncWrite(params,var,i);
-						}
 					}
-				} else {
-					DMDecrRead(params,var,0);
-					DMIncWrite(params,var,0);
-//					for(int i=0; i<var.getArraySize(); ++i) {
-//						DMDecrRead(params,var,i);
-//						DMIncWrite(params,var,i);
-//					}
 				}
 			} else {
 				DMDecrRead(params,var,0);
 				DMIncWrite(params,var,0);
+				//for(int i=0; i<var.getArraySize(); ++i) {
+				//	DMDecrRead(params,var,i);
+				//	DMIncWrite(params,var,i);
+				//}
 			}
 		} else {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			DMDecrRead(params,var,0);
+			DMIncWrite(params,var,0);
 		}
 	}
 }
