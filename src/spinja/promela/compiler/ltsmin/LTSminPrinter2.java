@@ -314,7 +314,7 @@ public class LTSminPrinter2 {
 			PCGuardTuple curPCG = getPCGuard(gg);
 			assert (curPCG != null); //assume the first guard is always the PC guard
 			
-			assert (isAtomicGuard(t.getGuards().get(1)));
+			//assert (isAtomicGuard(t.getGuards().get(1))); //we dont need this, equals is flexible
 			LTSminGuard curAG = (LTSminGuard)t.getGuards().get(1);
 			
 			boolean boundary = false;
