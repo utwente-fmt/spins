@@ -24,6 +24,7 @@ import spinja.promela.compiler.variable.VariableStore;
 import spinja.promela.compiler.expression.*;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.VariableAccess;
+import spinja.store.HashTable;
 import spinja.util.StringWriter;
 
 /**
@@ -641,6 +642,10 @@ public class LTSMinPrinter {
 			return dep_matrix.size();
 		}
 
+		public int getRowLength() {
+			return row_length;
+		}
+
 		/**
 		 * Returns a dependency row in the dependency matrix.
 		 * @param trans The index of the dependency row to return.
@@ -758,22 +763,46 @@ public class LTSMinPrinter {
 	}
 
 	static public class GuardMatrix {
-		private List<Expression> guards;
+		/**
+		 * guards ...
+		 *   v    ...
+		 */
+		private List<LTSminGuardBase> guards;
+
+		/**
+		 *        guards >
+		 * guards ...    ...
+		 *   v    ...    ...
+		 */
 		private List< List<Integer> > co_matrix;
+
+		/**
+		 *        state >
+		 * guards ...    ...
+		 *   v    ...    ...
+		 */
 		private List< List<Integer> > dep_matrix;
-		private List< List<Expression> > trans_matrix;
+
+		/**
+		 *        guards >
+		 * trans  ...    ...
+		 *   v    ...    ...
+		 */
+		private List< List<LTSminGuardBase> > trans_matrix;
 
 		private final int width;
 
+		private DepMatrix dm;
+
 		public GuardMatrix(int width) {
 			this.width = width;
-			guards = new ArrayList<Expression>();
+			guards = new ArrayList<LTSminGuardBase>();
 			co_matrix = new ArrayList< List<Integer> >();
 			dep_matrix = new ArrayList< List<Integer> >();
-			trans_matrix = new ArrayList< List<Expression> >();
+			trans_matrix = new ArrayList< List<LTSminGuardBase> >();
 		}
 
-		public int addGuard(int trans, Expression g) {
+		public int addGuard(int trans, LTSminGuardBase g) {
 
 			int idx = getGuard(g);
 			if(idx>=0) return idx;
@@ -784,10 +813,14 @@ public class LTSMinPrinter {
 			}
 
 			{
-				List<Integer> row = new ArrayList<Integer>(guards.size());
+				List<Integer> row = new ArrayList<Integer>();
 				co_matrix.add(row);
-				for(int i=row.size(); i-->0;) {
-					row.set(i,1);
+				for(int i=guards.size(); i-->0;) {
+					row.add(1);
+				}
+
+				for(int i=co_matrix.size(); i-->0;) {
+					if(co_matrix.get(i).size()!=co_matrix.size()) throw new AssertionError("Co-Matrix is not square for row " + i + ": " + co_matrix.get(i).size() + " x " + co_matrix.size());
 				}
 			}
 
@@ -801,7 +834,7 @@ public class LTSMinPrinter {
 
 			{
 				for(int i=trans_matrix.size();i<=trans;++i) {
-					trans_matrix.add(i,new ArrayList<Expression>());
+					trans_matrix.add(i,new ArrayList<LTSminGuardBase>());
 				}
 				trans_matrix.get(trans).add(g);
 			}
@@ -809,7 +842,7 @@ public class LTSMinPrinter {
 			return co_matrix.size()-1;
 		}
 
-		public int getGuard(Expression g) {
+		public int getGuard(LTSminGuardBase g) {
 			for(int i = guards.size(); i-->0;) {
 				if(guards.get(i).equals(g)) return i;
 			}
@@ -820,16 +853,56 @@ public class LTSMinPrinter {
 			return dep_matrix;
 		}
 
+		public DepMatrix getDepMatrix2() {
+			return dm;
+		}
+
 		public List< List<Integer> > getCoMatrix() {
 			return co_matrix;
 		}
 
-		public List< List<Expression> > getTransMatrix() {
+		public List< List<LTSminGuardBase> > getTransMatrix() {
 			return trans_matrix;
 		}
 
-		public List<Expression> getGuards() {
+		public List<LTSminGuardBase> getGuards() {
 			return guards;
+		}
+
+		public void setDepMatrix2(DepMatrix dm) {
+			this.dm = dm;
+		}
+
+		public boolean canBeCoEnabled(Expression e1, Expression e2) {
+//			HashTable<Identifier,List<CompareExpression>> s1;
+//			HashTable<Identifier,List<CompareExpression>> s2;
+
+			if(e1 instanceof CompareExpression) {
+				CompareExpression ce1 = (CompareExpression)e1;
+			}
+
+			return true;
+		}
+
+		public void optimize() {
+			for(int g=0; g<guards.size(); ++g) {
+				LTSminGuardBase guard_ = guards.get(g);
+				for(int g2=g+1; g2<guards.size(); ++g2) {
+					LTSminGuardBase guard2_ = guards.get(g2);
+
+					// Can guard and guard2 be co-enabled?
+					if(guard_ instanceof LTSminGuard) {
+						LTSminGuard guard = (LTSminGuard)guard_;
+						if(guard2_ instanceof LTSminGuard) {
+							LTSminGuard guard2 = (LTSminGuard)guard2_;
+							Expression e1 = guard.getExpr();
+							Expression e2 = guard2.getExpr();
+
+						}
+					}
+
+				}
+			}
 		}
 
 	}
@@ -1079,6 +1152,7 @@ public class LTSMinPrinter {
 		//w.append("/*");
 		w.clear();
 		LTSminDMWalker.walkModel(model);
+		LTSminGMWalker.walkModel(model);
 		LTSminPrinter2.generateModel(w, model);
 		c_code = w.toString();
 		return c_code;
@@ -1859,8 +1933,8 @@ public class LTSMinPrinter {
 				dep_matrix.incRead(trans, offset_priority);
 				dep_matrix.incWrite(trans, offset_priority);
 
-				guard_matrix.addGuard(trans,makePCGuard(s,process));
-				guard_matrix.addGuard(trans,makeAtomicGuard(process));
+//				guard_matrix.addGuard(trans,makePCGuard(s,process));
+//				guard_matrix.addGuard(trans,makeAtomicGuard(process));
 
 				lt.addGuard(new LTSminGuard(trans, makePCGuard(s, process)));
 				lt.addGuard(new LTSminGuard(trans, makeExclusiveAtomicGuard(process)));
@@ -2040,9 +2114,9 @@ public class LTSMinPrinter {
 			dep_matrix.incWrite(trans, offset_priority);
 			dep_matrix.incRead(trans, offset_priority);
 
-			guard_matrix.addGuard(trans,makePCGuard(state,process));
-			guard_matrix.addGuard(trans,makeAtomicGuard(process));
-			guard_matrix.addGuard(trans,makeAllowedToDie(process));
+//			guard_matrix.addGuard(trans,makePCGuard(state,process));
+//			guard_matrix.addGuard(trans,makeAtomicGuard(process));
+//			guard_matrix.addGuard(trans,makeAllowedToDie(process));
 
 			lt.addGuard(new LTSminGuard(trans, makePCGuard(state, process)));
 			lt.addGuard(new LTSminGuard(trans, makeAtomicGuard(process)));
@@ -2201,8 +2275,8 @@ public class LTSMinPrinter {
 		w.appendLine("if( ",C_STATE_TMP,".",wrapName(process.getName()),".",C_STATE_PROC_COUNTER,".var == ",t.getFrom().getStateId());
 		w.appendLine("&&( ",C_STATE_TMP,".",C_PRIORITY,".var == ",state_proc_offset.get(process)," || ",C_STATE_TMP,".",C_PRIORITY,".var<0"," )");
 
-		guard_matrix.addGuard(trans,makePCGuard(t.getFrom(),process));
-		guard_matrix.addGuard(trans,makeAtomicGuard(process));
+//		guard_matrix.addGuard(trans,makePCGuard(t.getFrom(),process));
+//		guard_matrix.addGuard(trans,makeAtomicGuard(process));
 
 		lt.addGuard(new LTSminGuard(trans, makePCGuard(t.getFrom(), process)));
 		lt.addGuard(new LTSminGuard(trans, makeAtomicGuard(process)));
@@ -2216,7 +2290,7 @@ public class LTSMinPrinter {
 
 		if(never_t!=null) {
 			w.appendLine("&&( ",C_STATE_TMP,".",wrapName(spec.getNever().getName()),".",C_STATE_PROC_COUNTER,".var == ",never_t.getFrom().getStateId(),") ) {");
-			guard_matrix.addGuard(trans,makePCGuard(never_t.getFrom(),spec.getNever()));
+//			guard_matrix.addGuard(trans,makePCGuard(never_t.getFrom(),spec.getNever()));
 			lt.addGuard(new LTSminGuard(trans, makePCGuard(never_t.getFrom(),spec.getNever())));
 		} else {
 			w.removePostfix();
@@ -2500,8 +2574,8 @@ public class LTSMinPrinter {
 	private void generateGuardMatrix(StringWriter w, GuardMatrix gm) {
 		List<List<Integer>> dp_matrix = gm.getDepMatrix();
 		List<List<Integer>> co_matrix = gm.getCoMatrix();
-		List<List<Expression>> trans_matrix = gm.getTransMatrix();
-		List<Expression> guards = gm.getGuards();
+		List<List<LTSminGuardBase>> trans_matrix = gm.getTransMatrix();
+		List<LTSminGuardBase> guards = gm.getGuards();
 		w.appendLine("/*");
 		String old_preprefix = w.getPrePrefix();
 		w.setPrePrefix(" * ");
@@ -2548,7 +2622,7 @@ public class LTSMinPrinter {
 		for(int g=0; g<trans_matrix.size(); ++g) {
 			w.appendPrefix();
 
-			List<Expression> row = trans_matrix.get(g);
+			List<LTSminGuardBase> row = trans_matrix.get(g);
 
 			for(int s=0; s<row.size(); ++s) {
 				w.append(guards.indexOf(row.get(s))).append(", ");
@@ -3036,7 +3110,7 @@ public class LTSMinPrinter {
 				w.append(access).append(".filled < ");
 				w.append(var.getType().getBufferSize()).append(")");
 
-				guard_matrix.addGuard(trans,makeChannelUnfilledGuard(var));
+//				guard_matrix.addGuard(trans,makeChannelUnfilledGuard(var));
 				lt.addGuard(new LTSminGuard(trans,makeChannelUnfilledGuard(var)));
 
 				// Dependency matrix: channel variable
@@ -3105,7 +3179,7 @@ public class LTSMinPrinter {
 				w.append("(");
 				w.append(access).append(".filled > 0");
 
-				guard_matrix.addGuard(trans,makeChannelHasContentsGuard(var));
+//				guard_matrix.addGuard(trans,makeChannelHasContentsGuard(var));
 				lt.addGuard(new LTSminGuard(trans,makeChannelHasContentsGuard(var)));
 
 				// Dependency matrix: channel variable
@@ -3601,8 +3675,8 @@ public class LTSMinPrinter {
 		dep_matrix.incWrite(trans, state_proc_offset.get(ra.p));
 		dep_matrix.incWrite(trans, offset_priority);
 
-		guard_matrix.addGuard(trans,makePCGuard(sa.t.getFrom(), sa.p));
-		guard_matrix.addGuard(trans,makePCGuard(ra.t.getFrom(), ra.p));
+//		guard_matrix.addGuard(trans,makePCGuard(sa.t.getFrom(), sa.p));
+//		guard_matrix.addGuard(trans,makePCGuard(ra.t.getFrom(), ra.p));
 
 		lt.addGuard(new LTSminGuard(trans,makePCGuard(sa.t.getFrom(), sa.p)));
 		lt.addGuard(new LTSminGuard(trans,makePCGuard(ra.t.getFrom(), ra.p)));

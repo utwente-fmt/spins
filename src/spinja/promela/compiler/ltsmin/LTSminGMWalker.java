@@ -23,8 +23,8 @@ import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.DepMatrix;
 import spinja.promela.compiler.ltsmin.LTSMinPrinter.GuardMatrix;
+import spinja.promela.compiler.ltsmin.LTSMinPrinter.DepMatrix;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -41,13 +41,17 @@ public class LTSminGMWalker {
 
 	static public class Params {
 		public final LTSminModel model;
+		public final GuardMatrix guardMatrix;
 		public final DepMatrix depMatrix;
 		public final int trans;
+		public final int guard;
 
-		public Params(LTSminModel model, DepMatrix depMatrix, int trans) {
+		public Params(LTSminModel model, GuardMatrix guardMatrix, DepMatrix depMatrix, int trans, int guard) {
 			this.model = model;
+			this.guardMatrix = guardMatrix;
 			this.depMatrix = depMatrix;
 			this.trans = trans;
+			this.guard = guard;
 		}
 	}
 
@@ -55,7 +59,7 @@ public class LTSminGMWalker {
 		if(model.getGuardMatrix()==null) {
 			model.setGuardMatrix(new GuardMatrix(model.getStateVector().size()));
 		}
-		walkTransitions(model.getDepMatrix(),model);
+		walkTransitions(model.getGuardMatrix(),model);
 	}
 
 	static void walkTypeDef(LTSminType type) {
@@ -82,11 +86,13 @@ public class LTSminGMWalker {
 	}
 	static void walkGetAll(LTSminModel model) {
 	}
-	static void walkTransitions(DepMatrix depMatrix, LTSminModel model) {
+	static void walkTransitions(GuardMatrix guardMatrix, LTSminModel model) {
 		List<LTSminTransitionBase> transitions = model.getTransitions();
 		int trans = 0;
+		DepMatrix dm = new DepMatrix(1,model.getStateVector().size());
+		guardMatrix.setDepMatrix2(dm);
 		for(LTSminTransitionBase t: transitions) {
-			walkTransition(new Params(model,depMatrix,trans),t);
+			walkTransition(new Params(model,guardMatrix,dm,trans,-1),t);
 			++trans;
 		}
 
@@ -99,10 +105,10 @@ public class LTSminGMWalker {
 			for(LTSminGuardBase g: guards) {
 				walkGuard(params,g);
 			}
-			List<Action> actions = t.getActions();
-			for(Action a: actions) {
-				walkAction(params,a);
-			}
+//			List<Action> actions = t.getActions();
+//			for(Action a: actions) {
+//				walkAction(params,a);
+//			}
 		} else if (transition instanceof LTSminTransitionCombo) {
 			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
 			for(LTSminTransitionBase tb: t.transitions) {
@@ -114,12 +120,18 @@ public class LTSminGMWalker {
 	}
 	static void walkGuard(Params params, LTSminGuardBase guard) {
 		if(guard instanceof LTSminGuard) {
+			int gidx = params.guard>=0 ? params.guard : params.guardMatrix.addGuard(params.trans, guard);
+			params.depMatrix.ensureSize(gidx+1);
+			System.out.println("Now handling1 " + gidx);
 			LTSminGuard g = (LTSminGuard)guard;
-			walkBoolExpression(params, g.expr);
+			walkBoolExpression(new Params(params.model, params.guardMatrix, params.depMatrix, params.trans, gidx), g.expr);
 		} else if(guard instanceof LTSminGuardNand) {
+			int gidx = params.guard>=0 ? params.guard : params.guardMatrix.addGuard(params.trans, guard);
+			params.depMatrix.ensureSize(gidx+1);
+			System.out.println("Now handling2 " + gidx);
 			LTSminGuardNand g = (LTSminGuardNand)guard;
 			for(LTSminGuardBase gb: g.guards) {
-				walkGuard(params,gb);
+				walkGuard(new Params(params.model, params.guardMatrix, params.depMatrix, params.trans, gidx),gb);
 			}
 		} else if(guard instanceof LTSminGuardAnd) {
 			LTSminGuardAnd g = (LTSminGuardAnd)guard;
@@ -127,9 +139,12 @@ public class LTSminGMWalker {
 				walkGuard(params,gb);
 			}
 		} else if(guard instanceof LTSminGuardOr) {
+			int gidx = params.guard>=0 ? params.guard : params.guardMatrix.addGuard(params.trans, guard);
+			params.depMatrix.ensureSize(gidx+1);
+			System.out.println("Now handling3 " + gidx);
 			LTSminGuardOr g = (LTSminGuardOr)guard;
 			for(LTSminGuardBase gb: g.guards) {
-				walkGuard(params,gb);
+				walkGuard(new Params(params.model, params.guardMatrix, params.depMatrix, params.trans, gidx),gb);
 			}
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());
@@ -443,7 +458,7 @@ public class LTSminGMWalker {
 			System.out.println("For some reason var is null, " + var.getName());
 			System.out.println("Vars: " + params.model.getVariables().toString());
 		} else {
-			params.depMatrix.incWrite(params.trans, i+offset);
+			params.depMatrix.incWrite(params.guard, i+offset);
 		}
 	}
 
@@ -453,7 +468,7 @@ public class LTSminGMWalker {
 			System.out.println("For some reason var is null, " + var.getName());
 			System.out.println("Vars: " + params.model.getVariables().toString());
 		} else {
-			params.depMatrix.decrWrite(params.trans, i+offset);
+			params.depMatrix.decrWrite(params.guard, i+offset);
 		}
 	}
 
@@ -463,13 +478,13 @@ public class LTSminGMWalker {
 			System.out.println("For some reason var is null, " + var.getName());
 			System.out.println("Vars: " + params.model.getVariables().toString());
 		} else {
-			params.depMatrix.incRead(params.trans, i+offset);
+			System.out.println("Did something for " + params.guard);
+			params.depMatrix.incRead(params.guard, i+offset);
 		}
 	}
 
 	static void DMIncReadAll(Params params) {
 		for(int i=params.model.getStateVector().size(); i-->0;) {
-			params.depMatrix.incRead(params.trans, i);
 		}
 	}
 
@@ -479,7 +494,7 @@ public class LTSminGMWalker {
 			System.out.println("For some reason var is null, " + var.getName());
 			System.out.println("Vars: " + params.model.getVariables().toString());
 		} else {
-			params.depMatrix.decrRead(params.trans,i+offset);
+			params.depMatrix.decrRead(params.guard,i+offset);
 		}
 	}
 

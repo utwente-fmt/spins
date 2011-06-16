@@ -52,6 +52,7 @@ public class LTSminDMWalker {
 		if(model.getDepMatrix()==null) {
 			model.setDepMatrix(new DepMatrix(model.getTransitions().size(), model.getStateVector().size()));
 		}
+		if(model.getDepMatrix()==null) throw new AssertionError("DM still null!");
 		walkTransitions(model.getDepMatrix(),model);
 	}
 
