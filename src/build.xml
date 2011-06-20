@@ -26,7 +26,7 @@
 	</target>
 
 	<target name="compile" description="Compiles all java files" depends="javacc">
-		<javac destdir="${build}/classes" source="1.5" srcdir="${spinja}" includeantruntime="false"/>
+		<javac destdir="${build}/classes" source="1.5" debug="on" debuglevel="lines,vars,source" srcdir="${spinja}" includeantruntime="false"/>
 	</target>
 
 	<target name="jar" description="Generates jar-file" depends="compile">

@@ -22,7 +22,6 @@ import java.util.Stack;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.util.StringWriter;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 /**
  * An Automaton is a simple LTS that holds {@link State}s and {@link Transition}s. It can be used
@@ -171,7 +170,7 @@ public class Automaton implements Iterable<State> {
 			}
 
 			public void remove() {
-				throw new NotImplementedException();
+				throw new UnsupportedOperationException();
 			}
 
 		};

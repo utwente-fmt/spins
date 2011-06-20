@@ -20,6 +20,15 @@ public class LTSminGuard implements LTSminGuardBase {
 	public Expression getExpr() {
 		return expr;
 	}
+	
+	public boolean equals(Object o) {
+		if (o == null)
+			return false;
+		if (!(o instanceof LTSminGuard))
+			return false;
+		LTSminGuard g = (LTSminGuard)o;
+		return expr.equals(g.getExpr());
+	}
 
 	public void setExpr(Expression expr) {
 		this.expr = expr;

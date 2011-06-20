@@ -111,4 +111,12 @@ public class RunExpression extends Expression implements CompoundExpression {
 			return "run " + id + "()";
 		}
 	}
+
+	public Specification getSpecification() {
+		return specification;
+	}
+
+	public String getId() {
+		return id;
+	}
 }

@@ -31,15 +31,15 @@ if [ -f "$output_file" ]; then
 	rm "$output_file";
 fi
 
-java  -cp "$script_dir/spinja.jar"   spinja.Compile -o3 -l "$promela_file"
+java -ea:spinja... -cp "$script_dir/spinja.jar"   spinja.Compile -o3 -l "$promela_file"
 if [ ! -f "$output_file" ]; then
 	echo "Compilation of $promela_file failed"
 	exit;
 fi
 
-gcc -fPIC -shared $output_file -o $promela_file.spinja -O0 -g $gcc_options
+gcc -fPIC -shared $output_file -o $promela_name.spinja -O2 -g $gcc_options
 if [ ! $? -eq 0 ]; then
 	echo "Compilation of $output_file failed"
 else
-	echo "Compiled C model to $output_file"
+	echo "Compiled C model to $promela_file.spinja"
 fi
