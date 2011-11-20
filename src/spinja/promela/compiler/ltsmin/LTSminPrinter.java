@@ -1,6 +1,14 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.*;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_NUM_PROCS_VAR;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_CHANNEL;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_INT1;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_INT16;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_INT32;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_INT8;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_UINT16;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_UINT32;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_UINT8;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,9 +34,16 @@ import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.GuardMatrix;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.PCIdentifier;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.PriorityIdentifier;
+import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
+import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
+import spinja.promela.compiler.ltsmin.instr.DepMatrix;
+import spinja.promela.compiler.ltsmin.instr.DepRow;
+import spinja.promela.compiler.ltsmin.instr.GuardMatrix;
+import spinja.promela.compiler.ltsmin.instr.PCExpression;
+import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
+import spinja.promela.compiler.ltsmin.instr.PriorityExpression;
+import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
+import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -41,27 +56,30 @@ import spinja.util.StringWriter;
  *
  * @author FIB
  */
-public class LTSminPrinter2 {
+public class LTSminPrinter {
 
 	public static final String IN_VAR = "in";
 	public static final String MEMBERACCESS = "->";
-	public static final String TMP_ACCESS = LTSMinPrinter.C_STATE_TMP + "->";
+	public static final String TMP_ACCESS = LTSminTreeWalker.C_STATE_TMP + "->";
 	public static final String IN_ACCESS = IN_VAR + "->";
-	public static final String TMP_ACCESS_GLOBALS = TMP_ACCESS + LTSMinPrinter.C_STATE_GLOBALS + ".";
-	public static final String IN_ACCESS_GLOBALS = IN_ACCESS + LTSMinPrinter.C_STATE_GLOBALS + ".";
+	public static final String TMP_ACCESS_GLOBALS = TMP_ACCESS + LTSminTreeWalker.C_STATE_GLOBALS + ".";
+	public static final String IN_ACCESS_GLOBALS = IN_ACCESS + LTSminTreeWalker.C_STATE_GLOBALS + ".";
 	public static final String TMP_NUM_PROCS = TMP_ACCESS_GLOBALS + C_NUM_PROCS_VAR +".var";
 	public static final String IN_NUM_PROCS = IN_ACCESS_GLOBALS + C_NUM_PROCS_VAR +".var";
-	public static final String ACCESS_PRIORITY = LTSMinPrinter.C_STATE_GLOBALS +"."+ LTSMinPrinter.C_STATE_PRIORITY;
+	public static final String ACCESS_PRIORITY = LTSminTreeWalker.C_STATE_GLOBALS +"."+ LTSminTreeWalker.C_STATE_PRIORITY;
 	public static final int    PM_MAX_PROCS = 256;
 
 	private static String getPC(String p_name, String access) {
-		return access + LTSMinPrinter.wrapName(p_name) +
-				"."+ LTSMinPrinter.C_STATE_PROC_COUNTER +".var";
+		return access + LTSminTreeWalker.wrapName(p_name) +
+				"."+ LTSminTreeWalker.C_STATE_PROC_COUNTER +".var";
 	}
+
+	public static final String DM_NAME = "transition_dependency";
+	public static final String GM_DM_NAME = "gm_dm";
 
 	static void generateModel(StringWriter w, LTSminModel model) {
 		generateHeader(w,model);
-		LTSMinPrinter.generateTypeStructs(w);
+		generateTypeStructs(w);
 		for(LTSminType t: model.getTypes()) {
 			generateTypeDef(w, t);
 		}
@@ -72,9 +90,11 @@ public class LTSminPrinter2 {
 		generateGetNext(w,model);
 		generateGetAll(w,model);
 		generateTransitionCount(w,model);
-		generateDepMatrix(w,model);
-		generateStateDescriptors(w,model);
+		generateDepMatrix(w,model.getDepMatrix(),DM_NAME);
+		generateDMFunctions(w,model.getDepMatrix());
 		generateGuardMatrix(w,model);
+		generateGuardFunctions(w,model.getGuardMatrix());
+		generateStateDescriptors(w,model);
 	}
 
 	static void generateTypeDef(StringWriter w, LTSminType type) {
@@ -112,7 +132,7 @@ public class LTSminPrinter2 {
 		w.setPrePrefix(" * ");
 		w.setPrefix("  ");
 
-		w.appendLine("State size:  ",model.getStateVector().size()," elements (",model.getStateVector().size()*LTSMinPrinter.STATE_ELEMENT_SIZE," bytes)");
+		w.appendLine("State size:  ",model.getStateVector().size()," elements (",model.getStateVector().size()*LTSminTreeWalker.STATE_ELEMENT_SIZE," bytes)");
 		w.appendLine("Transitions: ",model.getTransitions().size());
 
 		w.setPrefix(prefix);
@@ -137,7 +157,7 @@ public class LTSminPrinter2 {
 	}
 
 	static void generateStateCount(StringWriter w, LTSminModel model) {
-		w.appendLine("int ",LTSMinPrinter.C_STATE_SIZE," = ",model.getStateVector().size(),";");
+		w.appendLine("int ",LTSminTreeWalker.C_STATE_SIZE," = ",model.getStateVector().size(),";");
 		w.appendLine("extern int spinja_get_state_size() {");
 		w.indent();
 		w.appendLine("return ",model.getStateVector().size(),";");
@@ -146,10 +166,10 @@ public class LTSminPrinter2 {
 	}
 
 	static private void generateIsAtomic(StringWriter w) {
-		w.appendLine("int spinja_is_atomic(void* model, ",LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP,") {");
+		w.appendLine("int spinja_is_atomic(void* model, ",LTSminTreeWalker.C_STATE_T,"* ",LTSminTreeWalker.C_STATE_TMP,") {");
 		w.indent();
 
-		w.appendLine("return ",LTSMinPrinter.C_STATE_TMP,"->",LTSMinPrinter.C_PRIORITY,".var >= 0;");
+		w.appendLine("return ",LTSminTreeWalker.C_STATE_TMP,"->",LTSminTreeWalker.C_PRIORITY,".var >= 0;");
 
 		w.outdent();
 		w.appendLine("}");
@@ -172,12 +192,12 @@ public class LTSminPrinter2 {
 		int activePIDs = 0;
 		
 		// Generate initial state
-		w.append(LTSMinPrinter.C_STATE_T);
+		w.append(LTSminTreeWalker.C_STATE_T);
 		w.append(" ");
-		w.append(LTSMinPrinter.C_STATE_INITIAL);
+		w.append(LTSminTreeWalker.C_STATE_INITIAL);
 		w.append(" = ");
 		w.append("(");
-		w.append(LTSMinPrinter.C_STATE_T);
+		w.append(LTSminTreeWalker.C_STATE_T);
 		w.append("){");
 		if(model.getStateVector().size() > 0) {
 			int i = 0;
@@ -198,7 +218,7 @@ public class LTSminPrinter2 {
 				// expression is
 				} else {
 					if (v.getOwner() != null && //if this is the program counter of a process: //TODO: could be clearer:
-						v.getName().equals(LTSMinPrinter.C_STATE_TMP + "." + LTSMinPrinter.wrapName(v.getOwner().getName()))) {
+						v.getName().equals(LTSminTreeWalker.C_STATE_TMP + "." + LTSminTreeWalker.wrapName(v.getOwner().getName()))) {
 						switch (v.getOwner().getNrActive()) {
 						case 0: w.append("-1"); break; //use run to start this proc
 						case 1: w.append("0"); activePIDs++; break; //start at the initial state
@@ -225,9 +245,9 @@ public class LTSminPrinter2 {
 		w.appendLine("extern void spinja_get_initial_state( state_t *to )");
 		w.appendLine("{");
 		w.indent();
-		w.appendLine("if(state_size*",LTSMinPrinter.STATE_ELEMENT_SIZE," != sizeof(" + LTSMinPrinter.C_STATE_T + ")) { printf(\"state_t SIZE MISMATCH!: state=%i(%i) globals=%i\",sizeof(state_t),state_size*",LTSMinPrinter.STATE_ELEMENT_SIZE,",sizeof(state_globals_t)); }");
-		w.appendLine("memcpy(to, (char*)&",LTSMinPrinter.C_STATE_INITIAL,", sizeof(" + LTSMinPrinter.C_STATE_T + "));");
-		w.appendLine("to->",LTSMinPrinter.C_PRIORITY,".var = -1;");
+		w.appendLine("if(state_size*",LTSminTreeWalker.STATE_ELEMENT_SIZE," != sizeof(" + LTSminTreeWalker.C_STATE_T + ")) { printf(\"state_t SIZE MISMATCH!: state=%i(%i) globals=%i\",sizeof(state_t),state_size*",LTSminTreeWalker.STATE_ELEMENT_SIZE,",sizeof(state_globals_t)); }");
+		w.appendLine("memcpy(to, (char*)&",LTSminTreeWalker.C_STATE_INITIAL,", sizeof(" + LTSminTreeWalker.C_STATE_T + "));");
+		w.appendLine("to->",LTSminTreeWalker.C_PRIORITY,".var = -1;");
 		w.outdent();
 		w.appendLine("}");
 	}
@@ -299,8 +319,8 @@ public class LTSminPrinter2 {
 		w.appendLine("(void)model; // ignore model");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("register int pos;");
-		w.appendLine(LTSMinPrinter.C_STATE_T," local_state;");
-		w.appendLine(LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP," = &local_state;");
+		w.appendLine(LTSminTreeWalker.C_STATE_T," local_state;");
+		w.appendLine(LTSminTreeWalker.C_STATE_T,"* ",LTSminTreeWalker.C_STATE_TMP," = &local_state;");
 		w.appendLine();
 		w.appendLine("static int n_losses = 0;");
 		w.appendLine("static int n_atomics = 0;");
@@ -376,7 +396,7 @@ public class LTSminPrinter2 {
 			}
 			w.appendLine(") {");
 			w.indent();
-			w.appendLine("memcpy(", LTSMinPrinter.C_STATE_TMP,", ", IN_VAR , ", sizeof(", LTSMinPrinter.C_STATE_T,"));");
+			w.appendLine("memcpy(", LTSminTreeWalker.C_STATE_TMP,", ", IN_VAR , ", sizeof(", LTSminTreeWalker.C_STATE_T,"));");
 			List<Action> actions = t.getActions();
 			for(Action a: actions) {
 				generateAction(w,a);
@@ -401,8 +421,8 @@ public class LTSminPrinter2 {
 		w.appendLine("transition_info_t transition_info = { NULL, t };");
 		w.appendLine("(void)model; // ignore model");
 		w.appendLine("register int pos;");
-		w.appendLine(LTSMinPrinter.C_STATE_T," local_state;");
-		w.appendLine(LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP," = &local_state;");
+		w.appendLine(LTSminTreeWalker.C_STATE_T," local_state;");
+		w.appendLine(LTSminTreeWalker.C_STATE_T,"* ",LTSminTreeWalker.C_STATE_TMP," = &local_state;");
 		w.appendLine();
 
 		w.appendLine("static int n_losses = 0;");
@@ -448,7 +468,7 @@ public class LTSminPrinter2 {
 			}
 			w.append(" ) {").appendPostfix();
 			w.indent();
-			w.appendLine("memcpy(", LTSMinPrinter.C_STATE_TMP, ", ", IN_VAR, ", sizeof(", LTSMinPrinter.C_STATE_T,"));");
+			w.appendLine("memcpy(", LTSminTreeWalker.C_STATE_TMP, ", ", IN_VAR, ", sizeof(", LTSminTreeWalker.C_STATE_T,"));");
 			List<Action> actions = t.getActions();
 			for(Action a: actions) {
 				generateAction(w,a);
@@ -560,10 +580,10 @@ public class LTSminPrinter2 {
 					throw new AssertionError("unknown assignment type");
 			}
 
-		} else if(a instanceof LTSMinPrinter.ResetProcessAction) {
-			LTSMinPrinter.ResetProcessAction rpa = (LTSMinPrinter.ResetProcessAction)a;
+		} else if(a instanceof ResetProcessAction) {
+			ResetProcessAction rpa = (ResetProcessAction)a;
 			rpa.getProcess();
-			String name = LTSMinPrinter.wrapName(rpa.getProcess().getName());
+			String name = LTSminTreeWalker.wrapName(rpa.getProcess().getName());
 			w.appendLine("#ifndef NORESETPROCESS");
 			w.appendLine("memset(&",TMP_ACCESS,name,",-1,sizeof(state_",name,"_t));");
 			w.appendLine("#endif");
@@ -580,7 +600,7 @@ public class LTSminPrinter2 {
 			w.appendPostfix();
 			w.indent();
 			w.appendLine("printf(\"Assertion violated: ",as.getExpr().toString(), "\\n\");");
-			w.appendLine("print_state(",LTSMinPrinter.C_STATE_TMP,");");
+			w.appendLine("print_state(",LTSminTreeWalker.C_STATE_TMP,");");
 			w.outdent();
 			w.appendLine("}");
 
@@ -650,11 +670,11 @@ public class LTSminPrinter2 {
 				String access;
 				String access_buffer;
 				if(var.getOwner()==null) {
-					access = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-					access_buffer = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[pos]";
+					access = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+					access_buffer = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				} else {
-					access = TMP_ACCESS + var.getOwner().getName() + "." + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[pos]";
+					access = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				}
 
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
@@ -690,11 +710,11 @@ public class LTSminPrinter2 {
 				String access;
 				String access_buffer;
 				if(var.getOwner()==null) {
-					access = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-					access_buffer = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[pos]";
+					access = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+					access_buffer = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				} else {
-					access = TMP_ACCESS + var.getOwner().getName() + "." + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[pos]";
+					access = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				}
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
 
@@ -740,27 +760,27 @@ public class LTSminPrinter2 {
 
 	static void generateIntExpression(StringWriter w, Expression e, String access) {
 		//w.append("|").append(e.getClass().getSimpleName()).append("|");
-		if(e instanceof LTSMinPrinter.PCExpression) {
-			LTSMinPrinter.PCExpression pc = (LTSMinPrinter.PCExpression)e;
-			w.append(access).append(pc.getProcessName()).append(".pc.var");
-		} else if(e instanceof LTSMinPrinter.PriorityExpression) {
+		if(e instanceof PCExpression) {
+			PCExpression pc = (PCExpression)e;
+			w.append(getPC(pc.getProcessName(), access));
+		} else if(e instanceof PriorityExpression) {
 			w.append(access + ACCESS_PRIORITY).append(".var");
-		} else if(e instanceof LTSMinPrinter.PCIdentifier) {
-			LTSMinPrinter.PCIdentifier pc = (LTSMinPrinter.PCIdentifier)e;
-			w.append(access).append(LTSMinPrinter.wrapName(pc.getProcess().getName())).append(".pc.var");
-		} else if(e instanceof LTSMinPrinter.PriorityIdentifier) {
+		} else if(e instanceof PCIdentifier) {
+			PCIdentifier pc = (PCIdentifier)e;
+			w.append(access).append(LTSminTreeWalker.wrapName(pc.getProcess().getName())).append(".pc.var");
+		} else if(e instanceof PriorityIdentifier) {
 			w.append(access + ACCESS_PRIORITY).append(".var");
-		} else if(e instanceof LTSMinPrinter.ChannelSizeExpression) {
-			LTSMinPrinter.ChannelSizeExpression cse = (LTSMinPrinter.ChannelSizeExpression)e;
+		} else if(e instanceof ChannelSizeExpression) {
+			ChannelSizeExpression cse = (ChannelSizeExpression)e;
 			Variable var = cse.getVariable();
 			w.append(access);
 			if(var.getOwner()==null) {
 				w.append("globals.");
 			} else {
-				w.append(LTSMinPrinter.wrapName(var.getOwner().getName()));
+				w.append(LTSminTreeWalker.wrapName(var.getOwner().getName()));
 				w.append(".");
 			}
-			w.append(LTSMinPrinter.wrapName(cse.getVariable().getName())).append(".filled");
+			w.append(LTSminTreeWalker.wrapName(cse.getVariable().getName())).append(".filled");
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
@@ -772,31 +792,31 @@ public class LTSminPrinter2 {
 					if(var.getOwner()==null) {
 						w.append("globals.");
 					} else {
-						w.append(LTSMinPrinter.wrapName(var.getOwner().getName()));
+						w.append(LTSminTreeWalker.wrapName(var.getOwner().getName()));
 						w.append(".");
 					}
-					w.append(LTSMinPrinter.wrapName(var.getName()));
+					w.append(LTSminTreeWalker.wrapName(var.getName()));
 					w.append("[");
 					generateIntExpression(w,arrayExpr,access);
 					w.append("].var");
 
-					try {
-						int i = arrayExpr.getConstantValue();
-						//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
-					} catch(ParseException pe) {
+//					try {
+//						int i = arrayExpr.getConstantValue();
+//						//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
+//					} catch(ParseException pe) {
 //						for(int i=0; i<var.getArraySize(); ++i) {
 //							if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
 //						}
-					}
+//					}
 				} else {
 					w.append(access);
 					if(var.getOwner()==null) {
 						w.append("globals.");
 					} else {
-						w.append(LTSMinPrinter.wrapName(var.getOwner().getName()));
+						w.append(LTSminTreeWalker.wrapName(var.getOwner().getName()));
 						w.append(".");
 					}
-					w.append(LTSMinPrinter.wrapName(var.getName()));
+					w.append(LTSminTreeWalker.wrapName(var.getName()));
 					w.append("[0].var");
 					//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var));
 				}
@@ -805,10 +825,10 @@ public class LTSminPrinter2 {
 				if(var.getOwner()==null) {
 					w.append("globals.");
 				} else {
-					w.append(LTSMinPrinter.wrapName(var.getOwner().getName()));
+					w.append(LTSminTreeWalker.wrapName(var.getOwner().getName()));
 					w.append(".");
 				}
-				w.append(LTSMinPrinter.wrapName(var.getName()));
+				w.append(LTSminTreeWalker.wrapName(var.getName()));
 				w.append(".var");
 				//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var));
 			}
@@ -892,12 +912,12 @@ public class LTSminPrinter2 {
 					w.append("1");
 					break;
 			}
-		} else if(e instanceof LTSMinPrinter.ChannelTopExpression) {
-			LTSMinPrinter.ChannelTopExpression cte = (LTSMinPrinter.ChannelTopExpression)e;
+		} else if(e instanceof ChannelTopExpression) {
+			ChannelTopExpression cte = (ChannelTopExpression)e;
 			ChannelReadAction cra =cte.getChannelReadAction();
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
-			String chan_access = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-			String access_buffer = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[" + chan_access + ".nextRead]";
+			String chan_access = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+			String access_buffer = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[" + chan_access + ".nextRead]";
 			w.append(access_buffer).append(".m").append(cte.getElem()).append(".var");
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
@@ -1016,106 +1036,86 @@ public class LTSminPrinter2 {
 		}
 	}
 
-	static private void generateDepMatrix(StringWriter w, LTSminModel model) {
-		LTSMinPrinter.DepMatrix dm = model.getDepMatrix();
+	static private void generateDepMatrix(StringWriter w, DepMatrix dm, String name) {
+		//LTSMinPrinter.DepMatrix dm = model.getDepMatrix();
 
-		w.append("int transition_dependency[][2][").append(model.getStateVector().size()).appendLine("] = {");
-		w.appendLine("\t// { ... read ...}, { ... write ...}");
+		if(dm==null) throw new AssertionError("DM is null!");
 
-		if(dm==null) {
-			for(int t=0;t<model.getTransitions().size();++t) {
-				w.appendPrefix();
-				w.append("\t{{");
-				w.append("1");
-				for(int s=1; s<model.getStateVector().size(); ++s) {
-					w.append(",1");
-				}
-				w.append("},{");
-				w.append("1");
-				for(int s=1; s<model.getStateVector().size(); ++s) {
-					w.append(",1");
-				}
-				w.append("}}");
+		w.appendPrefix().append("int ").append(name).append("[][2][").append(dm.getRowLength()).appendLine("] = {");
+		w.indent();
+		w.appendLine("// { ... read ...}, { ... write ...}");
 
-				if(t>=model.getTransitions().size()-1) {
-					w.append("  // ").append(t);
-				} else {
-					w.append(", // ").append(t);
-				}
-				w.appendPostfix();
-			}
-			w.appendLine("};");
-		} else {
+		// Iterate over all the rows
+		int t=0;
+		for(;;) {
+			w.appendPrefix();
+			w.append("{{");
+			DepRow dr = null;
+			if(dm!=null) dr = dm.getRow(t);
+			int s=0;
 
-			if(dm.getRows()!=model.getTransitions().size()) throw new AssertionError("DM Rows inconsistent");
-			if(dm.getRow(0).getSize()!=model.getStateVector().size()) throw new AssertionError("DM Rows inconsistent");
-
-			// Iterate over all the rows
-			int t=0;
+			// Insert all read dependencies of the current row
 			for(;;) {
-				w.append("\t{{");
-				LTSMinPrinter.DepRow dr = null;
-				if(dm!=null) dr = dm.getRow(t);
-				int s=0;
-
-				// Insert all read dependencies of the current row
-				for(;;) {
-					if(dm==null) {
-						w.append(1);
-					} else {
-						w.append(dr.getReadB(s));
-					}
-
-					if(++s>=dr.getSize()) {
-						break;
-					}
-					w.append(",");
+				if(dm==null) {
+					w.append(1);
+				} else {
+					w.append(dr.getReadB(s));
 				}
 
-				// Bridge
-				w.append("},{");
-				s=0;
-
-				// Insert all write dependencies of the current row
-				for(;;) {
-					if(dm==null) {
-						w.append(1);
-					} else {
-						w.append(dr.getWriteB(s));
-					}
-					if(++s>=dr.getSize()) {
-						break;
-					}
-					w.append(",");
-				}
-
-				// End the row
-				w.append("}}");
-
-				// If this was the last row
-				if(t>=dm.getRows()-1) {
-					w.appendLine("  // ",t);
+				if(++s>=dr.getSize()) {
 					break;
 				}
-				w.appendLine(", // ",t);
-				++t;
+				w.append(",");
 			}
 
-			// Close array
-			w.appendLine("};");
+			// Bridge
+			w.append("},{");
+			s=0;
+
+			// Insert all write dependencies of the current row
+			for(;;) {
+				if(dm==null) {
+					w.append(1);
+				} else {
+					w.append(dr.getWriteB(s));
+				}
+				if(++s>=dr.getSize()) {
+					break;
+				}
+				w.append(",");
+			}
+
+			// End the row
+			w.append("}}");
+
+			// If this was the last row
+			if(t>=dm.getRows()-1) {
+				w.append("  // ").append(t).appendPostfix();
+				break;
+			}
+			w.append(", // ").append(t).appendPostfix();
+			++t;
 		}
 
+		w.outdent();
+
+		// Close array
+		w.appendLine("};");
+
+	}
+
+	static private void generateDMFunctions(StringWriter w, DepMatrix dm) {
 		// Function to access the dependency matrix
 		w.appendLine("");
 		w.appendLine("extern const int* spinja_get_transition_read_dependencies(int t)");
 		w.appendLine("{");
-		w.append("	if (t>=0 && t < ").append(model.getTransitions().size()).appendLine(") return transition_dependency[t][0];");
+		w.append("	if (t>=0 && t < ").append(dm.getRows()).appendLine(") return ").append(DM_NAME).append("[t][0];");
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 		w.appendLine("");
 		w.appendLine("extern const int* spinja_get_transition_write_dependencies(int t)");
 		w.appendLine("{");
-		w.append("	if (t>=0 && t < ").append(model.getTransitions().size()).appendLine(") return transition_dependency[t][1];");
+		w.append("	if (t>=0 && t < ").append(dm.getRows()).appendLine(") return ").append(DM_NAME).append("[t][1];");
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 	}
@@ -1150,25 +1150,25 @@ public class LTSminPrinter2 {
 		for(;i<state_size;) {
 			Variable var = state.get(i).getVariable();
 			if(var==null) {
-				int idx = types.indexOf(LTSMinPrinter.C_TYPE_PROC_COUNTER_);
+				int idx = types.indexOf(LTSminTreeWalker.C_TYPE_PROC_COUNTER_);
 				if(idx<0) {
-					types.add(LTSMinPrinter.C_TYPE_PROC_COUNTER_);
+					types.add(LTSminTreeWalker.C_TYPE_PROC_COUNTER_);
 					idx = types.size()-1;
 				}
 				translation[i++] = idx;
 			} else if(var.getArraySize()>1) {
-				int idx = types.indexOf(LTSMinPrinter.getCTypeOfVar(var).type);
+				int idx = types.indexOf(LTSminTreeWalker.getCTypeOfVar(var).type);
 				if(idx<0) {
-					types.add(LTSMinPrinter.getCTypeOfVar(var).type);
+					types.add(LTSminTreeWalker.getCTypeOfVar(var).type);
 					idx = types.size()-1;
 				}
 				for(int end=i+var.getArraySize();i<end;) {
 					translation[i++] = idx;
 				}
 			} else {
-				int idx = types.indexOf(LTSMinPrinter.getCTypeOfVar(var).type);
+				int idx = types.indexOf(LTSminTreeWalker.getCTypeOfVar(var).type);
 				if(idx<0) {
-					types.add(LTSMinPrinter.getCTypeOfVar(var).type);
+					types.add(LTSminTreeWalker.getCTypeOfVar(var).type);
 					idx = types.size()-1;
 				}
 				translation[i++] = idx;
@@ -1298,68 +1298,244 @@ public class LTSminPrinter2 {
 		GuardMatrix gm = model.getGuardMatrix();
 		if(gm==null) return;
 
-		List<List<Integer>> dp_matrix = gm.getDepMatrix();
 		List<List<Integer>> co_matrix = gm.getCoMatrix();
-		List<List<Expression>> trans_matrix = gm.getTransMatrix();
-		List<Expression> guards = gm.getGuards();
+		List<List<LTSminGuardBase>> trans_matrix = gm.getTransMatrix();
+		List<LTSminGuardBase> guards = gm.getGuards();
+		
+		generateGuardList(w, guards);
+
+		w.appendLine("");
+		w.appendLine("// Guard-Dependency Matrix:");
+//		for(int g=0; g<dp_matrix.size(); ++g) {
+//			w.appendPrefix();
+//
+//			List<Integer> row = dp_matrix.get(g);
+//
+//			for(int s=0; s<row.size(); ++s) {
+//				w.append(row.get(s)).append(", ");
+//			}
+//
+//			w.appendPostfix();
+//		}
+		LTSminPrinter.generateDepMatrix(w,gm.getDepMatrix2(),GM_DM_NAME);
+		w.appendLine("");
+		
+		generateCoEnabledMatrix(w, co_matrix);
+		
+		generateTransGuardMatrix(w, trans_matrix, guards);
+	}
+
+	private static void generateGuardList(StringWriter w,
+			List<LTSminGuardBase> guards) {
 		w.appendLine("/*");
 		String old_preprefix = w.getPrePrefix();
 		w.setPrePrefix(" * ");
-
 		w.appendLine("");
 		w.appendLine("Guard list:");
-
 		for(int g=0; g<guards.size(); ++g) {
-			w.appendLine("  - ",guards.get(g).toString());
-		}
-
-		w.appendLine("");
-		w.appendLine("Guard-Dependency Matrix:");
-
-		for(int g=0; g<dp_matrix.size(); ++g) {
 			w.appendPrefix();
-
-			List<Integer> row = dp_matrix.get(g);
-
-			for(int s=0; s<row.size(); ++s) {
-				w.append(row.get(s)).append(", ");
-			}
-
+			w.append("  - ");
+			w.append(g);
+			w.append(" - ");
+			LTSminPrinter.generateGuard(w, guards.get(g));
 			w.appendPostfix();
+//			w.appendLine("  - ",
+//			w.appendLine("  - ",guards.get(g).toString());
 		}
+		w.setPrePrefix(old_preprefix);
+		w.appendLine(" */");
+	}
 
-		w.appendLine("");
-		w.appendLine("Co-Enabled Matrix:");
+	private static void generateCoEnabledMatrix(StringWriter w,
+			List<List<Integer>> co_matrix) {
+		w.appendLine("// Co-Enabled Matrix:");
+		w.appendPrefix().append("int gm_coen[][");
+		w.append(co_matrix.size());
+		w.append("] = {").appendPostfix();
+		w.indent();
 
 		for(int g=0; g<co_matrix.size(); ++g) {
-			w.appendPrefix();
 
+			//w.append(String.format("%07d",g));
+			//w.append("[] = {");
+			w.appendPrefix().append("{");
+			
 			List<Integer> row = co_matrix.get(g);
 
-			for(int s=0; s<row.size(); ++s) {
-				w.append(row.get(s)).append(", ");
+			if(row.size()>0) {
+				w.append(row.get(0));
+				for(int s=1; s<row.size(); ++s) {
+					w.append(", ").append(row.get(s));
+				}
 			}
 
-			w.appendPostfix();
+			w.append(" },").appendPostfix();
+
 		}
 
+		w.appendLine("{0}");
+		w.outdent();
+		w.appendLine("};");
 		w.appendLine("");
-		w.appendLine("Transition-Guard Matrix:");
-		for(int g=0; g<trans_matrix.size(); ++g) {
-			w.appendPrefix();
+	}
 
-			List<Expression> row = trans_matrix.get(g);
+	private static void generateTransGuardMatrix(StringWriter w,
+			List<List<LTSminGuardBase>> trans_matrix,
+			List<LTSminGuardBase> guards) {
+		w.appendLine("// Transition-Guard Matrix:");
+		w.appendPrefix().append("int* gm_trans[").append(trans_matrix.size()).append("] = {");
+		w.appendPostfix();
+		for(int g=0; g<trans_matrix.size(); ++g) {
+			w.append("((int[]){");
+			List<LTSminGuardBase> row = trans_matrix.get(g);
+
+			w.append(" ").append(row.size());
 
 			for(int s=0; s<row.size(); ++s) {
-				w.append(guards.indexOf(row.get(s))).append(", ");
+				w.append(", ").append(guards.indexOf(row.get(s)));
 			}
 
+			w.append(" })");
+			if(g<trans_matrix.size()-1) w.append(",");
+			w.append("\t// trans ").append(String.format("%5d",g));
 			w.appendPostfix();
 		}
+		w.appendLine("};");
+		w.appendLine("");
+	}
 
-		w.setPrePrefix(old_preprefix);
+	static private void generateGuardFunctions(StringWriter w, GuardMatrix gm) {
+		List<LTSminGuardBase> guards = gm.getGuards();
 
-		w.appendLine(" */");
+		w.appendLine("int spinja_get_guard_count() {");
+		w.indent();
+		w.appendLine("return ",gm.getGuards().size(),";");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("const int* spinja_get_guards(int t) {");
+		w.indent();
+		w.appendLine("assert(t < ",gm.getTransMatrix().size()," && \"spinja_get_guards: invalid transition\");");
+		w.appendLine("return gm_trans[t];");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("const int*** spinja_get_all_guards() {");
+		w.indent();
+		w.appendLine("return (const int***)&gm_trans;");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+		w.appendLine("const int* spinja_get_guard_may_be_coenabled_matrix(int g) {");
+		w.indent();
+		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
+		w.appendLine("return gm_coen[g];");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("bool spinja_get_guard(void* model, int g, ",LTSminTreeWalker.C_STATE_T,"* ",IN_VAR,") {");
+		w.indent();
+		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
+		w.appendLine("(void)model;");
+		w.appendLine("switch(g) {");
+		w.indent();
+		for(int g=0; g<guards.size(); ++g) {
+			w.appendPrefix();
+			w.append("case ").append(g).append(": return ");
+			LTSminPrinter.generateGuard(w, guards.get(g));
+			w.append(";");
+			w.appendPostfix();
+		}
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("return false;");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("void spinja_get_guard_all(void* model, ",LTSminTreeWalker.C_STATE_T,"* ",IN_VAR,", int* guard) {");
+		w.indent();
+		w.appendLine("(void)model;");
+		for(int g=0; g<guards.size(); ++g) {
+			w.appendPrefix();
+			w.append("guard[").append(g).append("] = ");
+			LTSminPrinter.generateGuard(w, guards.get(g));
+			w.append(";");
+			w.appendPostfix();
+		}
+		w.outdent();
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+	}
+
+	/**
+	 * Generates various typedefs for types, to pad the data to
+	 * the element size of the state vector.
+	 * Model independent.
+	 * @param w The StringWriter to which the code is written.
+	 */
+	static public void generateTypeStructs(StringWriter w) {
+
+		w.appendLine("typedef union ",C_TYPE_INT1," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("unsigned int var:1;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_INT1,";");
+
+		w.appendLine("typedef union ",C_TYPE_INT8," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("char var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_INT8,";");
+
+		w.appendLine("typedef union ",C_TYPE_INT16," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("short var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_INT16,";");
+
+		w.appendLine("typedef union ",C_TYPE_INT32," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("int var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_INT32,";");
+
+		w.appendLine("typedef union ",C_TYPE_UINT8," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("unsigned char var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_UINT8,";");
+
+		w.appendLine("typedef union ",C_TYPE_UINT16," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("unsigned short var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_UINT16,";");
+
+		w.appendLine("typedef union ",C_TYPE_UINT32," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("unsigned int var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_UINT32,";");
+
+		w.appendLine("typedef struct ",C_TYPE_CHANNEL," {");
+		w.indent();
+		w.appendLine("unsigned int isRendezVous: 2;");
+		w.appendLine("unsigned int nextRead: 15;");
+		w.appendLine("unsigned int filled: 15;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_CHANNEL,";");
 	}
 
 }

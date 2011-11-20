@@ -22,13 +22,19 @@ import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
+import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
+import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
+import spinja.promela.compiler.ltsmin.instr.DepMatrix;
+import spinja.promela.compiler.ltsmin.instr.PCExpression;
+import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
+import spinja.promela.compiler.ltsmin.instr.PriorityExpression;
+import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
+import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableAccess;
-import spinja.util.StringWriter;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.*;
 
 /**
  *
@@ -52,6 +58,7 @@ public class LTSminDMWalker {
 		if(model.getDepMatrix()==null) {
 			model.setDepMatrix(new DepMatrix(model.getTransitions().size(), model.getStateVector().size()));
 		}
+		if(model.getDepMatrix()==null) throw new AssertionError("DM still null!");
 		walkTransitions(model.getDepMatrix(),model);
 	}
 
@@ -207,7 +214,7 @@ public class LTSminDMWalker {
 				if (sideEffect != null) {
 					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
 					assert (expr instanceof RunExpression);
-					DMIncWrite(params, LTSMinPrinter._NR_PR, 0);
+					DMIncWrite(params, LTSminTreeWalker._NR_PR, 0);
 					RunExpression re = (RunExpression)expr;
 				
 					//write to the arguments of the target process
@@ -358,7 +365,7 @@ public class LTSminDMWalker {
 			walkIntExpression(params,ce.getExpr1());
 			walkIntExpression(params,ce.getExpr2());
 		} else if(e instanceof RunExpression) {
-			DMIncRead(params, LTSMinPrinter._NR_PR, 0);
+			DMIncRead(params, LTSminTreeWalker._NR_PR, 0);
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
@@ -429,7 +436,7 @@ public class LTSminDMWalker {
 		} else if(e instanceof MTypeReference) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof RunExpression) {
-			DMIncRead(params, LTSMinPrinter._NR_PR, 0);
+			DMIncRead(params, LTSminTreeWalker._NR_PR, 0);
 		} else if(e instanceof TimeoutExpression) {
 			DMIncReadAll(params); // should be optimized
 		} else {

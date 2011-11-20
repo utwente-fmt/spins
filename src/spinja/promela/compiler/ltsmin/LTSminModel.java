@@ -3,8 +3,9 @@ package spinja.promela.compiler.ltsmin;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.DepMatrix;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.GuardMatrix;
+
+import spinja.promela.compiler.ltsmin.instr.DepMatrix;
+import spinja.promela.compiler.ltsmin.instr.GuardMatrix;
 import spinja.promela.compiler.variable.Variable;
 import spinja.util.StringWriter;
 
@@ -42,7 +43,7 @@ public class LTSminModel {
 		return name;
 	}
 
-	void prettyPrint(StringWriter w, LTSMinPrinter printer) {
+	void prettyPrint(StringWriter w, LTSminTreeWalker printer) {
 		w.appendLine("Types:");
 		w.indent();
 		for(LTSminType t: types) {
@@ -61,7 +62,7 @@ public class LTSminModel {
 		w.appendLine("Transitions:");
 		w.indent();
 		for(LTSminTransitionBase t: transitions) {
-			LTSminPrinter2.generateTransition(w,t);
+			LTSminPrinter.generateTransition(w,t);
 		}
 		w.outdent();
 	}

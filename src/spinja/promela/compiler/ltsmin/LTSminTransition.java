@@ -87,7 +87,7 @@ public class LTSminTransition implements LTSminTransitionBase, LTSminGuardContai
 		actions.add(action);
 	}
 
-	public void prettyPrint(StringWriter w, LTSMinPrinter printer) {
+	public void prettyPrint(StringWriter w, LTSminTreeWalker printer) {
 		w.appendLine("[",name,"]");
 		w.indent();
 		w.appendLine("Guards:");

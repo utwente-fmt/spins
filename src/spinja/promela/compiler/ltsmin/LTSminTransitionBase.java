@@ -7,6 +7,6 @@ import spinja.util.StringWriter;
  * @author FIB
  */
 public interface LTSminTransitionBase {
-	abstract public void prettyPrint(StringWriter w, LTSMinPrinter printer);
+	abstract public void prettyPrint(StringWriter w, LTSminTreeWalker printer);
 	abstract public String getName();
 }

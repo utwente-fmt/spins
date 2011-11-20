@@ -118,6 +118,13 @@ public class Proctype implements VariableContainer {
 		isArgument = true;
 		arguments = new ArrayList<Variable>();
 	}
+	
+	public boolean equals(Object o) {
+		if (o == null || !(o instanceof Proctype))
+			return false;
+		Proctype p = (Proctype)o;
+		return p.getName().equals(name);
+	}
 
 	/**
 	 * Adds a new variable to this {@link Proctype}. While the lastArgument() function is not
