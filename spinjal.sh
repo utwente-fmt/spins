@@ -6,6 +6,7 @@ if [ "${script_dir:0:1}" != "/" ]; then
     script_dir=$(pwd)/$script_dir
 fi
 
+CP="$script_dir/spinja.jar"
 show_usage=
 promela_file=
 gcc_options=
@@ -42,7 +43,7 @@ if [ "$SKIP_SPINJA" != "1" ]; then
 		rm -f "$output_file";
 	fi
 	
-	java  -cp "$script_dir/spinja.jar"   spinja.Compile -o3 -l $promela_file
+	java -Xms120m -Xmx2048m -cp $CP spinja.Compile -o3 -l $promela_file
 	if [ ! -f "$output_file" ]; then
 		echo "Compilation of $promela_file failed"
 		exit;
