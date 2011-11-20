@@ -1298,35 +1298,14 @@ public class LTSminPrinter {
 		GuardMatrix gm = model.getGuardMatrix();
 		if(gm==null) return;
 
-		List<List<Integer>> dp_matrix = gm.getDepMatrix();
 		List<List<Integer>> co_matrix = gm.getCoMatrix();
 		List<List<LTSminGuardBase>> trans_matrix = gm.getTransMatrix();
 		List<LTSminGuardBase> guards = gm.getGuards();
-		w.appendLine("/*");
-		String old_preprefix = w.getPrePrefix();
-		w.setPrePrefix(" * ");
-
-		w.appendLine("");
-		w.appendLine("Guard list:");
-
-		for(int g=0; g<guards.size(); ++g) {
-			w.appendPrefix();
-			w.append("  - ");
-			w.append(g);
-			w.append(" - ");
-			LTSminPrinter.generateGuard(w, guards.get(g));
-			w.appendPostfix();
-//			w.appendLine("  - ",
-//			w.appendLine("  - ",guards.get(g).toString());
-		}
-
-		w.setPrePrefix(old_preprefix);
-
-		w.appendLine(" */");
+		
+		generateGuardList(w, guards);
 
 		w.appendLine("");
 		w.appendLine("// Guard-Dependency Matrix:");
-
 //		for(int g=0; g<dp_matrix.size(); ++g) {
 //			w.appendPrefix();
 //
@@ -1339,9 +1318,36 @@ public class LTSminPrinter {
 //			w.appendPostfix();
 //		}
 		LTSminPrinter.generateDepMatrix(w,gm.getDepMatrix2(),GM_DM_NAME);
-
-
 		w.appendLine("");
+		
+		generateCoEnabledMatrix(w, co_matrix);
+		
+		generateTransGuardMatrix(w, trans_matrix, guards);
+	}
+
+	private static void generateGuardList(StringWriter w,
+			List<LTSminGuardBase> guards) {
+		w.appendLine("/*");
+		String old_preprefix = w.getPrePrefix();
+		w.setPrePrefix(" * ");
+		w.appendLine("");
+		w.appendLine("Guard list:");
+		for(int g=0; g<guards.size(); ++g) {
+			w.appendPrefix();
+			w.append("  - ");
+			w.append(g);
+			w.append(" - ");
+			LTSminPrinter.generateGuard(w, guards.get(g));
+			w.appendPostfix();
+//			w.appendLine("  - ",
+//			w.appendLine("  - ",guards.get(g).toString());
+		}
+		w.setPrePrefix(old_preprefix);
+		w.appendLine(" */");
+	}
+
+	private static void generateCoEnabledMatrix(StringWriter w,
+			List<List<Integer>> co_matrix) {
 		w.appendLine("// Co-Enabled Matrix:");
 		w.appendPrefix().append("int gm_coen[][");
 		w.append(co_matrix.size());
@@ -1370,13 +1376,17 @@ public class LTSminPrinter {
 		w.appendLine("{0}");
 		w.outdent();
 		w.appendLine("};");
-
 		w.appendLine("");
+	}
+
+	private static void generateTransGuardMatrix(StringWriter w,
+			List<List<LTSminGuardBase>> trans_matrix,
+			List<LTSminGuardBase> guards) {
 		w.appendLine("// Transition-Guard Matrix:");
 		w.appendPrefix().append("int* gm_trans[").append(trans_matrix.size()).append("] = {");
 		w.appendPostfix();
 		for(int g=0; g<trans_matrix.size(); ++g) {
-			w.append("/* trans ").append(String.format("%5d",g)).append(" */ ((int[]){");
+			w.append("((int[]){");
 			List<LTSminGuardBase> row = trans_matrix.get(g);
 
 			w.append(" ").append(row.size());
@@ -1387,6 +1397,7 @@ public class LTSminPrinter {
 
 			w.append(" })");
 			if(g<trans_matrix.size()-1) w.append(",");
+			w.append("\t// trans ").append(String.format("%5d",g));
 			w.appendPostfix();
 		}
 		w.appendLine("};");
