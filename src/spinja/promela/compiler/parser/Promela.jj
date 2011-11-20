@@ -78,7 +78,7 @@ TOKEN : {	/* Keywords */
 |	<SHORT: "short">
 |	<INT: "int">
 |	<CHAN: "chan">
-|	<ACTIVE: "active">
+/*|	<ACTIVE: "active">*/
 |	<PRIORITY: "priority">
 |	<PROVIDED: "provided">
 |	<HIDDEN: "hidden">
@@ -221,8 +221,8 @@ void module(): {
 	utype()
 |	LOOKAHEAD(1) mtype()
 | 	inline()
+|   LOOKAHEAD(2) proctype()
 |	one_decl(specification.getVariableStore())
-|	proctype()
 |	init()
 |	never()
 |	<SEMICOLON>
@@ -236,8 +236,12 @@ void proctype(): {
 	Token n, id;
 	State s;
 }{
-	(<ACTIVE> 
-	  { nrActive = 1; }
+	(id=<IDENTIFIER> 
+	  {
+	       if (!id.image.equals("active"))
+	           throw new ParseException("Expected 'active' at line " + id.beginLine +", column "+ id.beginColumn);
+	       nrActive = 1;
+	  }
 	  (<LBRACK> n=<NUMBER> { nrActive = Integer.parseInt(n.image); } <RBRACK>)?
 	)?
 	<PROCTYPE>
@@ -783,6 +787,12 @@ Expression varref(): {
 }{
 	id=<IDENTIFIER>
 	{
+        String text = Preprocessor.defines(id.image);
+        if (text != null) {
+            // recursively start the parser
+            Promela p = new Promela(new ByteArrayInputStream(text.getBytes()));
+            return p.expr();
+        }
 		int mtypeNr = specification.getMType(id.image);
 		if(mtypeNr >= 0) {
 			return new MTypeReference(id, mtypeNr);
