@@ -22,13 +22,19 @@ import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
+import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
+import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
+import spinja.promela.compiler.ltsmin.instr.DepMatrix;
+import spinja.promela.compiler.ltsmin.instr.PCExpression;
+import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
+import spinja.promela.compiler.ltsmin.instr.PriorityExpression;
+import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
+import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableAccess;
-import spinja.util.StringWriter;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.*;
 
 /**
  *

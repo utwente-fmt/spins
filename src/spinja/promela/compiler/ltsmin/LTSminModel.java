@@ -3,8 +3,9 @@ package spinja.promela.compiler.ltsmin;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.DepMatrix;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.GuardMatrix;
+
+import spinja.promela.compiler.ltsmin.instr.DepMatrix;
+import spinja.promela.compiler.ltsmin.instr.GuardMatrix;
 import spinja.promela.compiler.variable.Variable;
 import spinja.util.StringWriter;
 

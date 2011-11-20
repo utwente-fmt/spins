@@ -1,6 +1,14 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.*;
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_NUM_PROCS_VAR;
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_CHANNEL;
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_INT1;
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_INT16;
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_INT32;
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_INT8;
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_UINT16;
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_UINT32;
+import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_UINT8;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,10 +34,16 @@ import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.DepMatrix;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.GuardMatrix;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.PCIdentifier;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter.PriorityIdentifier;
+import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
+import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
+import spinja.promela.compiler.ltsmin.instr.DepMatrix;
+import spinja.promela.compiler.ltsmin.instr.DepRow;
+import spinja.promela.compiler.ltsmin.instr.GuardMatrix;
+import spinja.promela.compiler.ltsmin.instr.PCExpression;
+import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
+import spinja.promela.compiler.ltsmin.instr.PriorityExpression;
+import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
+import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -65,7 +79,7 @@ public class LTSminPrinter2 {
 
 	static void generateModel(StringWriter w, LTSminModel model) {
 		generateHeader(w,model);
-		LTSMinPrinter.generateTypeStructs(w);
+		generateTypeStructs(w);
 		for(LTSminType t: model.getTypes()) {
 			generateTypeDef(w, t);
 		}
@@ -566,8 +580,8 @@ public class LTSminPrinter2 {
 					throw new AssertionError("unknown assignment type");
 			}
 
-		} else if(a instanceof LTSMinPrinter.ResetProcessAction) {
-			LTSMinPrinter.ResetProcessAction rpa = (LTSMinPrinter.ResetProcessAction)a;
+		} else if(a instanceof ResetProcessAction) {
+			ResetProcessAction rpa = (ResetProcessAction)a;
 			rpa.getProcess();
 			String name = LTSMinPrinter.wrapName(rpa.getProcess().getName());
 			w.appendLine("#ifndef NORESETPROCESS");
@@ -746,18 +760,18 @@ public class LTSminPrinter2 {
 
 	static void generateIntExpression(StringWriter w, Expression e, String access) {
 		//w.append("|").append(e.getClass().getSimpleName()).append("|");
-		if(e instanceof LTSMinPrinter.PCExpression) {
-			LTSMinPrinter.PCExpression pc = (LTSMinPrinter.PCExpression)e;
-			w.append(access).append(pc.getProcessName()).append(".pc.var");
-		} else if(e instanceof LTSMinPrinter.PriorityExpression) {
+		if(e instanceof PCExpression) {
+			PCExpression pc = (PCExpression)e;
+			w.append(getPC(pc.getProcessName(), access));
+		} else if(e instanceof PriorityExpression) {
 			w.append(access + ACCESS_PRIORITY).append(".var");
-		} else if(e instanceof LTSMinPrinter.PCIdentifier) {
-			LTSMinPrinter.PCIdentifier pc = (LTSMinPrinter.PCIdentifier)e;
+		} else if(e instanceof PCIdentifier) {
+			PCIdentifier pc = (PCIdentifier)e;
 			w.append(access).append(LTSMinPrinter.wrapName(pc.getProcess().getName())).append(".pc.var");
-		} else if(e instanceof LTSMinPrinter.PriorityIdentifier) {
+		} else if(e instanceof PriorityIdentifier) {
 			w.append(access + ACCESS_PRIORITY).append(".var");
-		} else if(e instanceof LTSMinPrinter.ChannelSizeExpression) {
-			LTSMinPrinter.ChannelSizeExpression cse = (LTSMinPrinter.ChannelSizeExpression)e;
+		} else if(e instanceof ChannelSizeExpression) {
+			ChannelSizeExpression cse = (ChannelSizeExpression)e;
 			Variable var = cse.getVariable();
 			w.append(access);
 			if(var.getOwner()==null) {
@@ -786,14 +800,14 @@ public class LTSminPrinter2 {
 					generateIntExpression(w,arrayExpr,access);
 					w.append("].var");
 
-					try {
-						int i = arrayExpr.getConstantValue();
-						//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
-					} catch(ParseException pe) {
+//					try {
+//						int i = arrayExpr.getConstantValue();
+//						//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
+//					} catch(ParseException pe) {
 //						for(int i=0; i<var.getArraySize(); ++i) {
 //							if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
 //						}
-					}
+//					}
 				} else {
 					w.append(access);
 					if(var.getOwner()==null) {
@@ -898,8 +912,8 @@ public class LTSminPrinter2 {
 					w.append("1");
 					break;
 			}
-		} else if(e instanceof LTSMinPrinter.ChannelTopExpression) {
-			LTSMinPrinter.ChannelTopExpression cte = (LTSMinPrinter.ChannelTopExpression)e;
+		} else if(e instanceof ChannelTopExpression) {
+			ChannelTopExpression cte = (ChannelTopExpression)e;
 			ChannelReadAction cra =cte.getChannelReadAction();
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
 			String chan_access = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
@@ -1036,7 +1050,7 @@ public class LTSminPrinter2 {
 		for(;;) {
 			w.appendPrefix();
 			w.append("{{");
-			LTSMinPrinter.DepRow dr = null;
+			DepRow dr = null;
 			if(dm!=null) dr = dm.getRow(t);
 			int s=0;
 
@@ -1411,7 +1425,7 @@ public class LTSminPrinter2 {
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("bool spinja_get_guard(void* model, int g, ",LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP,") {");
+		w.appendLine("bool spinja_get_guard(void* model, int g, ",LTSMinPrinter.C_STATE_T,"* ",IN_VAR,") {");
 		w.indent();
 		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
 		w.appendLine("(void)model;");
@@ -1431,7 +1445,7 @@ public class LTSminPrinter2 {
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("void spinja_get_guard_all(void* model, ",LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP,", int* guard) {");
+		w.appendLine("void spinja_get_guard_all(void* model, ",LTSMinPrinter.C_STATE_T,"* ",IN_VAR,", int* guard) {");
 		w.indent();
 		w.appendLine("(void)model;");
 		for(int g=0; g<guards.size(); ++g) {
@@ -1446,4 +1460,71 @@ public class LTSminPrinter2 {
 		w.appendLine("}");
 		w.appendLine("");
 	}
+
+	/**
+	 * Generates various typedefs for types, to pad the data to
+	 * the element size of the state vector.
+	 * Model independent.
+	 * @param w The StringWriter to which the code is written.
+	 */
+	static public void generateTypeStructs(StringWriter w) {
+
+		w.appendLine("typedef union ",C_TYPE_INT1," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("unsigned int var:1;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_INT1,";");
+
+		w.appendLine("typedef union ",C_TYPE_INT8," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("char var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_INT8,";");
+
+		w.appendLine("typedef union ",C_TYPE_INT16," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("short var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_INT16,";");
+
+		w.appendLine("typedef union ",C_TYPE_INT32," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("int var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_INT32,";");
+
+		w.appendLine("typedef union ",C_TYPE_UINT8," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("unsigned char var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_UINT8,";");
+
+		w.appendLine("typedef union ",C_TYPE_UINT16," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("unsigned short var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_UINT16,";");
+
+		w.appendLine("typedef union ",C_TYPE_UINT32," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine("unsigned int var;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_UINT32,";");
+
+		w.appendLine("typedef struct ",C_TYPE_CHANNEL," {");
+		w.indent();
+		w.appendLine("unsigned int isRendezVous: 2;");
+		w.appendLine("unsigned int nextRead: 15;");
+		w.appendLine("unsigned int filled: 15;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_CHANNEL,";");
+	}
+
 }
