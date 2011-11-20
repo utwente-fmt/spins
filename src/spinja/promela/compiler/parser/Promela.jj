@@ -390,7 +390,7 @@ void ivar_chan(VariableContainer store): {
 }{
 	id=<IDENTIFIER>
 	(<LBRACK> c=constant() <RBRACK> { arraySize = c.getNumber(); })? 
-	{ var = new ChannelVariable(id.image, arraySize); }
+	{ var = new ChannelVariable(id.image, arraySize); var.setOwner(currentProc); }
 	(<ASSIGN> ch_init(var))?
 	{ store.addVariable(var); var.setRead(true); }
 }

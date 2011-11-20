@@ -21,7 +21,7 @@ import spinja.util.StringWriter;
 
 public class Variable {
 
-	private final String name;
+	private String name;
 
 	private final int arraySize;
 
@@ -110,5 +110,13 @@ public class Variable {
 	@Override
 	public String toString() {
 		return getName();
+	}
+	
+	public void setOwner(Proctype owner) {
+		this.owner = owner;
+	}
+	
+	public void setName(String name) {
+		this.name = name;
 	}
 }

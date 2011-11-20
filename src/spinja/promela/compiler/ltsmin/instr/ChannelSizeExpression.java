@@ -19,9 +19,9 @@ public class ChannelSizeExpression extends Expression {
 	/**
 	 * 
 	 */
-	private ChannelVariable var;
+	private Variable var;
 
-	public ChannelSizeExpression(ChannelVariable var) {
+	public ChannelSizeExpression(Variable var) {
 		super(new Token(PromelaConstants.NUMBER,LTSminTreeWalker.wrapNameForChannelDesc(LTSminTreeWalker.state_var_desc.get(var))+".filled"));
 		this.var = var;
 	}

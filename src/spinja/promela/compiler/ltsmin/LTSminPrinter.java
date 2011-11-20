@@ -9,8 +9,10 @@ import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_INT8;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_UINT16;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_UINT32;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_UINT8;
+import static spinja.promela.compiler.parser.PromelaConstants.*;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import spinja.promela.compiler.Proctype;
@@ -45,11 +47,11 @@ import spinja.promela.compiler.ltsmin.instr.PriorityExpression;
 import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
 import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
-import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
+import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
-import spinja.promela.compiler.variable.VariableAccess;
+import spinja.promela.compiler.variable.VariableType;
 import spinja.util.StringWriter;
 
 /**
@@ -189,8 +191,6 @@ public class LTSminPrinter {
 	}
 
 	static void generateInitialState(StringWriter w, LTSminModel model) {
-		int activePIDs = 0;
-		
 		// Generate initial state
 		w.append(LTSminTreeWalker.C_STATE_T);
 		w.append(" ");
@@ -221,7 +221,7 @@ public class LTSminPrinter {
 						v.getName().equals(LTSminTreeWalker.C_STATE_TMP + "." + LTSminTreeWalker.wrapName(v.getOwner().getName()))) {
 						switch (v.getOwner().getNrActive()) {
 						case 0: w.append("-1"); break; //use run to start this proc
-						case 1: w.append("0"); activePIDs++; break; //start at the initial state
+						case 1: w.append("0"); break; //start at the initial state
 						default: throw new AssertionError("active[n] not yet supported"); //TODO: extend state vector and introduce anonymous processes
 						}
 					} else {
@@ -521,12 +521,12 @@ public class LTSminPrinter {
 
 	static void generateAction(StringWriter w, Action a) {
 		// Handle assignment action
-		if(a instanceof AssignAction) {
+		if(a instanceof AssignAction) { //TODO: assign + expr + runexp
 			AssignAction as = (AssignAction)a;
 			Identifier id = as.getIdentifier();
 			final String mask = id.getVariable().getType().getMask();
 			switch (as.getToken().kind) {
-				case PromelaConstants.ASSIGN:
+				case ASSIGN:
 					try {
 						int value = as.getExpr().getConstantValue();
 						w.appendPrefix();
@@ -544,7 +544,7 @@ public class LTSminPrinter {
 						w.appendPostfix();
 					}
 					break;
-				case PromelaConstants.INCR:
+				case INCR:
 					if (mask == null) {
 						w.appendPrefix();
 						generateIntExpression(w, id, TMP_ACCESS);
@@ -559,7 +559,7 @@ public class LTSminPrinter {
 						w.appendPostfix();
 					}
 					break;
-				case PromelaConstants.DECR:
+				case DECR:
 					if (mask == null) {
 						w.appendPrefix();
 						generateIntExpression(w, id, TMP_ACCESS);
@@ -627,10 +627,10 @@ public class LTSminPrinter {
 					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
 					assert (expr instanceof RunExpression);
 					RunExpression re = (RunExpression)expr;
-					Proctype pe = re.getSpecification().getProcess(re.getId()); //TODO: anonymous processes (multiple runs on one proctype)
+					Proctype target = re.getSpecification().getProcess(re.getId()); //TODO: anonymous processes (multiple runs on one proctype)
 
 					//only one dynamic process supported atm
-					w.appendLine("if (-1 != "+ getPC(pe.getName(), IN_ACCESS) +") {");
+					w.appendLine("if (-1 != "+ getPC(target.getName(), IN_ACCESS) +") {");
 					w.appendLine("	printf (\"SpinJa only supports a maximum " +
 							"one dynamic process creation and only for " +
 							"nonactive proctypes.\\n\");");
@@ -638,24 +638,30 @@ public class LTSminPrinter {
 					w.appendLine("	exit (1);");
 					w.appendLine("}");
 					
+					//activate process
 					Action ae;
 					ae = new AssignAction(
-							new Token(PromelaConstants.ASSIGN,"="),
-							new PCIdentifier(pe),
-							new ConstantExpression(new Token(PromelaConstants.NUMBER,""+0), 0)
+							new Token(ASSIGN,"="),
+							new PCIdentifier(target),
+							new ConstantExpression(new Token(NUMBER,""+0), 0)
 						);
 					generateAction(w, ae);
 					w.appendLine("++("+ TMP_NUM_PROCS +");");
+					
+					List<Variable> args = target.getArguments();
+					Iterator<Expression> eit = re.getExpressions().iterator();
+					if (args.size() != re.getExpressions().size())
+						throw exception("Run expression's parameters do not match the proc's arguments.", re.getToken());
 					//write to the arguments of the target process
-					for (VariableAccess va: re.readVariables()) {
-						Variable v = va.getVar();
-						Proctype p = v.getOwner();
-						ae = new AssignAction(
-								new Token(PromelaConstants.ASSIGN,"="),
-								new PCIdentifier(p),
-								v.getInitExpr()
-							);
-						generateAction(w, ae);
+					for (Variable v : args) {
+						Expression e = eit.next();
+						//channels are passed by reference: TreeWalker.bindByReferenceCalls 
+						if (!(v.getType() instanceof ChannelType)) {
+							ae = new AssignAction(new Token(ASSIGN,"="),
+									new Identifier(new Token(IDENTIFIER,v.getName()), v),
+									e);
+							generateAction(w, ae);
+						}
 					}
 				}
 			} catch (ParseException e) {
@@ -679,10 +685,6 @@ public class LTSminPrinter {
 
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
 
-				// Dependency matrix: channel variable
-				//dep_matrix.incRead(trans, state_var_offset.get(var));
-				//dep_matrix.incWrite(trans, state_var_offset.get(var));
-
 				List<Expression> exprs = csa.getExprs();
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
@@ -692,8 +694,6 @@ public class LTSminPrinter {
 					w.append(";");
 					w.appendPostfix();
 
-					// Dependency matrix: channel variable
-					//dep_matrix.incWrite(trans, state_var_offset.get(var)+i+1);
 				}
 
 				w.appendLine("++",access, ".filled;");
@@ -717,11 +717,6 @@ public class LTSminPrinter {
 					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				}
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
-
-				// Dependency matrix: channel variable
-				//dep_matrix.incRead(trans, state_var_offset.get(var));
-				//dep_matrix.incWrite(trans, state_var_offset.get(var));
-
 				List<Expression> exprs = cra.getExprs();
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
@@ -734,10 +729,6 @@ public class LTSminPrinter {
 						w.appendPrefix();
 						w.append(access_buffer).append(".m").append(i).append(".pad = 0;");
 						w.appendPostfix();
-
-
-						// Dependency matrix: channel variable
-						//dep_matrix.incRead(trans, state_var_offset.get(var)+i+1);
 					}
 				}
 
@@ -751,6 +742,10 @@ public class LTSminPrinter {
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
+	}
+
+	private static ParseException exception(String string, Token token) {
+		return new ParseException(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
 	}
 
 	static void generateCallback(StringWriter w) {
@@ -799,15 +794,6 @@ public class LTSminPrinter {
 					w.append("[");
 					generateIntExpression(w,arrayExpr,access);
 					w.append("].var");
-
-//					try {
-//						int i = arrayExpr.getConstantValue();
-//						//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
-//					} catch(ParseException pe) {
-//						for(int i=0; i<var.getArraySize(); ++i) {
-//							if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
-//						}
-//					}
 				} else {
 					w.append(access);
 					if(var.getOwner()==null) {
@@ -818,7 +804,6 @@ public class LTSminPrinter {
 					}
 					w.append(LTSminTreeWalker.wrapName(var.getName()));
 					w.append("[0].var");
-					//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var));
 				}
 			} else {
 				w.append(access);
@@ -830,7 +815,6 @@ public class LTSminPrinter {
 				}
 				w.append(LTSminTreeWalker.wrapName(var.getName()));
 				w.append(".var");
-				//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var));
 			}
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
@@ -883,9 +867,31 @@ public class LTSminPrinter {
 				w.append(" ? 1 : 0)");
 			}
 		} else if(e instanceof ChannelLengthExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			ChannelLengthExpression cle = (ChannelLengthExpression)e;
+			Identifier id = (Identifier)cle.getExpression();
+			Variable var = id.getVariable();
+			generateIntExpression(w, new ChannelSizeExpression(var), access);
 		} else if(e instanceof ChannelOperation) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			ChannelOperation co = (ChannelOperation)e;
+			String name = co.getToken().image;
+			Identifier id = (Identifier)co.getExpression();
+			Variable var = id.getVariable();
+			VariableType type = var.getType();
+			if (!(type instanceof ChannelType) || ((ChannelType)type).getBufferSize()==-1)
+				throw LTSminTreeWalker.error("Unknown channel length of channel "+ var.getName(), co.getToken());
+			int buffer = ((ChannelType)type).getBufferSize();
+			w.append("(");
+			generateIntExpression(w, new ChannelSizeExpression(var), access);
+			if (name.equals("empty")) {
+				w.append("== 0");
+			} else if (name.equals("nempty")) {
+				w.append("!= 0");
+			} else if (name.equals("full")) {
+				w.append("=="+ buffer);
+			} else if (name.equals("nfull")) {
+				w.append("!="+ buffer);
+			}
+			w.append(")");
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
@@ -896,16 +902,16 @@ public class LTSminPrinter {
 		} else if(e instanceof ConstantExpression) {
 			ConstantExpression ce = (ConstantExpression)e;
 			switch (ce.getToken().kind) {
-				case PromelaConstants.TRUE:
+				case TRUE:
 					w.append("1");
 					break;
-				case PromelaConstants.FALSE:
+				case FALSE:
 					w.append("0");
 					break;
-				case PromelaConstants.SKIP_:
+				case SKIP_:
 					w.append("1");
 					break;
-				case PromelaConstants.NUMBER:
+				case NUMBER:
 					w.append(Integer.toString(ce.getNumber()));
 					break;
 				default:
@@ -982,9 +988,14 @@ public class LTSminPrinter {
 				w.append(")");
 			}
 		} else if(e instanceof ChannelLengthExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			ChannelLengthExpression cle = (ChannelLengthExpression)e;
+			Identifier id = (Identifier)cle.getExpression();
+			Variable var = id.getVariable();
+			w.append("(");
+			generateIntExpression(w, new ChannelSizeExpression(var), access);
+			w.append(" != 0)");
 		} else if(e instanceof ChannelOperation) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			generateIntExpression(w, e, access);
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
@@ -997,16 +1008,16 @@ public class LTSminPrinter {
 		} else if(e instanceof ConstantExpression) {
 			ConstantExpression ce = (ConstantExpression)e;
 			switch (ce.getToken().kind) {
-				case PromelaConstants.TRUE:
+				case TRUE:
 					w.append("true");
 					break;
-				case PromelaConstants.FALSE:
+				case FALSE:
 					w.append("false");
 					break;
-				case PromelaConstants.SKIP_:
+				case SKIP_:
 					w.append("true");
 					break;
-				case PromelaConstants.NUMBER:
+				case NUMBER:
 					w.append(ce.getNumber() != 0 ? "true" : "false");
 					break;
 				default:
@@ -1018,7 +1029,7 @@ public class LTSminPrinter {
 		} else if(e instanceof MTypeReference) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof RunExpression) {
-			w.append("("+ IN_NUM_PROCS +" != "+ (PM_MAX_PROCS-1) +" ? 1 : 0)");
+			w.append("("+ IN_NUM_PROCS +" != "+ (PM_MAX_PROCS-1) +")");
 		} else if(e instanceof TimeoutExpression) {
 //			if( timeoutFalse ) {
 //				w.append("false /* timeout-false */");

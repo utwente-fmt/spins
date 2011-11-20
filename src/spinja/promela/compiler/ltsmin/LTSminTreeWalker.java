@@ -2,9 +2,11 @@ package spinja.promela.compiler.ltsmin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
@@ -24,6 +26,7 @@ import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.ltsmin.instr.AtomicState;
 import spinja.promela.compiler.ltsmin.instr.CStruct;
 import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
@@ -187,6 +190,8 @@ public class LTSminTreeWalker {
 		// Create structs describing channels and custom structs
 		createCustomStructs();
 		createStateStructs();
+		bindByReferenceCalls();
+			
 		instrumentTransitions();
 		
 		// Generate code for total time out expression
@@ -203,6 +208,67 @@ public class LTSminTreeWalker {
 	}
 
 	/**
+	 * Binds any channeltype arguments of all RunExpressions by reference.
+	 */
+	private void bindByReferenceCalls() {
+		for (Proctype p : spec){
+			for (State s : p.getAutomaton()) {
+				for (Transition t : s.output) {
+					for (Action a : t) {
+						if (a instanceof ExprAction) {
+							Expression e = ((ExprAction) a).getExpression();
+							if (e instanceof RunExpression) {
+								RunExpression re = (RunExpression)e;
+								bindArguments(re);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	public static AssertionError error(String string, Token token) {
+		return new AssertionError(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
+	}
+
+	private void bindArguments(RunExpression re) {
+		Proctype target = spec.getProcess(re.getId()); //TODO: anonymous processes (multiple runs on one proctype)
+		List<Variable> args = target.getArguments();
+		Iterator<Expression> eit = re.getExpressions().iterator();
+		if (args.size() != re.getExpressions().size())
+			throw error("Run expression's parameters do not match the proc's arguments.", re.getToken());
+		//write to the arguments of the target process
+		int 			count = 0;
+		for (Variable v : args) {
+			count++;
+			Expression e = eit.next();
+			if (v.getType() instanceof ChannelType) {
+				if (!(e instanceof Identifier))
+					throw error("Run expression's parameters do not match the proc's arguments.", re.getToken());
+				Identifier id = (Identifier)e;
+				Variable varParameter = id.getVariable();
+				VariableType t = varParameter.getType();
+				if (!(t instanceof ChannelType))
+					throw error("Parameter "+ count +" of "+ re.getId() +" should be a channeltype.", re.getToken());
+				ChannelType ct = (ChannelType)t;
+				if (ct.getBufferSize() == -1) //TODO: implement more analysis on AST
+					throw error("Could not deduce channel declaration for parameter "+ count +" of "+ re.getId() +".", re.getToken());
+				String name = v.getName();
+				System.out.println("Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
+				// There are no scopes within a process
+				for (Variable varref : target.getVariables()) {
+					if (varref.getName().equals(name)) { //TODO: make real references
+						varref.setType(varParameter.getType());
+						varref.setOwner(varParameter.getOwner());
+						varref.setName(varParameter.getName());
+					}
+				}
+			}
+		}
+	}
+	
+	/**
 	 * For the specified variable, instrument a custom struct typedef and print
 	 * to the StringWriter.
 	 * ChannelVariable's are also remembered, for later use. In particular for
@@ -214,12 +280,13 @@ public class LTSminTreeWalker {
 
 		// Handle the ChannelType variable type
 		if(var.getType() instanceof ChannelType) {
-
+			ChannelVariable cv = (ChannelVariable)var;
+			ChannelType ct = cv.getType();
+			if (ct.getBufferSize() == -1) return; //skip uninitialized channels (ie proc arguments)
+			
 			// Create a new C struct generator
 			CStruct struct = new CStruct(wrapNameForChannel(var.getName()));
 
-			ChannelVariable cv = (ChannelVariable)var;
-			ChannelType ct = cv.getType();
 			VariableStore vs = ct.getVariableStore();
 
 			LTSminTypeStruct ls = new LTSminTypeStruct(wrapNameForChannel(var.getName()));
@@ -399,7 +466,14 @@ public class LTSminTreeWalker {
 			
 			// Locals: add locals to the process state struct
 			List<Variable> proc_vars = p.getVariables();
+			Set<Variable> args = new HashSet<Variable>(p.getArguments());
 			for(Variable var: proc_vars) {
+				if (args.contains(var)) {
+					if (var.getType() instanceof ChannelType)
+						continue; // channel types are passed as reference
+								  // the tree walker modifies the AST to make
+								  // the argument point directly to the real channel
+				}
 				current_offset = handleVariable(proc_sg,var,name + ".",current_offset,ls_p);
 			}
 
@@ -967,7 +1041,7 @@ public class LTSminTreeWalker {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
 
-			if(var.getType().getBufferSize()>0) {
+			if(var.getType().getBufferSize()>0) { // TODO
 				List<Expression> exprs = cra.getExprs();
 				lt.addGuard(new LTSminGuard(trans,makeChannelHasContentsGuard(var)));
 

@@ -54,4 +54,8 @@ public class ChannelLengthExpression extends Expression {
 	public String toString() {
 		return "len(" + expr.toString() + ")";
 	}
+
+	public Expression getExpression() {
+		return expr;
+	}
 }

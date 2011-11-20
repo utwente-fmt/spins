@@ -435,4 +435,8 @@ public class Proctype implements VariableContainer {
 	public int getID() {
 		return id;
 	}
+
+	public List<Variable> getArguments() {
+		return arguments;
+	}
 }

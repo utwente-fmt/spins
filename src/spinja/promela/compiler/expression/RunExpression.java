@@ -119,4 +119,8 @@ public class RunExpression extends Expression implements CompoundExpression {
 	public String getId() {
 		return id;
 	}
+
+	public List<Expression> getExpressions() {
+		return exprs;
+	}
 }

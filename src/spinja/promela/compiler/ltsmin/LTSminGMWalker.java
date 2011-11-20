@@ -2,14 +2,7 @@ package spinja.promela.compiler.ltsmin;
 
 import java.util.List;
 
-import spinja.promela.compiler.Proctype;
-import spinja.promela.compiler.actions.Action;
-import spinja.promela.compiler.actions.AssertAction;
-import spinja.promela.compiler.actions.AssignAction;
 import spinja.promela.compiler.actions.ChannelReadAction;
-import spinja.promela.compiler.actions.ChannelSendAction;
-import spinja.promela.compiler.actions.ExprAction;
-import spinja.promela.compiler.actions.PrintAction;
 import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
@@ -31,14 +24,10 @@ import spinja.promela.compiler.ltsmin.instr.PCExpression;
 import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
 import spinja.promela.compiler.ltsmin.instr.PriorityExpression;
 import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
-import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
-import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
-import spinja.promela.compiler.variable.VariableAccess;
-import spinja.promela.compiler.ltsmin.LTSminTreeWalker.*;
 
 /**
  *
@@ -80,7 +69,7 @@ public class LTSminGMWalker {
 	static void walkStateCount(LTSminModel model) {
 	}
 
-	static private void walkIsAtomic() {
+	static void walkIsAtomic() {
 	}
 
 	static void walkTransitionCount(LTSminModel model) {
@@ -157,149 +146,7 @@ public class LTSminGMWalker {
 			throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());
 		}
 	}
-	static void walkAction(Params params, Action a) {
-		// Handle assignment action
-		if(a instanceof AssignAction) {
-			AssignAction as = (AssignAction)a;
-			Identifier id = as.getIdentifier();
-			final String mask = id.getVariable().getType().getMask();
-			switch (as.getToken().kind) {
-				case PromelaConstants.ASSIGN:
-					try {
-						int value = as.getExpr().getConstantValue();
-						walkIntExpression(params,id); // assign
-					} catch (ParseException ex) {
-						// Could not get Constant value
-						walkIntExpression(params,id); // assign
-						walkIntExpression(params,as.getExpr()); // read
-					}
-					break;
-				case PromelaConstants.INCR:
-					if (mask == null) {
-						walkIntExpression(params,id); // assign and read
-					} else {
-						walkIntExpression(params,id); // assign
-						walkIntExpression(params,id); // read
-					}
-					break;
-				case PromelaConstants.DECR:
-					if (mask == null) {
-						walkIntExpression(params,id); // assign and read
-					} else {
-						walkIntExpression(params,id); // assign
-						walkIntExpression(params,id); // read
-					}
-					break;
-				default:
-					throw new AssertionError("unknown assignment type");
-			}
-			DMAssign(params,id);
-
-		} else if(a instanceof ResetProcessAction) {
-			ResetProcessAction rpa = (ResetProcessAction)a;
-			DMIncWrite(params, rpa.getProcVar(),0);
-			for(Variable v: rpa.getProcess().getVariables()) {
-				DMIncWriteEntire(params, v);
-			}
-
-		} else if(a instanceof ResetProcessAction) {
-			ResetProcessAction rpa = (ResetProcessAction)a;
-			rpa.getProcess();
-
-		// Handle assert action
-		} else if(a instanceof AssertAction) {
-			AssertAction as = (AssertAction)a;
-			Expression e = as.getExpr();
-
-			walkBoolExpression(params,e);
-
-		// Handle print action
-		} else if(a instanceof PrintAction) {
-			PrintAction pa = (PrintAction)a;
-			String string = pa.getString();
-			List<Expression> exprs = pa.getExprs();
-			for (final Expression expr : exprs) {
-				walkIntExpression(params,expr);
-			}
-
-		// Handle expression action
-		} else if(a instanceof ExprAction) {
-			ExprAction ea = (ExprAction)a;
-			Expression expr = ea.getExpression();
-			String sideEffect;
-			try {
-				sideEffect = expr.getSideEffect();
-				if (sideEffect != null) {
-					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
-					assert (expr instanceof RunExpression);
-					DMIncWrite(params, LTSminTreeWalker._NR_PR, 0);
-					RunExpression re = (RunExpression)expr;
-				
-					//write to the arguments of the target process
-					for (VariableAccess va: re.readVariables()) {
-						Variable v = va.getVar();
-						DMIncWrite(params, v, 0);
-					}
-				}
-			} catch (ParseException e) {
-				e.printStackTrace();
-			}
-		// Handle channel send action
-		} else if(a instanceof ChannelSendAction) {
-			ChannelSendAction csa = (ChannelSendAction)a;
-			ChannelVariable var = (ChannelVariable)csa.getVariable();
-
-			if(var.getType().getBufferSize()>0) {
-				// Dependency matrix: channel variable
-				DMIncRead(params,var,0);
-				DMIncWrite(params,var,0);
-
-				List<Expression> exprs = csa.getExprs();
-				for (int i = 0; i < exprs.size(); i++) {
-					final Expression expr = exprs.get(i);
-					walkIntExpression(params, expr);
-
-					// Dependency matrix: channel variable
-					DMIncWrite(params,var,i+1);
-				}
-
-			} else {
-				throw new AssertionError("Trying to actionise rendezvous send!");
-			}
-
-		// Handle a channel read action
-		} else if(a instanceof ChannelReadAction) {
-			ChannelReadAction cra = (ChannelReadAction)a;
-			ChannelVariable var = (ChannelVariable)cra.getVariable();
-
-			if(var.getType().getBufferSize()>0) {
-
-				// Dependency matrix: channel variable
-				DMIncRead(params, var, 0);
-				DMIncWrite(params, var, 0);
-
-				List<Expression> exprs = cra.getExprs();
-				for (int i = 0; i < exprs.size(); i++) {
-					final Expression expr = exprs.get(i);
-					if (expr instanceof Identifier) {
-						walkIntExpression(params,expr);
-						// Dependency matrix: channel variable
-						//dep_matrix.incRead(trans, state_var_offset.get(var)+i+1);
-						DMIncRead(params, var, i+1);
-						DMAssign(params,expr);
-					}
-				}
-
-			} else {
-				throw new AssertionError("Trying to actionise rendezvous receive!");
-			}
-
-		// Handle not yet implemented action
-		} else {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
-		}
-	}
-
+	
 	static void walkIntExpression(Params params, Expression e) {
 		if(e instanceof PCExpression) {
 			throw new AssertionError("hopefully this is never reached");
@@ -374,15 +221,19 @@ public class LTSminGMWalker {
 				walkBoolExpression(params,ex2);
 			}
 		} else if(e instanceof ChannelLengthExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			ChannelLengthExpression cle = (ChannelLengthExpression)e;
+			Identifier id = (Identifier)cle.getExpression();
+			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
 		} else if(e instanceof ChannelOperation) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			ChannelOperation co = (ChannelOperation)e;
+			Identifier id = (Identifier)co.getExpression();
+			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			walkIntExpression(params,ce.getExpr1());
 			walkIntExpression(params,ce.getExpr2());
 		} else if(e instanceof RunExpression) {
-			walkIntExpression(params, new Identifier(new Token(), LTSminTreeWalker._NR_PR));
+			throw new AssertionError("LTSMinPrinter: Not yet implemented as expression: "+e.getClass().getName());
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
@@ -436,9 +287,13 @@ public class LTSminGMWalker {
 				walkBoolExpression(params,ex2);
 			}
 		} else if(e instanceof ChannelLengthExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			ChannelLengthExpression cle = (ChannelLengthExpression)e;
+			Identifier id = (Identifier)cle.getExpression();
+			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
 		} else if(e instanceof ChannelOperation) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			ChannelOperation co = (ChannelOperation)e;
+			Identifier id = (Identifier)co.getExpression();
+			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			walkIntExpression(params,ce.getExpr1());

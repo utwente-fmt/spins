@@ -65,4 +65,8 @@ public class ChannelOperation extends Expression {
 	public Set<VariableAccess> readVariables() {
 		return expr.readVariables();
 	}
+
+	public Expression getExpression() {
+		return expr;
+	}
 }
