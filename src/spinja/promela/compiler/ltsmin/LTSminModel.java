@@ -43,7 +43,7 @@ public class LTSminModel {
 		return name;
 	}
 
-	void prettyPrint(StringWriter w, LTSMinPrinter printer) {
+	void prettyPrint(StringWriter w, LTSminTreeWalker printer) {
 		w.appendLine("Types:");
 		w.indent();
 		for(LTSminType t: types) {
@@ -62,7 +62,7 @@ public class LTSminModel {
 		w.appendLine("Transitions:");
 		w.indent();
 		for(LTSminTransitionBase t: transitions) {
-			LTSminPrinter2.generateTransition(w,t);
+			LTSminPrinter.generateTransition(w,t);
 		}
 		w.outdent();
 	}

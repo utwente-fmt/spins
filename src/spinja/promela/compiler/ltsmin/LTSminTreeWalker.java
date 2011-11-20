@@ -50,10 +50,6 @@ import spinja.promela.compiler.variable.CustomVariableType;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableStore;
 import spinja.promela.compiler.variable.VariableType;
-import spinja.promela.compiler.expression.*;
-import spinja.promela.compiler.parser.Token;
-import spinja.promela.compiler.variable.VariableAccess;
-import spinja.store.HashTable;
 import spinja.util.StringWriter;
 
 /**
@@ -67,7 +63,7 @@ import spinja.util.StringWriter;
  *   - DepMatrix: handles the dependency matrix
  * @author Freark van der Berg
  */
-public class LTSMinPrinter {
+public class LTSminTreeWalker {
 
 	/// The size of one element in the state struct in bytes.
 	public static final int STATE_ELEMENT_SIZE = 4;
@@ -157,7 +153,7 @@ public class LTSMinPrinter {
 	 * @param spec The Specification using which C code is instrumentd.
 	 * @param name The name to give the model.
 	 */
-	public LTSMinPrinter(Specification spec, String name) {
+	public LTSminTreeWalker(Specification spec, String name) {
 		if(spec==null) {
 			// error
 		}
@@ -201,7 +197,7 @@ public class LTSMinPrinter {
 		LTSminDMWalker.walkModel(model);
 		LTSminGMWalker.walkModel(model);
 		StringWriter w        = new StringWriter();
-		LTSminPrinter2.generateModel(w, model);
+		LTSminPrinter.generateModel(w, model);
 		//long end_t = System.currentTimeMillis();
 		return w.toString();
 	}

@@ -1,14 +1,14 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_NUM_PROCS_VAR;
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_CHANNEL;
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_INT1;
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_INT16;
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_INT32;
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_INT8;
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_UINT16;
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_UINT32;
-import static spinja.promela.compiler.ltsmin.LTSMinPrinter.C_TYPE_UINT8;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_NUM_PROCS_VAR;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_CHANNEL;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_INT1;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_INT16;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_INT32;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_INT8;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_UINT16;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_UINT32;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.C_TYPE_UINT8;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,22 +56,22 @@ import spinja.util.StringWriter;
  *
  * @author FIB
  */
-public class LTSminPrinter2 {
+public class LTSminPrinter {
 
 	public static final String IN_VAR = "in";
 	public static final String MEMBERACCESS = "->";
-	public static final String TMP_ACCESS = LTSMinPrinter.C_STATE_TMP + "->";
+	public static final String TMP_ACCESS = LTSminTreeWalker.C_STATE_TMP + "->";
 	public static final String IN_ACCESS = IN_VAR + "->";
-	public static final String TMP_ACCESS_GLOBALS = TMP_ACCESS + LTSMinPrinter.C_STATE_GLOBALS + ".";
-	public static final String IN_ACCESS_GLOBALS = IN_ACCESS + LTSMinPrinter.C_STATE_GLOBALS + ".";
+	public static final String TMP_ACCESS_GLOBALS = TMP_ACCESS + LTSminTreeWalker.C_STATE_GLOBALS + ".";
+	public static final String IN_ACCESS_GLOBALS = IN_ACCESS + LTSminTreeWalker.C_STATE_GLOBALS + ".";
 	public static final String TMP_NUM_PROCS = TMP_ACCESS_GLOBALS + C_NUM_PROCS_VAR +".var";
 	public static final String IN_NUM_PROCS = IN_ACCESS_GLOBALS + C_NUM_PROCS_VAR +".var";
-	public static final String ACCESS_PRIORITY = LTSMinPrinter.C_STATE_GLOBALS +"."+ LTSMinPrinter.C_STATE_PRIORITY;
+	public static final String ACCESS_PRIORITY = LTSminTreeWalker.C_STATE_GLOBALS +"."+ LTSminTreeWalker.C_STATE_PRIORITY;
 	public static final int    PM_MAX_PROCS = 256;
 
 	private static String getPC(String p_name, String access) {
-		return access + LTSMinPrinter.wrapName(p_name) +
-				"."+ LTSMinPrinter.C_STATE_PROC_COUNTER +".var";
+		return access + LTSminTreeWalker.wrapName(p_name) +
+				"."+ LTSminTreeWalker.C_STATE_PROC_COUNTER +".var";
 	}
 
 	public static final String DM_NAME = "transition_dependency";
@@ -132,7 +132,7 @@ public class LTSminPrinter2 {
 		w.setPrePrefix(" * ");
 		w.setPrefix("  ");
 
-		w.appendLine("State size:  ",model.getStateVector().size()," elements (",model.getStateVector().size()*LTSMinPrinter.STATE_ELEMENT_SIZE," bytes)");
+		w.appendLine("State size:  ",model.getStateVector().size()," elements (",model.getStateVector().size()*LTSminTreeWalker.STATE_ELEMENT_SIZE," bytes)");
 		w.appendLine("Transitions: ",model.getTransitions().size());
 
 		w.setPrefix(prefix);
@@ -157,7 +157,7 @@ public class LTSminPrinter2 {
 	}
 
 	static void generateStateCount(StringWriter w, LTSminModel model) {
-		w.appendLine("int ",LTSMinPrinter.C_STATE_SIZE," = ",model.getStateVector().size(),";");
+		w.appendLine("int ",LTSminTreeWalker.C_STATE_SIZE," = ",model.getStateVector().size(),";");
 		w.appendLine("extern int spinja_get_state_size() {");
 		w.indent();
 		w.appendLine("return ",model.getStateVector().size(),";");
@@ -166,10 +166,10 @@ public class LTSminPrinter2 {
 	}
 
 	static private void generateIsAtomic(StringWriter w) {
-		w.appendLine("int spinja_is_atomic(void* model, ",LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP,") {");
+		w.appendLine("int spinja_is_atomic(void* model, ",LTSminTreeWalker.C_STATE_T,"* ",LTSminTreeWalker.C_STATE_TMP,") {");
 		w.indent();
 
-		w.appendLine("return ",LTSMinPrinter.C_STATE_TMP,"->",LTSMinPrinter.C_PRIORITY,".var >= 0;");
+		w.appendLine("return ",LTSminTreeWalker.C_STATE_TMP,"->",LTSminTreeWalker.C_PRIORITY,".var >= 0;");
 
 		w.outdent();
 		w.appendLine("}");
@@ -192,12 +192,12 @@ public class LTSminPrinter2 {
 		int activePIDs = 0;
 		
 		// Generate initial state
-		w.append(LTSMinPrinter.C_STATE_T);
+		w.append(LTSminTreeWalker.C_STATE_T);
 		w.append(" ");
-		w.append(LTSMinPrinter.C_STATE_INITIAL);
+		w.append(LTSminTreeWalker.C_STATE_INITIAL);
 		w.append(" = ");
 		w.append("(");
-		w.append(LTSMinPrinter.C_STATE_T);
+		w.append(LTSminTreeWalker.C_STATE_T);
 		w.append("){");
 		if(model.getStateVector().size() > 0) {
 			int i = 0;
@@ -218,7 +218,7 @@ public class LTSminPrinter2 {
 				// expression is
 				} else {
 					if (v.getOwner() != null && //if this is the program counter of a process: //TODO: could be clearer:
-						v.getName().equals(LTSMinPrinter.C_STATE_TMP + "." + LTSMinPrinter.wrapName(v.getOwner().getName()))) {
+						v.getName().equals(LTSminTreeWalker.C_STATE_TMP + "." + LTSminTreeWalker.wrapName(v.getOwner().getName()))) {
 						switch (v.getOwner().getNrActive()) {
 						case 0: w.append("-1"); break; //use run to start this proc
 						case 1: w.append("0"); activePIDs++; break; //start at the initial state
@@ -245,9 +245,9 @@ public class LTSminPrinter2 {
 		w.appendLine("extern void spinja_get_initial_state( state_t *to )");
 		w.appendLine("{");
 		w.indent();
-		w.appendLine("if(state_size*",LTSMinPrinter.STATE_ELEMENT_SIZE," != sizeof(" + LTSMinPrinter.C_STATE_T + ")) { printf(\"state_t SIZE MISMATCH!: state=%i(%i) globals=%i\",sizeof(state_t),state_size*",LTSMinPrinter.STATE_ELEMENT_SIZE,",sizeof(state_globals_t)); }");
-		w.appendLine("memcpy(to, (char*)&",LTSMinPrinter.C_STATE_INITIAL,", sizeof(" + LTSMinPrinter.C_STATE_T + "));");
-		w.appendLine("to->",LTSMinPrinter.C_PRIORITY,".var = -1;");
+		w.appendLine("if(state_size*",LTSminTreeWalker.STATE_ELEMENT_SIZE," != sizeof(" + LTSminTreeWalker.C_STATE_T + ")) { printf(\"state_t SIZE MISMATCH!: state=%i(%i) globals=%i\",sizeof(state_t),state_size*",LTSminTreeWalker.STATE_ELEMENT_SIZE,",sizeof(state_globals_t)); }");
+		w.appendLine("memcpy(to, (char*)&",LTSminTreeWalker.C_STATE_INITIAL,", sizeof(" + LTSminTreeWalker.C_STATE_T + "));");
+		w.appendLine("to->",LTSminTreeWalker.C_PRIORITY,".var = -1;");
 		w.outdent();
 		w.appendLine("}");
 	}
@@ -319,8 +319,8 @@ public class LTSminPrinter2 {
 		w.appendLine("(void)model; // ignore model");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("register int pos;");
-		w.appendLine(LTSMinPrinter.C_STATE_T," local_state;");
-		w.appendLine(LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP," = &local_state;");
+		w.appendLine(LTSminTreeWalker.C_STATE_T," local_state;");
+		w.appendLine(LTSminTreeWalker.C_STATE_T,"* ",LTSminTreeWalker.C_STATE_TMP," = &local_state;");
 		w.appendLine();
 		w.appendLine("static int n_losses = 0;");
 		w.appendLine("static int n_atomics = 0;");
@@ -396,7 +396,7 @@ public class LTSminPrinter2 {
 			}
 			w.appendLine(") {");
 			w.indent();
-			w.appendLine("memcpy(", LTSMinPrinter.C_STATE_TMP,", ", IN_VAR , ", sizeof(", LTSMinPrinter.C_STATE_T,"));");
+			w.appendLine("memcpy(", LTSminTreeWalker.C_STATE_TMP,", ", IN_VAR , ", sizeof(", LTSminTreeWalker.C_STATE_T,"));");
 			List<Action> actions = t.getActions();
 			for(Action a: actions) {
 				generateAction(w,a);
@@ -421,8 +421,8 @@ public class LTSminPrinter2 {
 		w.appendLine("transition_info_t transition_info = { NULL, t };");
 		w.appendLine("(void)model; // ignore model");
 		w.appendLine("register int pos;");
-		w.appendLine(LTSMinPrinter.C_STATE_T," local_state;");
-		w.appendLine(LTSMinPrinter.C_STATE_T,"* ",LTSMinPrinter.C_STATE_TMP," = &local_state;");
+		w.appendLine(LTSminTreeWalker.C_STATE_T," local_state;");
+		w.appendLine(LTSminTreeWalker.C_STATE_T,"* ",LTSminTreeWalker.C_STATE_TMP," = &local_state;");
 		w.appendLine();
 
 		w.appendLine("static int n_losses = 0;");
@@ -468,7 +468,7 @@ public class LTSminPrinter2 {
 			}
 			w.append(" ) {").appendPostfix();
 			w.indent();
-			w.appendLine("memcpy(", LTSMinPrinter.C_STATE_TMP, ", ", IN_VAR, ", sizeof(", LTSMinPrinter.C_STATE_T,"));");
+			w.appendLine("memcpy(", LTSminTreeWalker.C_STATE_TMP, ", ", IN_VAR, ", sizeof(", LTSminTreeWalker.C_STATE_T,"));");
 			List<Action> actions = t.getActions();
 			for(Action a: actions) {
 				generateAction(w,a);
@@ -583,7 +583,7 @@ public class LTSminPrinter2 {
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
 			rpa.getProcess();
-			String name = LTSMinPrinter.wrapName(rpa.getProcess().getName());
+			String name = LTSminTreeWalker.wrapName(rpa.getProcess().getName());
 			w.appendLine("#ifndef NORESETPROCESS");
 			w.appendLine("memset(&",TMP_ACCESS,name,",-1,sizeof(state_",name,"_t));");
 			w.appendLine("#endif");
@@ -600,7 +600,7 @@ public class LTSminPrinter2 {
 			w.appendPostfix();
 			w.indent();
 			w.appendLine("printf(\"Assertion violated: ",as.getExpr().toString(), "\\n\");");
-			w.appendLine("print_state(",LTSMinPrinter.C_STATE_TMP,");");
+			w.appendLine("print_state(",LTSminTreeWalker.C_STATE_TMP,");");
 			w.outdent();
 			w.appendLine("}");
 
@@ -670,11 +670,11 @@ public class LTSminPrinter2 {
 				String access;
 				String access_buffer;
 				if(var.getOwner()==null) {
-					access = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-					access_buffer = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[pos]";
+					access = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+					access_buffer = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				} else {
-					access = TMP_ACCESS + var.getOwner().getName() + "." + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[pos]";
+					access = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				}
 
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
@@ -710,11 +710,11 @@ public class LTSminPrinter2 {
 				String access;
 				String access_buffer;
 				if(var.getOwner()==null) {
-					access = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-					access_buffer = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[pos]";
+					access = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+					access_buffer = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				} else {
-					access = TMP_ACCESS + var.getOwner().getName() + "." + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[pos]";
+					access = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				}
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
 
@@ -767,7 +767,7 @@ public class LTSminPrinter2 {
 			w.append(access + ACCESS_PRIORITY).append(".var");
 		} else if(e instanceof PCIdentifier) {
 			PCIdentifier pc = (PCIdentifier)e;
-			w.append(access).append(LTSMinPrinter.wrapName(pc.getProcess().getName())).append(".pc.var");
+			w.append(access).append(LTSminTreeWalker.wrapName(pc.getProcess().getName())).append(".pc.var");
 		} else if(e instanceof PriorityIdentifier) {
 			w.append(access + ACCESS_PRIORITY).append(".var");
 		} else if(e instanceof ChannelSizeExpression) {
@@ -777,10 +777,10 @@ public class LTSminPrinter2 {
 			if(var.getOwner()==null) {
 				w.append("globals.");
 			} else {
-				w.append(LTSMinPrinter.wrapName(var.getOwner().getName()));
+				w.append(LTSminTreeWalker.wrapName(var.getOwner().getName()));
 				w.append(".");
 			}
-			w.append(LTSMinPrinter.wrapName(cse.getVariable().getName())).append(".filled");
+			w.append(LTSminTreeWalker.wrapName(cse.getVariable().getName())).append(".filled");
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
@@ -792,10 +792,10 @@ public class LTSminPrinter2 {
 					if(var.getOwner()==null) {
 						w.append("globals.");
 					} else {
-						w.append(LTSMinPrinter.wrapName(var.getOwner().getName()));
+						w.append(LTSminTreeWalker.wrapName(var.getOwner().getName()));
 						w.append(".");
 					}
-					w.append(LTSMinPrinter.wrapName(var.getName()));
+					w.append(LTSminTreeWalker.wrapName(var.getName()));
 					w.append("[");
 					generateIntExpression(w,arrayExpr,access);
 					w.append("].var");
@@ -813,10 +813,10 @@ public class LTSminPrinter2 {
 					if(var.getOwner()==null) {
 						w.append("globals.");
 					} else {
-						w.append(LTSMinPrinter.wrapName(var.getOwner().getName()));
+						w.append(LTSminTreeWalker.wrapName(var.getOwner().getName()));
 						w.append(".");
 					}
-					w.append(LTSMinPrinter.wrapName(var.getName()));
+					w.append(LTSminTreeWalker.wrapName(var.getName()));
 					w.append("[0].var");
 					//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var));
 				}
@@ -825,10 +825,10 @@ public class LTSminPrinter2 {
 				if(var.getOwner()==null) {
 					w.append("globals.");
 				} else {
-					w.append(LTSMinPrinter.wrapName(var.getOwner().getName()));
+					w.append(LTSminTreeWalker.wrapName(var.getOwner().getName()));
 					w.append(".");
 				}
-				w.append(LTSMinPrinter.wrapName(var.getName()));
+				w.append(LTSminTreeWalker.wrapName(var.getName()));
 				w.append(".var");
 				//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var));
 			}
@@ -916,8 +916,8 @@ public class LTSminPrinter2 {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
 			ChannelReadAction cra =cte.getChannelReadAction();
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
-			String chan_access = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelDesc(var.getName());
-			String access_buffer = TMP_ACCESS_GLOBALS + LTSMinPrinter.wrapNameForChannelBuffer(var.getName()) + "[" + chan_access + ".nextRead]";
+			String chan_access = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
+			String access_buffer = TMP_ACCESS_GLOBALS + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[" + chan_access + ".nextRead]";
 			w.append(access_buffer).append(".m").append(cte.getElem()).append(".var");
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
@@ -1150,25 +1150,25 @@ public class LTSminPrinter2 {
 		for(;i<state_size;) {
 			Variable var = state.get(i).getVariable();
 			if(var==null) {
-				int idx = types.indexOf(LTSMinPrinter.C_TYPE_PROC_COUNTER_);
+				int idx = types.indexOf(LTSminTreeWalker.C_TYPE_PROC_COUNTER_);
 				if(idx<0) {
-					types.add(LTSMinPrinter.C_TYPE_PROC_COUNTER_);
+					types.add(LTSminTreeWalker.C_TYPE_PROC_COUNTER_);
 					idx = types.size()-1;
 				}
 				translation[i++] = idx;
 			} else if(var.getArraySize()>1) {
-				int idx = types.indexOf(LTSMinPrinter.getCTypeOfVar(var).type);
+				int idx = types.indexOf(LTSminTreeWalker.getCTypeOfVar(var).type);
 				if(idx<0) {
-					types.add(LTSMinPrinter.getCTypeOfVar(var).type);
+					types.add(LTSminTreeWalker.getCTypeOfVar(var).type);
 					idx = types.size()-1;
 				}
 				for(int end=i+var.getArraySize();i<end;) {
 					translation[i++] = idx;
 				}
 			} else {
-				int idx = types.indexOf(LTSMinPrinter.getCTypeOfVar(var).type);
+				int idx = types.indexOf(LTSminTreeWalker.getCTypeOfVar(var).type);
 				if(idx<0) {
-					types.add(LTSMinPrinter.getCTypeOfVar(var).type);
+					types.add(LTSminTreeWalker.getCTypeOfVar(var).type);
 					idx = types.size()-1;
 				}
 				translation[i++] = idx;
@@ -1314,7 +1314,7 @@ public class LTSminPrinter2 {
 			w.append("  - ");
 			w.append(g);
 			w.append(" - ");
-			LTSminPrinter2.generateGuard(w, guards.get(g));
+			LTSminPrinter.generateGuard(w, guards.get(g));
 			w.appendPostfix();
 //			w.appendLine("  - ",
 //			w.appendLine("  - ",guards.get(g).toString());
@@ -1338,7 +1338,7 @@ public class LTSminPrinter2 {
 //
 //			w.appendPostfix();
 //		}
-		LTSminPrinter2.generateDepMatrix(w,gm.getDepMatrix2(),GM_DM_NAME);
+		LTSminPrinter.generateDepMatrix(w,gm.getDepMatrix2(),GM_DM_NAME);
 
 
 		w.appendLine("");
@@ -1425,7 +1425,7 @@ public class LTSminPrinter2 {
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("bool spinja_get_guard(void* model, int g, ",LTSMinPrinter.C_STATE_T,"* ",IN_VAR,") {");
+		w.appendLine("bool spinja_get_guard(void* model, int g, ",LTSminTreeWalker.C_STATE_T,"* ",IN_VAR,") {");
 		w.indent();
 		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
 		w.appendLine("(void)model;");
@@ -1434,7 +1434,7 @@ public class LTSminPrinter2 {
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("case ").append(g).append(": return ");
-			LTSminPrinter2.generateGuard(w, guards.get(g));
+			LTSminPrinter.generateGuard(w, guards.get(g));
 			w.append(";");
 			w.appendPostfix();
 		}
@@ -1445,13 +1445,13 @@ public class LTSminPrinter2 {
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("void spinja_get_guard_all(void* model, ",LTSMinPrinter.C_STATE_T,"* ",IN_VAR,", int* guard) {");
+		w.appendLine("void spinja_get_guard_all(void* model, ",LTSminTreeWalker.C_STATE_T,"* ",IN_VAR,", int* guard) {");
 		w.indent();
 		w.appendLine("(void)model;");
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("guard[").append(g).append("] = ");
-			LTSminPrinter2.generateGuard(w, guards.get(g));
+			LTSminPrinter.generateGuard(w, guards.get(g));
 			w.append(";");
 			w.appendPostfix();
 		}

@@ -29,7 +29,7 @@ public class LTSminTransitionCombo implements LTSminTransitionBase {
 		transitions.add(transition);
 	}
 
-	public void prettyPrint(StringWriter w, LTSMinPrinter printer) {
+	public void prettyPrint(StringWriter w, LTSminTreeWalker printer) {
 		w.appendLine("[",name,"]");
 		w.indent();
 		for(LTSminTransitionBase t: transitions) {

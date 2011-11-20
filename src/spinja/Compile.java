@@ -34,7 +34,7 @@ import spinja.promela.compiler.optimizer.RenumberAll;
 import spinja.promela.compiler.optimizer.StateMerging;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Promela;
-import spinja.promela.compiler.ltsmin.LTSMinPrinter;
+import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
 import spinja.promela.compiler.parser.Preprocessor;
 
 public class Compile {
@@ -324,7 +324,7 @@ public class Compile {
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
 
-			fos.write(new LTSMinPrinter(spec,name).generate().getBytes());
+			fos.write(new LTSminTreeWalker(spec,name).generate().getBytes());
 			fos.flush();
 			fos.close();
 		} catch (final IOException ex) {

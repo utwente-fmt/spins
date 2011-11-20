@@ -214,7 +214,7 @@ public class LTSminDMWalker {
 				if (sideEffect != null) {
 					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
 					assert (expr instanceof RunExpression);
-					DMIncWrite(params, LTSMinPrinter._NR_PR, 0);
+					DMIncWrite(params, LTSminTreeWalker._NR_PR, 0);
 					RunExpression re = (RunExpression)expr;
 				
 					//write to the arguments of the target process
@@ -365,7 +365,7 @@ public class LTSminDMWalker {
 			walkIntExpression(params,ce.getExpr1());
 			walkIntExpression(params,ce.getExpr2());
 		} else if(e instanceof RunExpression) {
-			DMIncRead(params, LTSMinPrinter._NR_PR, 0);
+			DMIncRead(params, LTSminTreeWalker._NR_PR, 0);
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
@@ -436,7 +436,7 @@ public class LTSminDMWalker {
 		} else if(e instanceof MTypeReference) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof RunExpression) {
-			DMIncRead(params, LTSMinPrinter._NR_PR, 0);
+			DMIncRead(params, LTSminTreeWalker._NR_PR, 0);
 		} else if(e instanceof TimeoutExpression) {
 			DMIncReadAll(params); // should be optimized
 		} else {
