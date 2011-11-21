@@ -126,6 +126,10 @@ public class Proctype implements VariableContainer {
 		return p.getName().equals(name);
 	}
 
+	public int hashCode() {
+		return name.hashCode(); 
+	}
+
 	/**
 	 * Adds a new variable to this {@link Proctype}. While the lastArgument() function is not
 	 * called this function assumes that every variable that is added is also an argument.

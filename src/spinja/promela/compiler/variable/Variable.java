@@ -60,7 +60,20 @@ public class Variable {
 	public Expression getInitExpr() {
 		return initExpr;
 	}
+	
+	public boolean equals(Object o) {
+		if (o == null)
+			return false;
+		if (!(o instanceof Variable))
+			return false;
+		Variable ov = (Variable)o;
+		return owner.equals(ov.owner) && name.equals(ov.name); 
+	}
 
+	public int hashCode() {
+		return name.hashCode() * 37 + (owner == null ? 0 : owner.hashCode()); 
+	}
+	
 	public void printInitExpr(final StringWriter w) throws ParseException {
 		if (arraySize > 1) {
 			w.appendLine(name, " = new ", type.getJavaName(), "[", arraySize, "];");
