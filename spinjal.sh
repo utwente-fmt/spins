@@ -52,7 +52,7 @@ else
 	echo "Skipping compilation...";
 fi
 
-gcc -fPIC -shared $output_file -o $promela_name.spinja -O2 -g $gcc_options
+gcc -fPIC -shared $output_file -o $promela_name.spinja -O2 -gstabs $gcc_options
 if [ ! $? -eq 0 ]; then
 	echo "Compilation of $output_file failed"
 else
