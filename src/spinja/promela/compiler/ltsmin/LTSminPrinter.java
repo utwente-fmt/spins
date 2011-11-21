@@ -199,45 +199,43 @@ public class LTSminPrinter {
 		w.append("(");
 		w.append(LTSminTreeWalker.C_STATE_T);
 		w.append("){");
-		if(model.getStateVector().size() > 0) {
-			int i = 0;
-
-			// Insert initial expression of each state element into initial state struct
-			for(;;) {
-
-				// Get the variable for the current element (at position i)
-				Variable v = model.getStateVector().get(i).getVariable();
-
-				// If it is null, this location is probably a state descriptor
-				// or priorityProcess variable so the initial state is 0
-				if(v==null) {
-					w.append("0");
-
-				// If not null, then it's a legit variable, global or local,
-				// so the initial state will be set to whatever the initial
-				// expression is
+		
+		LTSminStateElement last = model.getStateVector().get(model.getStateVector().size()-1);
+		ChannelVariable lastChan = null; // TODO: fix this complexity by unifying the stateElements and Types in LTSminModel 
+		// Insert initial expression of each state element into initial state struct
+		for(LTSminStateElement se : model.getStateVector()) {
+			Variable v = se.getVariable();
+			// If it is null, this location is probably a state descriptor
+			// or priorityProcess variable so the initial state is 0
+			if(v==null) {
+				w.append("0");
+			// If not null, then it's a legit variable, global or local,
+			// so the initial state will be set to whatever the initial
+			// expression is
+			} else {
+				if (v.getOwner() != null && //if this is the program counter of a process: //TODO: could be clearer:
+					v.getName().equals(LTSminTreeWalker.C_STATE_TMP + "." + LTSminTreeWalker.wrapName(v.getOwner().getName()))) {
+					switch (v.getOwner().getNrActive()) {
+					case 0: w.append("-1"); break; //use run to start this proc
+					case 1: w.append("0"); break; //start at the initial state
+					default: throw new AssertionError("active[n] not yet supported"); //TODO: extend state vector and introduce anonymous processes
+					}
 				} else {
-					if (v.getOwner() != null && //if this is the program counter of a process: //TODO: could be clearer:
-						v.getName().equals(LTSminTreeWalker.C_STATE_TMP + "." + LTSminTreeWalker.wrapName(v.getOwner().getName()))) {
-						switch (v.getOwner().getNrActive()) {
-						case 0: w.append("-1"); break; //use run to start this proc
-						case 1: w.append("0"); break; //start at the initial state
-						default: throw new AssertionError("active[n] not yet supported"); //TODO: extend state vector and introduce anonymous processes
+					Expression e = v.getInitExpr();
+					if(e==null) {
+						if (v instanceof ChannelVariable && v != lastChan) { //isRendezVous, nextRead, filled
+							ChannelVariable cv = lastChan = (ChannelVariable)v;
+							w.append(cv.getType().getBufferSize()==0 ? "1" : "0");
+							w.append(",0,0");
+						} else {
+							w.append("0");
 						}
 					} else {
-						Expression e = v.getInitExpr();
-						if(e==null) {
-							w.append("0");
-						} else {
-							generateIntExpression(w, e, "UNKNOWN_INIT_VALUE");
-						}
+						generateIntExpression(w, e, "UNKNOWN_INIT_VALUE");
 					}
 				}
-				if(++i>=model.getStateVector().size()) {
-					break;
-				}
-				w.append(",");
 			}
+			if (se != last)	w.append(",");
 		}
 		w.appendLine("};");
 		w.appendLine("");
