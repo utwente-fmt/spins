@@ -694,7 +694,7 @@ public class LTSminPrinter {
 
 				}
 
-				w.appendLine("++",access, ".filled;");
+				w.appendLine("++(",access, ".filled);");
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send!");
 			}
@@ -714,7 +714,7 @@ public class LTSminPrinter {
 					access = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelDesc(var.getName());
 					access_buffer = TMP_ACCESS + var.getOwner().getName() + "." + LTSminTreeWalker.wrapNameForChannelBuffer(var.getName()) + "[pos]";
 				}
-				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
+				w.appendLine("pos = "+ access +".nextRead;");
 				List<Expression> exprs = cra.getExprs();
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
@@ -731,7 +731,7 @@ public class LTSminPrinter {
 				}
 
 				w.appendLine(access,".nextRead = (",access,".nextRead+1)%"+var.getType().getBufferSize()+";");
-				w.appendLine("--",access, ".filled;");
+				w.appendLine("--(",access, ".filled);");
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous receive!");
 			}
