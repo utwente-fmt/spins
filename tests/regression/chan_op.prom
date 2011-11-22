@@ -1,0 +1,31 @@
+/* Author: Alfons Laarman
+ * SPIN: 0.9.2
+ * Description: RunExpression with arguments
+ */
+
+init {
+    chan c = [5] of { int };
+    int i;
+    printf("%d", empty(c)); /* 1 */
+    c!5;
+    c!4;
+    c!3;
+    c!2;
+    c!1;
+    
+    c?i;
+    printf("%d", nfull(c)); /* 1 */
+    c!9;
+    printf("%d", full(c)); /* 1 */
+    
+    c?i;
+    c?i;
+    c?i;
+    c?i;
+    
+    printf("%d", nempty(c)); /* 1 */
+    printf("%d", len(c)); /* 1 */
+    c?i;
+    
+    printf("%d", i==9); /* 1 */
+}
