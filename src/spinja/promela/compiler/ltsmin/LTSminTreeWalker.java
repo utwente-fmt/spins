@@ -212,29 +212,17 @@ public class LTSminTreeWalker {
 	 */
 	private void bindByReferenceCalls() {
 		say("");
-		for (Proctype p : spec){
-			for (State s : p.getAutomaton()) {
-				for (Transition t : s.output) {
-					for (Action a : t) {
-						if (a instanceof ExprAction) {
-							Expression e = ((ExprAction) a).getExpression();
-							if (e instanceof RunExpression) {
-								RunExpression re = (RunExpression)e;
-								bindArguments(re);
-							}
-						}
-					}
-				}
-			}
+		for (RunExpression re : spec.getRuns()){
+			bindArguments(re);
 		}
 	}
-	
+
 	public static AssertionError error(String string, Token token) {
 		return new AssertionError(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
 	}
 
 	private void bindArguments(RunExpression re) {
-		Proctype target = spec.getProcess(re.getId()); //TODO: anonymous processes (multiple runs on one proctype)
+		Proctype target = spec.getProcess(re.getId());
 		List<Variable> args = target.getArguments();
 		Iterator<Expression> eit = re.getExpressions().iterator();
 		if (args.size() != re.getExpressions().size())
@@ -243,11 +231,11 @@ public class LTSminTreeWalker {
 		int 			count = 0;
 		for (Variable v : args) {
 			count++;
-			Expression e = eit.next();
+			Expression param = eit.next();
 			if (v.getType() instanceof ChannelType) {
-				if (!(e instanceof Identifier))
+				if (!(param instanceof Identifier))
 					throw error("Run expression's parameters do not match the proc's arguments.", re.getToken());
-				Identifier id = (Identifier)e;
+				Identifier id = (Identifier)param;
 				Variable varParameter = id.getVariable();
 				VariableType t = varParameter.getType();
 				if (!(t instanceof ChannelType))
@@ -257,14 +245,10 @@ public class LTSminTreeWalker {
 					throw error("Could not deduce channel declaration for parameter "+ count +" of "+ re.getId() +".", re.getToken());
 				String name = v.getName();
 				say("Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
-				// There are no scopes within a process
-				for (Variable varref : target.getVariables()) {
-					if (varref.getName().equals(name)) { //TODO: make real references
-						varref.setType(varParameter.getType());
-						varref.setOwner(varParameter.getOwner());
-						varref.setName(varParameter.getName());
-					}
-				}
+				v.setRealName(v.getName());
+				v.setType(varParameter.getType());
+				v.setOwner(varParameter.getOwner());
+				v.setName(varParameter.getName());
 			}
 		}
 	}
@@ -507,7 +491,7 @@ public class LTSminTreeWalker {
 				td.type = C_TYPE_INT32;
 				break;
 			default:
-				throw new AssertionError("ERROR: Unable to handle: " + v.getName());
+				throw new AssertionError("ERROR: Unable to handle: " + v.getRealName());
 		}
 		
 		int size = v.getArraySize();
@@ -1034,7 +1018,7 @@ public class LTSminTreeWalker {
 					}
 				}
 			} else {
-				throw new AssertionError("Trying to actionise rendezvous send before all others!");
+				throw new AssertionError("Trying to actionise rendezvous send before all others! "+ var);
 			}
 
 		// Handle a channel read action
@@ -1042,7 +1026,7 @@ public class LTSminTreeWalker {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
 
-			if(var.getType().getBufferSize()>0) { // TODO
+			if(var.getType().getBufferSize()>0) {
 				List<Expression> exprs = cra.getExprs();
 				lt.addGuard(new LTSminGuard(trans,makeChannelHasContentsGuard(var)));
 

@@ -38,7 +38,7 @@ public class Promela {
 	public int getNextProcNr() {
 		return procNr++;
 	}
-	
+
 	private Map<String, State> labels = new HashMap<String, State>();
 	
 	private Map<State, Token> gotos = new HashMap<State, Token>();
@@ -848,7 +848,8 @@ Expression base_expr(): {
 |	t=<PC_VALUE> <LPAREN> lor_expr() <RPAREN>
 	{ throw new MyParseException("pc_value expressions are not yet supported!", t); }
 |	t=<RUN> id=<IDENTIFIER> 
-	{ RunExpression runExpr = new RunExpression(t, specification, id.image); }
+	{ RunExpression runExpr = new RunExpression(t, specification, id.image);
+	  specification.addRun(runExpr); }
 	<LPAREN> arg_lst(runExpr) <RPAREN>
 	{ return runExpr; }
 |	t=chanop() <LPAREN> ex1=varref() <RPAREN>

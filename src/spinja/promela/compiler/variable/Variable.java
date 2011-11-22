@@ -33,6 +33,8 @@ public class Variable {
 
 	private Proctype owner;
 
+	private String realName;
+
 	public Variable(final VariableType type, final String name, final int arraySize) {
 		this(type,name,arraySize,null);
 	}
@@ -122,7 +124,7 @@ public class Variable {
 
 	@Override
 	public String toString() {
-		return getName();
+		return getRealName();
 	}
 	
 	public void setOwner(Proctype owner) {
@@ -131,5 +133,13 @@ public class Variable {
 	
 	public void setName(String name) {
 		this.name = name;
+	}
+
+	public void setRealName(String name2) {
+		this.realName = name2;
+	}
+	
+	public String getRealName() {
+		return (null == realName ? name : realName);
 	}
 }
