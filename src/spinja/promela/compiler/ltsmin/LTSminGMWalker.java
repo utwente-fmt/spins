@@ -114,6 +114,7 @@ public class LTSminGMWalker {
 			throw new AssertionError("UNSUPPORTED: " + transition.getClass().getSimpleName());
 		}
 	}
+
 	static void walkGuard(Params params, LTSminGuardBase guard) {
 		if(guard instanceof LTSminGuard) {
 			int gidx = params.guard>=0 ? params.guard : params.guardMatrix.addGuard(params.trans, guard);

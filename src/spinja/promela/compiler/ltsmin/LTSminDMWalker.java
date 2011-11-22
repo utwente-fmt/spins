@@ -235,7 +235,8 @@ public class LTSminDMWalker {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			ChannelVariable var = (ChannelVariable)csa.getVariable();
 
-			if(var.getType().getBufferSize()>0) {
+			int bufferSize = var.getType().getBufferSize();
+			if(bufferSize>0) {
 				// Dependency matrix: channel variable
 				DMIncRead(params,var,0);
 				DMIncWrite(params,var,0);
@@ -245,8 +246,10 @@ public class LTSminDMWalker {
 					final Expression expr = exprs.get(i);
 					walkIntExpression(params, expr);
 
-					// Dependency matrix: channel variable
-					DMIncWrite(params,var,i+1);
+					// Dependency matrix: channel variable at each buffer location
+					for (int j = 0; j < bufferSize; j++) {
+						DMIncWrite(params,var, j*exprs.size() + i + 1);
+					}
 				}
 
 			} else {
@@ -258,12 +261,15 @@ public class LTSminDMWalker {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
 
-			if(var.getType().getBufferSize()>0) {
+			int bufferSize = var.getType().getBufferSize();
+			if(bufferSize>0) {
 
 				// Dependency matrix: channel variable
 				DMIncRead(params, var, 0);
 				DMIncWrite(params, var, 0);
-
+				for (int i = 0; i < bufferSize; i++) {
+					DMIncRead(params, var, i+1);
+				}
 				List<Expression> exprs = cra.getExprs();
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
@@ -271,7 +277,11 @@ public class LTSminDMWalker {
 						walkIntExpression(params,expr);
 						// Dependency matrix: channel variable
 						//dep_matrix.incRead(trans, state_var_offset.get(var)+i+1);
-						DMIncRead(params, var, i+1);
+
+						// Dependency matrix: channel variable at each buffer location
+						for (int j = 0; j < bufferSize; j++) {
+							DMIncRead(params,var, j*exprs.size() + i + 1);
+						}
 						DMAssign(params,(Identifier)expr);
 					}
 				}
