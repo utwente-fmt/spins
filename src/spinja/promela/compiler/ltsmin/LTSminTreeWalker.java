@@ -267,7 +267,12 @@ public class LTSminTreeWalker {
 		if(var.getType() instanceof ChannelType) {
 			ChannelVariable cv = (ChannelVariable)var;
 			ChannelType ct = cv.getType();
-			if (ct.getBufferSize() == -1) return; //skip uninitialized channels (ie proc arguments)
+
+			// Remember this channel variable, to keep track of
+			channels.put(cv,new ReadersAndWriters());
+			
+			 //skip uninitialized channels (ie proc arguments) and rendez-vous channels
+			if (ct.getBufferSize() == -1 || ct.getBufferSize() == 0 ) return;
 			
 			// Create a new C struct generator
 			CStruct struct = new CStruct(wrapNameForChannel(var.getName()));
@@ -286,9 +291,6 @@ public class LTSminTreeWalker {
 					++j;
 				}
 			}
-
-			// Remember this channel variable, to keep track of
-			channels.put(cv,new ReadersAndWriters());
 
 			model.addType(ls);
 		}
@@ -1204,6 +1206,7 @@ public class LTSminTreeWalker {
 		if(var.getType() instanceof ChannelType) {
 			ChannelVariable cv = (ChannelVariable)var;
 			ChannelType ct = cv.getType();
+			if (ct.getBufferSize() == 0) return current_offset; //skip rendez-vous channels
 			VariableStore vs = ct.getVariableStore();
 
 			VarDescriptor vd = new VarDescriptorVar(wrapNameForChannelBuffer(name));
@@ -1219,14 +1222,14 @@ public class LTSminTreeWalker {
 			sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
 			ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
 			model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
-			if (ct.getBufferSize() > 0) {
-				for(String s: vd.extractDescription()) {
-					current_offset = insertVariable(sg, var, desc, s, current_offset);
-					model.addElement(new LTSminStateElement(var,desc+"."+var.getName(), false));
-				}
-				sg.addMember(vd.getType(),vd.extractDeclaration());
-				ls.members.add(new LTSminTypeBasic(vd.getType(), vd.extractDeclaration()));
+		
+			for(String s: vd.extractDescription()) {
+				current_offset = insertVariable(sg, var, desc, s, current_offset);
+				model.addElement(new LTSminStateElement(var,desc+"."+var.getName(), false));
 			}
+			sg.addMember(vd.getType(),vd.extractDeclaration());
+			ls.members.add(new LTSminTypeBasic(vd.getType(), vd.extractDeclaration()));
+
 		} else if(var.getType() instanceof VariableType) {
 			if(var.getType().getJavaName().equals("int")) {
 				say(current_offset +"\t"+ var.getType().getName() +" "+ name);
