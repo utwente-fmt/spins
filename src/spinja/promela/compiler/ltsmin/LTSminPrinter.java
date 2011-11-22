@@ -632,7 +632,7 @@ public class LTSminPrinter {
 					w.appendLine("	printf (\"SpinJa only supports a maximum " +
 							"one dynamic process creation and only for " +
 							"nonactive proctypes.\\n\");");
-					w.appendLine("	printf (\"Exiting on "+ re +".\\n\");");
+					w.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
 					w.appendLine("	exit (1);");
 					w.appendLine("}");
 					

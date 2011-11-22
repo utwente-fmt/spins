@@ -118,13 +118,13 @@ public class LTSminGMWalker {
 		if(guard instanceof LTSminGuard) {
 			int gidx = params.guard>=0 ? params.guard : params.guardMatrix.addGuard(params.trans, guard);
 			params.depMatrix.ensureSize(gidx+1);
-			System.out.println("Now handling1 " + gidx);
+			//System.out.println("Now handling1 " + gidx);
 			LTSminGuard g = (LTSminGuard)guard;
 			walkBoolExpression(new Params(params.model, params.guardMatrix, params.depMatrix, params.trans, gidx), g.expr);
 		} else if(guard instanceof LTSminGuardNand) {
 			int gidx = params.guard>=0 ? params.guard : params.guardMatrix.addGuard(params.trans, guard);
 			params.depMatrix.ensureSize(gidx+1);
-			System.out.println("Now handling2 " + gidx);
+			//System.out.println("Now handling2 " + gidx);
 			LTSminGuardNand g = (LTSminGuardNand)guard;
 			for(LTSminGuardBase gb: g.guards) {
 				walkGuard(new Params(params.model, params.guardMatrix, params.depMatrix, params.trans, gidx),gb);
@@ -137,7 +137,7 @@ public class LTSminGMWalker {
 		} else if(guard instanceof LTSminGuardOr) {
 			int gidx = params.guard>=0 ? params.guard : params.guardMatrix.addGuard(params.trans, guard);
 			params.depMatrix.ensureSize(gidx+1);
-			System.out.println("Now handling3 " + gidx);
+			//System.out.println("Now handling3 " + gidx);
 			LTSminGuardOr g = (LTSminGuardOr)guard;
 			for(LTSminGuardBase gb: g.guards) {
 				walkGuard(new Params(params.model, params.guardMatrix, params.depMatrix, params.trans, gidx),gb);
@@ -340,7 +340,7 @@ public class LTSminGMWalker {
 			System.out.println("For some reason var is null, " + var.getName());
 			System.out.println("Vars: " + params.model.getVariables().toString());
 		} else {
-			System.out.println("Did something for " + params.guard);
+			//System.out.println("Did something for " + params.guard);
 			params.depMatrix.incRead(params.guard, i+offset);
 		}
 	}

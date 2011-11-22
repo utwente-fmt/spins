@@ -211,6 +211,7 @@ public class LTSminTreeWalker {
 	 * Binds any channeltype arguments of all RunExpressions by reference.
 	 */
 	private void bindByReferenceCalls() {
+		say("");
 		for (Proctype p : spec){
 			for (State s : p.getAutomaton()) {
 				for (Transition t : s.output) {
@@ -255,7 +256,7 @@ public class LTSminTreeWalker {
 				if (ct.getBufferSize() == -1) //TODO: implement more analysis on AST
 					throw error("Could not deduce channel declaration for parameter "+ count +" of "+ re.getId() +".", re.getToken());
 				String name = v.getName();
-				System.out.println("Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
+				say("Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
 				// There are no scopes within a process
 				for (Variable varref : target.getVariables()) {
 					if (varref.getName().equals(name)) { //TODO: make real references
@@ -542,7 +543,7 @@ public class LTSminTreeWalker {
 	 * @param w The StringWriter to which the code is written.
 	 */
 	private int instrumentTransitions_mid(int trans) {
-
+		say("");
 		// instrument the normal transitions for all processes.
 		// This does not include: rendezvous, else, timeout.
 		// Loss of atomicity is handled separately as well.
@@ -1180,7 +1181,6 @@ public class LTSminTreeWalker {
 
 	private int insertVariable(CStruct sg, Variable var, String desc, String name, int current_offset) {
 		if(!state_var_offset.containsKey(var)) {
-			say("Adding VARIABLE TO OFFSET: " + var.getName() + " " + var.hashCode());
 			// Add global to Variable->offset map and add a description
 			state_var_offset.put(var, current_offset);
 			state_var_desc.put(var, desc + name);
@@ -1201,7 +1201,7 @@ public class LTSminTreeWalker {
 	 * @return The next free offset position.
 	 */
 	private int handleVariable(CStruct sg, Variable var, String desc, int current_offset, LTSminTypeStruct ls) {
-		return handleVariable(sg,var,desc,"",current_offset, ls, null);
+		return handleVariable(sg,var,desc,"",current_offset, ls);
 	}
 
 	/**
@@ -1215,34 +1215,24 @@ public class LTSminTreeWalker {
 	 * of the variable.
 	 * @return The next free offset position.
 	 */
-	private int handleVariable(CStruct sg, Variable var, String desc, String forcedName, int current_offset, LTSminTypeStruct ls, VarDescriptor vd) {
-
-		String name;
-		if(forcedName!=null && !forcedName.equals("")) {
-			name = forcedName;
-		} else {
+	private int handleVariable(CStruct sg, Variable var, String desc, String name, int current_offset, LTSminTypeStruct ls) {
+		if(name==null || name.equals("")) 
 			name = var.getName();
-		}
-
-		say("HANDLING VAR: " + var.getType().getClass().getName());
-
 		if(var.getType() instanceof ChannelType) {
 			ChannelVariable cv = (ChannelVariable)var;
 			ChannelType ct = cv.getType();
 			VariableStore vs = ct.getVariableStore();
 
-			vd = new VarDescriptorVar(wrapNameForChannelBuffer(name));
+			VarDescriptor vd = new VarDescriptorVar(wrapNameForChannelBuffer(name));
 			if(var.getArraySize()>1) {
 				vd = new VarDescriptorArray(vd,var.getArraySize());
 			}
 			vd = new VarDescriptorArray(vd,ct.getBufferSize());
-			say(var.getName() + " has " + vs.getVariables().size());
 			vd = new VarDescriptorChannel(vd,vs.getVariables().size());
 			vd.setType(wrapNameForChannel(name));
 
+			say(current_offset +"\t"+ var.getName() + " ["+ ct.getBufferSize() +"] of {"+ vs.getVariables().size() +"}");
 			if (ct.getBufferSize() > 0) {
-
-				say("Adding CHANNEL: " + var.getName() + " " + var.hashCode());
 				current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
 				sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
 				ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
@@ -1253,26 +1243,20 @@ public class LTSminTreeWalker {
 				}
 				sg.addMember(vd.getType(),vd.extractDeclaration());
 				ls.members.add(new LTSminTypeBasic(vd.getType(), vd.extractDeclaration()));
-
 			} else {
-
-				say("Adding CHANNEL: " + var.getName() + " " + var.hashCode());
 				current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
 				sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
 				ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
 				model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
-
 			}
-
 		} else if(var.getType() instanceof VariableType) {
 			if(var.getType().getJavaName().equals("int")) {
-				say("  " + name + " @" + current_offset + " (" + var.getType().getName() + ")");
+				say(current_offset +"\t"+ var.getType().getName() +" "+ name);
 
 				// Add global to the global state struct
 				TypeDesc td = getCTypeOfVar(var);
 				sg.addMember(td,name);
 				ls.members.add(new LTSminTypeBasic(td.type, name,var.getArraySize()));
-
 				if (var.getArraySize() > 1) {
 					for(int i=0; i<var.getArraySize(); ++i) {
 						current_offset = insertVariable(sg,var,desc,name,current_offset);
@@ -1282,22 +1266,18 @@ public class LTSminTreeWalker {
 					current_offset = insertVariable(sg,var,desc,name,current_offset);
 					model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 				}
-
 			} else if(var.getType().getJavaName().equals("Type")) {
-
-				// Untested
+				//TODO: Untested
 				CustomVariableType cvt = (CustomVariableType)var.getType();
 				for(Variable v: cvt.getVariableStore().getVariables()) {
-					current_offset = handleVariable(sg,v,name+".",name,current_offset,ls,vd);
+					current_offset = handleVariable(sg,v,name+".",name,current_offset,ls);
 				}
-
 			} else {
 				throw new AssertionError("ERROR: Unknown error trying to handle an integer");
 			}
 		} else {
 			throw new AssertionError("ERROR: Unable to handle: " + var.getType().getName());
 		}
-
 		return current_offset;
 	}
 
@@ -1484,6 +1464,4 @@ public class LTSminTreeWalker {
 		Expression e = new CompareExpression(new Token(PromelaConstants.GT,">"), left, right);
 		return e;
 	}
-
 }
-
