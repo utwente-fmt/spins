@@ -1039,7 +1039,6 @@ public class LTSminTreeWalker {
 								new ChannelTopExpression(cra, i),expr))
 						);
 					}
-
 				}
 			} else if(seenItAll) {
 				ReadersAndWriters raw = channels.get(var);
@@ -1216,22 +1215,17 @@ public class LTSminTreeWalker {
 			vd.setType(wrapNameForChannel(name));
 
 			say(current_offset +"\t"+ var.getName() + " ["+ ct.getBufferSize() +"] of {"+ vs.getVariables().size() +"}");
+			current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
+			sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
+			ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
+			model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 			if (ct.getBufferSize() > 0) {
-				current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
-				sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
-				ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
-				model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 				for(String s: vd.extractDescription()) {
 					current_offset = insertVariable(sg, var, desc, s, current_offset);
-					model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
+					model.addElement(new LTSminStateElement(var,desc+"."+var.getName(), false));
 				}
 				sg.addMember(vd.getType(),vd.extractDeclaration());
 				ls.members.add(new LTSminTypeBasic(vd.getType(), vd.extractDeclaration()));
-			} else {
-				current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
-				sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
-				ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
-				model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 			}
 		} else if(var.getType() instanceof VariableType) {
 			if(var.getType().getJavaName().equals("int")) {

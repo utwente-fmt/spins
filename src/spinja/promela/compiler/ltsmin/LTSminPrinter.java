@@ -201,7 +201,6 @@ public class LTSminPrinter {
 		w.append("){");
 		
 		LTSminStateElement last = model.getStateVector().get(model.getStateVector().size()-1);
-		ChannelVariable lastChan = null; // TODO: fix this complexity by unifying the stateElements and Types in LTSminModel 
 		// Insert initial expression of each state element into initial state struct
 		for(LTSminStateElement se : model.getStateVector()) {
 			Variable v = se.getVariable();
@@ -223,8 +222,9 @@ public class LTSminPrinter {
 				} else {
 					Expression e = v.getInitExpr();
 					if(e==null) {
-						if (v instanceof ChannelVariable && v != lastChan) { //isRendezVous, nextRead, filled
-							ChannelVariable cv = lastChan = (ChannelVariable)v;
+						if (v instanceof ChannelVariable && se.isFirst()) {
+							ChannelVariable cv = (ChannelVariable)v;
+							//{isRendezVous, nextRead, filled}
 							w.append(cv.getType().getBufferSize()==0 ? "1" : "0");
 							w.append(",0,0");
 						} else {

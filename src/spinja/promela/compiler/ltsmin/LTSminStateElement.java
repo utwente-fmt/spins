@@ -10,14 +10,20 @@ import spinja.util.StringWriter;
 public class LTSminStateElement {
 	Variable variable;
 	String access;
+	boolean first;
 
 	public LTSminStateElement(Variable variable) {
 		this(variable,variable.getName());
 	}
 
 	public LTSminStateElement(Variable variable, String access) {
+		this(variable,variable.getName(), true);
+	}
+
+	public LTSminStateElement(Variable variable, String access, boolean first) {
 		this.variable = variable;
 		this.access = access;
+		this.first = first;
 	}
 
 	public Variable getVariable() {
@@ -26,5 +32,9 @@ public class LTSminStateElement {
 	
 	public void prettyPrint(StringWriter w) {
 		w.appendLine(variable.toString());
+	}
+	
+	public boolean isFirst() {
+		return first;
 	}
 }
