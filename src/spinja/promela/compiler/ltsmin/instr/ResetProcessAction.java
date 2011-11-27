@@ -5,7 +5,6 @@ package spinja.promela.compiler.ltsmin.instr;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
-import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -16,10 +15,10 @@ public class ResetProcessAction extends Action {
 	private Proctype process;
 	private Variable procVar;
 
-	public ResetProcessAction(Proctype process) {
+	public ResetProcessAction(Proctype process, Variable procVar) {
 		super(new Token(PromelaConstants.ASSIGN, "=reset="));
 		this.process = process;
-		this.procVar = LTSminTreeWalker.processIdentifiers.get(process);
+		this.procVar = procVar;
 	}
 
 	public Proctype getProcess() {

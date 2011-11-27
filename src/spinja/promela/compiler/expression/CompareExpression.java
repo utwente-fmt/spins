@@ -31,6 +31,7 @@ import spinja.promela.compiler.variable.VariableType;
  * @author Marc de Jonge
  */
 public class CompareExpression extends Expression {
+	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -7625932622450298223L;
 
 	private final Expression ex1, ex2;

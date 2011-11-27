@@ -2,9 +2,9 @@ package spinja.promela.compiler.ltsmin;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
-import spinja.promela.compiler.parser.ParseException;
 import spinja.util.StringWriter;
 
 /**

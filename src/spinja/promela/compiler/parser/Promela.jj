@@ -28,6 +28,7 @@ import spinja.promela.compiler.actions.*;
 import java.io.*;
 import java.util.*;
 
+@SuppressWarnings("all")
 public class Promela {
 	private Specification specification;
 	private Proctype currentProc;

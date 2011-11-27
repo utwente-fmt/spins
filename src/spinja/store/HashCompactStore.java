@@ -28,6 +28,7 @@ import spinja.store.hash.HashAlgorithm.HashGenerator;
  * 
  * @author Marc de Jonge
  */
+@SuppressWarnings("all")
 public class HashCompactStore extends StateStore {
 	private abstract class Table extends StateStore {
 		protected int stored;

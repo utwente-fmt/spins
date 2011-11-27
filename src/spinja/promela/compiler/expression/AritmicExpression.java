@@ -31,6 +31,7 @@ import spinja.promela.compiler.variable.VariableType;
  * @author Marc de Jonge
  */
 public class AritmicExpression extends Expression {
+	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -4022528945025403911L;
 
 	private final Expression ex1, ex2, ex3;

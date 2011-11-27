@@ -2,6 +2,8 @@ package spinja.promela.compiler.ltsmin;
 
 import java.util.List;
 
+import static spinja.promela.compiler.ltsmin.LTSminStateVector.*;
+
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
@@ -39,8 +41,8 @@ public class LTSminGMWalker {
 		public final LTSminModel model;
 		public final GuardMatrix guardMatrix;
 		public final DepMatrix depMatrix;
-		public final int trans;
-		public final int guard;
+		public int trans;
+		public int guard;
 
 		public Params(LTSminModel model, GuardMatrix guardMatrix, DepMatrix depMatrix, int trans, int guard) {
 			this.model = model;
@@ -53,45 +55,20 @@ public class LTSminGMWalker {
 
 	static void walkModel(LTSminModel model) {
 		if(model.getGuardMatrix()==null) {
-			model.setGuardMatrix(new GuardMatrix(model.getStateVector().size()));
+			model.setGuardMatrix(new GuardMatrix(model.sv.size()));
 		}
-		walkTransitions(model.getGuardMatrix(),model);
-	}
-
-	static void walkTypeDef(LTSminType type) {
-	}
-	static void walkType(LTSminType type) {
-	}
-
-	static void walkHeader(LTSminModel model) {
-	}
-
-	static void walkStateCount(LTSminModel model) {
-	}
-
-	static void walkIsAtomic() {
-	}
-
-	static void walkTransitionCount(LTSminModel model) {
-	}
-
-	static void walkForwardDeclarations() {
-	}
-
-	static void walkInitialState(LTSminModel model) {
-	}
-	static void walkGetAll(LTSminModel model) {
-	}
-	static void walkTransitions(GuardMatrix guardMatrix, LTSminModel model) {
-		List<LTSminTransitionBase> transitions = model.getTransitions();
-		int trans = 0;
-		DepMatrix dm = new DepMatrix(1,model.getStateVector().size());
+		DepMatrix dm = new DepMatrix(1,model.sv.size());
+		GuardMatrix guardMatrix = model.getGuardMatrix();
+		Params params = new Params(model,guardMatrix,dm,0,-1);
 		guardMatrix.setDepMatrix2(dm);
-		for(LTSminTransitionBase t: transitions) {
-			walkTransition(new Params(model,guardMatrix,dm,trans,-1),t);
-			++trans;
-		}
+		walkTransitions(params);
+	}
 
+	static void walkTransitions(Params params) {
+		for(LTSminTransitionBase t : params.model.getTransitions()) {
+			walkTransition(params,t);
+			params.trans++;
+		}
 	}
 
 	static void walkTransition(	Params params, LTSminTransitionBase transition) {
@@ -101,10 +78,6 @@ public class LTSminGMWalker {
 			for(LTSminGuardBase g: guards) {
 				walkGuard(params,g);
 			}
-//			List<Action> actions = t.getActions();
-//			for(Action a: actions) {
-//				walkAction(params,a);
-//			}
 		} else if (transition instanceof LTSminTransitionCombo) {
 			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
 			for(LTSminTransitionBase tb: t.transitions) {
@@ -300,7 +273,7 @@ public class LTSminGMWalker {
 			walkIntExpression(params,ce.getExpr1());
 			walkIntExpression(params,ce.getExpr2());
 		} else if(e instanceof RunExpression) {
-			walkBoolExpression(params, new Identifier(new Token(), LTSminTreeWalker._NR_PR));
+			walkBoolExpression(params, new Identifier(new Token(), _NR_PR));
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
@@ -347,7 +320,7 @@ public class LTSminGMWalker {
 	}
 
 	static void DMIncReadAll(Params params) {
-		for(int i=params.model.getStateVector().size(); i-->0;) {
+		for(int i=params.model.sv.size(); i-->0;) {
 		}
 	}
 

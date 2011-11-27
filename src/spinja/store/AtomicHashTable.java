@@ -25,6 +25,7 @@ import spinja.store.hash.JenkinsHash;
 import spinja.store.hash.HashAlgorithm.HashGenerator;
 import sun.misc.Unsafe;
 
+@SuppressWarnings("all")
 public class AtomicHashTable extends StateStore {
 	private static Unsafe unsafe = null;
 

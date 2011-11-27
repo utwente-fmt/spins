@@ -3,6 +3,8 @@
  */
 package spinja.promela.compiler.ltsmin.instr;
 
+import static spinja.promela.compiler.ltsmin.LTSminStateVector.*;
+
 import java.util.Set;
 
 import spinja.promela.compiler.expression.Expression;
@@ -25,7 +27,7 @@ public class PCExpression extends Expression {
     }
 
     public PCExpression(String processName) {
-        super(new Token(PromelaConstants.NUMBER,LTSminTreeWalker.C_STATE_TMP + "." + LTSminTreeWalker.wrapName(processName) + "." + LTSminTreeWalker.C_STATE_PROC_COUNTER));
+        super(new Token(PromelaConstants.NUMBER,C_STATE_TMP + "." + LTSminTreeWalker.wrapName(processName) + "." + C_STATE_PROC_COUNTER));
         this.processName = processName;
     }
     public Set<VariableAccess> readVariables() {
@@ -37,6 +39,6 @@ public class PCExpression extends Expression {
 
     @Override
     public String getIntExpression() {
-        return LTSminTreeWalker.C_STATE_TMP + "." + LTSminTreeWalker.wrapName(processName) + "." + LTSminTreeWalker.C_STATE_PROC_COUNTER;
+        return C_STATE_TMP + "." + LTSminTreeWalker.wrapName(processName) + "." + C_STATE_PROC_COUNTER;
     }
 }

@@ -1,6 +1,5 @@
 package spinja.promela.compiler.parser;
 
-import java.io.ByteArrayInputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;

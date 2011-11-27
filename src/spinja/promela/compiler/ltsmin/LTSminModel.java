@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.ltsmin.instr.DepMatrix;
 import spinja.promela.compiler.ltsmin.instr.GuardMatrix;
 import spinja.promela.compiler.variable.Variable;
@@ -19,8 +20,7 @@ public class LTSminModel {
 
 	private List<LTSminType> types;
 	private List<LTSminTransitionBase> transitions;
-	private List<LTSminStateElement> stateVector;
-	//private HashMap<Variable,LTSminType> symbolTable;
+	public LTSminStateVector sv;
 	private HashMap<Variable,Integer> variables;
 
 	DepMatrix depMatrix;
@@ -34,9 +34,8 @@ public class LTSminModel {
 		this.name = name;
 		this.transitions = new ArrayList<LTSminTransitionBase>();
 		this.types = new ArrayList<LTSminType>();
-		this.stateVector = new ArrayList<LTSminStateElement>();
-		//this.symbolTable = new HashMap<Variable, LTSminType>();
 		this.variables = new HashMap<Variable, Integer>();
+		sv = new LTSminStateVector(this);
 	}
 
 	public String getName() {
@@ -52,7 +51,7 @@ public class LTSminModel {
 		w.outdent();
 		w.appendLine("State vector:");
 		w.indent();
-		for(LTSminStateElement e: stateVector) {
+		for(LTSminStateElement e : sv) {
 			e.prettyPrint(w);
 			w.removePostfix();
 			w.append(" (").append(variables.get(e.getVariable())).append(")");
@@ -62,17 +61,9 @@ public class LTSminModel {
 		w.appendLine("Transitions:");
 		w.indent();
 		for(LTSminTransitionBase t: transitions) {
-			LTSminPrinter.generateTransition(w,t);
+			LTSminPrinter.generateTransition(w,t, this);
 		}
 		w.outdent();
-	}
-
-	public List<LTSminStateElement> getStateVector() {
-		return stateVector;
-	}
-
-	public void setStateVector(List<LTSminStateElement> stateVector) {
-		this.stateVector = stateVector;
 	}
 
 	public DepMatrix getDepMatrix() {
@@ -119,19 +110,7 @@ public class LTSminModel {
 		this.variables = variables;
 	}
 
-	public void addElement(LTSminStateElement element) {
-		Integer i = variables.get(element.getVariable());
-		if(i!=null) {
-			if(stateVector.get(stateVector.size()-1).getVariable()!=element.getVariable()) {
-				throw new AssertionError("Adding inconsecutive variable");
-			}
-		} else {
-			i = stateVector.size();
-		}
-		int s = stateVector.size();
-		stateVector.add(i,element);
-		if(s+1 != stateVector.size()) throw new AssertionError("Failed to add element");
-		variables.put(element.getVariable(),i);
+	public void createVectorStructs(Specification spec, LTSminDebug debug) {
+		sv.createVectorStructs(spec, debug);
 	}
-
 }

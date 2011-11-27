@@ -30,6 +30,7 @@ import spinja.promela.compiler.variable.VariableType;
  * @author Marc de Jonge
  */
 public class Identifier extends Expression {
+	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -5928789117017713005L;
 
 	private Variable var = null;

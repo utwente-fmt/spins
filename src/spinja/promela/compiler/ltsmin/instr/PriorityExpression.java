@@ -3,10 +3,12 @@
  */
 package spinja.promela.compiler.ltsmin.instr;
 
+import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_PRIORITY;
+import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_TMP;
+
 import java.util.Set;
 
 import spinja.promela.compiler.expression.Expression;
-import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -16,7 +18,7 @@ import spinja.promela.compiler.variable.VariableType;
 public class PriorityExpression extends Expression {
 
     public PriorityExpression() {
-        super(new Token(PromelaConstants.NUMBER,LTSminTreeWalker.C_STATE_TMP + "." + LTSminTreeWalker.C_PRIORITY));
+        super(new Token(PromelaConstants.NUMBER,C_STATE_TMP + "." + C_PRIORITY));
     }
     public Set<VariableAccess> readVariables() {
         return null;
@@ -27,7 +29,7 @@ public class PriorityExpression extends Expression {
 
     @Override
     public String getIntExpression() {
-        return LTSminTreeWalker.C_STATE_TMP + "." + LTSminTreeWalker.C_PRIORITY;
+        return C_STATE_TMP + "." + C_PRIORITY;
     }
 
 }

@@ -1,12 +1,14 @@
 package spinja.promela.compiler.ltsmin;
 
+import static spinja.promela.compiler.parser.PromelaConstants.IDENTIFIER;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
@@ -17,7 +19,6 @@ import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.actions.ExprAction;
 import spinja.promela.compiler.actions.PrintAction;
-import spinja.promela.compiler.automaton.Automaton;
 import spinja.promela.compiler.automaton.ElseTransition;
 import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
@@ -28,32 +29,22 @@ import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.ltsmin.instr.AtomicState;
-import spinja.promela.compiler.ltsmin.instr.CStruct;
 import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.instr.ElseTransitionItem;
-import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
 import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
 import spinja.promela.compiler.ltsmin.instr.ReadAction;
 import spinja.promela.compiler.ltsmin.instr.ReadersAndWriters;
 import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.instr.SendAction;
 import spinja.promela.compiler.ltsmin.instr.TimeoutTransition;
-import spinja.promela.compiler.ltsmin.instr.TypeDesc;
-import spinja.promela.compiler.ltsmin.instr.VarDescriptor;
-import spinja.promela.compiler.ltsmin.instr.VarDescriptorArray;
-import spinja.promela.compiler.ltsmin.instr.VarDescriptorChannel;
-import spinja.promela.compiler.ltsmin.instr.VarDescriptorVar;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
-import spinja.promela.compiler.variable.CustomVariableType;
 import spinja.promela.compiler.variable.Variable;
-import spinja.promela.compiler.variable.VariableStore;
 import spinja.promela.compiler.variable.VariableType;
-import spinja.util.StringWriter;
 
 /**
  * This class handles the generation of C code for LTSMin.
@@ -68,49 +59,11 @@ import spinja.util.StringWriter;
  */
 public class LTSminTreeWalker {
 
-	/// The size of one element in the state struct in bytes.
-	public static final int STATE_ELEMENT_SIZE = 4;
-
-	public static final String C_STATE_T = "state_t";
-	public static final String C_STATE_GLOBALS_T = "state_globals_t";
-	public static final String C_STATE_GLOBALS = "globals";
-	public static final String C_STATE_PROC_COUNTER = "pc";
-	public static final String C_NUM_PROCS_VAR = "_nr_pr";
-	public static final String C_STATE_SIZE = "state_size";
-	public static final String C_STATE_INITIAL = "initial";
-	public static final String NUM_PROCS_VAR = "_nr_pr";
-
-	public static final String C_STATE_TMP = "tmp";
-	public static final String C_STATE_PRIORITY = "prioritiseProcess";
-	public static final String C_STATE_NEVER = "never";
-	public static final String C_PRIORITY = C_STATE_GLOBALS+"."+C_STATE_PRIORITY;
-	public static final String C_NEVER = C_STATE_GLOBALS+"."+C_STATE_NEVER;
-	public static final String C_TYPE_INT1   = "sj_int1";
-	public static final String C_TYPE_INT8   = "sj_int8";
-	public static final String C_TYPE_INT16  = "sj_int16";
-	public static final String C_TYPE_INT32  = "sj_int32";
-	public static final String C_TYPE_UINT8  = "sj_uint8";
-	public static final String C_TYPE_UINT16 = "sj_uint16";
-	public static final String C_TYPE_UINT32 = "sj_uint32";
-	public static final String C_TYPE_CHANNEL = "sj_channel";
-	public static final String C_TYPE_PROC_COUNTER = C_TYPE_INT32;
-	public static final String C_TYPE_PROC_COUNTER_ = "int";
-
-	public static final Variable _NR_PR = new Variable(VariableType.BYTE, C_NUM_PROCS_VAR, 1);
+	private LTSminDebug debug = new LTSminDebug();
 	
-	private HashMap<Variable,Integer> state_var_offset;
-	public static HashMap<Variable, String> state_var_desc;
-	private HashMap<Proctype,Integer> state_proc_offset;
-
 	// For each channel, a list of read actions and send actions is kept
 	// to later handle these separately
 	private HashMap<ChannelVariable,ReadersAndWriters> channels;
-
-	// The variables in the state struct
-	private List<Variable> state_vector_var;
-
-	// Textual description of the state vector, per integer
-	private List<String> state_vector_desc;
 
 	// Atomic states - of these loss of atomicity will be instrumentd
 	private List<AtomicState> atomicStates;
@@ -119,36 +72,21 @@ public class LTSminTreeWalker {
 	// initialised by constructor
 	private final Specification spec;
 
-
-	// The CStruct state vector
-	private CStruct state;
-
-	// The transition ID of the transition that handles loss of atomicity
-	int loss_transition_id;
-
 	// The transition ID of the transition that handles total timeout
-	int total_timeout_id;
-	LTSminTransition lt_total_timeout;
-
-	// State vector offset of the prioritiseProcess variable
-	int offset_priority;
+	private int total_timeout_id;
+	private LTSminTransition lt_total_timeout;
 
 	// Set to true when all transitions have been parsed.
 	// After this, channels, else, timeout, and loss of atomicity is handled.
 	boolean seenItAll = false;
 
-	// List of transition with a TimeoutExpression
-	List<TimeoutTransition> timeout_transitions;
-
 	// List of Elsetransitions
 	// These will be instrumentd after normal transitions
-	List<ElseTransitionItem> else_transitions;
-
-	private HashMap<Proctype,Identifier> PCIDs;
+	private List<ElseTransitionItem> else_transitions;
 
 	private PriorityIdentifier priorityIdentifier;
 
-	LTSminModel model;
+	private LTSminModel model;
 
 	/**
 	 * Creates a new LTSMinPrinter using the specified Specification.
@@ -157,68 +95,40 @@ public class LTSminTreeWalker {
 	 * @param name The name to give the model.
 	 */
 	public LTSminTreeWalker(Specification spec, String name) {
-		if(spec==null) {
-			// error
-		}
 		this.spec = spec;
-
-		state_var_offset = new HashMap<Variable,Integer>();
-		state_var_desc = new HashMap<Variable,String>();
-		state_proc_offset = new HashMap<Proctype,Integer>();
-		state = null;
-		state_vector_desc = new ArrayList<String>();
-		state_vector_var = new ArrayList<Variable>();
 		atomicStates = new ArrayList<AtomicState>();
-		timeout_transitions = new ArrayList<TimeoutTransition>();
 		else_transitions = new ArrayList<ElseTransitionItem>();
-
-		model = new LTSminModel(name);
-
 		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
-		PCIDs = new HashMap<Proctype,Identifier>();
 		priorityIdentifier = new PriorityIdentifier();
+		model = new LTSminModel(name);
 	}
-
+		
 	/**
-	 * instruments and returns C code according to the Specification provided
+	 * genrates and returns C code according to the Specification provided
 	 * when creating this LTSMinPrinter instance.
 	 * @return The C code according to the Specification.
 	 */
-	public String generate() {
+	public LTSminModel createLTSminModel() {
 		//long start_t = System.currentTimeMillis();
-
-		// Create structs describing channels and custom structs
-		createCustomStructs();
-		createStateStructs();
+		model.createVectorStructs(spec, debug);
 		bindByReferenceCalls();
-			
 		instrumentTransitions();
-		
-		// Generate code for total time out expression
-        if(spec.getNever()!=null) {
+        if(spec.getNever()!=null) 
             instrumentTotalTimeout();
-        }
-        
 		LTSminDMWalker.walkModel(model);
 		LTSminGMWalker.walkModel(model);
-		StringWriter w        = new StringWriter();
-		LTSminPrinter.generateModel(w, model);
 		//long end_t = System.currentTimeMillis();
-		return w.toString();
+		return model;
 	}
 
 	/**
 	 * Binds any channeltype arguments of all RunExpressions by reference.
 	 */
 	private void bindByReferenceCalls() {
-		say("");
+		debug.say("");
 		for (RunExpression re : spec.getRuns()){
 			bindArguments(re);
 		}
-	}
-
-	public static AssertionError error(String string, Token token) {
-		return new AssertionError(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
 	}
 
 	private void bindArguments(RunExpression re) {
@@ -244,7 +154,7 @@ public class LTSminTreeWalker {
 				if (ct.getBufferSize() == -1) //TODO: implement more analysis on AST
 					throw error("Could not deduce channel declaration for parameter "+ count +" of "+ re.getId() +".", re.getToken());
 				String name = v.getName();
-				say("Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
+				debug.say("Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
 				v.setRealName(v.getName());
 				v.setType(varParameter.getType());
 				v.setOwner(varParameter.getOwner());
@@ -252,453 +162,117 @@ public class LTSminTreeWalker {
 			}
 		}
 	}
+
+	private Iterable<State> getNeverAutomatonOrNullSet() {
+		if (spec.getNever()==null)
+			return new HashSet<State>(Arrays.asList((State)null));
+		return spec.getNever().getAutomaton();
+	}
 	
-	/**
-	 * For the specified variable, instrument a custom struct typedef and print
-	 * to the StringWriter.
-	 * ChannelVariable's are also remembered, for later use. In particular for
-	 * rendezvous.
-	 * @param w The StringWriter to which the code is written.
-	 * @param var The variable of which a custom typedef is requested.
-	 */
-	private void buildCustomStruct(Variable var) {
-
-		// Handle the ChannelType variable type
-		if(var.getType() instanceof ChannelType) {
-			ChannelVariable cv = (ChannelVariable)var;
-			ChannelType ct = cv.getType();
-
-			// Remember this channel variable, to keep track of
-			channels.put(cv,new ReadersAndWriters());
-			
-			 //skip uninitialized channels (ie proc arguments) and rendez-vous channels
-			if (ct.getBufferSize() == -1 || ct.getBufferSize() == 0 ) return;
-			
-			// Create a new C struct generator
-			CStruct struct = new CStruct(wrapNameForChannel(var.getName()));
-
-			VariableStore vs = ct.getVariableStore();
-
-			LTSminTypeStruct ls = new LTSminTypeStruct(wrapNameForChannel(var.getName()));
-
-			// Only instrument members for non-rendezvous channels
-			if (ct.getBufferSize() > 0) {
-				int j=0;
-				for(Variable v: vs.getVariables()) {
-					TypeDesc td = getCTypeOfVar(v);
-					struct.addMember(td,"m"+j);
-					ls.members.add(new LTSminTypeBasic(td.type,"m"+j));
-					++j;
-				}
-			}
-
-			model.addType(ls);
-		}
-
+	private Iterable<Transition> getOutTransitionsOrNullSet(State s) {
+		if (s==null)
+			return new HashSet<Transition>(Arrays.asList((Transition)null));
+		return s.output;
 	}
-
-	/**
-	 * Parse all globals and all local variables of processes to instrument
-	 * custom struct typedefs where needed. Calls instrumentCustomStruct() for
-	 * variable that need it.
-	 * @param w
-	 */
-	private void createCustomStructs() {
-
-		// Globals
-		VariableStore globals = spec.getVariableStore();
-		List<Variable> vars = globals.getVariables();
-		for(Variable var: vars) {
-			buildCustomStruct(var);
-		}
-
-		// Locals
-		for(Proctype p : spec) {
-			List<Variable> proc_vars = p.getVariables();
-			for(Variable var: proc_vars) {
-				buildCustomStruct(var);
-			}
-			PCIDs.put(p,new PCIdentifier(p));
-		}
-	}
-
-	/**
-	 * instruments the C code for the state structs and fills the following
-	 * members with accurate data:
-	 *   - state_var_offset;
-	 *   - state_var_desc;
-	 *   - state_proc_offset;
-	 *   - state_size;
-	 *   - state;
-	 *   - state_vector_var;
-	 *   - state_vector_desc.
-	 *   - offset_priority
-	 *   - procs
-	 * @param w The StringWriter to which the code is written.
-	 * @return C code for the state structs.
-	 */
-	public Variable never_var;
-	public List<Variable> procs_var = new ArrayList<Variable>();
-	static public HashMap<Proctype,Variable> processIdentifiers = new HashMap<Proctype, Variable>();
-	private void createStateStructs() {
-
-		// Current offset in the state struct
-		int current_offset = 0;
-
-		// List of state structs inside the main state struct
-		List<CStruct> state_members = new ArrayList<CStruct>();
-
-		// The main state struct
-		state = new CStruct(C_STATE_T);
-
-		LTSminTypeStruct ls_t = new LTSminTypeStruct(C_STATE_T);
-
-		// Globals: initialise globals state struct and add to main state struct
-		say("== Globals");
-		CStruct sg = new CStruct(C_STATE_GLOBALS_T);
-		LTSminTypeStruct ls_g = new LTSminTypeStruct(C_STATE_GLOBALS_T);
-		model.addType(ls_g);
-
-		// Add priority process
-		{
-			ls_g.members.add(new LTSminTypeBasic(C_TYPE_INT32, C_STATE_PRIORITY));
-			sg.addMember(C_TYPE_INT32, C_STATE_PRIORITY);
-			offset_priority = current_offset;
-			++current_offset;
-			state_vector_desc.add(C_PRIORITY);
-			state_vector_var.add(null);
-			model.addElement(new LTSminStateElement(PriorityIdentifier.priorVar));
-		}
-
-		// Globals: add globals to the global state struct
-		VariableStore globals = spec.getVariableStore();
-		globals.addVariable(_NR_PR);
-		List<Variable> vars = globals.getVariables();
-		for(Variable var: vars) {
-			// Add global to the global state struct and fix the offset
-			current_offset = handleVariable(sg,var,C_STATE_GLOBALS+".",current_offset,ls_g);
-		}
-
-		// Add global state struct to main state struct
-		// Add it even if there are no global variables, since priorityProcess
-		// is a 'global'
-		state_members.add(sg);
-		state.addMember(C_STATE_GLOBALS_T, C_STATE_GLOBALS);
-
-		ls_t.members.add(new LTSminTypeBasic(C_STATE_GLOBALS_T, C_STATE_GLOBALS));
-
-		// Add Never process
-		{
-			Proctype p = spec.getNever();
-			if(p!=null) {
-				String name = wrapName(p.getName());
-
-				LTSminTypeStruct ls_p = new LTSminTypeStruct("state_"+name+"_t");
-				//ls_t.members.add(ls_p);
-				ls_t.members.add(new LTSminTypeBasic("state_"+name+"_t",wrapName(name)));
-				CStruct proc_never = new CStruct("state_"+name+"_t");
-				state.addMember("state_"+name+"_t", name);
-
-				// Add
-				proc_never.addMember(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER);
-				ls_p.members.add(new LTSminTypeBasic(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER));
-
-				// Add process to Proctype->offset map and add a description
-				state_proc_offset.put(p, current_offset);
-				state_vector_desc.add(name + "." + C_STATE_PROC_COUNTER);
-				state_vector_var.add(null);
-
-				//Fix the offset
-				++current_offset;
-
-				// Add process state struct to main state struct
-				state_members.add(proc_never);
-				never_var = new Variable(VariableType.INT, C_STATE_TMP + "." + wrapName(p.getName()), 1);
-				model.addElement(new LTSminStateElement(never_var));
-				model.addType(ls_p);
-				processIdentifiers.put(p,never_var);
-			}
-		}
-
-		// Processes:
-		say("== Processes");
-		for(Proctype p : spec) {
-			// Process' name
-			String name = wrapName(p.getName());
-
-			// Initialise process state struct and add to main state struct
-			say("[Proc] " + name + " @" + current_offset);
-			CStruct proc_sg = new CStruct("state_"+name+"_t"); // fix name
-			state.addMember("state_"+name+"_t", name); //fix name
-
-			LTSminTypeStruct ls_p = new LTSminTypeStruct("state_"+name+"_t");
-			ls_t.members.add(new LTSminTypeBasic("state_"+name+"_t",wrapName(name)));
-			// Add process to Proctype->offset map and add a description
-			state_proc_offset.put(p, current_offset);
-			state_vector_desc.add(name + "." + C_STATE_PROC_COUNTER);
-			state_vector_var.add(null);
-
-			// Add process counter to process state struct
-			proc_sg.addMember(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER);
-			ls_p.members.add(new LTSminTypeBasic(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER));
-
-			//Fix the offset
-			++current_offset;
-			{
-				Variable var = new Variable(VariableType.INT, C_STATE_TMP + "." + wrapName(p.getName()), 1, p);
-				procs_var.add(var);
-				model.addElement(new LTSminStateElement(var,name+"."+var.getName()));
-				processIdentifiers.put(p,var);
-			}
-			
-			// Locals: add locals to the process state struct
-			List<Variable> proc_vars = p.getVariables();
-			Set<Variable> args = new HashSet<Variable>(p.getArguments());
-			for(Variable var: proc_vars) {
-				if (args.contains(var)) {
-					if (var.getType() instanceof ChannelType)
-						continue; // channel types are passed as reference
-								  // the tree walker modifies the AST to make
-								  // the argument point directly to the real channel
-				}
-				current_offset = handleVariable(proc_sg,var,name + ".",current_offset,ls_p);
-			}
-
-			// Add process state struct to main state struct
-			state_members.add(proc_sg);
-			model.addType(ls_p);
-		}
-		model.addType(ls_t);
-	}
-
-	/**
-	 * Returns the C typedef name for the given variable. This typedef
-	 * has been defined earlier to pad data to STATE_ELEMENT_SIZE.
-	 * @param v The Variable of which the C typedef is wanted.
-	 * @return The C typedef name for the given variable.
-	 */
-	static public TypeDesc getCTypeOfVar(Variable v) {
-		TypeDesc td = new TypeDesc();
-		switch(v.getType().getBits()) {
-			case 1:
-				td.type = C_TYPE_INT1;
-				break;
-			case 8:
-				td.type = C_TYPE_UINT8;
-				break;
-			case 16:
-				td.type = C_TYPE_INT16;
-				break;
-			case 32:
-				td.type = C_TYPE_INT32;
-				break;
-			default:
-				throw new AssertionError("ERROR: Unable to handle: " + v.getRealName());
-		}
-		
-		int size = v.getArraySize();
-		if(size>1) {
-			td.array = "[" + size + "]";
-		}
-		return td;
-	}
-
-	// Helper functionality for debugging
-	int say_indent = 0;
-	private void say(String s) {
-		for(int n=say_indent; n-->0;) {
-			System.out.print("  ");
-		}
-		System.out.println(s);
-	}
-
-    /**
-     * instruments the state transitions.
-     * This calls instrumentTransitionsFromState() for every state in every process.
-     * @param w The StringWriter to which the code is written.
-     */
-    private int instrumentTransitions() {
-        int trans = instrumentTransitions_mid(0);
-        trans = instrumentTransitions_post(trans);
-        return trans;
-    }
-    
+	
 	/**
 	 * instruments the state transitions.
 	 * This calls instrumentTransitionsFromState() for every state in every process.
 	 * @param w The StringWriter to which the code is written.
 	 */
-	private int instrumentTransitions_mid(int trans) {
-		say("");
+	private int instrumentTransitions() {
+		int trans = 0;
+		debug.say("");
 		// instrument the normal transitions for all processes.
 		// This does not include: rendezvous, else, timeout.
 		// Loss of atomicity is handled separately as well.
-		for(Proctype p: spec) {
-			say("[Proc] " + p.getName());
-			++say_indent;
-
-			Automaton a = p.getAutomaton();
-
-			// instrument transitions for all states in the process
-			Iterator<State> i = a.iterator();
-			while(i.hasNext()) {
-				State st = i.next();
-
-				Proctype never = spec.getNever();
-				if(never!=null) {
-					Automaton never_a = never.getAutomaton();
-					Iterator<State> never_i = never_a.iterator();
-
-					while(never_i.hasNext()) {
-						trans = instrumentTransitionsFromState(p,trans,st,never_i.next());
-					}
-				} else {
-						trans = instrumentTransitionsFromState(p,trans,st,null);
+		for(Proctype p : spec) {
+			debug.say("[Proc] " + p.getName());
+			for (State st : p.getAutomaton()) {
+				for (State n : getNeverAutomatonOrNullSet()) {
+					trans = instrumentTransitionsFromState(p,trans,st, n);
 				}
 			}
-
-			--say_indent;
 		}
 		seenItAll = true;
 
 		// instrument Else Transitions
-		for(ElseTransitionItem eti: else_transitions) {
-			Proctype never = spec.getNever();
-			if(never!=null) {
-				Automaton never_a = never.getAutomaton();
-				Iterator<State> never_i = never_a.iterator();
-
-				while(never_i.hasNext()) {
-					State never_state = never_i.next();
-					for(Transition never_t: never_state.output) {
-						trans = instrumentStateTransition(eti.p, eti.t, trans,never_t);
-					}
+		for(ElseTransitionItem eti : else_transitions) {
+			for (State ns : getNeverAutomatonOrNullSet()) {
+				for(Transition nt : getOutTransitionsOrNullSet(ns)) {
+					trans = instrumentStateTransition(eti.p, eti.t, trans,nt);
 				}
-			} else {
-				trans = instrumentStateTransition(eti.p, eti.t, trans, null);
-			}
+			}			
 		}
 
 		// instrument the rendezvous transitions
 		for(Map.Entry<ChannelVariable,ReadersAndWriters> e: channels.entrySet()) {
-			//ChannelVariable cv = e.getKey(); //TODO: not used?
-			ReadersAndWriters raw = e.getValue();
-			for(SendAction sa: raw.sendActions) {
-				for(ReadAction ra: raw.readActions) {
-					//if(state_proc_offset.get(sa.p) != state_proc_offset.get(ra.p)) {
-
-						// Add transition
-						if(model.getTransitions().size() != trans) throw new AssertionError("Transition not set at correct location in the transition array");
-
-						LTSminTransition lt = new LTSminTransition(sa.p);
-						model.getTransitions().add(lt);
-
-						Proctype never = spec.getNever();
-						if(never!=null) {
-							Automaton never_a = never.getAutomaton();
-							Iterator<State> never_i = never_a.iterator();
-
-							while(never_i.hasNext()) {
-								State never_state = never_i.next();
-								for(Transition never_t: never_state.output) {
-									instrumentRendezVousAction(sa,ra,trans,never_t,lt);
-								}
-							}
-						} else {
-							instrumentRendezVousAction(sa,ra,trans,null,lt);
+			for(SendAction sa: e.getValue().sendActions) {
+				for(ReadAction ra: e.getValue().readActions) {
+					//if(state_proc_offset.get(sa.p) == state_proc_offset.get(ra.p)) continue;
+					if(model.getTransitions().size() != trans)
+						throw new AssertionError("Transition not set at correct location in the transition array");
+					LTSminTransition lt = new LTSminTransition(sa.p);
+					model.getTransitions().add(lt);
+					for (State ns : getNeverAutomatonOrNullSet()) {
+						for(Transition nt : getOutTransitionsOrNullSet(ns)) {
+							instrumentRendezVousAction(sa,ra,trans,nt,lt);
 						}
-
-						++trans;
-					//}
+					}
+					++trans;
 				}
-
 			}
-
 		}
-		return trans;
-	}
-
-	private int instrumentTransitions_post(int trans) {
+		
 		// Create loss of atomicity transition.
 		// This is used when a process blocks inside an atomic transition.
-		
-		{ // Add transition
-			if(model.getTransitions().size() != trans) throw new AssertionError("Transition not set at correct location in the transition array");
-			LTSminTransitionCombo ltc = new LTSminTransitionCombo("loss of atomicity");
-			model.getTransitions().add(ltc);
+		if(model.getTransitions().size() != trans)
+			throw new AssertionError("Transition not set at correct location in the transition array");
+		LTSminTransitionCombo ltc = new LTSminTransitionCombo("loss of atomicity");
+		model.getTransitions().add(ltc);
+		for(AtomicState as : atomicStates) {
+			LTSminTransition lt = new LTSminTransition(as.p);
+			ltc.addTransition(lt);
+			State s = as.s;
+			Proctype process = as.p;
+			assert (s.isInAtomic());
 
-			for(AtomicState as: atomicStates) {
-				LTSminTransition lt = new LTSminTransition(as.p);
-				ltc.addTransition(lt);
-				State s = as.s;
-				Proctype process = as.p;
-				assert (s.isInAtomic());
-
-				lt.addGuard(new LTSminGuard(trans, makePCGuard(s, process)));
-				lt.addGuard(new LTSminGuard(trans, makeExclusiveAtomicGuard(process)));
-
-				for(Transition ot: s.output) {
-					LTSminGuardNand gnand = new LTSminGuardNand();
-					instrumentTransitionGuard(process,ot,trans,gnand);
-					lt.addGuard(gnand);
-				}
-
-				lt.addAction(new AssignAction(
-										new Token(PromelaConstants.ASSIGN,"="),
-										priorityIdentifier,
-										new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"), -1)));
+			lt.addGuard(new LTSminGuard(trans, makePCGuard(s, process)));
+			lt.addGuard(new LTSminGuard(trans, makeExclusiveAtomicGuard(process)));
+			for(Transition ot : s.output) {
+				LTSminGuardNand gnand = new LTSminGuardNand();
+				instrumentTransitionGuard(process,ot,trans,gnand);
+				lt.addGuard(gnand);
 			}
-			++trans;
+			lt.addAction(assign(priorityIdentifier, -1));
 		}
+		++trans;
 
 		// Add total timeout transition in case of a never claim.
 		// This is because otherwise accepting cycles might not be found,
 		// although the never claim is violated.
 		if(spec.getNever()!=null) {
-			{
-				// Add transition
-				if(model.getTransitions().size() != trans) throw new AssertionError("Transition not set at correct location in the transition array");
-				LTSminTransition lt = lt_total_timeout = new LTSminTransition("total timeout");
-				model.getTransitions().add(lt);
-
-				LTSminGuardOr gor = new LTSminGuardOr();
-				lt.addGuard(gor);
-
-				Iterator<State> i = spec.getNever().getAutomaton().iterator();
-				while(i.hasNext()) {
-					State s = i.next();
-					if(s.isAcceptState()) {
-						gor.addGuard(new LTSminGuard(trans, makePCGuard(s, spec.getNever())));
-					}
+			if(model.getTransitions().size() != trans)
+				throw new AssertionError("Transition not set at correct location in the transition array");
+			lt_total_timeout = new LTSminTransition("total timeout");
+			LTSminGuardOr gorAcc = new LTSminGuardOr();
+			lt_total_timeout.addGuard(gorAcc);
+			LTSminTransition lt_cycle = new LTSminTransition("cycle");
+			LTSminGuardOr gorEnd = new LTSminGuardOr();
+			lt_cycle.addGuard(gorEnd);
+			model.getTransitions().add(lt_total_timeout);
+			model.getTransitions().add(lt_cycle);
+			for (State s : spec.getNever().getAutomaton()) {
+				if(s.isAcceptState()) {
+					gorAcc.addGuard(new LTSminGuard(trans, makePCGuard(s, spec.getNever())));
 				}
-				++trans;
-			}
-
-			// Add accepting cycle in the end state of never claim
-			{
-				// Add transition
-				if(model.getTransitions().size() != trans) throw new AssertionError("Transition not set at correct location in the transition array");
-				LTSminTransition lt = new LTSminTransition("cycle");
-				model.getTransitions().add(lt);
-
-				LTSminGuardOr gor = new LTSminGuardOr();
-				lt.addGuard(gor);
-
-				Iterator<State> i = spec.getNever().getAutomaton().iterator();
-				while(i.hasNext()) {
-					State s = i.next();
-					if(s.isEndingState()) {
-						gor.addGuard(new LTSminGuard(trans,makePCGuard(s, spec.getNever())));
-					}
+				if(s.isEndingState()) {
+					gorEnd.addGuard(new LTSminGuard(trans,makePCGuard(s, spec.getNever())));
 				}
-				++trans;
 			}
-
+			trans += 2;
 		}
-		--say_indent;
-
 		return trans;
-
 	}
 
 	/**
@@ -710,20 +284,19 @@ public class LTSminTreeWalker {
 	 * @param state The state of which all outgoing transitions will be
 	 * instrumentd.
 	 * @return The next free transition ID
-	 * ( = old.trans + "#transitions instrumentd" ).
+	 * ( = old.trans + "#transitions instrumented" ).
+	 * 
+	 * Side effects:
+	 * 	collects else transition in elsetransitions
 	 */
 	private int instrumentTransitionsFromState(Proctype process, int trans, State state, State never_state) {
-
-		if(state==null) {
-			throw new AssertionError("State is NULL");
-		}
-		say(state.toString());
+		++debug.say_indent;
+		debug.say(state.toString());
 
 		// Check if it is an ending state
-		if(state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
-
-			// Add transition
-			if(model.getTransitions().size() != trans) throw new AssertionError("Transition now set at correct location in the transition array");
+		if (state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
+			if(model.getTransitions().size() != trans)
+				throw new AssertionError("Transition now set at correct location in the transition array");
 			LTSminTransition lt = new LTSminTransition(process);
 			model.getTransitions().add(lt);
 
@@ -733,57 +306,28 @@ public class LTSminTreeWalker {
 
 			// In the case of an ending state, instrument a transition only
 			// changing the process counter to -1.
-			lt.addAction(new AssignAction(
-							new Token(PromelaConstants.ASSIGN,"="),
-							new PCIdentifier(process),
-							new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"),-1)));
+			lt.addAction(assign(model.sv.procId(process), -1));
 
 			// Keep track of the current transition ID
 			++trans;
 		} else {
 			// In the normal case, instrument a transition changing the process
 			// counter to the next state and any actions the transition does.
-			++say_indent;
-			//int outs = 0;
-
-			// If this is an atomic state, add it to the list
-			if(state.isInAtomic()) {
+			if(state.isInAtomic()) {// If this is an atomic state, add it to the list
 				atomicStates.add(new AtomicState(state,process));
 			}
-
-			if(state.output==null) {
-				throw new AssertionError("State's output list is NULL");
-			}
-
-			if(never_state!=null) {
-				for(Transition t: state.output) {
-					for(Transition never_t: never_state.output) {
-
-						// instrument transition
-						trans = instrumentStateTransition(process,t,trans,never_t);
-
-					}
-				}
-			} else {
-				for(Transition t: state.output) {
-					// instrument transition
-					trans = instrumentStateTransition(process,t,trans,null);
+			for(Transition t : state.output) {
+				for(Transition never_t : getOutTransitionsOrNullSet(never_state)) {
+					trans = instrumentStateTransition(process,t,trans,never_t);
 				}
 			}
-			--say_indent;
 		}
-
 		// Return the next free transition ID
+		--debug.say_indent;
 		return trans;
-
 	}
 
 	public int instrumentStateTransition(Proctype process, Transition t, int trans, Transition never_t) {
-		// Checks
-		if(t==null) {
-			throw new AssertionError("State transition is NULL");
-		}
-
 		// If the from state is atomic, ignore the never transition
 		if(t.getFrom().isInAtomic()) never_t = null;
 
@@ -794,39 +338,30 @@ public class LTSminTreeWalker {
 		// statements.
 		// "This means that a never claim may not contain assignment or message
 		// passing statements." @ http://spinroot.com/spin/Man/never.html)
-		{
-			Action a = null;
-			if(t.getActionCount()>0) {
-				a = t.getAction(0);
-			}
-			if(a!= null && a instanceof ChannelSendAction) {
+		if (t.iterator().hasNext()) {
+			Action a = t.iterator().next();
+			if(a instanceof ChannelSendAction) {
 				ChannelSendAction csa = (ChannelSendAction)a;
 				ChannelVariable var = (ChannelVariable)csa.getVariable();
 				if(var.getType().getBufferSize()==0) {
-
-					// Remember this rendezvous send action for later...
 					ReadersAndWriters raw = channels.get(var);
 					if(raw==null) {
-						throw new AssertionError("Channel not found in list of channels!");
+						raw = new ReadersAndWriters();
+						channels.put(var, raw);
 					}
 					raw.sendActions.add(new SendAction(csa,t,process));
-
-					// ...and go to next transition.
 					return trans;
 				}
 			} else if(a!= null && a instanceof ChannelReadAction) {
 				ChannelReadAction cra = (ChannelReadAction)a;
 				ChannelVariable var = (ChannelVariable)cra.getVariable();
 				if(var.getType().getBufferSize()==0) {
-
-					// Remember this rendezvous send action for later...
 					ReadersAndWriters raw = channels.get(var);
 					if(raw==null) {
-						throw new AssertionError("Channel not found in list of channels!");
+						raw = new ReadersAndWriters();
+						channels.put(var, raw);
 					}
 					raw.readActions.add(new ReadAction(cra,t,process));
-
-					// ...and go to next transition.
 					return trans;
 				}
 			}
@@ -837,12 +372,9 @@ public class LTSminTreeWalker {
 		// This is because during the normal generation, some transitions
 		// are not instrumentd (e.g. rendezvous), so their enabledness is
 		// unknown.
-		//
-		{
-			if(!seenItAll && t instanceof ElseTransition) {
-				else_transitions.add(new ElseTransitionItem(-1,(ElseTransition)t,process));
-				return trans;
-			}
+		if (!seenItAll && t instanceof ElseTransition) {
+			else_transitions.add(new ElseTransitionItem(-1,(ElseTransition)t,process));
+			return trans;
 		}
 
 		// Add transition
@@ -850,11 +382,14 @@ public class LTSminTreeWalker {
 		LTSminTransition lt = new LTSminTransition(process);
 		model.getTransitions().add(lt);
 
+		++debug.say_indent;
 		if(never_t!=null) {
-			say("Handling trans: " + t.getClass().getName() + " || " + never_t.getClass().getName());
+			debug.say("Handling trans: " + t.getClass().getName() + " || " + never_t.getClass().getName());
 		} else {
-			say("Handling trans: " + t.getClass().getName());
+			debug.say("Handling trans: " + t.getClass().getName());
 		}
+		--debug.say_indent;
+		
 		// Guard: process counter
 		lt.addGuard(new LTSminGuard(trans, makePCGuard(t.getFrom(), process)));
 		lt.addGuard(new LTSminGuard(trans, makeAtomicGuard(process)));
@@ -877,7 +412,7 @@ public class LTSminTreeWalker {
         
         if(t instanceof ElseTransition) {
             ElseTransition et = (ElseTransition)t;
-            for(Transition ot: t.getFrom().output) {
+            for(Transition ot : t.getFrom().output) {
                 if(ot!=et) {
                     instrumentTransitionGuard(process,ot,trans,lt);
                 }
@@ -885,7 +420,7 @@ public class LTSminTreeWalker {
         }
         if(never_t != null && never_t instanceof ElseTransition) {
             ElseTransition et = (ElseTransition)never_t;
-            for(Transition ot: t.getFrom().output) {
+            for(Transition ot : t.getFrom().output) {
                 if(ot!=et) {
                     instrumentTransitionGuard(spec.getNever(),ot,trans,lt);
                 }
@@ -901,14 +436,11 @@ public class LTSminTreeWalker {
 		if(never_t == null || never_t.getTo()==null || !never_t.getTo().isInAtomic()) {
 			// Change process counter to the next state.
 			// For end transitions, the PC is changed to -1.
-			lt.addAction(new AssignAction(
-									new Token(PromelaConstants.ASSIGN,"="),
-									new PCIdentifier(process),
-									new ConstantExpression(new Token(PromelaConstants.NUMBER,""+(t.getTo()==null?-1:t.getTo().getStateId())),t.getTo()==null?-1:t.getTo().getStateId())));
-			if(t.getTo()==null) lt.addAction(new ResetProcessAction(process));
+			lt.addAction(assign(model.sv.procId(process), t.getTo()==null?-1:t.getTo().getStateId()));
+			if(t.getTo()==null) lt.addAction(new ResetProcessAction(process,model.sv.getProcId(process)));
 	       
-			for (Action a : t) {
-	            lt.addAction(a);
+			for (Action action : t) {
+	            lt.addAction(action);
 	        }
 
 			// If this transition is atomic
@@ -916,30 +448,21 @@ public class LTSminTreeWalker {
 				// Claim priority when taking this transition. It is
 				// possible this process had already priority, so nothing
 				// changes.
-				lt.addAction(new AssignAction(
-								new Token(PromelaConstants.ASSIGN,"="),
-								priorityIdentifier,
-								new ConstantExpression(new Token(PromelaConstants.NUMBER,""+state_proc_offset.get(process)), state_proc_offset.get(process))));
+				lt.addAction(assign(priorityIdentifier, model.sv.procOffset(process)));
 			// If this transition is not atomic
 			} else {
 				// Make sure no process has priority. This transition was
 				// either executed while having priority and it is now given
 				// up, or no process had priority and this remains the same.
-				lt.addAction(new AssignAction(
-								new Token(PromelaConstants.ASSIGN,"="),
-								priorityIdentifier,
-								new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"), -1)));
+				lt.addAction(assign(priorityIdentifier, -1));
 			}
 		}
 
 		// If there is a never claim, instrument the PC update code
 		if(never_t != null) {
-			lt.addAction(new AssignAction(
-								new Token(PromelaConstants.ASSIGN,"="),
-								new PCIdentifier(spec.getNever()),
-								new ConstantExpression(new Token(PromelaConstants.NUMBER,""+(never_t.getTo()==null?-1:never_t.getTo().getStateId())),never_t.getTo()==null?-1:never_t.getTo().getStateId())));
+			lt.addAction(assign(model.sv.procId(spec.getNever()),
+								never_t.getTo()==null?-1:never_t.getTo().getStateId()));
 		}
-
 		return trans+1;
 	}
 
@@ -981,19 +504,12 @@ public class LTSminTreeWalker {
 	private void instrumentEnabledExpression(Proctype process, Action a, Transition t, int trans, LTSminGuardContainer lt) throws ParseException {
 		// Handle assignment action
 		if(a instanceof AssignAction) {
-
-		// Handle assert action
 		} else if(a instanceof AssertAction) {
-
-		// Handle print action
 		} else if(a instanceof PrintAction) {
-			
-		// Handle expression action
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
 			lt.addGuard(new LTSminGuard(trans, expr));
-		// Handle a channel send action
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			ChannelVariable var = (ChannelVariable)csa.getVariable();
@@ -1006,24 +522,20 @@ public class LTSminTreeWalker {
 				for(ReadAction ra: raw.readActions) {
 					List<Expression> csa_exprs = csa.getExprs();
 					List<Expression> cra_exprs = ra.cra.getExprs();
-
 					LTSminGuardAnd gand = new LTSminGuardAnd();
 					gor.addGuard(gand);
 					gand.addGuard(new LTSminGuard(trans, makePCGuard(ra.t.getFrom(), ra.p)));
-
 					for (int i = 0; i < cra_exprs.size(); i++) {
 						final Expression csa_expr = csa_exprs.get(i);
 						final Expression cra_expr = cra_exprs.get(i);
 						if (!(cra_expr instanceof Identifier)) {
-							gand.addGuard(new LTSminGuard(trans,new CompareExpression(new Token(PromelaConstants.EQ,"=="),csa_expr,cra_expr)));
+							gand.addGuard(new LTSminGuard(trans,compare(csa_expr,cra_expr)));
 						}
 					}
 				}
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send before all others! "+ var);
 			}
-
-		// Handle a channel read action
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
@@ -1031,46 +543,36 @@ public class LTSminTreeWalker {
 			if(var.getType().getBufferSize()>0) {
 				List<Expression> exprs = cra.getExprs();
 				lt.addGuard(new LTSminGuard(trans,makeChannelHasContentsGuard(var)));
-
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
 					if (!(expr instanceof Identifier)) {
-						//throw new AssertionError("add guard addition here");
-						lt.addGuard(new LTSminGuard(trans,new CompareExpression(
-								new Token(PromelaConstants.EQ,"=="),
-								new ChannelTopExpression(cra, i),expr))
-						);
+						String name = wrapNameForChannelDesc(model.sv.getDescr(cra.getVariable()));
+						ChannelTopExpression cte = new ChannelTopExpression(cra, name, i);
+						lt.addGuard(new LTSminGuard(trans,compare(cte,expr)));
 					}
 				}
 			} else if(seenItAll) {
 				ReadersAndWriters raw = channels.get(var);
 				LTSminGuardOr gor = new LTSminGuardOr();
 				lt.addGuard(gor);
-				for(SendAction sa: raw.sendActions) {
+				List<Expression> cra_exprs = cra.getExprs();
+				for (SendAction sa: raw.sendActions) {
 					List<Expression> csa_exprs = sa.csa.getExprs();
-					List<Expression> cra_exprs = cra.getExprs();
-
 					LTSminGuardAnd gand = new LTSminGuardAnd();
 					gor.addGuard(gand);
 					gand.addGuard(new LTSminGuard(trans, makePCGuard(sa.t.getFrom(), sa.p)));
-
 					for (int i = 0; i < cra_exprs.size(); i++) {
 						final Expression csa_expr = csa_exprs.get(i);
 						final Expression cra_expr = cra_exprs.get(i);
 						if (!(cra_expr instanceof Identifier)) {
-							gand.addGuard(new LTSminGuard(trans,
-									new CompareExpression(new Token(PromelaConstants.EQ,"=="),
-											csa_expr,cra_expr)));
-
+							gand.addGuard(new LTSminGuard(trans, compare(csa_expr,cra_expr)));
 						}
 					}
 				}
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous receive before all others!");
 			}
-
-			// Handle not yet implemented action
-		} else {
+		} else { //unsupported action
 			throw new ParseException("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
 	}
@@ -1083,29 +585,16 @@ public class LTSminTreeWalker {
 	 * @param tt The TimeoutTransition to instrument code for.
 	 */
 	public void instrumentTimeoutExpression(TimeoutTransition tt) {
-
-		// Loop over all processes
-		for(Proctype p: spec) {
-			Automaton a = p.getAutomaton();
-			for (State st : a) {
-				// Cull other states of the current process
-				//if(tt.p == p && tt.t.getFrom() != st) {
-				//	continue;
-				//}
-
+		for(Proctype p : spec) {
+state_loop:	for (State st : p.getAutomaton()) {
 				// Check if this state has an ElseTransition
 				// If so, skip the transition, because this state
 				// always has an active outgoing transition
-				boolean hasElse = false;
 				for(Transition trans: st.output) {
-					if(trans instanceof ElseTransition) {
-						hasElse = true;
-					}
+					if(trans instanceof ElseTransition) continue state_loop;
 				}
-				if(hasElse) continue;
-
 				// Loop over all transitions of the state
-				for(Transition trans: st.output) {
+				for(Transition trans : st.output) {
 					tt.lt.addGuard(new LTSminGuard(tt.trans,makeAllowedToDie(p)));
 					tt.lt.addGuard(new LTSminGuard(tt.trans,makeAtomicGuard(p)));
                     instrumentTransitionGuard(p,trans,tt.trans,tt.lt);
@@ -1130,28 +619,15 @@ public class LTSminTreeWalker {
 	 * @param tt The TimeoutTransition to instrument code for.
 	 */
 	public void instrumentTotalTimeoutExpression(int trans, LTSminTransition lt) {
-
-		// Loop over all processes
-		for(Proctype p: spec) {
-			Automaton a = p.getAutomaton();
-			// Loop over all states of the process
-			for (State st : a) {
-				// Cull other states of the current process
-				//if(tt.p == p && tt.t.getFrom() != st) {
-				//	continue;
-				//}
-				
+		for (Proctype p: spec) {
+state_loop:	for (State st : p.getAutomaton()) {				
 				// Check if this state has an ElseTransition
 				// If so, skip the transition, because this state
 				// always has an active outgoing transition
-				for(Transition t: st.output) {
-					if (t instanceof ElseTransition) {
-						continue;
-					}
+				for(Transition t : st.output) {
+					if (t instanceof ElseTransition) continue state_loop;
 				}
-
-				// Loop over all transitions of the state
-				for(Transition t: st.output) {
+				for (Transition t: st.output) {
 					// Add the expression that the current transition from the
 					// current state in the current process is not enabled.
 					LTSminGuardNand gnand = new LTSminGuardNand();
@@ -1163,103 +639,68 @@ public class LTSminTreeWalker {
 			}
 		}
 	}
-
-	private int insertVariable(CStruct sg, Variable var, String desc, String name, int current_offset) {
-		if(!state_var_offset.containsKey(var)) {
-			// Add global to Variable->offset map and add a description
-			state_var_offset.put(var, current_offset);
-			state_var_desc.put(var, desc + name);
-		}
-		state_vector_desc.add(desc + name);
-		state_vector_var.add(var);
-		++current_offset;
-		return current_offset;
-	}
-
+	
 	/**
-	 * Handle a variable by adding it to a CStruct with the correct type and
-	 * putting it in the correct position in the state vector.
-	 * @param sg The CStruct to add the variable to.
-	 * @param var The variable to add.
-	 * @param desc The description of the variable, to add to state_vector_desc.
-	 * @param current_offset The offset at which the variable should be put.
-	 * @return The next free offset position.
+	 * instrument Pre code for a rendezvous couple.
 	 */
-	private int handleVariable(CStruct sg, Variable var, String desc, int current_offset, LTSminTypeStruct ls) {
-		return handleVariable(sg,var,desc,"",current_offset, ls);
-	}
+	private void instrumentPreRendezVousAction(SendAction sa, ReadAction ra, int trans, LTSminTransition lt) {
+		ChannelSendAction csa = sa.csa;
+		ChannelReadAction cra = ra.cra;
+		if(csa.getVariable() != cra.getVariable())
+			throw new AssertionError("instrumentRendezVousAction() called with inconsequent ChannelVariable");
+		ChannelVariable var = (ChannelVariable)csa.getVariable();
+		if(var.getType().getBufferSize()>0)
+			throw new AssertionError("instrumentRendezVousAction() called with non-rendezvous channel");
+		List<Expression> csa_exprs = csa.getExprs();
+		List<Expression> cra_exprs = cra.getExprs();
+		if(csa_exprs.size() != cra_exprs.size())
+			throw new AssertionError("instrumentRendezVousAction() called with incompatible actions: size mismatch");
 
-	/**
-	 * Handle a variable by adding it to a CStruct with the correct type and
-	 * putting it in the correct position in the state vector.
-	 * @param sg The CStruct to add the variable to.
-	 * @param var The variable to add.
-	 * @param desc The description of the variable, to add to state_vector_desc.
-	 * @param current_offset The offset at which the variable should be put.
-	 * @param vd The VarDescriptor to use for the description and declaration
-	 * of the variable.
-	 * @return The next free offset position.
-	 */
-	private int handleVariable(CStruct sg, Variable var, String desc, String name, int current_offset, LTSminTypeStruct ls) {
-		if(name==null || name.equals("")) 
-			name = var.getName();
-		if(var.getType() instanceof ChannelType) {
-			ChannelVariable cv = (ChannelVariable)var;
-			ChannelType ct = cv.getType();
-			if (ct.getBufferSize() == 0) return current_offset; //skip rendez-vous channels
-			VariableStore vs = ct.getVariableStore();
-
-			VarDescriptor vd = new VarDescriptorVar(wrapNameForChannelBuffer(name));
-			if(var.getArraySize()>1) {
-				vd = new VarDescriptorArray(vd,var.getArraySize());
+		lt.addGuard(new LTSminGuard(trans,makePCGuard(sa.t.getFrom(), sa.p)));
+		lt.addGuard(new LTSminGuard(trans,makePCGuard(ra.t.getFrom(), ra.p)));
+		/* Channel matches */
+		for (int i = 0; i < cra_exprs.size(); i++) {
+			final Expression csa_expr = csa_exprs.get(i);
+			final Expression cra_expr = cra_exprs.get(i);
+			if (!(cra_expr instanceof Identifier)) {
+				lt.addGuard(new LTSminGuard(trans,new CompareExpression(new Token(PromelaConstants.EQ,"=="),csa_expr,cra_expr)));
 			}
-			vd = new VarDescriptorArray(vd,ct.getBufferSize());
-			vd = new VarDescriptorChannel(vd,vs.getVariables().size());
-			vd.setType(wrapNameForChannel(name));
+		}
+	}
+	
+    /**
+	 * instrument the transition for one rendezvous couple. The specified
+	 * transition ID will be used to identify the instrumentd transition.
+	 * @param w The StringWriter to which the code is written.
+	 * @param sa The SendAction component.
+	 * @param ra The ReadAction component.
+	 * @param trans The transition ID to use for the instrumentd transition.
+	 */
+	private void instrumentRendezVousAction(SendAction sa, ReadAction ra, int trans, Transition never_t, LTSminTransition lt) {
+		ChannelSendAction csa = sa.csa;
+		ChannelReadAction cra = ra.cra;
 
-			say(current_offset +"\t"+ var.getName() + " ["+ ct.getBufferSize() +"] of {"+ vs.getVariables().size() +"}");
-			current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
-			sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
-			ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
-			model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
+		// Pre
+		instrumentPreRendezVousAction(sa,ra,trans,lt);
+		// Change process counter of sender
+		lt.addAction(assign(model.sv.procId(sa.p),sa.t.getTo().getStateId()));
+		// Change process counter of receiver
+		lt.addAction(assign(model.sv.procId(ra.p),ra.t.getTo().getStateId()));
 		
-			for(String s: vd.extractDescription()) {
-				current_offset = insertVariable(sg, var, desc, s, current_offset);
-				model.addElement(new LTSminStateElement(var,desc+"."+var.getName(), false));
+		List<Expression> csa_exprs = csa.getExprs();
+		List<Expression> cra_exprs = cra.getExprs();
+		for (int i = 0; i < cra_exprs.size(); i++) {
+			final Expression csa_expr = csa_exprs.get(i);
+			final Expression cra_expr = cra_exprs.get(i);
+			if ((cra_expr instanceof Identifier)) {
+				lt.addAction(assign((Identifier)cra_expr,csa_expr));
 			}
-			sg.addMember(vd.getType(),vd.extractDeclaration());
-			ls.members.add(new LTSminTypeBasic(vd.getType(), vd.extractDeclaration()));
-
-		} else if(var.getType() instanceof VariableType) {
-			if(var.getType().getJavaName().equals("int")) {
-				say(current_offset +"\t"+ var.getType().getName() +" "+ name);
-
-				// Add global to the global state struct
-				TypeDesc td = getCTypeOfVar(var);
-				sg.addMember(td,name);
-				ls.members.add(new LTSminTypeBasic(td.type, name,var.getArraySize()));
-				if (var.getArraySize() > 1) {
-					for(int i=0; i<var.getArraySize(); ++i) {
-						current_offset = insertVariable(sg,var,desc,name,current_offset);
-						model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
-					}
-				} else {
-					current_offset = insertVariable(sg,var,desc,name,current_offset);
-					model.addElement(new LTSminStateElement(var,desc+"."+var.getName()));
-				}
-			} else if(var.getType().getJavaName().equals("Type")) {
-				//TODO: Untested
-				CustomVariableType cvt = (CustomVariableType)var.getType();
-				for(Variable v: cvt.getVariableStore().getVariables()) {
-					current_offset = handleVariable(sg,v,name+".",name,current_offset,ls);
-				}
-			} else {
-				throw new AssertionError("ERROR: Unknown error trying to handle an integer");
-			}
-		} else {
-			throw new AssertionError("ERROR: Unable to handle: " + var.getType().getName());
 		}
-		return current_offset;
+
+		int priority = -1;
+		if(ra.t.getTo()!=null && ra.t.getTo().isInAtomic())
+			priority = model.sv.procOffset(ra.p);
+		lt.addAction(assign(priorityIdentifier, priority));
 	}
 
 	/**
@@ -1301,103 +742,35 @@ public class LTSminTreeWalker {
 		return wrapName(name)+"_buffer";
 	}
 
-	/**
-	 * instrument Pre code for a rendezvous couple.
-	 */
-	private void instrumentPreRendezVousAction(SendAction sa, ReadAction ra, int trans, LTSminTransition lt) {
-		ChannelSendAction csa = sa.csa;
-		ChannelReadAction cra = ra.cra;
-
-
-		if(csa.getVariable() != cra.getVariable()) {
-			throw new AssertionError("instrumentRendezVousAction() called with inconsequent ChannelVariable");
-		}
-		ChannelVariable var = (ChannelVariable)csa.getVariable();
-		if(var.getType().getBufferSize()>0) {
-			throw new AssertionError("instrumentRendezVousAction() called with non-rendezvous channel");
-		}
-
-		List<Expression> csa_exprs = csa.getExprs();
-		List<Expression> cra_exprs = cra.getExprs();
-
-		if(csa_exprs.size() != cra_exprs.size()) {
-			throw new AssertionError("instrumentRendezVousAction() called with incompatible actions: size mismatch");
-		}
-
-		lt.addGuard(new LTSminGuard(trans,makePCGuard(sa.t.getFrom(), sa.p)));
-		lt.addGuard(new LTSminGuard(trans,makePCGuard(ra.t.getFrom(), ra.p)));
-
-		/* Channel matches */
-		for (int i = 0; i < cra_exprs.size(); i++) {
-			final Expression csa_expr = csa_exprs.get(i);
-			final Expression cra_expr = cra_exprs.get(i);
-			if (!(cra_expr instanceof Identifier)) {
-				lt.addGuard(new LTSminGuard(trans,new CompareExpression(new Token(PromelaConstants.EQ,"=="),csa_expr,cra_expr)));
-			}
-		}
+	public static AssignAction assign(Variable v, Expression expr) {
+		return assign (new Identifier(new Token(IDENTIFIER,v.getName()), v), expr);
 	}
 	
-    /**
-	 * instrument the transition for one rendezvous couple. The specified
-	 * transition ID will be used to identify the instrumentd transition.
-	 * @param w The StringWriter to which the code is written.
-	 * @param sa The SendAction component.
-	 * @param ra The ReadAction component.
-	 * @param trans The transition ID to use for the instrumentd transition.
-	 */
-	private void instrumentRendezVousAction(SendAction sa, ReadAction ra, int trans, Transition never_t, LTSminTransition lt) {
-		ChannelSendAction csa = sa.csa;
-		ChannelReadAction cra = ra.cra;
-
-		// Pre
-		instrumentPreRendezVousAction(sa,ra,trans,lt);
-
-		// Change process counter of sender
-		lt.addAction(new AssignAction(
-								new Token(PromelaConstants.ASSIGN,"="),
-								new PCIdentifier(sa.p),
-								new ConstantExpression(new Token(PromelaConstants.NUMBER,""+sa.t.getTo().getStateId()),sa.t.getTo().getStateId())));
-		// Change process counter of receiver
-		lt.addAction(new AssignAction(
-								new Token(PromelaConstants.ASSIGN,"="),
-								new PCIdentifier(ra.p),
-								new ConstantExpression(new Token(PromelaConstants.NUMBER,""+ra.t.getTo().getStateId()),ra.t.getTo().getStateId())));
-
-		List<Expression> csa_exprs = csa.getExprs();
-		List<Expression> cra_exprs = cra.getExprs();
-		for (int i = 0; i < cra_exprs.size(); i++) {
-			final Expression csa_expr = csa_exprs.get(i);
-			final Expression cra_expr = cra_exprs.get(i);
-			if ((cra_expr instanceof Identifier)) {
-				lt.addAction(new AssignAction(
-									new Token(PromelaConstants.ASSIGN,"="),
-									(Identifier)cra_expr,
-									csa_expr));
-			}
-		}
-
-		if(ra.t.getTo()!=null && ra.t.getTo().isInAtomic()) {
-			lt.addAction(new AssignAction(
-							new Token(PromelaConstants.ASSIGN,"="),
-							priorityIdentifier,
-							new ConstantExpression(new Token(PromelaConstants.NUMBER,""+state_proc_offset.get(ra.p)), state_proc_offset.get(ra.p))));
-		} else {
-			lt.addAction(new AssignAction(
-							new Token(PromelaConstants.ASSIGN,"="),
-							priorityIdentifier,
-							new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"), -1)));
-		}
+	public static AssignAction assign(Identifier id, Expression expr) {
+		return new AssignAction(new Token(PromelaConstants.ASSIGN,"="), id, expr);
 	}
- 
+
+	public static AssignAction assign(Identifier id, int nr) {
+		return assign(id, new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+nr), nr));
+	}
+
+	private static CompareExpression compare(Expression e1, Expression e2) {
+		return new CompareExpression(new Token(PromelaConstants.EQ,"=="), e1, e2);
+	}
+
+	private static Expression compare(PriorityIdentifier e1, int nr) {
+		return compare(e1, new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+nr), nr));
+	}
+	
     private Expression makePCGuard(State s, Proctype p) {
-		Expression left = new PCIdentifier(p);
+		Expression left = model.sv.procId(p);
 		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+s.getStateId()), s.getStateId());
 		Expression e = new CompareExpression(new Token(PromelaConstants.EQ,"=="), left, right);
 		return e;
 	}
 
 	private Expression makePCDeathGuard(Proctype p) {
-		Expression left = new PCIdentifier(p);
+		Expression left = model.sv.procId(p);
 		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"), -1);
 		Expression e = new CompareExpression(new Token(PromelaConstants.EQ,"=="), left, right);
 		return e;
@@ -1419,30 +792,32 @@ public class LTSminTreeWalker {
 		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"0"), 0);
 		Expression e = new CompareExpression(new Token(PromelaConstants.LT,"<"), left, right);
 
-		Expression left2 = new PriorityIdentifier();
-		Expression right2 = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+state_proc_offset.get(p)), state_proc_offset.get(p));
-		Expression e2 = new CompareExpression(new Token(PromelaConstants.EQ,"=="), left2, right2);
+		Expression e2 = compare(new PriorityIdentifier(), model.sv.procOffset(p));
 
 		return new BooleanExpression(new Token(PromelaConstants.LOR,"||"), e, e2);
 	}
 
 	private Expression makeExclusiveAtomicGuard(Proctype p) {
-		Expression left2 = new PriorityIdentifier();
-		Expression right2 = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+state_proc_offset.get(p)), state_proc_offset.get(p));
-		return new CompareExpression(new Token(PromelaConstants.EQ,"=="), left2, right2);
+		return compare(new PriorityIdentifier(), model.sv.procOffset(p));
 	}
 
 	private Expression makeChannelUnfilledGuard(ChannelVariable var) {
-		Expression left = new ChannelSizeExpression(var);
+		String name = wrapNameForChannelDesc(model.sv.getDescr(var));
+		Expression left = new ChannelSizeExpression(var, name);
 		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+var.getType().getBufferSize()), var.getType().getBufferSize());
 		Expression e = new CompareExpression(new Token(PromelaConstants.LT,"<"), left, right);
 		return e;
 	}
 
 	private Expression makeChannelHasContentsGuard(ChannelVariable var) {
-		Expression left = new ChannelSizeExpression(var);
+		String name = wrapNameForChannelDesc(model.sv.getDescr(var));
+		Expression left = new ChannelSizeExpression(var, name);
 		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"0"), 0);
 		Expression e = new CompareExpression(new Token(PromelaConstants.GT,">"), left, right);
 		return e;
+	}
+
+	public static AssertionError error(String string, Token token) {
+		return new AssertionError(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
 	}
 }

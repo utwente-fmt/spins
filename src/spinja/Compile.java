@@ -27,15 +27,15 @@ import spinja.options.OptionParser;
 import spinja.options.StringOption;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
+import spinja.promela.compiler.ltsmin.LTSminPrinter;
 import spinja.promela.compiler.optimizer.GraphOptimizer;
 import spinja.promela.compiler.optimizer.RemoveUselessActions;
 import spinja.promela.compiler.optimizer.RemoveUselessGotos;
 import spinja.promela.compiler.optimizer.RenumberAll;
 import spinja.promela.compiler.optimizer.StateMerging;
 import spinja.promela.compiler.parser.ParseException;
-import spinja.promela.compiler.parser.Promela;
-import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
 import spinja.promela.compiler.parser.Preprocessor;
+import spinja.promela.compiler.parser.Promela;
 
 public class Compile {
 	private static Specification compile(final File promFile, 
@@ -324,7 +324,7 @@ public class Compile {
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
 
-			fos.write(new LTSminTreeWalker(spec,name).generate().getBytes());
+			fos.write(LTSminPrinter.generateCode(spec,name).getBytes());
 			fos.flush();
 			fos.close();
 		} catch (final IOException ex) {

@@ -2,6 +2,8 @@ package spinja.promela.compiler.ltsmin;
 
 import java.util.List;
 
+import static spinja.promela.compiler.ltsmin.LTSminStateVector.*;
+
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssertAction;
@@ -46,7 +48,7 @@ public class LTSminDMWalker {
 	static public class Params {
 		public final LTSminModel model;
 		public final DepMatrix depMatrix;
-		public final int trans;
+		public int trans;
 
 		public Params(LTSminModel model, DepMatrix depMatrix, int trans) {
 			this.model = model;
@@ -57,44 +59,18 @@ public class LTSminDMWalker {
 
 	static void walkModel(LTSminModel model) {
 		if(model.getDepMatrix()==null) {
-			model.setDepMatrix(new DepMatrix(model.getTransitions().size(), model.getStateVector().size()));
+			model.setDepMatrix(new DepMatrix(model.getTransitions().size(), model.sv.size()));
 		}
 		if(model.getDepMatrix()==null) throw new AssertionError("DM still null!");
-		walkTransitions(model.getDepMatrix(),model);
+		Params params = new Params(model, model.getDepMatrix(), 0);
+		walkTransitions(params);
 	}
 
-	static void walkTypeDef(LTSminType type) {
-	}
-	static void walkType(LTSminType type) {
-	}
-
-	static void walkHeader(LTSminModel model) {
-	}
-
-	static void walkStateCount(LTSminModel model) {
-	}
-
-	static void walkIsAtomic() {
-	}
-
-	static void walkTransitionCount(LTSminModel model) {
-	}
-
-	static void walkForwardDeclarations() {
-	}
-
-	static void walkInitialState(LTSminModel model) {
-	}
-	static void walkGetAll(LTSminModel model) {
-	}
-	static void walkTransitions(DepMatrix depMatrix, LTSminModel model) {
-		List<LTSminTransitionBase> transitions = model.getTransitions();
-		int trans = 0;
-		for(LTSminTransitionBase t: transitions) {
-			walkTransition(new Params(model,depMatrix,trans),t);
-			++trans;
+	static void walkTransitions(Params params) {
+		for(LTSminTransitionBase t: params.model.getTransitions()) {
+			walkTransition(params,t);
+			params.trans++;
 		}
-
 	}
 
 	static void walkTransition(	Params params, LTSminTransitionBase transition) {
@@ -143,7 +119,6 @@ public class LTSminDMWalker {
 	}
 
 	static void walkAction(Params params, Action a) {
-		// Handle assignment action
 		if(a instanceof AssignAction) {
 			AssignAction as = (AssignAction)a;
 			Identifier id = as.getIdentifier();
@@ -190,23 +165,17 @@ public class LTSminDMWalker {
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
 			rpa.getProcess();
-
-		// Handle assert action
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
 
 			walkBoolExpression(params,e);
-
-		// Handle print action
 		} else if(a instanceof PrintAction) {
 			PrintAction pa = (PrintAction)a;
 			List<Expression> exprs = pa.getExprs();
 			for (final Expression expr : exprs) {
 				walkIntExpression(params,expr);
 			}
-
-		// Handle expression action
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
@@ -216,10 +185,10 @@ public class LTSminDMWalker {
 				if (sideEffect != null) {
 					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
 					assert (expr instanceof RunExpression);
-					DMIncWrite(params, LTSminTreeWalker._NR_PR, 0);
+					DMIncWrite(params, _NR_PR, 0);
 					RunExpression re = (RunExpression)expr;
 					Proctype p = re.getSpecification().getProcess(re.getId());
-					PCIdentifier pc = new PCIdentifier(p);
+					PCIdentifier pc = params.model.sv.procId(p);
 					DMIncWrite(params,pc.getVariable(),0);
 					//write to the arguments of the target process
 					for (Variable v : p.getArguments()) {
@@ -230,7 +199,6 @@ public class LTSminDMWalker {
 			} catch (ParseException e) {
 				e.printStackTrace();
 			}
-		// Handle channel send action
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			ChannelVariable var = (ChannelVariable)csa.getVariable();
@@ -255,8 +223,6 @@ public class LTSminDMWalker {
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send!");
 			}
-
-		// Handle a channel read action
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
@@ -289,9 +255,7 @@ public class LTSminDMWalker {
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous receive!");
 			}
-
-		// Handle not yet implemented action
-		} else {
+		} else { // Handle not yet implemented action
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
 	}
@@ -382,7 +346,7 @@ public class LTSminDMWalker {
 			walkIntExpression(params,ce.getExpr1());
 			walkIntExpression(params,ce.getExpr2());
 		} else if(e instanceof RunExpression) {
-			DMIncRead(params, LTSminTreeWalker._NR_PR, 0);
+			DMIncRead(params, _NR_PR, 0);
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
@@ -458,7 +422,7 @@ public class LTSminDMWalker {
 		} else if(e instanceof MTypeReference) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof RunExpression) {
-			DMIncRead(params, LTSminTreeWalker._NR_PR, 0);
+			DMIncRead(params, _NR_PR, 0);
 		} else if(e instanceof TimeoutExpression) {
 			DMIncReadAll(params); // should be optimized
 		} else {
@@ -497,7 +461,7 @@ public class LTSminDMWalker {
 	}
 
 	static void DMIncReadAll(Params params) {
-		for(int i=params.model.getStateVector().size(); i-->0;) {
+		for(int i=params.model.sv.size(); i-->0;) {
 			params.depMatrix.incRead(params.trans, i);
 		}
 	}

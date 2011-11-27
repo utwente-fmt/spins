@@ -3,8 +3,9 @@
  */
 package spinja.promela.compiler.ltsmin.instr;
 
+import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_PRIORITY;
+import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_TMP;
 import spinja.promela.compiler.expression.Identifier;
-import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.Variable;
@@ -13,12 +14,11 @@ import spinja.promela.compiler.variable.VariableType;
 public class PriorityIdentifier extends Identifier {
 
 	public static Variable priorVar = new Variable(VariableType.INT, 
-									LTSminTreeWalker.C_STATE_TMP + "." +
-									LTSminTreeWalker.C_PRIORITY, 1);
+									C_STATE_TMP + "." +	C_PRIORITY, 1);
 	
 	public PriorityIdentifier() {
-		super(new Token(PromelaConstants.PRIORITY, LTSminTreeWalker.C_STATE_TMP
-						+ "." + LTSminTreeWalker.C_PRIORITY), priorVar);
+		super(new Token(PromelaConstants.PRIORITY, C_STATE_TMP
+						+ "." + C_PRIORITY), priorVar);
 	}
 	
 	@Override

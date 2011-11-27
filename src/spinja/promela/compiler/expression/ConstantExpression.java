@@ -29,6 +29,7 @@ import spinja.promela.compiler.variable.VariableType;
  * @author Marc de Jonge
  */
 public class ConstantExpression extends Expression {
+	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -5861698132204844795L;
 
 	private final int nr;

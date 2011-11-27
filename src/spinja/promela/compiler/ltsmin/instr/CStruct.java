@@ -1,6 +1,6 @@
 package spinja.promela.compiler.ltsmin.instr;
 
-import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
+import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_TYPE_INT32;
 import spinja.util.StringWriter;
 
 /**
@@ -25,7 +25,7 @@ public class CStruct {
 	 * @param varName The name of the member to add.
 	 */
 	public void addMember(String varName) {
-		addMember(LTSminTreeWalker.C_TYPE_INT32,varName);
+		addMember(C_TYPE_INT32,varName);
 	}
 
 	/**
