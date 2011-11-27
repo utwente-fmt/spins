@@ -1008,6 +1008,8 @@ public class LTSminPrinter {
 			w.append(" ").append(ce.getToken().image).append(" ");
 			generateIntExpression(w, model, ce.getExpr2(), access);
 			w.append(")");
+		} else if(e instanceof RunExpression) {
+			w.append("("+ IN_NUM_PROCS +" != "+ (PM_MAX_PROCS-1) +")");
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
@@ -1033,8 +1035,7 @@ public class LTSminPrinter {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof MTypeReference) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-		} else if(e instanceof RunExpression) {
-			w.append("("+ IN_NUM_PROCS +" != "+ (PM_MAX_PROCS-1) +")");
+
 		} else if(e instanceof TimeoutExpression) {
 //			if( timeoutFalse ) {
 //				w.append("false /* timeout-false */");

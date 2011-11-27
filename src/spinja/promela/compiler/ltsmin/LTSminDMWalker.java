@@ -414,6 +414,8 @@ public class LTSminDMWalker {
 			CompareExpression ce = (CompareExpression)e;
 			walkIntExpression(params,ce.getExpr1());
 			walkIntExpression(params,ce.getExpr2());
+		} else if(e instanceof RunExpression) {
+			DMIncRead(params, _NR_PR, 0);
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
@@ -421,8 +423,6 @@ public class LTSminDMWalker {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof MTypeReference) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-		} else if(e instanceof RunExpression) {
-			DMIncRead(params, _NR_PR, 0);
 		} else if(e instanceof TimeoutExpression) {
 			DMIncReadAll(params); // should be optimized
 		} else {
