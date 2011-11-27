@@ -410,19 +410,24 @@ public class LTSminTreeWalker {
         	instrumentTransitionGuard(process, never_t, trans, lt);
         }
         
-        if(t instanceof ElseTransition) {
+        // Guard: else transition
+        if (t instanceof ElseTransition) {
             ElseTransition et = (ElseTransition)t;
-            for(Transition ot : t.getFrom().output) {
-                if(ot!=et) {
-                    instrumentTransitionGuard(process,ot,trans,lt);
+            for (Transition ot : t.getFrom().output) {
+                if (ot!=et) {
+                	LTSminGuardNand nand = new LTSminGuardNand();
+                    createEnabledAndDieGuard(process,ot,trans,nand);
+                    lt.addGuard(nand);
                 }
             }
         }
-        if(never_t != null && never_t instanceof ElseTransition) {
+        if (never_t != null && never_t instanceof ElseTransition) {
             ElseTransition et = (ElseTransition)never_t;
-            for(Transition ot : t.getFrom().output) {
-                if(ot!=et) {
-                    instrumentTransitionGuard(spec.getNever(),ot,trans,lt);
+            for (Transition ot : t.getFrom().output) {
+                if (ot!=et) {
+                	LTSminGuardNand nand = new LTSminGuardNand();
+                    createEnabledAndDieGuard(spec.getNever(),ot,trans,nand);
+                    lt.addGuard(nand);
                 }
             }
         }
