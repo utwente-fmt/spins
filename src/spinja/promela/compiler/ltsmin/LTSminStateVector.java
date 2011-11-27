@@ -27,15 +27,10 @@ import spinja.promela.compiler.variable.VariableStore;
 import spinja.promela.compiler.variable.VariableType;
 
 /**
- * This class handles the generation of C code for LTSMin.
+ * This class handles the generation of the State vector
  * FIXME: handle state vector of length 0
  *
- * Contains various subclasses:
- *   - TypeDesc: contains the description of a type, only using name and array
- *   - CStruct: handles the textual generation of a C struct typedef.
- *   - DepRow:  handles a row of the dependency matrix
- *   - DepMatrix: handles the dependency matrix
- * @author Freark van der Berg
+ * @author Freark van der Berg, Alfons Laarman
  */
 public class LTSminStateVector implements Iterable<LTSminStateElement> {
 

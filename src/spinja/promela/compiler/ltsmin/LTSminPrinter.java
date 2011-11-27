@@ -74,8 +74,8 @@ import spinja.promela.compiler.variable.VariableType;
 import spinja.util.StringWriter;
 
 /**
- *
- * @author FIB
+ * Generates C code from the LTSminModel
+ * @author FIB, Alfons Laarman
  */
 public class LTSminPrinter {
 
@@ -527,7 +527,6 @@ public class LTSminPrinter {
 	}
 
 	private static void generateAction(StringWriter w, Action a, LTSminModel model) {
-		// Handle assignment action
 		if(a instanceof AssignAction) { //TODO: assign + expr + runexp
 			AssignAction as = (AssignAction)a;
 			Identifier id = as.getIdentifier();
@@ -586,16 +585,14 @@ public class LTSminPrinter {
 				default:
 					throw new AssertionError("unknown assignment type");
 			}
-
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
-			rpa.getProcess();
+			
 			String name = LTSminTreeWalker.wrapName(rpa.getProcess().getName());
 			w.appendLine("#ifndef NORESETPROCESS");
-			w.appendLine("memset(&",TMP_ACCESS,name,",-1,sizeof(state_",name,"_t));");
+			w.appendLine("memcpy(&",TMP_ACCESS,name,",(char*)&(",C_STATE_INITIAL,".",name,"),sizeof(state_",name,"_t));");
 			w.appendLine("#endif");
-
-		// Handle assert action
+			w.appendLine(getPC(rpa.getProcess().getName(), TMP_ACCESS) +" = -1;");
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
@@ -610,8 +607,6 @@ public class LTSminPrinter {
 			w.appendLine("print_state(",C_STATE_TMP,");");
 			w.outdent();
 			w.appendLine("}");
-
-		// Handle print action
 		} else if(a instanceof PrintAction) {
 			PrintAction pa = (PrintAction)a;
 			String string = pa.getString();
@@ -622,8 +617,6 @@ public class LTSminPrinter {
 				generateIntExpression(w, model, expr, IN_ACCESS);
 			}
 			w.append(");").appendPostfix();
-
-		// Handle expression action
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
@@ -668,7 +661,6 @@ public class LTSminPrinter {
 			} catch (ParseException e) {
 				e.printStackTrace();
 			}
-		// Handle channel send action
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			ChannelVariable var = (ChannelVariable)csa.getVariable();
@@ -701,8 +693,6 @@ public class LTSminPrinter {
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send!");
 			}
-
-		// Handle a channel read action
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
@@ -738,8 +728,6 @@ public class LTSminPrinter {
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous receive!");
 			}
-
-		// Handle not yet implemented action
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
