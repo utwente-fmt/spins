@@ -1,8 +1,8 @@
 package spinja.promela.compiler.ltsmin;
 
-import java.util.List;
+import static spinja.promela.compiler.ltsmin.LTSminStateVector._NR_PR;
 
-import static spinja.promela.compiler.ltsmin.LTSminStateVector.*;
+import java.util.List;
 
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.expression.AritmicExpression;
@@ -22,10 +22,6 @@ import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.instr.DepMatrix;
 import spinja.promela.compiler.ltsmin.instr.GuardMatrix;
-import spinja.promela.compiler.ltsmin.instr.PCExpression;
-import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
-import spinja.promela.compiler.ltsmin.instr.PriorityExpression;
-import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelVariable;
@@ -122,17 +118,7 @@ public class LTSminGMWalker {
 	}
 	
 	static void walkIntExpression(Params params, Expression e) {
-		if(e instanceof PCExpression) {
-			throw new AssertionError("hopefully this is never reached");
-		} else if(e instanceof PriorityExpression) {
-			throw new AssertionError("hopefully this is never reached");
-		} else if(e instanceof PCIdentifier) {
-			PCIdentifier pc = (PCIdentifier)e;
-			DMIncRead(params,pc.getVariable(),0);
-		} else if(e instanceof PriorityIdentifier) {
-			PriorityIdentifier pi = (PriorityIdentifier)e;
-			DMIncRead(params,pi.getVariable(),0);
-		} else if(e instanceof ChannelSizeExpression) {
+		if(e instanceof ChannelSizeExpression) {
 			ChannelSizeExpression cse = (ChannelSizeExpression)e;
 			DMIncRead(params,cse.getVariable(),0);
 		} else if(e instanceof Identifier) {

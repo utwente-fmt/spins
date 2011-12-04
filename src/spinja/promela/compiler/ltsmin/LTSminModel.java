@@ -106,10 +106,6 @@ public class LTSminModel {
 		return variables;
 	}
 
-	public void setVariables(HashMap<Variable, Integer> variables) {
-		this.variables = variables;
-	}
-
 	public void createVectorStructs(Specification spec, LTSminDebug debug) {
 		sv.createVectorStructs(spec, debug);
 	}

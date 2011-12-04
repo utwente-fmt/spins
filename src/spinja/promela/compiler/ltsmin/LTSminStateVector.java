@@ -7,17 +7,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.*;
+
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
-import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.ltsmin.instr.CStruct;
-import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
-import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
 import spinja.promela.compiler.ltsmin.instr.TypeDesc;
 import spinja.promela.compiler.ltsmin.instr.VarDescriptor;
 import spinja.promela.compiler.ltsmin.instr.VarDescriptorArray;
 import spinja.promela.compiler.ltsmin.instr.VarDescriptorChannel;
 import spinja.promela.compiler.ltsmin.instr.VarDescriptorVar;
+import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
@@ -40,16 +40,15 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	public static final String C_STATE_T = "state_t";
 	public static final String C_STATE_GLOBALS_T = "state_globals_t";
 	public static final String C_STATE_GLOBALS = "globals";
-	public static final String C_STATE_PROC_COUNTER = "pc";
+	public static final String C_STATE_PROC_COUNTER = "_pc";
+	public static final String C_STATE_PID = "_pid";
 	public static final String C_NUM_PROCS_VAR = "_nr_pr";
 	public static final String C_STATE_SIZE = "state_size";
 	public static final String C_STATE_INITIAL = "initial";
 	public static final String NUM_PROCS_VAR = "_nr_pr";
 
 	public static final String C_STATE_TMP = "tmp";
-	public static final String C_STATE_PRIORITY = "prioritiseProcess";
 	public static final String C_STATE_NEVER = "never";
-	public static final String C_PRIORITY = C_STATE_GLOBALS+"."+C_STATE_PRIORITY;
 	public static final String C_NEVER = C_STATE_GLOBALS+"."+C_STATE_NEVER;
 	public static final String C_TYPE_INT1   = "sj_int1";
 	public static final String C_TYPE_INT8   = "sj_int8";
@@ -60,6 +59,7 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	public static final String C_TYPE_UINT32 = "sj_uint32";
 	public static final String C_TYPE_CHANNEL = "sj_channel";
 	public static final String C_TYPE_PROC_COUNTER = C_TYPE_INT32;
+	public final String C_TYPE_PID;
 	public static final String C_TYPE_PROC_COUNTER_ = "int";
 
 	public static final Variable _NR_PR = new Variable(VariableType.BYTE, C_NUM_PROCS_VAR, 1);
@@ -67,6 +67,8 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	private HashMap<Variable,Integer> state_var_offset;
 	private HashMap<Variable, String> state_var_desc;
 	private HashMap<Proctype,Integer> state_proc_offset;
+	private HashMap<Proctype,Variable> processIdentifier;
+	private HashMap<Proctype,Variable> pcs;
 
 	private List<LTSminStateElement> stateVector;
 
@@ -78,8 +80,6 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 
 	// The CStruct state vector
 	private CStruct state;
-
-	private HashMap<Proctype,Identifier> PCIDs;
 
 	private LTSminModel model;
 
@@ -98,7 +98,9 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 		stateVector = new ArrayList<LTSminStateElement>();
 		state_vector_desc = new ArrayList<String>();
 		state_vector_var = new ArrayList<Variable>();
-		PCIDs = new HashMap<Proctype,Identifier>();
+		processIdentifier = new HashMap<Proctype,Variable>();
+		pcs = new HashMap<Proctype,Variable>();
+		C_TYPE_PID = getCType(C_NUM_PROCS_VAR, VariableType.PID);
 	}
 
 	/**
@@ -158,17 +160,16 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 		// Globals
 		VariableStore globals = spec.getVariableStore();
 		List<Variable> vars = globals.getVariables();
-		for(Variable var: vars) {
+		for (Variable var : vars) {
 			buildCustomStruct(var);
 		}
 
 		// Locals
-		for(Proctype p : spec) {
+		for (Proctype p : spec) {
 			List<Variable> proc_vars = p.getVariables();
-			for(Variable var: proc_vars) {
+			for (Variable var : proc_vars) {
 				buildCustomStruct(var);
 			}
-			PCIDs.put(p, procId(p));
 		}
 	}
 
@@ -187,9 +188,6 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	 * @param w The StringWriter to which the code is written.
 	 * @return C code for the state structs.
 	 */
-	private Variable never_var;
-	private List<Variable> procs_var = new ArrayList<Variable>();
-	private HashMap<Proctype,Variable> processIdentifiers = new HashMap<Proctype, Variable>();
 	private void createStateStructs(Specification spec, LTSminDebug debug) {
 
 		// Current offset in the state struct
@@ -209,19 +207,10 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 		LTSminTypeStruct ls_g = new LTSminTypeStruct(C_STATE_GLOBALS_T);
 		model.addType(ls_g);
 
-		// Add priority process
-		{
-			ls_g.members.add(new LTSminTypeBasic(C_TYPE_INT32, C_STATE_PRIORITY));
-			sg.addMember(C_TYPE_INT32, C_STATE_PRIORITY);
-			++current_offset;
-			state_vector_desc.add(C_PRIORITY);
-			state_vector_var.add(null);
-			addElement(new LTSminStateElement(PriorityIdentifier.priorVar));
-		}
-
 		// Globals: add globals to the global state struct
 		VariableStore globals = spec.getVariableStore();
 		globals.addVariable(_NR_PR);
+		
 		List<Variable> vars = globals.getVariables();
 		for(Variable var: vars) {
 			// Add global to the global state struct and fix the offset
@@ -237,44 +226,59 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 		ls_t.members.add(new LTSminTypeBasic(C_STATE_GLOBALS_T, C_STATE_GLOBALS));
 
 		// Add Never process
-		{
+		if(spec.getNever()!=null) {
 			Proctype p = spec.getNever();
-			if(p!=null) {
-				String name = wrapName(p.getName());
+			String name = wrapName(p.getName());
 
-				LTSminTypeStruct ls_p = new LTSminTypeStruct("state_"+name+"_t");
-				//ls_t.members.add(ls_p);
-				ls_t.members.add(new LTSminTypeBasic("state_"+name+"_t",wrapName(name)));
-				CStruct proc_never = new CStruct("state_"+name+"_t");
-				state.addMember("state_"+name+"_t", name);
+			LTSminTypeStruct ls_p = new LTSminTypeStruct("state_"+name+"_t");
+			//ls_t.members.add(ls_p);
+			ls_t.members.add(new LTSminTypeBasic("state_"+name+"_t",wrapName(name)));
+			CStruct proc_never = new CStruct("state_"+name+"_t");
+			state.addMember("state_"+name+"_t", name);
 
-				// Add
-				proc_never.addMember(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER);
-				ls_p.members.add(new LTSminTypeBasic(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER));
+			// Add
+			proc_never.addMember(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER);
+			ls_p.members.add(new LTSminTypeBasic(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER));
 
-				// Add process to Proctype->offset map and add a description
-				state_proc_offset.put(p, current_offset);
-				state_vector_desc.add(name + "." + C_STATE_PROC_COUNTER);
-				state_vector_var.add(null);
+			// Add process to Proctype->offset map and add a description
+			state_proc_offset.put(p, current_offset);
+			state_vector_desc.add(name + "." + C_STATE_PROC_COUNTER);
+			state_vector_var.add(null);
 
-				//Fix the offset
-				++current_offset;
+			//Fix the offset
+			++current_offset;
 
-				// Add process state struct to main state struct
-				state_members.add(proc_never);
-				never_var = new Variable(VariableType.INT, C_STATE_TMP + "." + wrapName(p.getName()), 1);
-				addElement(new LTSminStateElement(never_var));
-				model.addType(ls_p);
-				processIdentifiers.put(p,never_var);
-			}
+			// Add process state struct to main state struct
+			state_members.add(proc_never);
+			Variable pc = new Variable(VariableType.INT, "_pc", 0, p);
+			try { pc.setInitExpr(constant(0));
+			} catch (ParseException e) { assert (false); }
+			addElement(new LTSminStateElement(pc));
+			pcs.put(p, pc);
+			model.addType(ls_p);
 		}
 
 		// Processes:
 		debug.say("== Processes");
-		for(Proctype p : spec) {
+		int nr_active = 0;
+		for (Proctype p : spec) {
+			nr_active += p.getNrActive();
+			
 			// Process' name
 			String name = wrapName(p.getName());
 
+			Variable pc = new Variable(VariableType.INT, "_pc", 0, p);
+			addElement(new LTSminStateElement(pc));
+			int initial_pc = (p.getNrActive() == 0 ? -1 : 0);
+			try { pc.setInitExpr(constant(initial_pc));
+			} catch (ParseException e) { assert (false); }
+			pcs.put(p, pc);
+			Variable pid = new Variable(VariableType.PID, "_pid", 0, p);
+			addElement(new LTSminStateElement(pid));
+			try { pid.setInitExpr(constant(p.getID()));
+			} catch (ParseException e) { assert (false); }
+			processIdentifier.put(p, pid);
+			
 			// Initialise process state struct and add to main state struct
 			debug.say("[Proc] " + name + " @" + current_offset);
 			CStruct proc_sg = new CStruct("state_"+name+"_t"); // fix name
@@ -290,26 +294,17 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 			// Add process counter to process state struct
 			proc_sg.addMember(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER);
 			ls_p.members.add(new LTSminTypeBasic(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER));
-
-			//Fix the offset
-			++current_offset;
-			{
-				Variable var = new Variable(VariableType.INT, C_STATE_TMP + "." + wrapName(p.getName()), 1, p);
-				procs_var.add(var);
-				addElement(new LTSminStateElement(var,name+"."+var.getName()));
-				processIdentifiers.put(p,var);
-			}
-			
+			proc_sg.addMember(C_TYPE_PID,C_STATE_PID);
+			ls_p.members.add(new LTSminTypeBasic(C_TYPE_PID,C_STATE_PID));
+		
 			// Locals: add locals to the process state struct
 			List<Variable> proc_vars = p.getVariables();
 			Set<Variable> args = new HashSet<Variable>(p.getArguments());
-			for(Variable var: proc_vars) {
-				if (args.contains(var)) {
-					if (var.getType() instanceof ChannelType)
+			for (Variable var : proc_vars) {
+				if (args.contains(var) && var.getType() instanceof ChannelType)
 						continue; // channel types are passed as reference
 								  // the tree walker modifies the AST to make
 								  // the argument point directly to the real channel
-				}
 				current_offset = handleVariable(proc_sg,var,name + ".",current_offset,ls_p, debug);
 			}
 
@@ -317,6 +312,11 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 			state_members.add(proc_sg);
 			model.addType(ls_p);
 		}
+
+		// set number of processes to initial number of active processes.
+		try { _NR_PR.setInitExpr(constant(nr_active));
+		} catch (ParseException e) {assert (false);}		
+
 		model.addType(ls_t);
 	}
 
@@ -426,28 +426,30 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	 */
 	static public TypeDesc getCTypeOfVar(Variable v) {
 		TypeDesc td = new TypeDesc();
-		switch(v.getType().getBits()) {
-			case 1:
-				td.type = C_TYPE_INT1;
-				break;
-			case 8:
-				td.type = C_TYPE_UINT8;
-				break;
-			case 16:
-				td.type = C_TYPE_INT16;
-				break;
-			case 32:
-				td.type = C_TYPE_INT32;
-				break;
-			default:
-				throw new AssertionError("ERROR: Unable to handle: " + v.getRealName());
-		}
+		VariableType type = v.getType();
+		td.type = getCType(v.getRealName(), type);
 		
 		int size = v.getArraySize();
 		if(size>1) {
 			td.array = "[" + size + "]";
 		}
 		return td;
+	}
+
+	private static String getCType(String name, VariableType type)
+			throws AssertionError {
+		switch(type.getBits()) {
+			case 1:
+				return C_TYPE_INT1;
+			case 8:
+				return C_TYPE_UINT8;
+			case 16:
+				return C_TYPE_INT16;
+			case 32:
+				return C_TYPE_INT32;
+			default:
+				throw new AssertionError("ERROR: Unable to handle: " + name);
+		}
 	}
 
 	public List<LTSminStateElement> getStateVector() {
@@ -516,14 +518,6 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 		return state_proc_offset.get(process);
 	}
 
-	public Variable getProcId(Proctype p) {
-		return processIdentifiers.get(p);
-	}
-
-	public PCIdentifier procId(Proctype p) {
-		return new PCIdentifier(p, processIdentifiers.get(p));
-	}
-
 	public String getDescr(Variable variable) {
 		return state_var_desc.get(variable);
 	}
@@ -535,6 +529,14 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 
 	public int size() {
 		return stateVector.size();
+	}
+	
+	public Variable getPID(Proctype p) {
+		return processIdentifier.get(p);
+	}
+	
+	public Variable getPC(Proctype p) {
+		return pcs.get(p);
 	}
 
 	public LTSminStateElement get(int i) {

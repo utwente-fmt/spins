@@ -34,7 +34,7 @@ public class Promela {
 	private Proctype currentProc;
 	private Automaton automaton;	
 		
-	private int procNr;
+	private int procNr = 1;
 	
 	public int getNextProcNr() {
 		return procNr++;
@@ -286,7 +286,7 @@ void init(): {
 }{
 	<INIT>
 	{
-		currentProc = new Proctype(specification, getNextProcNr(), 1, "init");
+		currentProc = new Proctype(specification, 0, 1, "init");
 		automaton = currentProc.getAutomaton();
 		specification.addProc(currentProc);
 		currentProc.lastArgument();

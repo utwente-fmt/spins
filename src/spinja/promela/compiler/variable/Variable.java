@@ -69,7 +69,8 @@ public class Variable {
 		if (!(o instanceof Variable))
 			return false;
 		Variable ov = (Variable)o;
-		return owner.equals(ov.owner) && name.equals(ov.name); 
+		return (owner == ov.owner || owner.equals(ov.owner)) &&
+				name.equals(ov.name); 
 	}
 
 	public int hashCode() {

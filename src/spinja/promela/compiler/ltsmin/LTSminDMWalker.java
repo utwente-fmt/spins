@@ -1,8 +1,8 @@
 package spinja.promela.compiler.ltsmin;
 
-import java.util.List;
+import static spinja.promela.compiler.ltsmin.LTSminStateVector._NR_PR;
 
-import static spinja.promela.compiler.ltsmin.LTSminStateVector.*;
+import java.util.List;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
@@ -28,10 +28,6 @@ import spinja.promela.compiler.expression.TimeoutExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.instr.DepMatrix;
-import spinja.promela.compiler.ltsmin.instr.PCExpression;
-import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
-import spinja.promela.compiler.ltsmin.instr.PriorityExpression;
-import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
 import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
@@ -47,6 +43,7 @@ public class LTSminDMWalker {
 
 	static public class Params {
 		public final LTSminModel model;
+		public final LTSminStateVector sv;
 		public final DepMatrix depMatrix;
 		public int trans;
 
@@ -54,6 +51,7 @@ public class LTSminDMWalker {
 			this.model = model;
 			this.depMatrix = depMatrix;
 			this.trans = trans;
+			this.sv = model.sv;
 		}
 	}
 
@@ -186,10 +184,10 @@ public class LTSminDMWalker {
 					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
 					assert (expr instanceof RunExpression);
 					DMIncWrite(params, _NR_PR, 0);
+					DMIncRead(params, _NR_PR, 0);
 					RunExpression re = (RunExpression)expr;
 					Proctype p = re.getSpecification().getProcess(re.getId());
-					PCIdentifier pc = params.model.sv.procId(p);
-					DMIncWrite(params,pc.getVariable(),0);
+					DMIncWrite(params,params.sv.getPC(p),0);
 					//write to the arguments of the target process
 					for (Variable v : p.getArguments()) {
 						if (v.getType() instanceof ChannelType) continue; //passed by reference
@@ -261,17 +259,7 @@ public class LTSminDMWalker {
 	}
 
 	static void walkIntExpression(Params params, Expression e) {
-		if(e instanceof PCExpression) {
-			throw new AssertionError("hopefully this is never reached");
-		} else if(e instanceof PriorityExpression) {
-			throw new AssertionError("hopefully this is never reached");
-		} else if(e instanceof PCIdentifier) {
-			PCIdentifier pc = (PCIdentifier)e;
-			DMIncRead(params,pc.getVariable(),0);
-		} else if(e instanceof PriorityIdentifier) {
-			PriorityIdentifier pi = (PriorityIdentifier)e;
-			DMIncRead(params,pi.getVariable(),0);
-		} else if(e instanceof ChannelSizeExpression) {
+		if (e instanceof ChannelSizeExpression) {
 			ChannelSizeExpression cse = (ChannelSizeExpression)e;
 			DMIncRead(params,cse.getVariable(),0); //filled and nextread is first
 		} else if(e instanceof Identifier) {

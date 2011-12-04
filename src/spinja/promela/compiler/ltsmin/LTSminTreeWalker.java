@@ -22,17 +22,14 @@ import spinja.promela.compiler.actions.PrintAction;
 import spinja.promela.compiler.automaton.ElseTransition;
 import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
-import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RunExpression;
-import spinja.promela.compiler.expression.TimeoutExpression;
 import spinja.promela.compiler.ltsmin.instr.AtomicState;
 import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
-import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
 import spinja.promela.compiler.ltsmin.instr.ReadAction;
 import spinja.promela.compiler.ltsmin.instr.ReadersAndWriters;
 import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
@@ -71,8 +68,6 @@ public class LTSminTreeWalker {
 
 	// List of transition with a TimeoutExpression
     List<TimeoutTransition> timeout_transitions;
-
-	private static final PriorityIdentifier priorityIdentifier  = new PriorityIdentifier();
 
 	/**
 	 * Creates a new LTSMinPrinter using the specified Specification.
@@ -163,15 +158,6 @@ public class LTSminTreeWalker {
 	private int createTransitions() {
 		int trans = 0;
 		debug.say("");
-
-		for (Proctype p : spec) {
-			for (State state : p.getAutomaton()) {
-				state.orderOutTransitions();
-			}
-		}
-		for (State ns : getNeverAutomatonOrNullSet(false)) {
-			ns.orderOutTransitions();
-		}
 		
 		// Create the normal transitions for all processes.
 		// This excludes: rendezvous, else, timeout and loss of atomicity
@@ -203,7 +189,7 @@ public class LTSminTreeWalker {
 				}
 			}
 		}
-		
+		/*
 		// Create loss of atomicity transition.
 		// This is used when a process blocks inside an atomic transition.
 		LTSminTransitionCombo ltc = new LTSminTransitionCombo("loss of atomicity");
@@ -216,13 +202,13 @@ public class LTSminTreeWalker {
 			assert (s.isInAtomic());
 
 			lt.addGuard(new LTSminGuard(trans, makePCGuard(s, process)));
-			lt.addGuard(new LTSminGuard(trans, makeExclusiveAtomicGuard(process)));
+			//lt.addGuard(new LTSminGuard(trans, makeExclusiveAtomicGuard(process)));
 			for (Transition ot : s.output) {
 				LTSminGuardNand gnand = new LTSminGuardNand();
 				createEnabledAndDieGuard(process,ot,trans,gnand);
 				lt.addGuard(gnand);
 			}
-			lt.addAction(assign(priorityIdentifier, -1));
+			//lt.addAction(assign(priorityIdentifier, -1));
 		}
 		++trans;
 
@@ -244,6 +230,7 @@ public class LTSminTreeWalker {
 		}
 		if (model.getTransitions().size() != trans)
 			throw new AssertionError("Transition not set at correct location in the transition array");
+		 */
 		return trans;
 	}
 
@@ -265,12 +252,12 @@ public class LTSminTreeWalker {
 			model.getTransitions().add(lt);
 
 			lt.addGuard(new LTSminGuard(trans, makePCGuard(state, process)));
-			lt.addGuard(new LTSminGuard(trans, makeAtomicGuard(process)));
+			//lt.addGuard(new LTSminGuard(trans, makeAtomicGuard(process)));
 			lt.addGuard(new LTSminGuard(trans, makeAllowedToDie(process)));
 
 			// In the case of an ending state, create a transition only
 			// changing the process counter to -1.
-			lt.addAction(assign(model.sv.procId(process), -1));
+			lt.addAction(assign(model.sv.getPC(process), -1));
 
 			// Keep track of the current transition ID
 			++trans;
@@ -316,7 +303,7 @@ public class LTSminTreeWalker {
 				ChannelVariable var = (ChannelVariable)csa.getVariable();
 				if(var.getType().getBufferSize()==0) {
 					ReadersAndWriters raw = channels.get(var);
-					if(raw==null) {
+					if (raw == null) {
 						raw = new ReadersAndWriters();
 						channels.put(var, raw);
 					}
@@ -328,7 +315,7 @@ public class LTSminTreeWalker {
 				ChannelVariable var = (ChannelVariable)cra.getVariable();
 				if (var.getType().getBufferSize()==0) {
 					ReadersAndWriters raw = channels.get(var);
-					if (raw==null) {
+					if (raw == null) {
 						raw = new ReadersAndWriters();
 						channels.put(var, raw);
 					}
@@ -358,60 +345,69 @@ public class LTSminTreeWalker {
 
 		// Guard: process counter
 		lt.addGuard(new LTSminGuard(trans, makePCGuard(t.getFrom(), process)));
-		lt.addGuard(new LTSminGuard(trans, makeAtomicGuard(process)));
 		if(never_t!=null)
 			lt.addGuard(new LTSminGuard(trans, makePCGuard(never_t.getFrom(),spec.getNever())));
 
-		// Guard: action enabled & die
-        createEnabledAndDieGuard(process, t, trans, lt);
-        if (never_t != null)
-        	createEnabledAndDieGuard(process, never_t, trans, lt);
-        
-        // Guard: else transition
+        // Guard: enabled action or else transition
         if (t instanceof ElseTransition) {
             ElseTransition et = (ElseTransition)t;
             for (Transition ot : t.getFrom().output) {
                 if (ot!=et) {
                 	LTSminGuardNand nand = new LTSminGuardNand();
-                    createEnabledAndDieGuard(process,ot,trans,nand);
+                    createEnabledGuard(process,ot,trans,nand);
                     lt.addGuard(nand);
                 }
             }
+        } else {
+            createEnabledGuard(process, t, trans, lt);
         }
-        if (never_t != null && never_t instanceof ElseTransition) {
-            ElseTransition et = (ElseTransition)never_t;
-            for (Transition ot : t.getFrom().output) {
-                if (ot!=et) {
-                	LTSminGuardNand nand = new LTSminGuardNand();
-                    createEnabledAndDieGuard(spec.getNever(),ot,trans,nand);
-                    lt.addGuard(nand);
-                }
-            }
+
+        // Guard: allowed to die
+		if (t.getTo()==null) {
+			lt.addGuard(new LTSminGuard(trans,makeAllowedToDie(process)));
+		}
+
+		// Guard: never enabled action or else transition
+        if (never_t != null) {
+	        if (never_t instanceof ElseTransition) {
+	            ElseTransition et = (ElseTransition)never_t;
+	            for (Transition ot : t.getFrom().output) {
+	                if (ot!=et) {
+	                	LTSminGuardNand nand = new LTSminGuardNand();
+	                    createEnabledGuard(spec.getNever(),ot,trans,nand);
+	                    lt.addGuard(nand);
+	                }
+	            }
+	        } else {
+	        	createEnabledGuard(process, never_t, trans, lt);
+	        }
         }
-        
+
 		// Create actions of the transition, iff never is absent, dying or not atomic
 		if  (never_t == null || never_t.getTo()==null || !never_t.getTo().isInAtomic()) {
 			// Action: PC counter update
-			lt.addAction(assign(model.sv.procId(process), t.getTo()==null?-1:t.getTo().getStateId()));
+			lt.addAction(assign(model.sv.getPC(process), t.getTo()==null?-1:t.getTo().getStateId()));
 			if (t.getTo()==null)
-				lt.addAction(new ResetProcessAction(process,model.sv.getProcId(process)));
+				lt.addAction(new ResetProcessAction(process,model.sv.getPC(process)));
 	       
 			// Actions: transition
 			for (Action action : t) {
 	            lt.addAction(action);
 	        }
 
+			/*
 			// Action: priority (take if to.isInAtomic)
 			if (t.getTo()!=null && t.getTo().isInAtomic()) {
 				lt.addAction(assign(priorityIdentifier, model.sv.procOffset(process)));
 			} else {
 				lt.addAction(assign(priorityIdentifier, -1));
 			}
+			*/
 		}
 
 		// Action: Never PC update
 		if (never_t != null) {
-			lt.addAction(assign(model.sv.procId(spec.getNever()),
+			lt.addAction(assign(model.sv.getPC(process),
 								never_t.getTo()==null?-1:never_t.getTo().getStateId()));
 		}
 		return trans+1;
@@ -423,16 +419,12 @@ public class LTSminTreeWalker {
 	 * @param t The transition of which the guard will be created.
 	 * @param trans The transition group ID to use for generation.
 	 */
-	private void createEnabledAndDieGuard(Proctype process, Transition t, 
+	private void createEnabledGuard(Proctype process, Transition t, 
 								  int trans, LTSminGuardContainer lt) {
 		try {
 			if (t.iterator().hasNext()) {
 				Action a = t.iterator().next();
 				createEnabledGuard(process,a,t,trans,lt);
-			}
-	        // Check if the process is allowed to die if the target state is null
-			if (t.getTo()==null) {
-				lt.addGuard(new LTSminGuard(trans,makeAllowedToDie(process)));
 			}
 		} catch(ParseException e) { // removed if (a.getEnabledExpression()!=null)
 			e.printStackTrace();
@@ -479,7 +471,7 @@ public class LTSminTreeWalker {
 					if (!(expr instanceof Identifier)) {
 						String name = wrapNameForChannelDesc(model.sv.getDescr(cra.getVariable()));
 						ChannelTopExpression cte = new ChannelTopExpression(cra, name, i);
-						lt.addGuard(new LTSminGuard(trans,compare(cte,expr)));
+						lt.addGuard(new LTSminGuard(trans,compare(PromelaConstants.EQ,cte,expr)));
 					}
 				}
 			} else {
@@ -508,8 +500,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 				// Loop over all transitions of the state
 				for (Transition trans : st.output) {
 					tt.lt.addGuard(new LTSminGuard(tt.trans,makeAllowedToDie(p)));
-					tt.lt.addGuard(new LTSminGuard(tt.trans,makeAtomicGuard(p)));
-                    createEnabledAndDieGuard(p,trans,tt.trans,tt.lt);
+					//tt.lt.addGuard(new LTSminGuard(tt.trans,makeAtomicGuard(p)));
+                    createEnabledGuard(p,trans,tt.trans,tt.lt);
 				}
 			}
 		}
@@ -545,8 +537,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 					LTSminGuardNand gnand = new LTSminGuardNand();
 					lt.addGuard(gnand);
 					gnand.addGuard(new LTSminGuard(trans, makePCGuard(st, p)));
-					gnand.addGuard(new LTSminGuard(trans, makeAtomicGuard(p)));
-					createEnabledAndDieGuard(p,t,trans,gnand);
+					//gnand.addGuard(new LTSminGuard(trans, makeAtomicGuard(p)));
+					createEnabledGuard(p,t,trans,gnand);
 				}
 			}
 		}
@@ -584,13 +576,13 @@ state_loop:	for (State st : p.getAutomaton()) {
 			final Expression csa_expr = csa_exprs.get(i);
 			final Expression cra_expr = cra_exprs.get(i);
 			if (!(cra_expr instanceof Identifier)) {
-				lt.addGuard(new LTSminGuard(trans,new CompareExpression(new Token(PromelaConstants.EQ,"=="),csa_expr,cra_expr)));
+				lt.addGuard(new LTSminGuard(trans,compare(PromelaConstants.EQ,csa_expr,cra_expr)));
 			}
 		}
 		// Change process counter of sender
-		lt.addAction(assign(model.sv.procId(sa.p),sa.t.getTo().getStateId()));
+		lt.addAction(assign(model.sv.getPC(sa.p),sa.t.getTo().getStateId()));
 		// Change process counter of receiver
-		lt.addAction(assign(model.sv.procId(ra.p),ra.t.getTo().getStateId()));
+		lt.addAction(assign(model.sv.getPC(ra.p),ra.t.getTo().getStateId()));
 		
 		for (int i = 0; i < cra_exprs.size(); i++) {
 			final Expression csa_expr = csa_exprs.get(i);
@@ -599,11 +591,6 @@ state_loop:	for (State st : p.getAutomaton()) {
 				lt.addAction(assign((Identifier)cra_expr,csa_expr));
 			}
 		}
-
-		int priority = -1;
-		if(ra.t.getTo()!=null && ra.t.getTo().isInAtomic())
-			priority = model.sv.procOffset(ra.p);
-		lt.addAction(assign(priorityIdentifier, priority));
 	}
 
 	/**
@@ -643,77 +630,66 @@ state_loop:	for (State st : p.getAutomaton()) {
 	}
 
 	public static AssignAction assign(Variable v, Expression expr) {
-		return assign (new Identifier(new Token(IDENTIFIER,v.getName()), v), expr);
+		return assign (id(v), expr);
 	}
 	
 	public static AssignAction assign(Identifier id, Expression expr) {
 		return new AssignAction(new Token(PromelaConstants.ASSIGN,"="), id, expr);
 	}
 
-	public static AssignAction assign(Identifier id, int nr) {
-		return assign(id, new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+nr), nr));
+	public static AssignAction assign(Variable v, int nr) {
+		return assign(id(v), constant(nr));
 	}
 
-	private static CompareExpression compare(Expression e1, Expression e2) {
-		return new CompareExpression(new Token(PromelaConstants.EQ,"=="), e1, e2);
+	public static Identifier id(Variable v) {
+		return new Identifier(new Token(IDENTIFIER,v.getName()), v);
 	}
 
-	private static Expression compare(Expression e1, int nr) {
-		return compare(e1, new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+nr), nr));
+	private static CompareExpression compare(int m, Expression e1, Expression e2) {
+		String name = PromelaConstants.tokenImage[m];
+		return new CompareExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
+	}
+
+	private static Expression compare(int m, Expression e1, int nr) {
+		return compare(m, e1, constant(nr));
+	}
+
+	public static ConstantExpression constant(int nr) {
+		return new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+nr), nr);
 	}
 	
     private Expression makePCGuard(State s, Proctype p) {
-		Expression left = model.sv.procId(p);
-		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+s.getStateId()), s.getStateId());
-		Expression e = new CompareExpression(new Token(PromelaConstants.EQ,"=="), left, right);
+		Variable pc = model.sv.getPC(p);
+		Expression left = id(pc);
+		Expression right = constant(s.getStateId());
+		Expression e = compare(PromelaConstants.EQ, left, right);
 		return e;
 	}
 
 	private Expression makePCDeathGuard(Proctype p) {
-		Expression left = model.sv.procId(p);
-		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"-1"), -1);
-		Expression e = new CompareExpression(new Token(PromelaConstants.EQ,"=="), left, right);
+		Expression left = id(model.sv.getPID(p));
+		Expression e = compare(PromelaConstants.EQ, left, -1);
 		return e;
 	}
 
 	/* TODO: die sequence of dynamically started processes ala http://spinroot.com/spin/Man/init.html */
 	private Expression makeAllowedToDie(Proctype p) {
-		Iterator<Proctype> it = spec.iterator();
-		while (it.hasNext() && !it.next().equals(p)) {}
-		if(it.hasNext()) {
-			return makePCDeathGuard(it.next());
-		} else {
-			return new ConstantExpression(new Token(PromelaConstants.TRUE,"1"), 1);
-		}
-	}
-
-	private Expression makeAtomicGuard(Proctype p) {
-		Expression left = priorityIdentifier;
-		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"0"), 0);
-		Expression e = new CompareExpression(new Token(PromelaConstants.LT,"<"), left, right);
-
-		Expression e2 = compare(priorityIdentifier, model.sv.procOffset(p));
-
-		return new BooleanExpression(new Token(PromelaConstants.LOR,"||"), e, e2);
-	}
-
-	private Expression makeExclusiveAtomicGuard(Proctype p) {
-		return compare(priorityIdentifier, model.sv.procOffset(p));
+		Variable pid = model.sv.getPID(p);
+		return compare (PromelaConstants.EQ, id(pid), id(LTSminStateVector._NR_PR));
 	}
 
 	private Expression makeChannelUnfilledGuard(ChannelVariable var) {
 		String name = wrapNameForChannelDesc(model.sv.getDescr(var));
 		Expression left = new ChannelSizeExpression(var, name);
-		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,""+var.getType().getBufferSize()), var.getType().getBufferSize());
-		Expression e = new CompareExpression(new Token(PromelaConstants.LT,"<"), left, right);
+		Expression right = constant(var.getType().getBufferSize());
+		Expression e = compare(PromelaConstants.LT, left, right);
 		return e;
 	}
 
 	private Expression makeChannelHasContentsGuard(ChannelVariable var) {
 		String name = wrapNameForChannelDesc(model.sv.getDescr(var));
 		Expression left = new ChannelSizeExpression(var, name);
-		Expression right = new ConstantExpression(new Token(PromelaConstants.NUMBER,"0"), 0);
-		Expression e = new CompareExpression(new Token(PromelaConstants.GT,">"), left, right);
+		Expression e = compare(PromelaConstants.GT, left, constant(0));
 		return e;
 	}
 

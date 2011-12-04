@@ -1,10 +1,8 @@
 package spinja.promela.compiler.ltsmin;
 
 import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_NUM_PROCS_VAR;
-import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_PRIORITY;
 import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_GLOBALS;
 import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_INITIAL;
-import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_PRIORITY;
 import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_PROC_COUNTER;
 import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_SIZE;
 import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_T;
@@ -60,10 +58,6 @@ import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.instr.DepMatrix;
 import spinja.promela.compiler.ltsmin.instr.DepRow;
 import spinja.promela.compiler.ltsmin.instr.GuardMatrix;
-import spinja.promela.compiler.ltsmin.instr.PCExpression;
-import spinja.promela.compiler.ltsmin.instr.PCIdentifier;
-import spinja.promela.compiler.ltsmin.instr.PriorityExpression;
-import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
 import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
@@ -87,7 +81,6 @@ public class LTSminPrinter {
 	public static final String IN_ACCESS_GLOBALS = IN_ACCESS + C_STATE_GLOBALS + ".";
 	public static final String TMP_NUM_PROCS = TMP_ACCESS_GLOBALS + C_NUM_PROCS_VAR +".var";
 	public static final String IN_NUM_PROCS = IN_ACCESS_GLOBALS + C_NUM_PROCS_VAR +".var";
-	public static final String ACCESS_PRIORITY = C_STATE_GLOBALS +"."+ C_STATE_PRIORITY;
 	public static final int    PM_MAX_PROCS = 256;
 
 	private static String getPC(String p_name, String access) {
@@ -113,7 +106,6 @@ public class LTSminPrinter {
 			generateTypeDef(w, t);
 		}
 		generateForwardDeclarations(w);
-		generateIsAtomic(w);
 		generateStateCount(w,model);
 		generateInitialState(w,model);
 		generateGetNext(w,model);
@@ -195,16 +187,6 @@ public class LTSminPrinter {
 		w.appendLine("}");
 	}
 
-	private static void generateIsAtomic(StringWriter w) {
-		w.appendLine("int spinja_is_atomic(void* model, ",C_STATE_T,"* ",C_STATE_TMP,") {");
-		w.indent();
-
-		w.appendLine("return ",C_STATE_TMP,"->",C_PRIORITY,".var >= 0;");
-
-		w.outdent();
-		w.appendLine("}");
-	}
-
 	private static void generateTransitionCount(StringWriter w, LTSminModel model) {
 		w.appendLine("extern int spinja_get_transition_groups() {");
 		w.indent();
@@ -224,37 +206,28 @@ public class LTSminPrinter {
 		
 		LTSminStateElement last = model.sv.get(model.sv.size()-1);
 		// Insert initial expression of each state element into initial state struct
-		for(LTSminStateElement se : model.sv) {
+		for (LTSminStateElement se : model.sv) {
 			Variable v = se.getVariable();
 			// If it is null, this location is probably a state descriptor
 			// or priorityProcess variable so the initial state is 0
-			if(v==null) {
+			if (v==null) {
 				w.append("0");
 			// If not null, then it's a legit variable, global or local,
 			// so the initial state will be set to whatever the initial
 			// expression is
 			} else {
-				if (v.getOwner() != null && //if this is the program counter of a process: //TODO: could be clearer:
-					v.getName().equals(C_STATE_TMP + "." + LTSminTreeWalker.wrapName(v.getOwner().getName()))) {
-					switch (v.getOwner().getNrActive()) {
-					case 0: w.append("-1"); break; //use run to start this proc
-					case 1: w.append("0"); break; //start at the initial state
-					default: throw new AssertionError("active[n] not yet supported"); //TODO: extend state vector and introduce anonymous processes
+				Expression e = v.getInitExpr();
+				if (e==null) {
+					if (v instanceof ChannelVariable && se.isFirst()) {
+						ChannelVariable cv = (ChannelVariable)v;
+						//{isRendezVous, nextRead, filled}
+						w.append(cv.getType().getBufferSize()==0 ? "1" : "0");
+						w.append(",0,0");
+					} else {
+						w.append("0");
 					}
 				} else {
-					Expression e = v.getInitExpr();
-					if(e==null) {
-						if (v instanceof ChannelVariable && se.isFirst()) {
-							ChannelVariable cv = (ChannelVariable)v;
-							//{isRendezVous, nextRead, filled}
-							w.append(cv.getType().getBufferSize()==0 ? "1" : "0");
-							w.append(",0,0");
-						} else {
-							w.append("0");
-						}
-					} else {
-						generateIntExpression(w, model, e, "UNKNOWN_INIT_VALUE");
-					}
+					generateIntExpression(w, model, e, "UNKNOWN_INIT_VALUE");
 				}
 			}
 			if (se != last)	w.append(",");
@@ -267,7 +240,6 @@ public class LTSminPrinter {
 		w.indent();
 		w.appendLine("if(state_size*",STATE_ELEMENT_SIZE," != sizeof(" + C_STATE_T + ")) { printf(\"state_t SIZE MISMATCH!: state=%i(%i) globals=%i\",sizeof(state_t),state_size*",STATE_ELEMENT_SIZE,",sizeof(state_globals_t)); }");
 		w.appendLine("memcpy(to, (char*)&",C_STATE_INITIAL,", sizeof(" + C_STATE_T + "));");
-		w.appendLine("to->",C_PRIORITY,".var = -1;");
 		w.outdent();
 		w.appendLine("}");
 	}
@@ -278,45 +250,6 @@ public class LTSminPrinter {
 		w.appendLine("++states_emitted;");
 	}
 
-	private static class PCGuardTuple {
-		public PCGuardTuple(Proctype p, int linenum) {
-			this.linenum = linenum;
-			this.p = p;
-		}
-		public boolean equals(Object o) {
-			if (o == null)
-				return false;
-			if (!(o instanceof PCGuardTuple))
-				return false;
-			PCGuardTuple other = (PCGuardTuple)o;
-			return other.p == p && other.linenum == linenum;
-		}
-		Proctype p;
-		int linenum;
-	}
-
-	private static PCGuardTuple lastPCG = null;
-	private static LTSminGuard lastAG = null;
-	
-	static PCGuardTuple getPCGuard(LTSminGuardBase g) {
-		if (!(g instanceof LTSminGuard))
-			return null;
-		LTSminGuard gg = (LTSminGuard)g;
-		if (!(gg.expr instanceof CompareExpression))
-			return null;
-		CompareExpression ce = (CompareExpression)gg.expr;
-		if (!(ce.getExpr1() instanceof PCIdentifier))
-			return null;
-		PCIdentifier pi = (PCIdentifier)ce.getExpr1();
-		
-		if (!(ce.getExpr2() instanceof ConstantExpression))
-			return null;
-		ConstantExpression constant = (ConstantExpression)ce.getExpr2();
-		int l = constant.getNumber();
-		
-		return new PCGuardTuple(pi.getProcess(), l);
-	}
-	
 	private static void generateGetAll(StringWriter w, LTSminModel model) {
 		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
@@ -338,16 +271,10 @@ public class LTSminPrinter {
 
 		List<LTSminTransitionBase> transitions = model.getTransitions();
 		int trans = 0;
-		lastPCG = null;
-		lastAG = null;
 		for(LTSminTransitionBase t: transitions) {
 			generateATransition(w, t, trans, model);
 			++trans;
 		}
-		w.outdent();
-		w.appendLine("}");
-		w.outdent();
-		w.appendLine("}");
 		
 		w.appendLine("return states_emitted;");
 		w.outdent();
@@ -360,43 +287,8 @@ public class LTSminPrinter {
 		if(transition instanceof LTSminTransition) {
 			LTSminTransition t = (LTSminTransition)transition;
 
-			assert (t.getGuards().size() > 1); //assume there are two guards
-			LTSminGuardBase gg = t.getGuards().get(0);
-			PCGuardTuple curPCG = getPCGuard(gg);
-			assert (curPCG != null); //assume the first guard is always the PC guard
-			
-			//assert (isAtomicGuard(t.getGuards().get(1))); //we dont need this, equals is flexible
-			LTSminGuard curAG = (LTSminGuard)t.getGuards().get(1);
-			
-			boolean boundary = false;
-			if (!curAG.equals(lastAG)) {
-				if (lastAG != null) {
-					w.outdent().appendLine("}");
-					w.outdent().appendLine("}");
-				}
-				w.appendPrefix().append("if(");
-				generateGuard(w, model, curAG);
-				w.append(") {").appendPostfix().indent();
-				lastAG = curAG;
-				boundary = true;
-			}
-			
-			if (boundary || !curPCG.equals(lastPCG)) {
-				if (!boundary && lastPCG != null)
-					w.outdent().appendLine("}");
-				w.appendPrefix().append("if(");
-				generateGuard(w, model, gg);
-				w.append(") {").appendPostfix().indent();
-				lastPCG = curPCG;
-			}
-
 			w.appendPrefix().append("if (true");
-			//t.generateNonPCGuardsC(w);
-			int count = 0;
 			for(LTSminGuardBase g: t.getGuards()) {
-				++count;
-				if (count < 3) // 0 == PCGuard && 1 == PriorityGuard
-					continue;
 				w.appendPostfix().appendPrefix().append("&&");
 				generateGuard(w, model, g);
 			}
@@ -639,10 +531,14 @@ public class LTSminPrinter {
 					w.appendLine("}");
 					
 					//activate process
-					Action ae;
-					ae = LTSminTreeWalker.assign(model.sv.procId(target), 0);
-					generateAction(w, ae, model);
+					Action update_pc = LTSminTreeWalker.assign(model.sv.getPC(target), 0);
+					generateAction(w, update_pc, model);
 					w.appendLine("++("+ TMP_NUM_PROCS +");");
+					
+					//set pid
+					Action update_pid = LTSminTreeWalker.assign(model.sv.getPID(target),
+							LTSminTreeWalker.id(LTSminStateVector._NR_PR));
+					generateAction(w, update_pid, model);
 					
 					List<Variable> args = target.getArguments();
 					Iterator<Expression> eit = re.getExpressions().iterator();
@@ -653,8 +549,8 @@ public class LTSminPrinter {
 						Expression e = eit.next();
 						//channels are passed by reference: TreeWalker.bindByReferenceCalls 
 						if (!(v.getType() instanceof ChannelType)) {
-							ae = LTSminTreeWalker.assign(v, e);
-							generateAction(w, ae, model);
+							Action aa = LTSminTreeWalker.assign(v, e);
+							generateAction(w, aa, model);
 						}
 					}
 				}
@@ -743,18 +639,7 @@ public class LTSminPrinter {
 	}
 
 	private static void generateIntExpression(StringWriter w, LTSminModel model, Expression e, String access) {
-		//w.append("|").append(e.getClass().getSimpleName()).append("|");
-		if(e instanceof PCExpression) {
-			PCExpression pc = (PCExpression)e;
-			w.append(getPC(pc.getProcessName(), access));
-		} else if(e instanceof PriorityExpression) {
-			w.append(access + ACCESS_PRIORITY).append(".var");
-		} else if(e instanceof PCIdentifier) {
-			PCIdentifier pc = (PCIdentifier)e;
-			w.append(access).append(LTSminTreeWalker.wrapName(pc.getProcess().getName())).append(".pc.var");
-		} else if(e instanceof PriorityIdentifier) {
-			w.append(access + ACCESS_PRIORITY).append(".var");
-		} else if(e instanceof ChannelSizeExpression) {
+		if(e instanceof ChannelSizeExpression) {
 			ChannelSizeExpression cse = (ChannelSizeExpression)e;
 			Variable var = cse.getVariable();
 			w.append(access);
