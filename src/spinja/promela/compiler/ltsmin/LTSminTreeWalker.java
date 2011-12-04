@@ -263,12 +263,10 @@ public class LTSminTreeWalker {
 		} else {
 			// In the normal case, create a transition changing the process
 			// counter to the next state and any actions the transition does.
-			if (state.isInAtomic()) // If this is an atomic state, add it to the list
-				atomicStates.add(new AtomicState(state,process));
 			for (Transition t : state.output) {
+				if (collectRendezVous(process, t, trans))
+					continue;
 				for (Transition never_t : getOutTransitionsOrNullSet(never_state)) {
-					if (collectRendezVous(process, t, trans))
-						continue;
 					trans = createStateTransition(process,t,trans,never_t);
 				}
 			}
