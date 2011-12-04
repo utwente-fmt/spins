@@ -175,20 +175,18 @@ public class LTSminTreeWalker {
 		for (Map.Entry<ChannelVariable,ReadersAndWriters> e : channels.entrySet()) {
 			for (SendAction sa : e.getValue().sendActions) {
 				for (ReadAction ra : e.getValue().readActions) {
-					//if(state_proc_offset.get(sa.p) == state_proc_offset.get(ra.p)) continue;
-					if (model.getTransitions().size() != trans)
-						throw new AssertionError("Transition not set at correct location in the transition array");
-					LTSminTransition lt = new LTSminTransition(sa.p);
-					model.getTransitions().add(lt);
 					for (State ns : getNeverAutomatonOrNullSet(false)) {
 						for (Transition nt : getOutTransitionsOrNullSet(ns)) {
+							LTSminTransition lt = new LTSminTransition(sa.p);
+							model.getTransitions().add(lt);
 							createRendezVousAction(sa,ra,trans,nt,lt);
+							++trans;
 						}
 					}
-					++trans;
 				}
 			}
 		}
+
 		/*
 		// Create loss of atomicity transition.
 		// This is used when a process blocks inside an atomic transition.
@@ -228,9 +226,10 @@ public class LTSminTreeWalker {
 			}
 			++trans;
 		}
+		*/
 		if (model.getTransitions().size() != trans)
 			throw new AssertionError("Transition not set at correct location in the transition array");
-		 */
+
 		return trans;
 	}
 
@@ -338,8 +337,6 @@ public class LTSminTreeWalker {
 		--debug.say_indent;
 
 		// Add transition
-		if(model.getTransitions().size() != trans)
-			throw new AssertionError("Transition not set at correct location in the transition array");
 		LTSminTransition lt = new LTSminTransition(process);
 		model.getTransitions().add(lt);
 
