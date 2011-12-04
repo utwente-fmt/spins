@@ -32,7 +32,6 @@ import spinja.promela.compiler.expression.TimeoutExpression;
 import spinja.promela.compiler.ltsmin.instr.AtomicState;
 import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
-import spinja.promela.compiler.ltsmin.instr.ElseTransitionItem;
 import spinja.promela.compiler.ltsmin.instr.PriorityIdentifier;
 import spinja.promela.compiler.ltsmin.instr.ReadAction;
 import spinja.promela.compiler.ltsmin.instr.ReadersAndWriters;
@@ -70,9 +69,6 @@ public class LTSminTreeWalker {
 	// Atomic states - for creation of loss of atomicity transitions
 	private List<AtomicState> atomicStates;
 
-	// List of Elsetransitions for delayed processing
-	private List<ElseTransitionItem> else_transitions;
-
 	// List of transition with a TimeoutExpression
     List<TimeoutTransition> timeout_transitions;
 
@@ -86,7 +82,6 @@ public class LTSminTreeWalker {
 	public LTSminTreeWalker(Specification spec, String name) {
 		this.spec = spec;
 		atomicStates = new ArrayList<AtomicState>();
-		else_transitions = new ArrayList<ElseTransitionItem>();
         timeout_transitions = new ArrayList<TimeoutTransition>();
 		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
 		model = new LTSminModel(name);
@@ -168,6 +163,16 @@ public class LTSminTreeWalker {
 	private int createTransitions() {
 		int trans = 0;
 		debug.say("");
+
+		for (Proctype p : spec) {
+			for (State state : p.getAutomaton()) {
+				state.orderOutTransitions();
+			}
+		}
+		for (State ns : getNeverAutomatonOrNullSet(false)) {
+			ns.orderOutTransitions();
+		}
+		
 		// Create the normal transitions for all processes.
 		// This excludes: rendezvous, else, timeout and loss of atomicity
 		// Calculate cross product with the never claim when not in atomic state 
@@ -178,15 +183,6 @@ public class LTSminTreeWalker {
 					trans = createTransitionsFromState(p,trans,st, ns);
 				}
 			}
-		}
-
-		// Create else transitions, except for atomic states
-		for (ElseTransitionItem eti : else_transitions) {
-			for (State ns : getNeverAutomatonOrNullSet(eti.t.getFrom().isInAtomic())) {
-				for (Transition nt : getOutTransitionsOrNullSet(ns)) {
-					trans = createStateTransition(eti.p, eti.t, trans, nt);
-				}
-			}			
 		}
 
 		// create the rendezvous transitions
@@ -259,7 +255,7 @@ public class LTSminTreeWalker {
 	 * @param state The state of which all outgoing transitions will be created.
 	 * @return The next free transition ID (= old.trans + #new_transitions).
 	 */
-	private int createTransitionsFromState(Proctype process, int trans, State state, State never_state) {
+	private int createTransitionsFromState (Proctype process, int trans, State state, State never_state) {
 		++debug.say_indent;
 		debug.say(state.toString());
 
@@ -285,7 +281,7 @@ public class LTSminTreeWalker {
 				atomicStates.add(new AtomicState(state,process));
 			for (Transition t : state.output) {
 				for (Transition never_t : getOutTransitionsOrNullSet(never_state)) {
-					if (collectElseAndRendezVous(process, t, trans))
+					if (collectRendezVous(process, t, trans))
 						continue;
 					trans = createStateTransition(process,t,trans,never_t);
 				}
@@ -312,7 +308,7 @@ public class LTSminTreeWalker {
 	 * @param trans
 	 * @return true = found either else transition or rendezvous enabled action 
 	 */
-	private boolean collectElseAndRendezVous(Proctype process, Transition t, int trans) {
+	private boolean collectRendezVous(Proctype process, Transition t, int trans) {
 		if (t.iterator().hasNext()) {
 			Action a = t.iterator().next();
 			if (a instanceof ChannelSendAction) {
@@ -340,11 +336,6 @@ public class LTSminTreeWalker {
 					return true;
 				}
 			}
-		}
-
-		if (t instanceof ElseTransition) {
-			else_transitions.add(new ElseTransitionItem(-1,(ElseTransition)t,process));
-			return true;
 		}
 		return false;
 	}
