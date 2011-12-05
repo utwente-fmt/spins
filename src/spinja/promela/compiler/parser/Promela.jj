@@ -169,6 +169,7 @@ SKIP : { // Skip whitespace and comments
 |	"\t"
 |	"\n"
 |	"/*" : IN_COMMENT
+|   "//" : IN_COMMENT2
 |	"#" : PREPROCESSOR_OUTPUT
 }
 
@@ -186,6 +187,14 @@ SKIP : { // Skip whitespace and comments
  "\\\r\n"
  |
  < ~[] >
+}
+
+<IN_COMMENT2> SKIP: {
+    < ~["\n","\r"] >
+}
+
+<IN_COMMENT2> SKIP: {
+    < "\n"|"\r"|"\r\n" >: DEFAULT
 }
 
 <IN_COMMENT> SKIP: {
