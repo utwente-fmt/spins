@@ -650,6 +650,9 @@ public class LTSminPrinter {
 				w.append(".");
 			}
 			w.append(LTSminTreeWalker.wrapName(cse.getVariable().getName())).append(".filled");
+		} else if(e instanceof LTSminIdentifier) {
+			LTSminIdentifier id = (LTSminIdentifier)e;
+			w.append(id.getVariable().getName());
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
@@ -821,7 +824,8 @@ public class LTSminPrinter {
 	
 	private static void generateBoolExpression(StringWriter w, LTSminModel model,
 											   Expression e, String access) {
-		if(e instanceof Identifier) {
+
+		if(e instanceof Identifier) { //also LTSminIdentifier
 			w.append("(");
 			generateIntExpression(w, model, e, access);
 			w.append(" != 0 )");

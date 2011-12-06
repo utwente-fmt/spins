@@ -93,7 +93,8 @@ public class LTSminDMWalker {
 	}
 
 	static void walkGuard(Params params, LTSminGuardBase guard) {
-		if(guard instanceof LTSminGuard) {
+		if (guard instanceof LTSminLocalGuard) { // Nothing
+		} else if(guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
 			walkBoolExpression(params, g.expr);
 		} else if(guard instanceof LTSminGuardNand) {
@@ -262,6 +263,7 @@ public class LTSminDMWalker {
 		if (e instanceof ChannelSizeExpression) {
 			ChannelSizeExpression cse = (ChannelSizeExpression)e;
 			DMIncRead(params,cse.getVariable(),0); //filled and nextread is first
+		} else if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();

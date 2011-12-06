@@ -85,7 +85,8 @@ public class LTSminGMWalker {
 	}
 
 	static void walkGuard(Params params, LTSminGuardBase guard) {
-		if(guard instanceof LTSminGuard) {
+		if(guard instanceof LTSminLocalGuard) { //Nothing
+		} else if(guard instanceof LTSminGuard) {
 			int gidx = params.guard>=0 ? params.guard : params.guardMatrix.addGuard(params.trans, guard);
 			params.depMatrix.ensureSize(gidx+1);
 			//System.out.println("Now handling1 " + gidx);
@@ -121,6 +122,7 @@ public class LTSminGMWalker {
 		if(e instanceof ChannelSizeExpression) {
 			ChannelSizeExpression cse = (ChannelSizeExpression)e;
 			DMIncRead(params,cse.getVariable(),0);
+		} else if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
