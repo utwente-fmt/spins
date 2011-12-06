@@ -27,7 +27,6 @@ import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RunExpression;
-import spinja.promela.compiler.ltsmin.instr.AtomicState;
 import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.instr.ReadAction;
@@ -63,9 +62,6 @@ public class LTSminTreeWalker {
 	// For each channel, a list of read actions and send actions is kept for later processing
 	private HashMap<ChannelVariable,ReadersAndWriters> channels;
 
-	// Atomic states - for creation of loss of atomicity transitions
-	private List<AtomicState> atomicStates;
-
 	// List of transition with a TimeoutExpression
     List<TimeoutTransition> timeout_transitions;
 
@@ -76,7 +72,6 @@ public class LTSminTreeWalker {
 	 */
 	public LTSminTreeWalker(Specification spec, String name) {
 		this.spec = spec;
-		atomicStates = new ArrayList<AtomicState>();
         timeout_transitions = new ArrayList<TimeoutTransition>();
 		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
 		model = new LTSminModel(name);
@@ -159,13 +154,24 @@ public class LTSminTreeWalker {
 		int trans = 0;
 		debug.say("");
 		
+		for (Proctype p : spec) {
+			debug.say("[Proc] " + p.getName());
+			for (State st : p.getAutomaton()) {
+				debug.say("\t"+ st);
+				for (Transition t : st.output) {
+					debug.say("\t\t"+ t);
+				}
+			}
+		}
+		debug.say("");
+		
 		// Create the normal transitions for all processes.
 		// This excludes: rendezvous, else, timeout and loss of atomicity
 		// Calculate cross product with the never claim when not in atomic state 
 		for (Proctype p : spec) {
 			debug.say("[Proc] " + p.getName());
 			for (State st : p.getAutomaton()) {
-				for (State ns : getNeverAutomatonOrNullSet(st.isInAtomic())) {
+				for (State ns : getNeverAutomatonOrNullSet(false)) {
 					trans = createTransitionsFromState(p,trans,st, ns);
 				}
 			}
@@ -177,14 +183,18 @@ public class LTSminTreeWalker {
 				for (ReadAction ra : e.getValue().readActions) {
 					for (State ns : getNeverAutomatonOrNullSet(false)) {
 						for (Transition nt : getOutTransitionsOrNullSet(ns)) {
-							LTSminTransition lt = new LTSminTransition(sa.p);
-							model.getTransitions().add(lt);
-							createRendezVousAction(sa,ra,trans,nt,lt);
-							++trans;
+							trans = createRendezVousTransition(sa,ra,trans,nt);
 						}
 					}
 				}
 			}
+		}
+		
+		for (LTSminTransitionBase t : model.getTransitions()) {
+			if (!(t instanceof LTSminTransitionCombo))
+				continue;
+			//LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
+			//linearize(process, t.getTo(), seen, tc, trans); //TODO: add rachable atomic transitions to combo to fill DM
 		}
 
 		/*
@@ -199,8 +209,8 @@ public class LTSminTreeWalker {
 			Proctype process = as.p;
 			assert (s.isInAtomic());
 
-			lt.addGuard(new LTSminGuard(trans, makePCGuard(s, process)));
-			//lt.addGuard(new LTSminGuard(trans, makeExclusiveAtomicGuard(process)));
+			lt.addGuard(trans, makePCGuard(s, process));
+			//lt.addGuard(trans, makeExclusiveAtomicGuard(process));
 			for (Transition ot : s.output) {
 				LTSminGuardNand gnand = new LTSminGuardNand();
 				createEnabledAndDieGuard(process,ot,trans,gnand);
@@ -221,7 +231,7 @@ public class LTSminTreeWalker {
 			model.getTransitions().add(lt_cycle);
 			for (State s : spec.getNever().getAutomaton()) {
 				if (s.isEndingState()) {
-					gor.addGuard(new LTSminGuard(trans,makePCGuard(s, spec.getNever())));
+					gor.addGuard(trans,makePCGuard(s, spec.getNever()));
 				}
 			}
 			++trans;
@@ -232,6 +242,25 @@ public class LTSminTreeWalker {
 
 		return trans;
 	}
+
+	/**
+	 * Does a DFS over reachable atomic states
+	 * @param s an atomic state (invariably)
+	int linearize(State s, Set<State> seen, LTSminTransitionCombo c,
+				  int trans) {
+		for (Transition t : s.output) {
+			State n = t.getTo();
+			
+			c.addTransition(lt);
+			trans++;
+
+			if (n.isInAtomic() && seen.add(n)) {
+				trans = linearize(p, n, seen, c, trans);
+			}
+		}
+		return trans;
+	}
+	 */
 
 	/**
 	 * Creates all transitions from the given state. This state should be
@@ -247,12 +276,11 @@ public class LTSminTreeWalker {
 
 		// Check if it is an ending state
 		if (state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
-			LTSminTransition lt = new LTSminTransition(process);
+			LTSminTransition lt = new LTSminTransition(trans, process.getName() +"_end");
 			model.getTransitions().add(lt);
 
-			lt.addGuard(new LTSminGuard(trans, makePCGuard(state, process)));
-			//lt.addGuard(new LTSminGuard(trans, makeAtomicGuard(process)));
-			lt.addGuard(new LTSminGuard(trans, makeAllowedToDie(process)));
+			lt.addGuard(makePCGuard(state, process));
+			lt.addGuard(makeAllowedToDie(process));
 
 			// In the case of an ending state, create a transition only
 			// changing the process counter to -1.
@@ -267,7 +295,9 @@ public class LTSminTreeWalker {
 				if (collectRendezVous(process, t, trans))
 					continue;
 				for (Transition never_t : getOutTransitionsOrNullSet(never_state)) {
-					trans = createStateTransition(process,t,trans,never_t);
+					LTSminTransition lt = createStateTransition(process,trans,t,never_t);
+					model.getTransitions().add(lt);
+					trans++;
 				}
 			}
 		}
@@ -276,6 +306,18 @@ public class LTSminTreeWalker {
 		return trans;
 	}
 
+	private boolean entersAtomic(Transition t) {
+		return !t.getFrom().isInAtomic() && t.getTo() != null && t.getTo().isInAtomic();
+	}
+
+	private boolean leavesAtomic(Transition t) {
+		return t.getFrom().isInAtomic() && (t.getTo() == null || !t.getTo().isInAtomic());
+	}
+	
+	private boolean isAtomic(Transition t) {
+		return t.getFrom().isInAtomic() || (t.getTo() != null && t.getTo().isInAtomic());
+	}
+	
 	/**
  	 * Collects else transition or rendezvous enabled action for later processing 
 	 * Check only for the normal process, not for the never claim
@@ -323,9 +365,9 @@ public class LTSminTreeWalker {
 		}
 		return false;
 	}
-	
-	private int createStateTransition(Proctype process, Transition t, int trans,
-									 Transition never_t) {
+
+	private LTSminTransition createStateTransition(Proctype process, int trans,
+											Transition t, Transition never_t) {
 		++debug.say_indent;
 		if(never_t!=null) {
 			debug.say("Handling trans: " + t.getClass().getName() + " || " + never_t.getClass().getName());
@@ -334,14 +376,17 @@ public class LTSminTreeWalker {
 		}
 		--debug.say_indent;
 
-		// Add transition
-		LTSminTransition lt = new LTSminTransition(process);
-		model.getTransitions().add(lt);
-
+		String t_name = makeTranstionName(t, null, never_t);
+		LTSminTransition lt = isAtomic(t) ?
+									new LTSminTransitionCombo(trans, t_name, t) :
+									new LTSminTransition(trans, t_name);
+		lt.leavesAtomic(leavesAtomic(t));
+		lt.entersAtomic(entersAtomic(t));
+		
 		// Guard: process counter
-		lt.addGuard(new LTSminGuard(trans, makePCGuard(t.getFrom(), process)));
+		lt.addGuard(makePCGuard(t.getFrom(), process));
 		if(never_t!=null)
-			lt.addGuard(new LTSminGuard(trans, makePCGuard(never_t.getFrom(),spec.getNever())));
+			lt.addGuard(makePCGuard(never_t.getFrom(),spec.getNever()));
 
         // Guard: enabled action or else transition
         if (t instanceof ElseTransition) {
@@ -349,17 +394,17 @@ public class LTSminTreeWalker {
             for (Transition ot : t.getFrom().output) {
                 if (ot!=et) {
                 	LTSminGuardNand nand = new LTSminGuardNand();
-                    createEnabledGuard(process,ot,trans,nand);
+                    createEnabledGuard(process,ot,nand);
                     lt.addGuard(nand);
                 }
             }
         } else {
-            createEnabledGuard(process, t, trans, lt);
+            createEnabledGuard(process, t, lt);
         }
 
         // Guard: allowed to die
 		if (t.getTo()==null) {
-			lt.addGuard(new LTSminGuard(trans,makeAllowedToDie(process)));
+			lt.addGuard(makeAllowedToDie(process));
 		}
 
 		// Guard: never enabled action or else transition
@@ -369,12 +414,12 @@ public class LTSminTreeWalker {
 	            for (Transition ot : t.getFrom().output) {
 	                if (ot!=et) {
 	                	LTSminGuardNand nand = new LTSminGuardNand();
-	                    createEnabledGuard(spec.getNever(),ot,trans,nand);
+	                    createEnabledGuard(spec.getNever(),ot,nand);
 	                    lt.addGuard(nand);
 	                }
 	            }
 	        } else {
-	        	createEnabledGuard(process, never_t, trans, lt);
+	        	createEnabledGuard(process, never_t, lt);
 	        }
         }
 
@@ -405,7 +450,7 @@ public class LTSminTreeWalker {
 			lt.addAction(assign(model.sv.getPC(process),
 								never_t.getTo()==null?-1:never_t.getTo().getStateId()));
 		}
-		return trans+1;
+		return lt;
 	}
 	
 	/**
@@ -415,11 +460,11 @@ public class LTSminTreeWalker {
 	 * @param trans The transition group ID to use for generation.
 	 */
 	private void createEnabledGuard(Proctype process, Transition t, 
-								  int trans, LTSminGuardContainer lt) {
+								   LTSminGuardContainer lt) {
 		try {
 			if (t.iterator().hasNext()) {
 				Action a = t.iterator().next();
-				createEnabledGuard(process,a,t,trans,lt);
+				createEnabledGuard(process,a,t,lt);
 			}
 		} catch(ParseException e) { // removed if (a.getEnabledExpression()!=null)
 			e.printStackTrace();
@@ -437,19 +482,18 @@ public class LTSminTreeWalker {
 	 * @throws ParseException
 	 */
 	private void createEnabledGuard(Proctype process, Action a, Transition t,
-			int trans, LTSminGuardContainer lt) throws ParseException {
+									LTSminGuardContainer lt) throws ParseException {
 		if (a instanceof AssignAction) {
 		} else if(a instanceof AssertAction) {
 		} else if(a instanceof PrintAction) {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
-			Expression expr = ea.getExpression();
-			lt.addGuard(new LTSminGuard(trans, expr));
+			lt.addGuard(ea.getExpression());
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			ChannelVariable var = (ChannelVariable)csa.getVariable();
 			if(var.getType().getBufferSize()>0) {
-				lt.addGuard(new LTSminGuard(trans,makeChannelUnfilledGuard(var)));
+				lt.addGuard(makeChannelUnfilledGuard(var));
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send before all others! "+ var);
 			}
@@ -459,14 +503,14 @@ public class LTSminTreeWalker {
 
 			if(var.getType().getBufferSize()>0) {
 				List<Expression> exprs = cra.getExprs();
-				lt.addGuard(new LTSminGuard(trans,makeChannelHasContentsGuard(var)));
+				lt.addGuard(makeChannelHasContentsGuard(var));
 				// Compare constant arguments with channel content
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
 					if (!(expr instanceof Identifier)) {
 						String name = wrapNameForChannelDesc(model.sv.getDescr(cra.getVariable()));
 						ChannelTopExpression cte = new ChannelTopExpression(cra, name, i);
-						lt.addGuard(new LTSminGuard(trans,compare(PromelaConstants.EQ,cte,expr)));
+						lt.addGuard(compare(PromelaConstants.EQ,cte,expr));
 					}
 				}
 			} else {
@@ -494,9 +538,9 @@ state_loop:	for (State st : p.getAutomaton()) {
 				}
 				// Loop over all transitions of the state
 				for (Transition trans : st.output) {
-					tt.lt.addGuard(new LTSminGuard(tt.trans,makeAllowedToDie(p)));
-					//tt.lt.addGuard(new LTSminGuard(tt.trans,makeAtomicGuard(p)));
-                    createEnabledGuard(p,trans,tt.trans,tt.lt);
+					tt.lt.addGuard(makeAllowedToDie(p));
+					//tt.lt.addGuard(tt.trans,makeAtomicGuard(p));
+                    createEnabledGuard(p,trans,tt.lt);
 				}
 			}
 		}
@@ -509,13 +553,13 @@ state_loop:	for (State st : p.getAutomaton()) {
 	 * @param tt The TimeoutTransition
 	 */
 	private int createTotalTimeout(int trans) {
-		LTSminTransition lt = new LTSminTransition("total timeout");
+		LTSminTransition lt = new LTSminTransition(trans, "total timeout");
 		LTSminGuardOr gor = new LTSminGuardOr();
 		lt.addGuard(gor);
 		model.getTransitions().add(lt);
 		for (State s : spec.getNever().getAutomaton()) {
 			if (s.isAcceptState()) {
-				gor.addGuard(new LTSminGuard(trans, makePCGuard(s, spec.getNever())));
+				gor.addGuard(makePCGuard(s, spec.getNever()));
 			}
 		}
 		for (Proctype p: spec) {
@@ -531,9 +575,9 @@ state_loop:	for (State st : p.getAutomaton()) {
 					// current state in the current process is not enabled.
 					LTSminGuardNand gnand = new LTSminGuardNand();
 					lt.addGuard(gnand);
-					gnand.addGuard(new LTSminGuard(trans, makePCGuard(st, p)));
-					//gnand.addGuard(new LTSminGuard(trans, makeAtomicGuard(p)));
-					createEnabledGuard(p,t,trans,gnand);
+					gnand.addGuard(makePCGuard(st, p));
+					//gnand.addGuard(trans, makeAtomicGuard(p));
+					createEnabledGuard(p,t,gnand);
 				}
 			}
 		}
@@ -547,8 +591,16 @@ state_loop:	for (State st : p.getAutomaton()) {
 	 * @param ra The ReadAction component.
 	 * @param trans The transition ID to use for the created transition.
 	 */
-	private void createRendezVousAction(SendAction sa, ReadAction ra, int trans,
-										Transition never_t, LTSminTransition lt) {
+	private int createRendezVousTransition(SendAction sa, ReadAction ra,
+										   int trans, Transition never_t) {
+		String name = makeTranstionName(sa.t, ra.t, never_t);
+		LTSminTransition lt = isAtomic(sa.t) ? //TODO
+									new LTSminTransitionCombo(trans, name, sa.t) :
+									new LTSminTransition(trans, name);
+		lt.leavesAtomic(leavesAtomic(sa.t));
+		lt.entersAtomic(entersAtomic(sa.t));
+		model.getTransitions().add(lt);
+
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
 		List<Expression> csa_exprs = csa.getExprs();
@@ -560,18 +612,17 @@ state_loop:	for (State st : p.getAutomaton()) {
 		ChannelVariable var = (ChannelVariable)csa.getVariable();
 		if(var.getType().getBufferSize()>0)
 			throw new AssertionError("createRendezVousAction() called with non-rendezvous channel");
-
 		if(csa_exprs.size() != cra_exprs.size())
 			throw new AssertionError("createRendezVousAction() called with incompatible actions: size mismatch");
 
-		lt.addGuard(new LTSminGuard(trans,makePCGuard(sa.t.getFrom(), sa.p)));
-		lt.addGuard(new LTSminGuard(trans,makePCGuard(ra.t.getFrom(), ra.p)));
+		lt.addGuard(makePCGuard(sa.t.getFrom(), sa.p));
+		lt.addGuard(makePCGuard(ra.t.getFrom(), ra.p));
 		/* Channel matches */
 		for (int i = 0; i < cra_exprs.size(); i++) {
 			final Expression csa_expr = csa_exprs.get(i);
 			final Expression cra_expr = cra_exprs.get(i);
 			if (!(cra_expr instanceof Identifier)) {
-				lt.addGuard(new LTSminGuard(trans,compare(PromelaConstants.EQ,csa_expr,cra_expr)));
+				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
 			}
 		}
 		// Change process counter of sender
@@ -586,6 +637,24 @@ state_loop:	for (State st : p.getAutomaton()) {
 				lt.addAction(assign((Identifier)cra_expr,csa_expr));
 			}
 		}
+		
+		return trans + 1;
+	}
+
+	private String makeTranstionName(Transition t) {
+		String t_name = t.getFrom().getAutomaton().getProctype().getName();
+		t_name += "("+ t.getFrom().getStateId() +"-->";
+		return t_name + (t.getTo()== null ? "end" : t.getTo().getStateId()) +")";
+	}
+
+	private String makeTranstionName(Transition t, Transition sync_t,
+									 Transition never_t) {
+		String name = makeTranstionName(t);
+		if (sync_t != null)
+			name += " X "+ makeTranstionName(sync_t);
+		if (never_t != null)
+			name += " X "+ makeTranstionName(never_t);
+		return name;
 	}
 
 	/**

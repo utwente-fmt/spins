@@ -2,6 +2,8 @@ package spinja.promela.compiler.ltsmin;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import spinja.promela.compiler.expression.Expression;
 import spinja.util.StringWriter;
 
 /**
@@ -19,6 +21,10 @@ public class LTSminGuardAnd implements LTSminGuardBase, LTSminGuardContainer {
 //		if(!guard.isDefinitelyTrue()) {
 			guards.add(guard);
 //		}
+	}
+
+	public void addGuard(Expression e) {
+		addGuard(new LTSminGuard(e));
 	}
 
 	public void prettyPrint(StringWriter w) {

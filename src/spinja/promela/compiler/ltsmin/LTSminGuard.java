@@ -9,11 +9,9 @@ import spinja.util.StringWriter;
  * @author Freark van der Berg
  */
 public class LTSminGuard implements LTSminGuardBase {
-	public int trans;
 	public Expression expr;
 
-	public LTSminGuard(int trans, Expression expr) {
-		this.trans = trans;
+	public LTSminGuard(Expression expr) {
 		this.expr = expr;
 	}
 
@@ -32,14 +30,6 @@ public class LTSminGuard implements LTSminGuardBase {
 
 	public void setExpr(Expression expr) {
 		this.expr = expr;
-	}
-
-	public int getTrans() {
-		return trans;
-	}
-
-	public void setTrans(int trans) {
-		this.trans = trans;
 	}
 
 	public boolean isDefinitelyTrue() {

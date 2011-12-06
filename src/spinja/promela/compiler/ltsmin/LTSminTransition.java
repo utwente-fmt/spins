@@ -1,45 +1,45 @@
 package spinja.promela.compiler.ltsmin;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
+import spinja.promela.compiler.expression.Expression;
 import spinja.util.StringWriter;
 
 /**
  *
  * @author Freark van der Berg
  */
-public class LTSminTransition implements LTSminTransitionBase, LTSminGuardContainer {
+public class LTSminTransition extends LTSminTransitionBase implements LTSminGuardContainer {
 	private String name;
 	private Proctype process;
 	private	List<LTSminGuardBase> guards;
 	private List<Action> actions;
-
-	public LTSminTransition() {
+	private boolean leavesAtomic = false;
+	private boolean entersAtomic;
+	
+	public LTSminTransition(int group) {
+		super(group);
 		this.name = "-";
 		this.process = null;
-		this.guards = new ArrayList<LTSminGuardBase>();
+		this.guards = new LinkedList<LTSminGuardBase>();
 		this.actions = new ArrayList<Action>();
 	}
 
-	public LTSminTransition(String name) {
+	public LTSminTransition(int group, String name) {
+		this(group);
 		this.name = name;
-		this.process = null;
-		this.guards = new ArrayList<LTSminGuardBase>();
-		this.actions = new ArrayList<Action>();
 	}
 
-	public LTSminTransition(Proctype process) {
-		this.name = process.getName();
-		this.process = process;
-		this.guards = new ArrayList<LTSminGuardBase>();
-		this.actions = new ArrayList<Action>();
+	public LTSminTransition(int group, Proctype process) {
+		this(group, process.getName());
 	}
 
-	public LTSminTransition(Proctype process, List<LTSminGuardBase> guards, List<Action> actions) {
-		this.name = process.getName();
+	public LTSminTransition(int group, Proctype process, List<LTSminGuardBase> guards, List<Action> actions) {
+		this(group, process.getName());
 		this.process = process;
 		this.guards = guards;
 		this.actions = actions;
@@ -77,6 +77,20 @@ public class LTSminTransition implements LTSminTransitionBase, LTSminGuardContai
 		this.guards = guards;
 	}
 
+	public void addGuard(int index, Expression e) {
+		addGuard(index, new LTSminGuard(e));
+	}
+	
+	public void addGuard(int index, LTSminGuardBase guard) {
+		//if(!guard.isDefinitelyTrue()) {
+			guards.add(index, guard);
+		//}
+	}
+
+	public void addGuard(Expression e) {
+		addGuard(new LTSminGuard(e));
+	}
+	
 	public void addGuard(LTSminGuardBase guard) {
 		//if(!guard.isDefinitelyTrue()) {
 			guards.add(guard);
@@ -113,4 +127,23 @@ public class LTSminTransition implements LTSminTransitionBase, LTSminGuardContai
 
 	}
 
+	public void leavesAtomic(boolean b) {
+		leavesAtomic = b;		
+	}
+	
+	public boolean leavesAtomic() {
+		return leavesAtomic;		
+	}
+
+	public void entersAtomic(boolean entersAtomic) {
+		this.entersAtomic = entersAtomic;
+	}
+
+	public boolean entersAtomic() {
+		return entersAtomic;
+	}
+
+	public boolean isAtomic() {
+		return this instanceof LTSminTransitionCombo;
+	}
 }

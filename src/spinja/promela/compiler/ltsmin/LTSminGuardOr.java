@@ -3,6 +3,7 @@ package spinja.promela.compiler.ltsmin;
 import java.util.ArrayList;
 import java.util.List;
 
+import spinja.promela.compiler.expression.Expression;
 import spinja.util.StringWriter;
 
 /**
@@ -14,6 +15,10 @@ public class LTSminGuardOr implements LTSminGuardBase, LTSminGuardContainer {
 
 	public LTSminGuardOr() {
 		guards = new ArrayList<LTSminGuardBase>();
+	}
+
+	public void addGuard(Expression e) {
+		addGuard(new LTSminGuard(e));
 	}
 
 	public void addGuard(LTSminGuardBase guard) {

@@ -27,9 +27,15 @@ import static spinja.promela.compiler.parser.PromelaConstants.NUMBER;
 import static spinja.promela.compiler.parser.PromelaConstants.SKIP_;
 import static spinja.promela.compiler.parser.PromelaConstants.TRUE;
 
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+
+import javax.annotation.Resources;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
@@ -108,6 +114,8 @@ public class LTSminPrinter {
 		generateForwardDeclarations(w);
 		generateStateCount(w,model);
 		generateInitialState(w,model);
+		generateLeavesAtomic(w, model);
+		generateReach(w, model);
 		generateGetNext(w,model);
 		generateGetAll(w,model);
 		generateTransitionCount(w,model);
@@ -169,6 +177,8 @@ public class LTSminPrinter {
 		w.appendLine("#include <stdlib.h>");
 		w.appendLine("#include <assert.h>");
 		w.appendLine("");
+		generateHashTable(w, model);		
+		w.appendLine("");
 		w.appendLine("typedef struct transition_info");
 		w.appendLine("{");
 		w.indent();
@@ -176,6 +186,35 @@ public class LTSminPrinter {
 		w.appendLine("int  group;");
 		w.outdent();
 		w.appendLine("} transition_info_t;");
+	}
+	
+	public static <T> String readTextFile(Class<T> clazz, String resourceName) throws IOException {
+	  	StringBuffer sb = new StringBuffer(1024);
+		BufferedInputStream inStream = new BufferedInputStream(clazz.getResourceAsStream(resourceName));
+	  	byte[] chars = new byte[1024];
+	  	int bytesRead = 0;
+	  	while( (bytesRead = inStream.read(chars)) > -1){
+	  		//System.out.println(bytesRead);
+	  		sb.append(new String(chars, 0, bytesRead));
+		}
+	  	inStream.close();
+	  	return sb.toString();
+	}
+	
+	private static void generateHashTable(StringWriter w, LTSminModel model) {
+		try {
+			w.appendLine(readTextFile(model.getClass(), "hashtable.c"));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private static void generateReach(StringWriter w, LTSminModel model) {
+		try {
+			w.appendLine(readTextFile(model.getClass(), "reach.c"));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	private static void generateStateCount(StringWriter w, LTSminModel model) {
@@ -250,47 +289,52 @@ public class LTSminPrinter {
 		w.appendLine("++states_emitted;");
 	}
 
-	private static void generateGetAll(StringWriter w, LTSminModel model) {
+	private static void generateLeavesAtomic (StringWriter w, LTSminModel model) {
+		List<LTSminTransitionBase> ts = model.getTransitions();
+		w.append("char leaves_atomic["+ ts.size() +"] = {");
+		LTSminTransitionBase last = ts.get(ts.size()-1);
+		for (LTSminTransitionBase tb : ts) {
+			LTSminTransition t = (LTSminTransition)tb;
+			w.append("" + t.leavesAtomic());
+			if (tb != last)	w.append(", ");
+		}
+		w.appendLine("};");
+	}
+	
+	private static void generateGetAll(StringWriter w, LTSminModel model) {	
 		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-		w.appendLine("transition_info_t transition_info = { NULL, -1 };");
-		w.appendLine("(void)model; // ignore model");
-		w.appendLine("int states_emitted = 0;");
-		w.appendLine("register int pos;");
-		w.appendLine(C_STATE_T," local_state;");
-		w.appendLine(C_STATE_T,"* ",C_STATE_TMP," = &local_state;");
-		w.appendLine();
-		w.appendLine("static int n_losses = 0;");
-		w.appendLine("static int n_atomics = 0;");
-		w.appendLine();
-		
-		// Count atomic states
-		w.appendLine("#ifdef COUNTATOMIC").indent();
-		w.appendLine(	"if(spinja_is_atomic(model,in))printf(\"handled atomic statements so far: %i\\n\",++n_atomics);").outdent();
-		w.appendLine("#endif");
-
-		List<LTSminTransitionBase> transitions = model.getTransitions();
-		int trans = 0;
-		for(LTSminTransitionBase t: transitions) {
-			generateATransition(w, t, trans, model);
-			++trans;
-		}
-		
-		w.appendLine("return states_emitted;");
+			w.appendLine("state_t out;");
+			w.appendLine("spinja_get_successor_all2(model, in, callback, arg, &out, false);");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+		w.appendLine("int spinja_get_successor_all2( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, state_t *tmp, int atomic) {");
+		w.indent();
+			w.appendLine("transition_info_t transition_info = { NULL, -1 };");
+			w.appendLine("int states_emitted = 0;");
+			w.appendLine("register int pos;");
+			w.appendLine();
+			List<LTSminTransitionBase> transitions = model.getTransitions();
+			for(LTSminTransitionBase t : transitions) {
+				generateATransition(w, t, model, IN_ACCESS);
+			}
+			w.appendLine("return states_emitted;");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine();
 	}
 
-	private static void generateATransition(StringWriter w, LTSminTransitionBase transition,
-									int trans, LTSminModel model) {
+	public static void generateATransition(StringWriter w, LTSminTransitionBase transition,
+										   LTSminModel model, String access) {
+		w.appendLine("// "+transition.getName());
 		if(transition instanceof LTSminTransition) {
 			LTSminTransition t = (LTSminTransition)transition;
 
 			w.appendPrefix().append("if (true");
 			for(LTSminGuardBase g: t.getGuards()) {
 				w.appendPostfix().appendPrefix().append("&&");
-				generateGuard(w, model, g);
+				generateGuard(w, model, g, access);
 			}
 			w.appendLine(") {");
 			w.indent();
@@ -299,102 +343,72 @@ public class LTSminPrinter {
 			for(Action a: actions) {
 				generateAction(w,a,model);
 			}
-			generateACallback(w,trans);
+			if (t.isAtomic()) {
+				w.appendLine("if (atomic) {");
+					w.indent();
+					generateACallback(w,transition.getGroup());
+					w.outdent();
+				w.appendLine("} else {");
+				w.indent();
+					w.appendLine("int count = reach (model, in, callback, arg);");
+					w.appendLine("if (count == 0) {");
+						w.indent();
+						w.appendLine("//TODO: loss of atomicity");
+						w.appendLine("count++;");
+						w.outdent();
+					w.appendLine("}");
+					w.appendLine("states_emitted += count;");
+				w.outdent();
+				w.appendLine("}");
+			} else {
+				generateACallback(w,transition.getGroup());
+			}
 			w.outdent();
 			w.appendLine("}");
-		} else if (transition instanceof LTSminTransitionCombo) {
-			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
-			for(LTSminTransitionBase tb: t.transitions) {
-				generateATransition(w, tb, trans, model);
-			}
 		} else {
 			w.appendLine("/** UNSUPPORTED: ",transition.getClass().getSimpleName()," **/");
 		}
 	}
-	
+
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
 		w.appendLine("int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-
 		w.appendLine("transition_info_t transition_info = { NULL, t };");
-		w.appendLine("(void)model; // ignore model");
+		w.appendLine("int states_emitted = 0;");
+		w.appendLine("int atomic = false;");
 		w.appendLine("register int pos;");
 		w.appendLine(C_STATE_T," local_state;");
 		w.appendLine(C_STATE_T,"* ",C_STATE_TMP," = &local_state;");
 		w.appendLine();
-
-		w.appendLine("static int n_losses = 0;");
-		w.appendLine("static int n_atomics = 0;");
-		w.appendLine();
-
-		// Count atomic states
-		w.appendLine("#ifdef COUNTATOMIC");
-		w.indent();
-		w.appendLine("if(t==1 && spinja_is_atomic(model,in)) printf(\"handled atomic statements so far: %i\\n\",++n_atomics);");
-		w.outdent();
-		w.appendLine("#endif");
-
 		w.appendLine("switch(t) {");
-
 		List<LTSminTransitionBase> transitions = model.getTransitions();
 		int trans = 0;
 		for(LTSminTransitionBase t: transitions) {
 			w.appendLine("case ",trans,": { // ",t.getName());
 			w.indent();
-			generateTransition(w, t, model);
-			w.appendLine("break;");
+			generateATransition(w, t, model, IN_ACCESS);
+			w.appendLine("return states_emitted;");
 			w.outdent();
 			w.appendLine("}");
 			++trans;
 		}
 		w.appendLine("}");
 		w.appendLine("return 0;");
-
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine();
 	}
 
-	public static void generateTransition(StringWriter w, LTSminTransitionBase transition,
-								   LTSminModel model) {
-		if(transition instanceof LTSminTransition) {
-			LTSminTransition t = (LTSminTransition)transition;
-			List<LTSminGuardBase> guards = t.getGuards();
-			w.appendPrefix().append("if( true ");
-			for(LTSminGuardBase g: guards) {
-				w.appendPostfix().appendPrefix().append(" && ");
-				generateGuard(w,model, g);
-			}
-			w.append(" ) {").appendPostfix();
-			w.indent();
-			w.appendLine("memcpy(", C_STATE_TMP, ", ", IN_VAR, ", sizeof(", C_STATE_T,"));");
-			List<Action> actions = t.getActions();
-			for(Action a: actions) {
-				generateAction(w,a, model);
-			}
-			generateCallback(w);
-			w.outdent();
-			w.appendLine("}");
-		} else if (transition instanceof LTSminTransitionCombo) {
-			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
-			for(LTSminTransitionBase tb: t.transitions) {
-				generateTransition(w, tb, model);
-			}
-		} else {
-			w.appendLine("/** UNSUPPORTED: ",transition.getClass().getSimpleName()," **/");
-		}
-	}
-
-	private static void generateGuard(StringWriter w, LTSminModel model, LTSminGuardBase guard) {
+	private static void generateGuard(StringWriter w, LTSminModel model, LTSminGuardBase guard, String access) {
 		if(guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
-			generateBoolExpression(w, model, g.expr, IN_ACCESS);
+			generateBoolExpression(w, model, g.expr, access);
 		} else if(guard instanceof LTSminGuardNand) {
 			LTSminGuardNand g = (LTSminGuardNand)guard;
 			w.append("!( true");
 			for(LTSminGuardBase gb: g.guards) {
 				w.append(" && ");
-				generateGuard(w,model, gb);
+				generateGuard(w,model, gb, access);
 			}
 			w.append(")");
 		} else if(guard instanceof LTSminGuardAnd) {
@@ -402,7 +416,7 @@ public class LTSminPrinter {
 			w.append("( true");
 			for(LTSminGuardBase gb: g.guards) {
 				w.append(" && ");
-				generateGuard(w,model, gb);
+				generateGuard(w,model, gb, access);
 			}
 			w.append(")");
 		} else if(guard instanceof LTSminGuardOr) {
@@ -410,7 +424,7 @@ public class LTSminPrinter {
 			w.append("( false");
 			for(LTSminGuardBase gb: g.guards) {
 				w.append(" || ");
-				generateGuard(w,model, gb);
+				generateGuard(w,model, gb, access);
 			}
 			w.append(")");
 		} else {
@@ -633,10 +647,12 @@ public class LTSminPrinter {
 		return new ParseException(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
 	}
 
+/*
 	private static void generateCallback(StringWriter w) {
 		w.appendLine("callback(arg,&transition_info,tmp);");
 		w.appendLine("return ",1,";");
 	}
+*/
 
 	private static void generateIntExpression(StringWriter w, LTSminModel model, Expression e, String access) {
 		if(e instanceof ChannelSizeExpression) {
@@ -1231,7 +1247,7 @@ public class LTSminPrinter {
 			w.append("  - ");
 			w.append(g);
 			w.append(" - ");
-			LTSminPrinter.generateGuard(w, model, guards.get(g));
+			LTSminPrinter.generateGuard(w, model, guards.get(g), IN_ACCESS);
 			w.appendPostfix();
 //			w.appendLine("  - ",
 //			w.appendLine("  - ",guards.get(g).toString());
@@ -1339,7 +1355,7 @@ public class LTSminPrinter {
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("case ").append(g).append(": return ");
-			LTSminPrinter.generateGuard(w, model, guards.get(g));
+			LTSminPrinter.generateGuard(w, model, guards.get(g), IN_ACCESS);
 			w.append(";");
 			w.appendPostfix();
 		}
@@ -1356,7 +1372,7 @@ public class LTSminPrinter {
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("guard[").append(g).append("] = ");
-			LTSminPrinter.generateGuard(w, model, guards.get(g));
+			LTSminPrinter.generateGuard(w, model, guards.get(g), IN_ACCESS);
 			w.append(";");
 			w.appendPostfix();
 		}
