@@ -29,13 +29,9 @@ import static spinja.promela.compiler.parser.PromelaConstants.TRUE;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-
-import javax.annotation.Resources;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
@@ -301,7 +297,7 @@ public class LTSminPrinter {
 		w.appendLine("};");
 	}
 	
-	private static void generateGetAll(StringWriter w, LTSminModel model) {	
+	private static void generateGetAll(StringWriter w, LTSminModel model) {
 		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 			w.appendLine("state_t out;");

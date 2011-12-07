@@ -1,4 +1,7 @@
 
+static const size_t 	DB_INIT_SIZE = 4;
+static const size_t 	DB_MAX_SIZE = 10;
+
 typedef struct spinja_args_s {
 	void* model;
 	void (*callback)(void* arg, transition_info_t *transition_info, state_t *out);
@@ -25,9 +28,18 @@ dfs_cb(void* arg, transition_info_t *transition_info, state_t *out)
 void
 dfs (spinja_args_t *args, state_t *state)
 {
-	if (!state_db_lookup(args->seen, (const int*)state)) {
+	int result = state_db_lookup(args->seen, (const int*)state);
+	switch ( result ) {
+	case false: { // new state
 		state_t out;
 		spinja_get_successor_all2 (args->model, state, dfs_cb, args, &out, true);
+		break;
+	}
+	case STATE_DB_FULL: // full database
+		printf ("ERROR: model's internal atomic state database is filled (max size = 2^%zu). Increase DB_MAX_SIZE.", DB_MAX_SIZE);
+		exit(1);
+	case true: break; // seen state
+	default: break;
 	}
 }
 
@@ -38,7 +50,7 @@ reach (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *
 	args.callback = callback;
 	args.arg = arg;
 	args.outs = 0;
-	args.seen = state_db_create (spinja_get_state_size(), 10);
+	args.seen = state_db_create (spinja_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
 	dfs (&args, in);
 	state_db_free (args.seen);
 	return args.outs;
