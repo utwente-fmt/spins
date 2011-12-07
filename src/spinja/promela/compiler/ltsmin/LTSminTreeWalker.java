@@ -22,6 +22,7 @@ import spinja.promela.compiler.actions.PrintAction;
 import spinja.promela.compiler.automaton.ElseTransition;
 import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
+import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
@@ -703,6 +704,11 @@ state_loop:	for (State st : p.getAutomaton()) {
 		return new CompareExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
 	}
 
+	private static AritmicExpression calc(int m, Expression e1, Expression e2) {
+		String name = PromelaConstants.tokenImage[m];
+		return new AritmicExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
+	}
+	
 	private static Expression compare(int m, Expression e1, int nr) {
 		return compare(m, e1, constant(nr));
 	}
@@ -728,7 +734,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 	/* TODO: die sequence of dynamically started processes ala http://spinroot.com/spin/Man/init.html */
 	private Expression makeAllowedToDie(Proctype p) {
 		Variable pid = model.sv.getPID(p);
-		return compare (PromelaConstants.EQ, id(pid), id(LTSminStateVector._NR_PR));
+		Expression left = calc(PromelaConstants.PLUS, id(pid), constant(1)); 
+		return compare (PromelaConstants.EQ, left, id(LTSminStateVector._NR_PR));
 	}
 
 	private Expression makeChannelUnfilledGuard(ChannelVariable var) {

@@ -343,7 +343,7 @@ public class LTSminPrinter {
 					w.outdent();
 				w.appendLine("} else {");
 				w.indent();
-					w.appendLine("int count = reach (model, in, callback, arg);");
+					w.appendLine("int count = reach (model, tmp, callback, arg);");
 					w.appendLine("if (count == 0) {");
 						w.indent();
 						w.appendLine("//TODO: loss of atomicity");
