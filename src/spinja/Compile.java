@@ -27,7 +27,13 @@ import spinja.options.OptionParser;
 import spinja.options.StringOption;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
+import spinja.promela.compiler.automaton.State;
+import spinja.promela.compiler.automaton.Transition;
+import spinja.promela.compiler.ltsmin.LTSminModel;
 import spinja.promela.compiler.ltsmin.LTSminPrinter;
+import spinja.promela.compiler.ltsmin.LTSminTransition;
+import spinja.promela.compiler.ltsmin.LTSminTransitionBase;
+import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
 import spinja.promela.compiler.optimizer.GraphOptimizer;
 import spinja.promela.compiler.optimizer.RemoveUselessActions;
 import spinja.promela.compiler.optimizer.RemoveUselessGotos;
@@ -223,6 +229,10 @@ public class Compile {
 			"(default: " + defaultname + ")");
 		parser.addOption(modelname);
 
+		final StringOption dot = new StringOption('d',
+			"only write dot output (ltsmin/spinja) \n");
+		parser.addOption(dot);
+		
 		final StringOption ltsmin = new StringOption('l',
 			"sets output to ltsmin \n");
 		parser.addOption(ltsmin);
@@ -298,16 +308,26 @@ public class Compile {
 //		System.out.println("ltsmin: " + ltsmin.isSet());
 
 		if (ltsmin.isSet()) {
-			Compile.writeLTSMinFiles(spec, file.getName(), outputDir);
-			System.out.println("Written C model for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.c");
+			if (dot.isSet()) {
+				Compile.writeLTSminDotFile(spec, file.getName(), outputDir);
+				System.out.println("Written DOT file for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.dot");
+			} else {
+				Compile.writeLTSMinFiles(spec, file.getName(), outputDir);
+				System.out.println("Written C model for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.c");
+			}
 		} else {
 			outputDir = new File(userDir, "spinja");
 			if (!outputDir.exists() && !outputDir.mkdirs()) {
 				System.out.println("Error: could not generate directory " + outputDir.getName());
 				System.exit(-3);
 			}
-			Compile.writeFiles(spec, name, outputDir);
-			System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
+			if (dot.isSet()) {
+				Compile.writeDotFile(spec, file.getName(), outputDir);
+				System.out.println("Written DOT file for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.dot");
+			} else {
+				Compile.writeFiles(spec, name, outputDir);
+				System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
+			}
 		}
 
 // [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
@@ -318,13 +338,90 @@ public class Compile {
 //		}
 	}
 
+	private static void writeDotFile (final Specification spec, final String name, final File outputDir) {
+		final File dotFile = new File(outputDir, name + ".spinja.dot");
+
+		String out = "digraph {\n";
+		for (Proctype proc : spec) {
+			String n = proc.getName();
+			for (State state : proc.getAutomaton()) {
+				String from = state.getStateId() +"";
+				boolean atomic = state.isInAtomic();
+				out += "\t\""+ n +"_"+ from +"\" "+ (atomic ? "[penwidth=4]" : "") +"\n";
+				for (Transition t : state.output) {
+					atomic |= (t.getTo()!=null && t.getTo().isInAtomic());
+					String to = (t.getTo()==null ? "end" : t.getTo().getStateId() +"");
+					String p = "\"";
+					p += n +"_"+ from +"\" -> \""+  n +"_"+ to +"\"";
+					out += "\t"+ p + (atomic ? "[penwidth=4]" : "") +"\n";
+				}
+			}
+		}
+		out += "}\n";
+		try {
+			FileOutputStream fos = new FileOutputStream(dotFile);
+			fos.write(out.getBytes());
+			fos.flush();
+			fos.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private static void writeLTSminDotFile (final Specification spec, final String name, final File outputDir) {
+		final File dotFile = new File(outputDir, name + ".spinja.dot");
+
+		LTSminTreeWalker walker = new LTSminTreeWalker(spec,name);
+		LTSminModel model = walker.createLTSminModel();
+		String out = "digraph {\n";
+		for (LTSminTransitionBase t : model.getTransitions()) {
+			String s[] = t.getName().split(" X ");
+			String[] names = new String[3];
+			String[] from = new String[3];
+			String[] to = new String[3];
+			int i = 0;
+			for (String proc : s) {
+				String n[] = proc.split("\\(");
+				names[i] = n[0];
+				n = n[1].split("-->");
+				from[i] = n[0];
+				to[i] = n[1].substring(0, n[1].length()-1);
+				i++;
+			}
+			String p = "\"";
+			String from_s = "";
+			for (int x = 0; x < i; x++)
+				from_s += names[x] +"_"+ from[x] +(x+1<i?" ":"");
+			p += from_s +"\" -> \"";
+			for (int x = 0; x < i; x++)
+				p += names[x] +"_"+ to[x] + (x+1<i?" ":"");
+			p += "\"";
+			LTSminTransition tt = (LTSminTransition)t;
+			boolean atomic = tt.isAtomic();
+			if (atomic)
+				 p += "[penwidth=4]";
+			atomic &= !tt.entersAtomic();
+			out += "\""+ from_s +"\""+  (atomic ? "[penwidth=4]" : "") +"\n";
+			out += "\t"+ p +"\n";
+		}
+		out += "}\n";
+		try {
+			FileOutputStream fos = new FileOutputStream(dotFile);
+			fos.write(out.getBytes());
+			fos.flush();
+			fos.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
 	private static void writeLTSMinFiles(final Specification spec, final String name, final File outputDir) {
 		final File javaFile = new File(outputDir, name + ".spinja.c");
-
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
-
-			fos.write(LTSminPrinter.generateCode(spec,name).getBytes());
+			LTSminTreeWalker walker = new LTSminTreeWalker(spec,name);
+			LTSminModel model = walker.createLTSminModel();
+			fos.write(LTSminPrinter.generateCode(model).getBytes());
 			fos.flush();
 			fos.close();
 		} catch (final IOException ex) {
@@ -335,10 +432,8 @@ public class Compile {
 
 	private static void writeFiles(final Specification spec, final String name, final File outputDir) {
 		final File javaFile = new File(outputDir, name + "Model.java");
-
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
-
 			fos.write(spec.generateModel().getBytes());
 			fos.flush();
 			fos.close();

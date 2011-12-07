@@ -34,7 +34,6 @@ import java.util.Iterator;
 import java.util.List;
 
 import spinja.promela.compiler.Proctype;
-import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssertAction;
 import spinja.promela.compiler.actions.AssignAction;
@@ -93,9 +92,7 @@ public class LTSminPrinter {
 	public static final String DM_NAME = "transition_dependency";
 	public static final String GM_DM_NAME = "gm_dm";
 
-	public static String generateCode(Specification spec, String name) {
-		LTSminTreeWalker walker = new LTSminTreeWalker(spec,name);
-		LTSminModel model = walker.createLTSminModel();
+	public static String generateCode(LTSminModel model) {
 		StringWriter w = new StringWriter();
 		LTSminPrinter.generateModel(w, model);
 		return w.toString();
