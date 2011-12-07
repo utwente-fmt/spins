@@ -1,11 +1,11 @@
 /**
- * Nondeterminism in atomic with glocal variables
+ * Nondeterminism in atomic with local variables
  */
 
-int a = 0; 
-int b = 0; 
-int c = 0;
 init {
+    int a = 0; 
+    int b = 0; 
+    int c = 0;
     atomic {
         if
         :: a = 1

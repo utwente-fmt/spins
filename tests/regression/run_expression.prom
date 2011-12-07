@@ -3,15 +3,18 @@
  * Description: RunExpression with arguments
  */
 
-chan channel = [1] of { byte };
+chan channel = [0] of { byte };
 
 proctype test_proc(chan c1; chan c2; int num) {
     c1!num;
     c2?num;
     printf("%d", num);
+    channel?num;
+    printf("%d", num==5);
 }
 
 init {
     chan c = [5] of { int };
     run test_proc(c,c,1);
+    channel!5;
 }
