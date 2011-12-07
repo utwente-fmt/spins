@@ -153,18 +153,7 @@ public class LTSminTreeWalker {
 	private int createTransitions() {
 		int trans = 0;
 		debug.say("");
-		
-		for (Proctype p : spec) {
-			debug.say("[Proc] " + p.getName());
-			for (State st : p.getAutomaton()) {
-				debug.say("\t"+ st);
-				for (Transition t : st.output) {
-					debug.say("\t\t"+ t);
-				}
-			}
-		}
-		debug.say("");
-		
+
 		// Create the normal transitions for all processes.
 		// This excludes: rendezvous, else, timeout and loss of atomicity
 		// Calculate cross product with the never claim when not in atomic state 
