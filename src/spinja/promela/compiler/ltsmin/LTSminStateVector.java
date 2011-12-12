@@ -63,20 +63,11 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	public static final String C_TYPE_PROC_COUNTER_ = "int";
 
 	public static final Variable _NR_PR = new Variable(VariableType.BYTE, C_NUM_PROCS_VAR, 1);
-	
-	private HashMap<Variable,Integer> state_var_offset;
-	private HashMap<Variable, String> state_var_desc;
-	private HashMap<Proctype,Integer> state_proc_offset;
+
 	private HashMap<Proctype,Variable> processIdentifier;
 	private HashMap<Proctype,Variable> pcs;
 
 	private List<LTSminStateElement> stateVector;
-
-	// The variables in the state struct
-	private List<Variable> state_vector_var;
-
-	// Textual description of the state vector, per integer
-	private List<String> state_vector_desc;
 
 	// The CStruct state vector
 	private CStruct state;
@@ -91,13 +82,8 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	 */
 	public LTSminStateVector(LTSminModel model) {
 		this.model = model;
-		state_var_offset = new HashMap<Variable,Integer>();
-		state_var_desc = new HashMap<Variable,String>();
-		state_proc_offset = new HashMap<Proctype,Integer>();
 		state = null;
 		stateVector = new ArrayList<LTSminStateElement>();
-		state_vector_desc = new ArrayList<String>();
-		state_vector_var = new ArrayList<Variable>();
 		processIdentifier = new HashMap<Proctype,Variable>();
 		pcs = new HashMap<Proctype,Variable>();
 		C_TYPE_PID = getCType(C_NUM_PROCS_VAR, VariableType.PID);
@@ -122,7 +108,6 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	 * @param var The variable of which a custom typedef is requested.
 	 */
 	private void buildCustomStruct(Variable var) {
-
 		// Handle the ChannelType variable type
 		if(var.getType() instanceof ChannelType) {
 			ChannelVariable cv = (ChannelVariable)var;
@@ -190,9 +175,6 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	 */
 	private void createStateStructs(Specification spec, LTSminDebug debug) {
 
-		// Current offset in the state struct
-		int current_offset = 0;
-
 		// List of state structs inside the main state struct
 		List<CStruct> state_members = new ArrayList<CStruct>();
 
@@ -212,9 +194,9 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 		globals.addVariable(_NR_PR);
 		
 		List<Variable> vars = globals.getVariables();
-		for(Variable var: vars) {
+		for (Variable var : vars) {
 			// Add global to the global state struct and fix the offset
-			current_offset = handleVariable(sg,var,C_STATE_GLOBALS+".",current_offset,ls_g, debug);
+			handleVariable(sg, var, C_STATE_GLOBALS+".", ls_g, debug);
 		}
 
 		// Add global state struct to main state struct
@@ -241,12 +223,7 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 			ls_p.members.add(new LTSminTypeBasic(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER));
 
 			// Add process to Proctype->offset map and add a description
-			state_proc_offset.put(p, current_offset);
-			state_vector_desc.add(name + "." + C_STATE_PROC_COUNTER);
-			state_vector_var.add(null);
 
-			//Fix the offset
-			++current_offset;
 
 			// Add process state struct to main state struct
 			state_members.add(proc_never);
@@ -280,16 +257,14 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 			processIdentifier.put(p, pid);
 			
 			// Initialise process state struct and add to main state struct
-			debug.say("[Proc] " + name + " @" + current_offset);
+			debug.say("[Proc] " + name);
 			CStruct proc_sg = new CStruct("state_"+name+"_t"); // fix name
 			state.addMember("state_"+name+"_t", name); //fix name
 
 			LTSminTypeStruct ls_p = new LTSminTypeStruct("state_"+name+"_t");
 			ls_t.members.add(new LTSminTypeBasic("state_"+name+"_t",wrapName(name)));
 			// Add process to Proctype->offset map and add a description
-			state_proc_offset.put(p, current_offset);
-			state_vector_desc.add(name + "." + C_STATE_PROC_COUNTER);
-			state_vector_var.add(null);
+
 
 			// Add process counter to process state struct
 			proc_sg.addMember(C_TYPE_PROC_COUNTER,C_STATE_PROC_COUNTER);
@@ -305,7 +280,7 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 						continue; // channel types are passed as reference
 								  // the tree walker modifies the AST to make
 								  // the argument point directly to the real channel
-				current_offset = handleVariable(proc_sg,var,name + ".",current_offset,ls_p, debug);
+				handleVariable(proc_sg,var,name + ".",ls_p, debug);
 			}
 
 			// Add process state struct to main state struct
@@ -320,18 +295,6 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 		model.addType(ls_t);
 	}
 
-	private int insertVariable(CStruct sg, Variable var, String desc, String name, int current_offset) {
-		if(!state_var_offset.containsKey(var)) {
-			// Add global to Variable->offset map and add a description
-			state_var_offset.put(var, current_offset);
-			state_var_desc.put(var, desc + name);
-		}
-		state_vector_desc.add(desc + name);
-		state_vector_var.add(var);
-		++current_offset;
-		return current_offset;
-	}
-
 	/**
 	 * Handle a variable by adding it to a CStruct with the correct type and
 	 * putting it in the correct position in the state vector.
@@ -341,8 +304,8 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	 * @param current_offset The offset at which the variable should be put.
 	 * @return The next free offset position.
 	 */
-	private int handleVariable(CStruct sg, Variable var, String desc, int current_offset, LTSminTypeStruct ls, LTSminDebug debug) {
-		return handleVariable(sg,var,desc,"",current_offset, ls, debug);
+	private void handleVariable(CStruct sg, Variable var, String desc,  LTSminTypeStruct ls, LTSminDebug debug) {
+		handleVariable(sg,var,desc,"", ls, debug);
 	}
 
 	/**
@@ -356,58 +319,53 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	 * of the variable.
 	 * @return The next free offset position.
 	 */
-	private int handleVariable(CStruct sg, Variable var, String desc, String name, int current_offset, LTSminTypeStruct ls, LTSminDebug debug) {
+	private void handleVariable(CStruct sg, Variable var, String desc, String name,
+								LTSminTypeStruct ls, LTSminDebug debug) {
 		if(name==null || name.equals("")) 
 			name = var.getName();
 		if(var.getType() instanceof ChannelType) {
 			ChannelVariable cv = (ChannelVariable)var;
 			ChannelType ct = cv.getType();
-			if (ct.getBufferSize() == 0) return current_offset; //skip rendez-vous channels
+			if (ct.getBufferSize() == 0) return; //skip rendez-vous channels
 			VariableStore vs = ct.getVariableStore();
 
 			VarDescriptor vd = new VarDescriptorVar(wrapNameForChannelBuffer(name));
-			if(var.getArraySize()>1) {
+			if(var.getArraySize()>1)
 				vd = new VarDescriptorArray(vd,var.getArraySize());
-			}
 			vd = new VarDescriptorArray(vd,ct.getBufferSize());
 			vd = new VarDescriptorChannel(vd,vs.getVariables().size());
 			vd.setType(wrapNameForChannel(name));
 
-			debug.say(current_offset +"\t"+ var.getName() + " ["+ ct.getBufferSize() +"] of {"+ vs.getVariables().size() +"}");
-			current_offset = insertVariable(sg, var,desc,wrapNameForChannelDesc(name), current_offset);
+			debug.say("\t"+ var.getName() + " ["+ ct.getBufferSize() +"] of {"+ vs.getVariables().size() +"}");
 			sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
 			ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
 			addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 		
-			for(String s: vd.extractDescription()) {
-				current_offset = insertVariable(sg, var, desc, s, current_offset);
+			for (String s : vd.extractDescription())
 				addElement(new LTSminStateElement(var,desc+"."+var.getName(), false));
-			}
 			sg.addMember(vd.getType(),vd.extractDeclaration());
 			ls.members.add(new LTSminTypeBasic(vd.getType(), vd.extractDeclaration()));
 
 		} else if(var.getType() instanceof VariableType) {
-			if(var.getType().getJavaName().equals("int")) {
-				debug.say(current_offset +"\t"+ var.getType().getName() +" "+ name);
+			if (var.getType().getJavaName().equals("int")) {
+				debug.say("\t"+ var.getType().getName() +" "+ name);
 
 				// Add global to the global state struct
 				TypeDesc td = getCTypeOfVar(var);
 				sg.addMember(td,name);
 				ls.members.add(new LTSminTypeBasic(td.type, name,var.getArraySize()));
 				if (var.getArraySize() > 1) {
-					for(int i=0; i<var.getArraySize(); ++i) {
-						current_offset = insertVariable(sg,var,desc,name,current_offset);
+					for (int i=0; i<var.getArraySize(); ++i) {
 						addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 					}
 				} else {
-					current_offset = insertVariable(sg,var,desc,name,current_offset);
 					addElement(new LTSminStateElement(var,desc+"."+var.getName()));
 				}
-			} else if(var.getType().getJavaName().equals("Type")) {
+			} else if (var.getType().getJavaName().equals("Type")) {
 				//TODO: Untested
 				CustomVariableType cvt = (CustomVariableType)var.getType();
-				for(Variable v: cvt.getVariableStore().getVariables()) {
-					current_offset = handleVariable(sg,v,name+".",name,current_offset,ls, debug);
+				for (Variable v : cvt.getVariableStore().getVariables()) {
+					handleVariable(sg,v,name+".",name,ls, debug);
 				}
 			} else {
 				throw new AssertionError("ERROR: Unknown error trying to handle an integer");
@@ -415,7 +373,7 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 		} else {
 			throw new AssertionError("ERROR: Unable to handle: " + var.getType().getName());
 		}
-		return current_offset;
+		return;
 	}
 
 	/**
@@ -512,14 +470,6 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 
 	public static AssertionError error(String string, Token token) {
 		return new AssertionError(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
-	}
-
-	public int procOffset(Proctype process) {
-		return state_proc_offset.get(process);
-	}
-
-	public String getDescr(Variable variable) {
-		return state_var_desc.get(variable);
 	}
 
 	@Override
