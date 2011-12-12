@@ -376,33 +376,40 @@ public class Compile {
 		String out = "digraph {\n";
 		for (LTSminTransitionBase t : model.getTransitions()) {
 			String s[] = t.getName().split(" X ");
-			String[] names = new String[3];
-			String[] from = new String[3];
-			String[] to = new String[3];
-			int i = 0;
+			String trans_s;
 			for (String proc : s) {
 				String n[] = proc.split("\\(");
-				names[i] = n[0];
+				String names = n[0];
 				n = n[1].split("-->");
-				from[i] = n[0];
-				to[i] = n[1].substring(0, n[1].length()-1);
-				i++;
+				String from = n[0];
+				String to = n[1].substring(0, n[1].length()-1);
+				String from_s = names +"_"+ from;
+				String to_s = names +"_"+ to;
+				
+				LTSminTransition tt = (LTSminTransition)t;
+				boolean atomic = tt.isAtomic();
+				if (s.length == 1) {
+					trans_s = "\"" + from_s +"\" -> \""+ to_s +"\"";
+					if (atomic) trans_s += "[penwidth=4]";
+					out += "\t"+ trans_s +";\n";
+
+					atomic &= !tt.leavesAtomic();
+					out += "\t\""+ to_s +"\""+  (atomic ? "[penwidth=4]" : "") +"\n";
+				} else {
+					trans_s = "\"" + from_s +"\" -> \""+ t.getName() +"\"";
+					if (atomic)	trans_s += "[penwidth=4]";
+					out += "\t"+ trans_s +";\n";
+					
+					trans_s = "\"" + t.getName() +"\" -- \""+ to_s +"\"";
+					if (atomic)	trans_s += "[penwidth=4]";
+					out += "\t"+ trans_s +";\n";
+
+					out += "\t\""+ t.getName() +"\"[shape=box]"+  (atomic ? "[penwidth=4]" : "") +";\n";
+
+					atomic &= !tt.leavesAtomic();
+					out += "\t\""+ to_s +"\""+  (atomic ? "[penwidth=4]" : "") +"\n";
+				}
 			}
-			String p = "\"";
-			String from_s = "";
-			for (int x = 0; x < i; x++)
-				from_s += names[x] +"_"+ from[x] +(x+1<i?" ":"");
-			p += from_s +"\" -> \"";
-			for (int x = 0; x < i; x++)
-				p += names[x] +"_"+ to[x] + (x+1<i?" ":"");
-			p += "\"";
-			LTSminTransition tt = (LTSminTransition)t;
-			boolean atomic = tt.isAtomic();
-			if (atomic)
-				 p += "[penwidth=4]";
-			atomic &= !tt.entersAtomic();
-			out += "\""+ from_s +"\""+  (atomic ? "[penwidth=4]" : "") +"\n";
-			out += "\t"+ p +"\n";
 		}
 		out += "}\n";
 		try {
