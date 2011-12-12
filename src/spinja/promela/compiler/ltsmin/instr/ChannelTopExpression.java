@@ -3,8 +3,6 @@
  */
 package spinja.promela.compiler.ltsmin.instr;
 
-import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_TMP;
-
 import java.util.Set;
 
 import spinja.promela.compiler.actions.ChannelReadAction;
@@ -21,13 +19,11 @@ public class ChannelTopExpression extends Expression {
 	 */
 	private ChannelReadAction cra;
 	private int elem;
-	private String name;
 
-	public ChannelTopExpression(ChannelReadAction cra, String name, int elem) {
-		super(new Token(PromelaConstants.NUMBER,"[" + name +".nextRead].m"+elem));
+	public ChannelTopExpression(ChannelReadAction cra, int elem) {
+		super(new Token(PromelaConstants.NUMBER,"[" + cra.getVariable().getName() +".nextRead].m"+elem));
 		this.cra = cra;
 		this.elem = elem;
-		this.name = name;
 	}
 	public Set<VariableAccess> readVariables() {
 		return null;
@@ -42,11 +38,6 @@ public class ChannelTopExpression extends Expression {
 
 	public int getElem() {
 		return elem;
-	}
-
-	@Override
-	public String getIntExpression() {
-		return "(["+C_STATE_TMP + "." + name +".nextRead].m" + elem + ")";
 	}
 
 }

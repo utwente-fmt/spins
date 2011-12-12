@@ -23,6 +23,7 @@ import spinja.promela.compiler.automaton.ElseTransition;
 import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.AritmicExpression;
+import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
@@ -184,7 +185,7 @@ public class LTSminTreeWalker {
 			if (!(t instanceof LTSminTransitionCombo))
 				continue;
 			//LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
-			//linearize(process, t.getTo(), seen, tc, trans); //TODO: add rachable atomic transitions to combo to fill DM
+			//linearize(process, t.getTo(), seen, tc, trans); //TODO: add reachable atomic transitions to combo to fill DM
 		}
 
 		/*
@@ -266,15 +267,14 @@ public class LTSminTreeWalker {
 
 		// Check if it is an ending state
 		if (state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
-			LTSminTransition lt = new LTSminTransition(trans, process.getName() +"_end");
+			LTSminTransition lt = new LTSminTransition(trans, process.getName() +"_end", process);
 			model.getTransitions().add(lt);
 
 			lt.addGuard(makePCGuard(state, process));
 			lt.addGuard(makeAllowedToDie(process));
+			lt.addGuard(makeInAtomicGuard(process));
 
-			// In the case of an ending state, create a transition only
-			// changing the process counter to -1.
-			lt.addAction(assign(model.sv.getPC(process), -1));
+			lt.addAction(new ResetProcessAction(process,model.sv.getPC(process)));
 
 			// Keep track of the current transition ID
 			++trans;
@@ -294,6 +294,16 @@ public class LTSminTreeWalker {
 		// Return the next free transition ID
 		--debug.say_indent;
 		return trans;
+	}
+
+	private LTSminLocalGuard makeInAtomicGuard(Proctype process) {
+		Identifier id = new LTSminIdentifier(new Variable(VariableType.BOOL, "atomic", 0));
+		Variable pid = model.sv.getPID(process);
+		BooleanExpression boolExpr = bool(PromelaConstants.LOR,
+				compare(PromelaConstants.EQ, id, constant(-1)),
+				compare(PromelaConstants.EQ, id, id(pid)));
+		LTSminLocalGuard guard = new LTSminLocalGuard(boolExpr);
+		return guard;
 	}
 
 	private boolean entersAtomic(Transition t) {
@@ -368,8 +378,8 @@ public class LTSminTreeWalker {
 
 		String t_name = makeTranstionName(t, null, never_t);
 		LTSminTransition lt = isAtomic(t) ?
-									new LTSminTransitionCombo(trans, t_name, t) :
-									new LTSminTransition(trans, t_name);
+									new LTSminTransitionCombo(trans, t_name, process, t) :
+									new LTSminTransition(trans, t_name, process);
 		lt.leavesAtomic(leavesAtomic(t));
 		lt.entersAtomic(entersAtomic(t));
 		
@@ -412,13 +422,15 @@ public class LTSminTreeWalker {
 	        	createEnabledGuard(process, never_t, lt);
 	        }
         }
+        
+		lt.addGuard(makeInAtomicGuard(process));
 
 		// Create actions of the transition, iff never is absent, dying or not atomic
 		if  (never_t == null || never_t.getTo()==null || !never_t.getTo().isInAtomic()) {
-			// Action: PC counter update
-			lt.addAction(assign(model.sv.getPC(process), t.getTo()==null?-1:t.getTo().getStateId()));
 			if (t.getTo()==null)
 				lt.addAction(new ResetProcessAction(process,model.sv.getPC(process)));
+			else // Action: PC counter update
+				lt.addAction(assign(model.sv.getPC(process), t.getTo().getStateId()));
 	       
 			// Actions: transition
 			for (Action action : t) {
@@ -498,8 +510,7 @@ public class LTSminTreeWalker {
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
 					if (!(expr instanceof Identifier)) {
-						String name = wrapNameForChannelDesc(model.sv.getDescr(cra.getVariable()));
-						ChannelTopExpression cte = new ChannelTopExpression(cra, name, i);
+						ChannelTopExpression cte = new ChannelTopExpression(cra, i);
 						lt.addGuard(compare(PromelaConstants.EQ,cte,expr));
 					}
 				}
@@ -542,8 +553,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 	 * The dependency matrix is fixed accordingly.
 	 * @param tt The TimeoutTransition
 	 */
-	private int createTotalTimeout(int trans) {
-		LTSminTransition lt = new LTSminTransition(trans, "total timeout");
+	private int createTotalTimeout(int trans, Proctype process) {
+		LTSminTransition lt = new LTSminTransition(trans, "total timeout", process);
 		LTSminGuardOr gor = new LTSminGuardOr();
 		lt.addGuard(gor);
 		model.getTransitions().add(lt);
@@ -585,8 +596,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 										   int trans, Transition never_t) {
 		String name = makeTranstionName(sa.t, ra.t, never_t);
 		LTSminTransition lt = isAtomic(sa.t) ? //TODO
-									new LTSminTransitionCombo(trans, name, sa.t) :
-									new LTSminTransition(trans, name);
+									new LTSminTransitionCombo(trans, name,  ra.p, sa.t) :
+									new LTSminTransition(trans, name, ra.p);
 		lt.leavesAtomic(leavesAtomic(sa.t));
 		lt.entersAtomic(entersAtomic(sa.t));
 		model.getTransitions().add(lt);
@@ -615,6 +626,9 @@ state_loop:	for (State st : p.getAutomaton()) {
 				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
 			}
 		}
+
+		lt.addGuard(makeInAtomicGuard(sa.p));
+		
 		// Change process counter of sender
 		lt.addAction(assign(model.sv.getPC(sa.p),sa.t.getTo().getStateId()));
 		// Change process counter of receiver
@@ -647,42 +661,6 @@ state_loop:	for (State st : p.getAutomaton()) {
 		return name;
 	}
 
-	/**
-	 * Returns the name
-	 * @param name The name to clean.
-	 * @return The cleaned name.
-	 */
-	static public String wrapName(String name) {
-		return name;
-	}
-
-	/**
-	 * Returns a channel name given the specified name.
-	 * @param name The name to use to instrument a channel name.
-	 * @return The clean channel name.
-	 */
-	static public String wrapNameForChannel(String name) {
-		return "ch_"+wrapName(name)+"_t";
-	}
-
-	/**
-	 * Returns a channel descriptor name given the specified name. 
-	 * @param name The name to use to instrument a channel descriptor name.
-	 * @return The clean channel descriptor name.
-	 */
-	static public String wrapNameForChannelDesc(String name) {
-		return wrapName(name);
-	}
-
-	/**
-	 * Returns a channel buffer name given the specified name.
-	 * @param name The name to use to instrument a channel buffer name.
-	 * @return The instrumentd, clean channel buffer name.
-	 */
-	static public String wrapNameForChannelBuffer(String name) {
-		return wrapName(name)+"_buffer";
-	}
-
 	public static AssignAction assign(Variable v, Expression expr) {
 		return assign (id(v), expr);
 	}
@@ -703,8 +681,13 @@ state_loop:	for (State st : p.getAutomaton()) {
 		String name = PromelaConstants.tokenImage[m];
 		return new CompareExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
 	}
-
-	private static AritmicExpression calc(int m, Expression e1, Expression e2) {
+	
+	private static BooleanExpression bool(int m, Expression e1, Expression e2) {
+		String name = PromelaConstants.tokenImage[m];
+		return new BooleanExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
+	}
+	 
+	 private static AritmicExpression calc(int m, Expression e1, Expression e2) {
 		String name = PromelaConstants.tokenImage[m];
 		return new AritmicExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
 	}
@@ -739,16 +722,14 @@ state_loop:	for (State st : p.getAutomaton()) {
 	}
 
 	private Expression makeChannelUnfilledGuard(ChannelVariable var) {
-		String name = wrapNameForChannelDesc(model.sv.getDescr(var));
-		Expression left = new ChannelSizeExpression(var, name);
+		Expression left = new ChannelSizeExpression(var);
 		Expression right = constant(var.getType().getBufferSize());
 		Expression e = compare(PromelaConstants.LT, left, right);
 		return e;
 	}
 
 	private Expression makeChannelHasContentsGuard(ChannelVariable var) {
-		String name = wrapNameForChannelDesc(model.sv.getDescr(var));
-		Expression left = new ChannelSizeExpression(var, name);
+		Expression left = new ChannelSizeExpression(var);
 		Expression e = compare(PromelaConstants.GT, left, constant(0));
 		return e;
 	}

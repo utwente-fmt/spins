@@ -298,7 +298,7 @@ public class LTSminPrinter {
 		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 			w.appendLine("state_t out;");
-			w.appendLine("spinja_get_successor_all2(model, in, callback, arg, &out, false);");
+			w.appendLine("spinja_get_successor_all2(model, in, callback, arg, &out, -1);");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
@@ -337,19 +337,14 @@ public class LTSminPrinter {
 				generateAction(w,a,model);
 			}
 			if (t.isAtomic()) {
-				w.appendLine("if (atomic) {");
+				w.appendLine("if (-1!=atomic) {");
 					w.indent();
 					generateACallback(w,transition.getGroup());
 					w.outdent();
 				w.appendLine("} else {");
 				w.indent();
-					w.appendLine("int count = reach (model, tmp, callback, arg);");
-					w.appendLine("if (count == 0) {");
-						w.indent();
-						w.appendLine("//TODO: loss of atomicity");
-						w.appendLine("count++;");
-						w.outdent();
-					w.appendLine("}");
+					String pid = var(TMP_ACCESS, model.sv.getPID( t.getProcess() ));
+					w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ pid +".var);");
 					w.appendLine("states_emitted += count;");
 				w.outdent();
 				w.appendLine("}");
@@ -640,13 +635,20 @@ public class LTSminPrinter {
 		return new ParseException(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
 	}
 
-/*
-	private static void generateCallback(StringWriter w) {
-		w.appendLine("callback(arg,&transition_info,tmp);");
-		w.appendLine("return ",1,";");
+	private static String varPrefix(String access, Variable v) {
+		String res = access;
+		if (v.getOwner()==null) {
+			res+= C_STATE_GLOBALS;
+		} else {
+			res += wrapName(v.getOwner().getName());
+		}
+		return res +".";
 	}
-*/
-
+	
+	private static String var(String access, Variable v) {
+		return varPrefix(access, v) + wrapName(v.getName());
+	}
+	
 	private static void generateIntExpression(StringWriter w, LTSminModel model, Expression e, String access) {
 		if(e instanceof ChannelSizeExpression) {
 			ChannelSizeExpression cse = (ChannelSizeExpression)e;
@@ -1439,5 +1441,24 @@ public class LTSminPrinter {
 		w.appendLine("unsigned int filled: 15;");
 		w.outdent();
 		w.appendLine("} ",C_TYPE_CHANNEL,";");
+	}
+
+
+	/**
+	 * Returns the name
+	 * @param name The name to clean.
+	 * @return The cleaned name.
+	 */
+	public static String wrapName(String name) {
+		return name;
+	}
+
+	/**
+	 * Returns a channel buffer name given the specified name.
+	 * @param name The name to use to instrument a channel buffer name.
+	 * @return The instrumentd, clean channel buffer name.
+	 */
+	private static String wrapNameForChannelBuffer(String name) {
+		return wrapName(name) +"_buffer";
 	}
 }

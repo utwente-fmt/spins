@@ -21,25 +21,21 @@ public class LTSminTransition extends LTSminTransitionBase implements LTSminGuar
 	private boolean leavesAtomic = false;
 	private boolean entersAtomic;
 	
-	public LTSminTransition(int group) {
+
+	public LTSminTransition(int group, String name, Proctype process) {
 		super(group);
-		this.name = "-";
-		this.process = null;
+		this.process = process;
+		this.name = name;
 		this.guards = new LinkedList<LTSminGuardBase>();
 		this.actions = new ArrayList<Action>();
 	}
 
-	public LTSminTransition(int group, String name) {
-		this(group);
-		this.name = name;
-	}
-
 	public LTSminTransition(int group, Proctype process) {
-		this(group, process.getName());
+		this(group, process.getName(), process);
 	}
 
 	public LTSminTransition(int group, Proctype process, List<LTSminGuardBase> guards, List<Action> actions) {
-		this(group, process.getName());
+		this(group, process.getName(), process);
 		this.process = process;
 		this.guards = guards;
 		this.actions = actions;

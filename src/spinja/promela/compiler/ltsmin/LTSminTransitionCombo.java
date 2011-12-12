@@ -3,6 +3,7 @@ package spinja.promela.compiler.ltsmin;
 import java.util.ArrayList;
 import java.util.List;
 
+import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.automaton.Transition;
 import spinja.util.StringWriter;
 
@@ -16,8 +17,8 @@ public class LTSminTransitionCombo extends LTSminTransition {
 	private String name;
 	private Transition realTransition;
 
-	public LTSminTransitionCombo(int group, String name,Transition real) {
-		super(group, name);
+	public LTSminTransitionCombo(int group, String name,Proctype p, Transition real) {
+		super(group, name, p);
 		transitions = new ArrayList<LTSminTransition>();
 		this.setRealTransition(real);
 	}	
