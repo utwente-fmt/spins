@@ -175,7 +175,7 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_OUTPUT> SKIP:
 {
-     "\n" {
+     "\n"|"\r" {
 	 Preprocessor.process(input_stream,image.toString());
 	}: DEFAULT
 }
