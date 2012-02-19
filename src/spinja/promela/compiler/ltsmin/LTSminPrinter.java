@@ -44,6 +44,7 @@ import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
 import spinja.promela.compiler.expression.ChannelOperation;
+import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.CompoundExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
@@ -284,11 +285,13 @@ public class LTSminPrinter {
 	private static void generateLeavesAtomic (StringWriter w, LTSminModel model) {
 		List<LTSminTransitionBase> ts = model.getTransitions();
 		w.append("char leaves_atomic["+ ts.size() +"] = {");
-		LTSminTransitionBase last = ts.get(ts.size()-1);
-		for (LTSminTransitionBase tb : ts) {
-			LTSminTransition t = (LTSminTransition)tb;
-			w.append("" + t.leavesAtomic());
-			if (tb != last)	w.append(", ");
+		if (ts.size() > 0) {
+			LTSminTransitionBase last = ts.get(ts.size()-1);
+			for (LTSminTransitionBase tb : ts) {
+				LTSminTransition t = (LTSminTransition)tb;
+				w.append("" + t.leavesAtomic());
+				if (tb != last)	w.append(", ");
+			}
 		}
 		w.appendLine("};");
 	}
@@ -565,7 +568,7 @@ public class LTSminPrinter {
 			ChannelVariable var = (ChannelVariable)csa.getVariable();
 
 			if(var.getType().getBufferSize()>0) {
-				String access = var(TMP_ACCESS, var) + wrapName(var.getName());
+				String access = var(TMP_ACCESS, var);
 				String access_buffer = access +"[pos]";
 				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
 				List<Expression> exprs = csa.getExprs();
@@ -588,7 +591,7 @@ public class LTSminPrinter {
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
 
 			if(var.getType().getBufferSize()>0) {
-				String access = var(TMP_ACCESS, var) + wrapName(var.getName());
+				String access = var(TMP_ACCESS, var);
 				String access_buffer = access +"[pos]";
 				w.appendLine("pos = "+ access +".nextRead;");
 				List<Expression> exprs = cra.getExprs();
@@ -713,6 +716,11 @@ public class LTSminPrinter {
 			Identifier id = (Identifier)cle.getExpression();
 			Variable var = id.getVariable();
 			generateIntExpression(w, model, new ChannelSizeExpression(var), access);
+		} else if(e instanceof ChannelReadExpression) {
+			ChannelReadExpression cre = (ChannelReadExpression)e;
+			w.append("(");
+			generateBoolExpression (w, model, cre, access);
+			w.append(" ? 1 : 0)");
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			String name = co.getToken().image;
@@ -762,7 +770,7 @@ public class LTSminPrinter {
 			}
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
-			ChannelReadAction cra =cte.getChannelReadAction();
+			ChannelReadAction cra = cte.getChannelReadAction();
 			ChannelVariable var = (ChannelVariable)cra.getVariable();
 			String chan_access = var(TMP_ACCESS, var);
 			String access_buffer = varPrefix(TMP_ACCESS,var) +
@@ -784,6 +792,14 @@ public class LTSminPrinter {
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}
+	}
+
+	private static String bufferTopVar(String access, ChannelVariable var, int i) {
+		return bufferTop(access, var) +".m"+ i +".var";
+	}
+
+	private static String bufferTop(String access, ChannelVariable var) {
+		return var(access, var) +"buffer["+ var(access, var) +".nextRead]";
 	}
 	
 	private static void generateBoolExpression(StringWriter w, LTSminModel model,
@@ -831,6 +847,22 @@ public class LTSminPrinter {
 				w.append(" ").append(be.getToken().image).append(" ");
 				generateBoolExpression(w, model, ex2, access);
 				w.append(")");
+			}
+		} else if(e instanceof ChannelReadExpression) {
+			ChannelReadExpression cre = (ChannelReadExpression)e;
+			ChannelVariable var = (ChannelVariable)cre.getVariable();
+			if (var.getType().getBufferSize() == 0)
+				throw new AssertionError("ChannelReadAction on rendez-vous channel.");
+			List<Expression> exprs = cre.getExprs();
+			for (int i = 0; i < exprs.size(); i++) {
+				final Expression expr = exprs.get(i);
+				if (expr instanceof Identifier) {
+					generateIntExpression(w, model, expr, access);
+					w.append(" == ").append(bufferTopVar(access, var, i));
+				}
+				if (i != exprs.size() - 1) {
+					w.append(" && ");
+				}
 			}
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
@@ -903,8 +935,7 @@ public class LTSminPrinter {
 		w.appendLine("// { ... read ...}, { ... write ...}");
 
 		// Iterate over all the rows
-		int t=0;
-		for(;;) {
+		for(int t=0; t > dm.getRows(); ) {
 			w.appendPrefix();
 			w.append("{{");
 			DepRow dr = null;
@@ -1003,8 +1034,7 @@ public class LTSminPrinter {
 		List<String> types = new ArrayList<String>();
 		int translation[] = new int[state_size];
 
-		int i = 0;
-		for(;i<state_size;) {
+		for(int i = 0; i<state_size;) {
 			Variable var = state.get(i).getVariable();
 			if(var==null) {
 				int idx = types.indexOf(C_TYPE_PROC_COUNTER_);

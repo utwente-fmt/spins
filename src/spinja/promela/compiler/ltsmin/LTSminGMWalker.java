@@ -9,6 +9,7 @@ import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
 import spinja.promela.compiler.expression.ChannelOperation;
+import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.CompoundExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
@@ -186,6 +187,19 @@ public class LTSminGMWalker {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
 			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
+		} else if(e instanceof ChannelReadExpression) {
+			ChannelReadExpression cre = (ChannelReadExpression)e;
+			ChannelVariable var = (ChannelVariable)cre.getVariable();
+			// Dependency matrix: channel variable
+			DMIncRead(params, var, 0);
+			for (int i = 0; i < cre.getExprs().size(); i++) {
+				final Expression expr = cre.getExprs().get(i);
+				walkIntExpression(params,expr);
+				// Dependency matrix: channel variable at each buffer location
+				for (int j = 0; j < var.getType().getBufferSize(); j++) {
+					DMIncRead(params,var, j*cre.getExprs().size() + i + 1);
+				}
+			}
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			Identifier id = (Identifier)co.getExpression();
@@ -212,7 +226,7 @@ public class LTSminGMWalker {
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof MTypeReference) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			// noop
 		} else if(e instanceof TimeoutExpression) {
 			DMIncReadAll(params); // should be optimized
 		} else {
@@ -252,6 +266,8 @@ public class LTSminGMWalker {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
 			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
+		} else if(e instanceof ChannelReadExpression) {
+			walkIntExpression(params, e);
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			Identifier id = (Identifier)co.getExpression();
@@ -268,7 +284,7 @@ public class LTSminGMWalker {
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof MTypeReference) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			// noop
 		} else if(e instanceof TimeoutExpression) {
 			DMIncReadAll(params); // should be optimized
 		} else {
