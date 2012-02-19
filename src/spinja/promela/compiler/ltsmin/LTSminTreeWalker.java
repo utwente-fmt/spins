@@ -162,7 +162,7 @@ public class LTSminTreeWalker {
 		for (Proctype p : spec) {
 			debug.say("[Proc] " + p.getName());
 			for (State st : p.getAutomaton()) {
-				for (State ns : getNeverAutomatonOrNullSet(false)) {
+				for (State ns : getNeverAutomatonOrNullSet(st.isInAtomic())) {
 					trans = createTransitionsFromState(p,trans,st, ns);
 				}
 			}
@@ -184,8 +184,8 @@ public class LTSminTreeWalker {
 		for (LTSminTransitionBase t : model.getTransitions()) {
 			if (!(t instanceof LTSminTransitionCombo))
 				continue;
-			//LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
-			//linearize(process, t.getTo(), seen, tc, trans); //TODO: add reachable atomic transitions to combo to fill DM
+			LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
+			//linearize(tc.getRealTransition().getTo(), seen, tc, trans);
 		}
 
 		/*
@@ -233,25 +233,6 @@ public class LTSminTreeWalker {
 
 		return trans;
 	}
-
-	/**
-	 * Does a DFS over reachable atomic states
-	 * @param s an atomic state (invariably)
-	int linearize(State s, Set<State> seen, LTSminTransitionCombo c,
-				  int trans) {
-		for (Transition t : s.output) {
-			State n = t.getTo();
-			
-			c.addTransition(lt);
-			trans++;
-
-			if (n.isInAtomic() && seen.add(n)) {
-				trans = linearize(p, n, seen, c, trans);
-			}
-		}
-		return trans;
-	}
-	 */
 
 	/**
 	 * Creates all transitions from the given state. This state should be
