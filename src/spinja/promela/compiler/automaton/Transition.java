@@ -30,7 +30,7 @@ import spinja.util.StringWriter;
  * 
  * @author Marc de Jonge
  */
-public abstract class Transition implements Iterable<Action>, ActionContainer {
+public abstract class Transition implements ActionContainer {
 	private static class TransitionIdCounter {
 		private static int id = 0;
 

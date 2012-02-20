@@ -120,10 +120,7 @@ public class LTSminGMWalker {
 	}
 	
 	static void walkIntExpression(Params params, Expression e) {
-		if(e instanceof ChannelSizeExpression) {
-			ChannelSizeExpression cse = (ChannelSizeExpression)e;
-			DMIncRead(params,cse.getVariable(),0);
-		} else if(e instanceof LTSminIdentifier) { //nothing
+		if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
@@ -183,23 +180,30 @@ public class LTSminGMWalker {
 				walkIntExpression(params,ex1);
 				walkBoolExpression(params,ex2);
 			}
+		} else if(e instanceof ChannelSizeExpression) {
+			ChannelSizeExpression cse = (ChannelSizeExpression)e;
+			Variable var = cse.getIdentifier().getVariable();
+			Expression arrayExpr = cse.getIdentifier().getArrayExpr();
+			try {
+				int i = arrayExpr.getConstantValue();
+				DMIncRead(params, var, i);
+			} catch(ParseException pe) {
+				for(int i=0; i<var.getArraySize(); ++i) {
+					DMIncRead(params, var, i);
+				}
+			}
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
-			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
+			walkIntExpression(params, new ChannelSizeExpression(id));
 		} else if(e instanceof ChannelReadExpression) {
-			ChannelReadExpression cre = (ChannelReadExpression)e;
-			ChannelVariable var = (ChannelVariable)cre.getVariable();
-			// Dependency matrix: channel variable
-			DMIncRead(params, var, 0);
-			for (int i = 0; i < cre.getExprs().size(); i++) {
-				final Expression expr = cre.getExprs().get(i);
-				walkIntExpression(params,expr);
-				// Dependency matrix: channel variable at each buffer location
-				for (int j = 0; j < var.getType().getBufferSize(); j++) {
-					DMIncRead(params,var, j*cre.getExprs().size() + i + 1);
-				}
-			}
+			ChannelReadExpression cre = (ChannelReadExpression)e;			
+			Identifier id = cre.getIdentifier();
+
+			// mark variables as write
+			markLHS(params, cre, (ChannelVariable)id.getVariable());
+
+			markChannel(params, id, false);
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			Identifier id = (Identifier)co.getExpression();
@@ -215,14 +219,8 @@ public class LTSminGMWalker {
 		} else if(e instanceof ConstantExpression) {
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
-			ChannelReadAction cra =cte.getChannelReadAction();
-			ChannelVariable var = (ChannelVariable)cra.getVariable();
-
-			// read top most element: needs dependency on entire channel
-			for(int i=1; i<=var.getType().getBufferSize(); ++i) {
-				DMIncRead(params, var, i);
-			}
-
+			ChannelReadAction cra = cte.getChannelReadAction();
+			markChannel(params, cra.getIdentifier(), true);
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof MTypeReference) {
@@ -234,6 +232,52 @@ public class LTSminGMWalker {
 		}
 
 	}
+
+	private static void markChannel(Params params, Identifier id, boolean expression) {
+		ChannelVariable var = (ChannelVariable)id.getVariable();
+		Expression arrayExpr = id.getArrayExpr();
+		try {
+			int i = arrayExpr.getConstantValue();
+			// mark channel meta data as write (filled is decreased) or read for expressions
+			if (expression)
+				DMIncRead (params, var, i);
+			else
+				DMIncWrite(params, var, i);
+			// mark entire buffer as read (no way to establish current loc)
+			markBuffer(params, var, i);
+		} catch(ParseException pe) {
+			for(int i=0; i<var.getArraySize(); ++i) {
+				// mark channel meta data as write (filled is decreased) or read for expressions
+				if (expression)
+					DMIncRead (params, var, i);
+				else
+					DMIncWrite(params, var, i);
+				// mark entire buffer as read (no way to establish current loc)
+				markBuffer(params, var, i);
+			}
+		}
+	}
+
+	private static void markBuffer(Params params, ChannelVariable var, int idx) {
+		int offset = var.getArraySize(); // channel's meta info
+		int bsize = var.getType().getBufferSize();
+		int tsize = var.getType().getTypes().size();
+		for (int i = 0; i < bsize; i++) {
+			for (int j = 0; j < tsize; j++) {
+				DMIncRead (params,var, idx*bsize*tsize + i*tsize + j + offset);
+			}
+		}
+	}
+
+	private static void markLHS(Params params, ChannelReadExpression cre,
+			ChannelVariable var) {
+		for (Expression expr : cre.getExprs()) {
+			if (expr instanceof Identifier) {
+				DMAssign (params, expr);
+			}
+		}
+	}
+
 	static void walkBoolExpression(Params params, Expression e) {
 		if(e instanceof Identifier) {
 			walkIntExpression(params,e);
@@ -302,6 +346,7 @@ public class LTSminGMWalker {
 		}
 	}
 
+	/*
 	static void DMDecrWrite(Params params, Variable var, int offset) {
 		Integer i = params.model.getVariables().get(var);
 		if(i==null) {
@@ -311,6 +356,7 @@ public class LTSminGMWalker {
 			params.depMatrix.decrWrite(params.guard, i+offset);
 		}
 	}
+	*/
 
 	static void DMIncRead(Params params, Variable var, int offset) {
 		Integer i = params.model.getVariables().get(var);
@@ -328,6 +374,7 @@ public class LTSminGMWalker {
 		}
 	}
 
+	/*
 	static void DMDecrRead(Params params, Variable var, int offset) {
 		Integer i = params.model.getVariables().get(var);
 		if(i==null) {
@@ -337,6 +384,7 @@ public class LTSminGMWalker {
 			params.depMatrix.decrRead(params.guard,i+offset);
 		}
 	}
+	*/
 
 	static void DMIncWriteEntire(Params params, Variable var) {
 		if (var.getArraySize() > 1) {
@@ -357,16 +405,16 @@ public class LTSminGMWalker {
 				if (arrayExpr != null) {
 					try {
 						int i = arrayExpr.getConstantValue();
-						DMDecrRead(params,var,i);
+						//DMDecrRead(params,var,i);
 						DMIncWrite(params,var,i);
 					} catch(ParseException pe) {
 						for(int i=0; i<var.getArraySize(); ++i) {
-							DMDecrRead(params,var,i);
+							//DMDecrRead(params,var,i);
 							DMIncWrite(params,var,i);
 						}
 					}
 				} else {
-					DMDecrRead(params,var,0);
+					//DMDecrRead(params,var,0);
 					DMIncWrite(params,var,0);
 //					for(int i=0; i<var.getArraySize(); ++i) {
 //						DMDecrRead(params,var,i);
@@ -374,7 +422,7 @@ public class LTSminGMWalker {
 //					}
 				}
 			} else {
-				DMDecrRead(params,var,0);
+				//DMDecrRead(params,var,0);
 				DMIncWrite(params,var,0);
 			}
 		} else {

@@ -61,7 +61,7 @@ public class LTSminModel {
 		w.appendLine("Transitions:");
 		w.indent();
 		for(LTSminTransitionBase t: transitions) {
-			LTSminPrinter.generateATransition(w,t, this, LTSminPrinter.IN_ACCESS);
+			LTSminPrinter.generateATransition(w,t, this);
 		}
 		w.outdent();
 	}

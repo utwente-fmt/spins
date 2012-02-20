@@ -2,6 +2,7 @@ package spinja.promela.compiler.ltsmin;
 
 import static spinja.promela.compiler.ltsmin.LTSminStateVector._NR_PR;
 
+import java.util.Collection;
 import java.util.List;
 
 import spinja.promela.compiler.Proctype;
@@ -10,8 +11,11 @@ import spinja.promela.compiler.actions.AssertAction;
 import spinja.promela.compiler.actions.AssignAction;
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
+import spinja.promela.compiler.actions.ElseAction;
 import spinja.promela.compiler.actions.ExprAction;
+import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.actions.PrintAction;
+import spinja.promela.compiler.actions.Sequence;
 import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
@@ -60,7 +64,6 @@ public class LTSminDMWalker {
 		if(model.getDepMatrix()==null) {
 			model.setDepMatrix(new DepMatrix(model.getTransitions().size(), model.sv.size()));
 		}
-		if(model.getDepMatrix()==null) throw new AssertionError("DM still null!");
 		Params params = new Params(model, model.getDepMatrix(), 0);
 		walkTransitions(params);
 	}
@@ -97,7 +100,7 @@ public class LTSminDMWalker {
 		if (guard instanceof LTSminLocalGuard) { // Nothing
 		} else if(guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
-			walkBoolExpression(params, g.expr);
+			walkExpression(params, g.expr);
 		} else if(guard instanceof LTSminGuardNand) {
 			LTSminGuardNand g = (LTSminGuardNand)guard;
 			for(LTSminGuardBase gb: g.guards) {
@@ -127,27 +130,27 @@ public class LTSminDMWalker {
 				case PromelaConstants.ASSIGN:
 					try {
 						as.getExpr().getConstantValue();
-						walkIntExpression(params,id); // assign
+						walkExpression(params,id); // assign
 					} catch (ParseException ex) {
 						// Could not get Constant value
-						walkIntExpression(params,id); // assign
-						walkIntExpression(params,as.getExpr()); // read
+						walkExpression(params,id); // assign
+						walkExpression(params,as.getExpr()); // read
 					}
 					break;
 				case PromelaConstants.INCR:
 					if (mask == null) {
-						walkIntExpression(params,id); // assign and read
+						walkExpression(params,id); // assign and read
 					} else {
-						walkIntExpression(params,id); // assign
-						walkIntExpression(params,id); // read
+						walkExpression(params,id); // assign
+						walkExpression(params,id); // read
 					}
 					break;
 				case PromelaConstants.DECR:
 					if (mask == null) {
-						walkIntExpression(params,id); // assign and read
+						walkExpression(params,id); // assign and read
 					} else {
-						walkIntExpression(params,id); // assign
-						walkIntExpression(params,id); // read
+						walkExpression(params,id); // assign
+						walkExpression(params,id); // read
 					}
 					break;
 				default:
@@ -168,13 +171,12 @@ public class LTSminDMWalker {
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
-
-			walkBoolExpression(params,e);
+			walkExpression(params,e);
 		} else if(a instanceof PrintAction) {
 			PrintAction pa = (PrintAction)a;
 			List<Expression> exprs = pa.getExprs();
 			for (final Expression expr : exprs) {
-				walkIntExpression(params,expr);
+				walkExpression(params,expr);
 			}
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
@@ -199,67 +201,39 @@ public class LTSminDMWalker {
 			} catch (ParseException e) {
 				e.printStackTrace();
 			}
+		} else if(a instanceof OptionAction) { // options in a d_step sequence
+			OptionAction oa = (OptionAction)a;
+			for (Sequence seq : oa) {
+				for (Action act : seq) {
+					walkAction(params, act);
+				}
+			}
+		} else if(a instanceof ElseAction) {
+			// noop
 		} else if(a instanceof ChannelSendAction) {
-			ChannelSendAction csa = (ChannelSendAction)a;
-			ChannelVariable var = (ChannelVariable)csa.getVariable();
+			ChannelSendAction csa = (ChannelSendAction)a;			
+			Identifier id = csa.getIdentifier();
 
-			int bufferSize = var.getType().getBufferSize();
-			if(bufferSize>0) {
-				// Dependency matrix: channel variable
-				DMIncRead(params,var,0);
-				DMIncWrite(params,var,0);
-				List<Expression> exprs = csa.getExprs();
-				for (int i = 0; i < exprs.size(); i++) {
-					final Expression expr = exprs.get(i);
-					walkIntExpression(params, expr);
+			// mark variables as read
+			for (Expression e : csa.getExprs())
+				walkExpression(params, e);
 
-					// Dependency matrix: channel variable at each buffer location
-					for (int j = 0; j < bufferSize; j++) {
-						DMIncWrite(params,var, j*exprs.size() + i + 1);
-					}
-				}
-			} else {
-				throw new AssertionError("Trying to actionise rendezvous send!");
-			}
+			markChannel(params, id, BufferAction.SEND);
 		} else if(a instanceof ChannelReadAction) {
-			ChannelReadAction cra = (ChannelReadAction)a;
-			ChannelVariable var = (ChannelVariable)cra.getVariable();
+			ChannelReadAction cra = (ChannelReadAction)a;			
+			Identifier id = cra.getIdentifier();
 
-			int bufferSize = var.getType().getBufferSize();
-			if(bufferSize>0) {
+			// mark variables as write
+			markLHS(params, cra.getExprs(), (ChannelVariable)id.getVariable());
 
-				// Dependency matrix: channel variable
-				DMIncRead(params, var, 0);
-				DMIncWrite(params, var, 0);
-				List<Expression> exprs = cra.getExprs();
-				for (int i = 0; i < exprs.size(); i++) {
-					final Expression expr = exprs.get(i);
-					if (expr instanceof Identifier) {
-						walkIntExpression(params,expr);
-						// Dependency matrix: channel variable
-						//dep_matrix.incRead(trans, state_var_offset.get(var)+i+1);
-
-						// Dependency matrix: channel variable at each buffer location
-						for (int j = 0; j < bufferSize; j++) {
-							DMIncRead(params,var, j*exprs.size() + i + 1);
-						}
-						DMAssign(params,(Identifier)expr);
-					}
-				}
-
-			} else {
-				throw new AssertionError("Trying to actionise rendezvous receive!");
-			}
+			markChannel(params, id, BufferAction.READ);
 		} else { // Handle not yet implemented action
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
 	}
 
-	static void walkIntExpression(Params params, Expression e) {
-		if (e instanceof ChannelSizeExpression) {
-			ChannelSizeExpression cse = (ChannelSizeExpression)e;
-			DMIncRead(params,cse.getVariable(),0); //filled and nextread is first
-		} else if(e instanceof LTSminIdentifier) { //nothing
+	static void walkExpression(Params params, Expression e) {
+		if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
@@ -267,7 +241,7 @@ public class LTSminDMWalker {
 			if (var.getArraySize() > 1) {
 				if (arrayExpr != null) {
 					//w.append(var.getName());
-					walkIntExpression(params,arrayExpr);
+					walkExpression(params,arrayExpr);
 
 					try {
 						int i = arrayExpr.getConstantValue();
@@ -293,57 +267,52 @@ public class LTSminDMWalker {
 			Expression ex2 = ae.getExpr2();
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
-				walkIntExpression(params,ex1);
+				walkExpression(params,ex1);
 			} else if (ex3 == null) {
 				if (ae.getToken().image.equals("%")) {
 					// Modulo takes a special notation to make sure that it
 					// returns a positive value
-					walkIntExpression(params,ex1);
-					walkIntExpression(params,ex2);
+					walkExpression(params,ex1);
+					walkExpression(params,ex2);
 				} else {
-					walkIntExpression(params,ex1);
-					walkIntExpression(params,ex2);
+					walkExpression(params,ex1);
+					walkExpression(params,ex2);
 				}
 			} else {
-				walkBoolExpression(params,ex1);
-				walkIntExpression(params,ex2);
-				walkIntExpression(params,ex3);
+				walkExpression(params,ex1);
+				walkExpression(params,ex2);
+				walkExpression(params,ex3);
 			}
 		} else if(e instanceof BooleanExpression) {
 			BooleanExpression be = (BooleanExpression)e;
 			Expression ex1 = be.getExpr1();
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
-				walkIntExpression(params,ex1);
+				walkExpression(params,ex1);
 			} else {
-				walkIntExpression(params,ex1);
-				walkBoolExpression(params,ex2);
+				walkExpression(params,ex1);
+				walkExpression(params,ex2);
 			}
+		} else if (e instanceof ChannelSizeExpression) {
+			ChannelSizeExpression cse = (ChannelSizeExpression)e;
+			markChannel(params, cse.getIdentifier(), BufferAction.NONE);
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
-			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
+			markChannel(params, id, BufferAction.NONE);
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
-			ChannelVariable var = (ChannelVariable)cre.getVariable();
-			// Dependency matrix: channel variable
-			DMIncRead(params, var, 0);
-			for (int i = 0; i < cre.getExprs().size(); i++) {
-				final Expression expr = cre.getExprs().get(i);
-				walkIntExpression(params,expr);
-				// Dependency matrix: channel variable at each buffer location
-				for (int j = 0; j < var.getType().getBufferSize(); j++) {
-					DMIncRead(params,var, j*cre.getExprs().size() + i + 1);
-				}
-			}
+			// mark variables as read
+			for (Expression expr : cre.getExprs())
+				walkExpression(params, expr);
+			markChannel(params, cre.getIdentifier(), BufferAction.SCAN);
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
-			Identifier id = (Identifier)co.getExpression();
-			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
+			markChannel(params, (Identifier)co.getExpression(), BufferAction.NONE);
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
-			walkIntExpression(params,ce.getExpr1());
-			walkIntExpression(params,ce.getExpr2());
+			walkExpression(params,ce.getExpr1());
+			walkExpression(params,ce.getExpr2());
 		} else if(e instanceof RunExpression) {
 			DMIncRead(params, _NR_PR, 0);
 		} else if(e instanceof CompoundExpression) {
@@ -351,17 +320,7 @@ public class LTSminDMWalker {
 		} else if(e instanceof ConstantExpression) {
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
-			ChannelReadAction cra = cte.getChannelReadAction();
-			ChannelVariable var = (ChannelVariable)cra.getVariable();
-
-			// read top most element: needs dependency on entire channel
-			for(int i=1; i<=cra.getExprs().size(); ++i) {
-				// Dependency matrix: channel variable at each buffer location
-				for (int j = 0; j < var.getType().getBufferSize(); j++) {
-					DMIncRead(params,var, j*cra.getExprs().size() + i + 1);
-				}
-			}
-
+			markChannel(params, cte.getChannelReadAction().getIdentifier(), BufferAction.SCAN); //safe overapproximation, since on topExpr is made for each each element.
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof MTypeReference) {
@@ -373,64 +332,67 @@ public class LTSminDMWalker {
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}
-
 	}
 
-	static void walkBoolExpression(Params params, Expression e) {
-		if(e instanceof Identifier) {
-			walkIntExpression(params,e);
-		} else if(e instanceof AritmicExpression) {
-			AritmicExpression ae = (AritmicExpression)e;
-			Expression ex1 = ae.getExpr1();
-			Expression ex2 = ae.getExpr2();
-			Expression ex3 = ae.getExpr3();
-			if (ex2 == null) {
-				walkIntExpression(params,ex1);
-			} else if (ex3 == null) {
-				walkIntExpression(params,ex1);
-				walkIntExpression(params,ex2);
-			} else { // Can only happen with the x?1:0 expression
-				walkBoolExpression(params,ex1);
-				walkBoolExpression(params,ex2);
-				walkBoolExpression(params,ex3);
+	public enum BufferAction {
+		NONE,
+		SEND,
+		READ,
+		SCAN
+	}
+	
+	private static void markChannel(Params params, Identifier id,
+									BufferAction action) {
+		ChannelVariable var = (ChannelVariable)id.getVariable();
+		Expression arrayExpr = id.getArrayExpr();
+		try {
+			int i = arrayExpr.getConstantValue();
+			// mark channel meta data
+			DMIncRead (params, var, i);
+			if (BufferAction.NONE != action) {
+				// mark channel meta data write
+				if (BufferAction.SCAN != action)
+					DMIncWrite(params, var, i);
+				// mark entire buffer as read (no way to establish current loc)
+				markBuffer(params, var, i, BufferAction.SEND == action);
 			}
-		} else if(e instanceof BooleanExpression) {
-			BooleanExpression be = (BooleanExpression)e;
-			Expression ex1 = be.getExpr1();
-			Expression ex2 = be.getExpr2();
-			if (ex2 == null) {
-				walkBoolExpression(params,ex1);
-			} else {
-				walkBoolExpression(params,ex1);
-				walkBoolExpression(params,ex2);
+		} catch(ParseException pe) {
+			for(int i=0; i<var.getArraySize(); ++i) {
+				// mark channel meta data
+				DMIncRead (params, var, i);
+				if (BufferAction.NONE != action) {
+					// mark channel meta data write
+					if (BufferAction.SCAN != action)
+						DMIncWrite(params, var, i);
+					// mark entire buffer as read (no way to establish current loc)
+					markBuffer(params, var, i, BufferAction.SEND == action);
+				}
 			}
-		} else if(e instanceof ChannelLengthExpression) {
-			ChannelLengthExpression cle = (ChannelLengthExpression)e;
-			Identifier id = (Identifier)cle.getExpression();
-			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
-		} else if(e instanceof ChannelReadExpression) {
-			walkIntExpression(params,e);
-		} else if(e instanceof ChannelOperation) {
-			ChannelOperation co = (ChannelOperation)e;
-			Identifier id = (Identifier)co.getExpression();
-			DMIncRead(params,id.getVariable(),0); //filled and nextread is first
-		} else if(e instanceof CompareExpression) {
-			CompareExpression ce = (CompareExpression)e;
-			walkIntExpression(params,ce.getExpr1());
-			walkIntExpression(params,ce.getExpr2());
-		} else if(e instanceof RunExpression) {
-			DMIncRead(params, _NR_PR, 0);
-		} else if(e instanceof CompoundExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-		} else if(e instanceof ConstantExpression) {
-		} else if(e instanceof EvalExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-		} else if(e instanceof MTypeReference) {
-			// noop
-		} else if(e instanceof TimeoutExpression) {
-			DMIncReadAll(params); // should be optimized
-		} else {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+		}
+	}
+
+	private static void markBuffer(Params params, ChannelVariable var, int idx,
+									boolean send) {
+		int offset = var.getArraySize(); // channel's meta info
+		int bsize = var.getType().getBufferSize();
+		int tsize = var.getType().getTypes().size();
+		for (int i = 0; i < bsize; i++) {
+			for (int j = 0; j < tsize; j++) {
+				if (send) {
+					DMIncWrite (params,var, idx*bsize*tsize + i*tsize + j + offset);
+				} else {
+					DMIncRead (params,var, idx*bsize*tsize + i*tsize + j + offset);
+				}
+			}
+		}
+	}
+
+	private static void markLHS(Params params, Collection<Expression> exprs,
+								ChannelVariable var) {
+		for (Expression expr : exprs) {
+			if (expr instanceof Identifier) {
+				DMAssign (params, (Identifier)expr);
+			}
 		}
 	}
 
@@ -444,6 +406,7 @@ public class LTSminDMWalker {
 		}
 	}
 
+/*
 	static void DMDecrWrite(Params params, Variable var, int offset) {
 		Integer i = params.model.getVariables().get(var);
 		if(i==null) {
@@ -453,6 +416,7 @@ public class LTSminDMWalker {
 			params.depMatrix.decrWrite(params.trans, i+offset);
 		}
 	}
+*/
 
 	static void DMIncRead(Params params, Variable var, int offset) {
 		Integer i = params.model.getVariables().get(var);
@@ -469,7 +433,7 @@ public class LTSminDMWalker {
 			params.depMatrix.incRead(params.trans, i);
 		}
 	}
-
+/*
 	static void DMDecrRead(Params params, Variable var, int offset) {
 		Integer i = params.model.getVariables().get(var);
 		if(i==null) {
@@ -479,7 +443,7 @@ public class LTSminDMWalker {
 			params.depMatrix.decrRead(params.trans,i+offset);
 		}
 	}
-
+*/
 	static void DMIncWriteEntire(Params params, Variable var) {
 		if (var.getArraySize() > 1) {
 			for(int i=0; i<var.getArraySize(); ++i) {
@@ -497,16 +461,16 @@ public class LTSminDMWalker {
 			if (arrayExpr != null) {
 				try {
 					int i = arrayExpr.getConstantValue();
-					DMDecrRead(params,var,i);
+					//DMDecrRead(params,var,i);
 					DMIncWrite(params,var,i);
 				} catch(ParseException pe) {
 					for(int i=0; i<var.getArraySize(); ++i) {
-						DMDecrRead(params,var,i);
+						//DMDecrRead(params,var,i);
 						DMIncWrite(params,var,i);
 					}
 				}
 			} else {
-				DMDecrRead(params,var,0);
+				//DMDecrRead(params,var,0);
 				DMIncWrite(params,var,0);
 				//for(int i=0; i<var.getArraySize(); ++i) {
 				//	DMDecrRead(params,var,i);
@@ -514,7 +478,7 @@ public class LTSminDMWalker {
 				//}
 			}
 		} else {
-			DMDecrRead(params,var,0);
+			//DMDecrRead(params,var,0);
 			DMIncWrite(params,var,0);
 		}
 	}

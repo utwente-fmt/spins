@@ -24,7 +24,6 @@ import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
-import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableAccess;
 import spinja.util.StringWriter;
 
@@ -113,8 +112,8 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 		return w.toString();
 	}
 
-	public Variable getVariable() {
-		return id.getVariable();
+	public Identifier getIdentifier() {
+		return id;
 	}
 
 	public List<Expression> getExprs() {

@@ -17,8 +17,11 @@ import spinja.promela.compiler.actions.AssertAction;
 import spinja.promela.compiler.actions.AssignAction;
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
+import spinja.promela.compiler.actions.ElseAction;
 import spinja.promela.compiler.actions.ExprAction;
+import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.actions.PrintAction;
+import spinja.promela.compiler.actions.Sequence;
 import spinja.promela.compiler.automaton.ElseTransition;
 import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
@@ -184,8 +187,9 @@ public class LTSminTreeWalker {
 		for (LTSminTransitionBase t : model.getTransitions()) {
 			if (!(t instanceof LTSminTransitionCombo))
 				continue;
-			LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
+			//LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
 			//linearize(tc.getRealTransition().getTo(), seen, tc, trans);
+			//TODO: bundle reachable atomic transition for DM 
 		}
 
 		/*
@@ -320,7 +324,7 @@ public class LTSminTreeWalker {
 			Action a = t.iterator().next();
 			if (a instanceof ChannelSendAction) {
 				ChannelSendAction csa = (ChannelSendAction)a;
-				ChannelVariable var = (ChannelVariable)csa.getVariable();
+				ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
 				if(var.getType().getBufferSize()==0) {
 					ReadersAndWriters raw = channels.get(var);
 					if (raw == null) {
@@ -332,7 +336,7 @@ public class LTSminTreeWalker {
 				}
 			} else if (a instanceof ChannelReadAction) {
 				ChannelReadAction cra = (ChannelReadAction)a;
-				ChannelVariable var = (ChannelVariable)cra.getVariable();
+				ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
 				if (var.getType().getBufferSize()==0) {
 					ReadersAndWriters raw = channels.get(var);
 					if (raw == null) {
@@ -447,7 +451,7 @@ public class LTSminTreeWalker {
 		try {
 			if (t.iterator().hasNext()) {
 				Action a = t.iterator().next();
-				createEnabledGuard(process,a,t,lt);
+				createEnabledGuard(a, lt);
 			}
 		} catch(ParseException e) { // removed if (a.getEnabledExpression()!=null)
 			e.printStackTrace();
@@ -464,8 +468,7 @@ public class LTSminTreeWalker {
 	 * @param trans The transition group ID to use for generation.
 	 * @throws ParseException
 	 */
-	private void createEnabledGuard(Proctype process, Action a, Transition t,
-									LTSminGuardContainer lt) throws ParseException {
+	public void createEnabledGuard(Action a, LTSminGuardContainer lt) throws ParseException {
 		if (a instanceof AssignAction) {
 		} else if(a instanceof AssertAction) {
 		} else if(a instanceof PrintAction) {
@@ -474,19 +477,30 @@ public class LTSminTreeWalker {
 			lt.addGuard(ea.getExpression());
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
-			ChannelVariable var = (ChannelVariable)csa.getVariable();
+			ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
 			if(var.getType().getBufferSize()>0) {
-				lt.addGuard(makeChannelUnfilledGuard(var));
+				lt.addGuard(makeChannelUnfilledGuard(csa.getIdentifier()));
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send before all others! "+ var);
 			}
+		} else if(a instanceof OptionAction) { // options in a d_step sequence
+			OptionAction oa = (OptionAction)a;
+			LTSminGuardOr orc = new LTSminGuardOr();
+			for (Sequence seq : oa) {
+				Action act = seq.iterator().next(); // guaranteed by parser
+				if (act instanceof ElseAction)
+					return; // options with else have a vacuously true guard
+				createEnabledGuard(act, orc);
+			}
+			lt.addGuard(orc);
+		} else if(a instanceof ElseAction) {
+			throw new AssertionError("ElseAction outside OptionAction!");
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
-			ChannelVariable var = (ChannelVariable)cra.getVariable();
-
+			ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
 			if(var.getType().getBufferSize()>0) {
 				List<Expression> exprs = cra.getExprs();
-				lt.addGuard(makeChannelHasContentsGuard(var));
+				lt.addGuard(makeChannelHasContentsGuard(cra.getIdentifier()));
 				// Compare constant arguments with channel content
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
@@ -587,18 +601,17 @@ state_loop:	for (State st : p.getAutomaton()) {
 		ChannelReadAction cra = ra.cra;
 		List<Expression> csa_exprs = csa.getExprs();
 		List<Expression> cra_exprs = cra.getExprs();
-		
-		// Checks
-		if(csa.getVariable() != cra.getVariable())
-			throw new AssertionError("createRendezVousAction() called with inconsequent ChannelVariable");
-		ChannelVariable var = (ChannelVariable)csa.getVariable();
-		if(var.getType().getBufferSize()>0)
-			throw new AssertionError("createRendezVousAction() called with non-rendezvous channel");
-		if(csa_exprs.size() != cra_exprs.size())
-			throw new AssertionError("createRendezVousAction() called with incompatible actions: size mismatch");
 
 		lt.addGuard(makePCGuard(sa.t.getFrom(), sa.p));
 		lt.addGuard(makePCGuard(ra.t.getFrom(), ra.p));
+		Identifier sendId = sa.csa.getIdentifier();
+		if (sendId.getVariable().getArraySize() > 1) { // array of channels
+			Expression e1 = ra.cra.getIdentifier().getArrayExpr();
+			Expression e2 = sa.csa.getIdentifier().getArrayExpr();
+			if (e1 == null) e1 = constant(0);
+			if (e2 == null) e2 = constant(0);
+			lt.addGuard(compare(PromelaConstants.EQ, e2, e2));
+		}
 		/* Channel matches */
 		for (int i = 0; i < cra_exprs.size(); i++) {
 			final Expression csa_expr = csa_exprs.get(i);
@@ -702,15 +715,15 @@ state_loop:	for (State st : p.getAutomaton()) {
 		return compare (PromelaConstants.EQ, left, id(LTSminStateVector._NR_PR));
 	}
 
-	private Expression makeChannelUnfilledGuard(ChannelVariable var) {
-		Expression left = new ChannelSizeExpression(var);
-		Expression right = constant(var.getType().getBufferSize());
+	private Expression makeChannelUnfilledGuard(Identifier id) {
+		Expression left = new ChannelSizeExpression(id);
+		Expression right = constant(((ChannelType)id.getVariable().getType()).getBufferSize());
 		Expression e = compare(PromelaConstants.LT, left, right);
 		return e;
 	}
 
-	private Expression makeChannelHasContentsGuard(ChannelVariable var) {
-		Expression left = new ChannelSizeExpression(var);
+	private Expression makeChannelHasContentsGuard(Identifier id) {
+		Expression left = new ChannelSizeExpression(id);
 		Expression e = compare(PromelaConstants.GT, left, constant(0));
 		return e;
 	}

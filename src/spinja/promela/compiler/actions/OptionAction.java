@@ -17,6 +17,7 @@ package spinja.promela.compiler.actions;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -26,7 +27,7 @@ import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
 import spinja.util.StringWriter;
 
-public class OptionAction extends Action {
+public class OptionAction extends Action implements Iterable<Sequence> {
 	private final boolean loops;
 
 	private final List<Sequence> options;
@@ -86,6 +87,10 @@ public class OptionAction extends Action {
 		}
 	}
 
+	public boolean loops() {
+		return loops;
+	}
+
 	@Override
 	public boolean isLocal(Proctype proc) {
 		for (Sequence seq : options) {
@@ -132,4 +137,8 @@ public class OptionAction extends Action {
 		return "d_step";
 	}
 
+	@Override
+	public Iterator<Sequence> iterator() {
+		return options.iterator();
+	}
 }

@@ -149,4 +149,8 @@ public class ChannelType extends VariableType {
 	public VariableStore getVariableStore() {
 		return vars;
 	}
+
+	public List<VariableType> getTypes() {
+		return types;
+	}
 }

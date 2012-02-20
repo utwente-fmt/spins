@@ -20,10 +20,10 @@ public class LTSminStateElement {
 		this(variable,variable.getName(), true);
 	}
 
-	public LTSminStateElement(Variable variable, String access, boolean first) {
+	public LTSminStateElement(Variable variable, String access, boolean metainfo) {
 		this.variable = variable;
 		this.access = access;
-		this.first = first;
+		this.first = metainfo;
 	}
 
 	public Variable getVariable() {
@@ -34,7 +34,7 @@ public class LTSminStateElement {
 		w.appendLine(variable.toString());
 	}
 	
-	public boolean isFirst() {
+	public boolean isMetaData() {
 		return first;
 	}
 }

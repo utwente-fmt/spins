@@ -14,6 +14,6 @@
 
 package spinja.promela.compiler.actions;
 
-public interface ActionContainer {
+public interface ActionContainer extends Iterable<Action> {
 	public void addAction(Action sub);
 }

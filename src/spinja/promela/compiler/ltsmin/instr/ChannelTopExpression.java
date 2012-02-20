@@ -21,7 +21,7 @@ public class ChannelTopExpression extends Expression {
 	private int elem;
 
 	public ChannelTopExpression(ChannelReadAction cra, int elem) {
-		super(new Token(PromelaConstants.NUMBER,"[" + cra.getVariable().getName() +".nextRead].m"+elem));
+		super(new Token(PromelaConstants.NUMBER,"[" + cra.getIdentifier().getVariable().getName() +".nextRead].m"+elem));
 		this.cra = cra;
 		this.elem = elem;
 	}

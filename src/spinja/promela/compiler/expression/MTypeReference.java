@@ -45,4 +45,7 @@ public class MTypeReference extends Expression {
 		return new HashSet<VariableAccess>();
 	}
 
+	public int getNr() {
+		return nr;
+	}
 }

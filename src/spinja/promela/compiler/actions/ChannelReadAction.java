@@ -178,8 +178,8 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 		return w.toString();
 	}
 
-	public Variable getVariable() {
-		return id.getVariable();
+	public Identifier getIdentifier() {
+		return id;
 	}
 
 	public List<Expression> getExprs() {

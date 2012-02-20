@@ -90,7 +90,7 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	}
 
 	/**
-	 * genrates and returns C code according to the Specification provided
+	 * generates and returns C code according to the Specification provided
 	 * when creating this LTSMinPrinter instance.
 	 * @return The C code according to the Specification.
 	 */
@@ -100,7 +100,7 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	}
 
 	/**
-	 * For the specified variable, instrument a custom struct typedef and print
+	 * For the specified variable, buiuld a custom struct typedef and print
 	 * to the StringWriter.
 	 * ChannelVariable's are also remembered, for later use. In particular for
 	 * rendezvous.
@@ -118,7 +118,7 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 			CStruct struct = new CStruct(wrapNameForChannel(var.getName()));
 			VariableStore vs = ct.getVariableStore();
 			LTSminTypeStruct ls = new LTSminTypeStruct(wrapNameForChannel(var.getName()));
-			// Only instrument members for non-rendezvous channels
+			// Only build members for non-rendezvous channels
 			if (ct.getBufferSize() > 0) {
 				int j=0;
 				for(Variable v: vs.getVariables()) {
@@ -135,8 +135,8 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	}
 
 	/**
-	 * Parse all globals and all local variables of processes to instrument
-	 * custom struct typedefs where needed. Calls instrumentCustomStruct() for
+	 * Parse all globals and all local variables of processes to create
+	 * custom struct typedefs where needed. Calls buildCustomStruct() for
 	 * variable that need it.
 	 * @param w
 	 */
@@ -159,7 +159,7 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	}
 
 	/**
-	 * instruments the C code for the state structs and fills the following
+	 * Creates the C code for the state structs and fills the following
 	 * members with accurate data:
 	 *   - state_var_offset;
 	 *   - state_var_desc;
@@ -329,23 +329,28 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 			if (ct.getBufferSize() == 0) return; //skip rendez-vous channels
 			VariableStore vs = ct.getVariableStore();
 
+			// channel meta info
+			debug.say("\t"+ var.getName() + "["+ var.getArraySize() +"]" +
+					" of {"+ vs.getVariables().size() +"} ["+ ct.getBufferSize() +"]");
+			sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
+			ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name), var.getArraySize()));
+			VarDescriptor chan_info = new VarDescriptorVar(wrapNameForChannelDesc(name));
+			if(var.getArraySize()>1)
+				chan_info = new VarDescriptorArray(chan_info,var.getArraySize());
+			for (@SuppressWarnings("unused") String s : chan_info.extractDescription())
+				addElement(new LTSminStateElement(var,desc+"."+var.getName(), true));
+
+			// channel buffer
 			VarDescriptor vd = new VarDescriptorVar(wrapNameForChannelBuffer(name));
 			if(var.getArraySize()>1)
 				vd = new VarDescriptorArray(vd,var.getArraySize());
 			vd = new VarDescriptorArray(vd,ct.getBufferSize());
 			vd = new VarDescriptorChannel(vd,vs.getVariables().size());
 			vd.setType(wrapNameForChannel(name));
-
-			debug.say("\t"+ var.getName() + " ["+ ct.getBufferSize() +"] of {"+ vs.getVariables().size() +"}");
-			sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));
-			ls.members.add(new LTSminTypeBasic(C_TYPE_CHANNEL, wrapNameForChannelDesc(name)));
-			addElement(new LTSminStateElement(var,desc+"."+var.getName()));
-		
-			for (String s : vd.extractDescription())
+			for (@SuppressWarnings("unused") String s : vd.extractDescription())
 				addElement(new LTSminStateElement(var,desc+"."+var.getName(), false));
 			sg.addMember(vd.getType(),vd.extractDeclaration());
 			ls.members.add(new LTSminTypeBasic(vd.getType(), vd.extractDeclaration()));
-
 		} else if(var.getType() instanceof VariableType) {
 			if (var.getType().getJavaName().equals("int")) {
 				debug.say("\t"+ var.getType().getName() +" "+ name);

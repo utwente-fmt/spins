@@ -38,8 +38,11 @@ import spinja.promela.compiler.actions.AssertAction;
 import spinja.promela.compiler.actions.AssignAction;
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
+import spinja.promela.compiler.actions.ElseAction;
 import spinja.promela.compiler.actions.ExprAction;
+import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.actions.PrintAction;
+import spinja.promela.compiler.actions.Sequence;
 import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
@@ -85,8 +88,7 @@ public class LTSminPrinter {
 	public static final int    PM_MAX_PROCS = 256;
 
 	private static String getPC(Proctype p, String access) {
-		return access + wrapName(p.getName()) +
-				"."+ C_STATE_PROC_COUNTER +".var";
+		return access + p.getName() +"."+ C_STATE_PROC_COUNTER +".var";
 	}
 
 	public static final String DM_NAME = "transition_dependency";
@@ -101,7 +103,7 @@ public class LTSminPrinter {
 	private static void generateModel(StringWriter w, LTSminModel model) {
 		generateHeader(w,model);
 		generateTypeStructs(w);
-		for(LTSminType t: model.getTypes()) {
+		for(LTSminType t : model.getTypes()) {
 			generateTypeDef(w, t);
 		}
 		generateForwardDeclarations(w);
@@ -240,26 +242,20 @@ public class LTSminPrinter {
 		// Insert initial expression of each state element into initial state struct
 		for (LTSminStateElement se : model.sv) {
 			Variable v = se.getVariable();
-			// If it is null, this location is probably a state descriptor
-			// or priorityProcess variable so the initial state is 0
-			if (v==null) {
-				w.append("0");
-			// If not null, then it's a legit variable, global or local,
-			// so the initial state will be set to whatever the initial
-			// expression is
-			} else {
-				Expression e = v.getInitExpr();
-				if (e==null) {
-					if (v instanceof ChannelVariable && se.isFirst()) {
-						ChannelVariable cv = (ChannelVariable)v;
-						//{isRendezVous, nextRead, filled}
-						w.append(cv.getType().getBufferSize()==0 ? "1" : "0");
-						w.append(",0,0");
-					} else {
-						w.append("0");
-					}
+			assert (v!=null);
+			Expression e = v.getInitExpr();
+			if (e==null) {
+				if (v instanceof ChannelVariable && se.isMetaData()) {
+					//{nextRead, filled}
+					w.append("0,0");
 				} else {
-					generateIntExpression(w, model, e, "UNKNOWN_INIT_VALUE");
+					w.append("0");
+				}
+			} else {
+				try {
+					w.append(e.getConstantValue());
+				} catch (ParseException pe) {
+					throw new AssertionError("Cannot parse inital value of state vector: "+ e);
 				}
 			}
 			if (se != last)	w.append(",");
@@ -312,7 +308,7 @@ public class LTSminPrinter {
 			w.appendLine();
 			List<LTSminTransitionBase> transitions = model.getTransitions();
 			for(LTSminTransitionBase t : transitions) {
-				generateATransition(w, t, model, IN_ACCESS);
+				generateATransition(w, t, model);
 			}
 			w.appendLine("return states_emitted;");
 		w.outdent();
@@ -321,7 +317,7 @@ public class LTSminPrinter {
 	}
 
 	public static void generateATransition(StringWriter w, LTSminTransitionBase transition,
-										   LTSminModel model, String access) {
+										   LTSminModel model) {
 		w.appendLine("// "+transition.getName());
 		if(transition instanceof LTSminTransition) {
 			LTSminTransition t = (LTSminTransition)transition;
@@ -329,7 +325,7 @@ public class LTSminPrinter {
 			w.appendPrefix().append("if (true");
 			for(LTSminGuardBase g: t.getGuards()) {
 				w.appendPostfix().appendPrefix().append("&&");
-				generateGuard(w, model, g, access);
+				generateGuard(w, model, g);
 			}
 			w.appendLine(") {");
 			w.indent();
@@ -345,7 +341,7 @@ public class LTSminPrinter {
 					w.outdent();
 				w.appendLine("} else {");
 				w.indent();
-					String pid = var(TMP_ACCESS, model.sv.getPID( t.getProcess() ));
+					String pid = wrapVar(TMP_ACCESS, model.sv.getPID( t.getProcess() ));
 					w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ pid +".var);");
 					w.appendLine("states_emitted += count;");
 				w.outdent();
@@ -376,7 +372,7 @@ public class LTSminPrinter {
 		for(LTSminTransitionBase t: transitions) {
 			w.appendLine("case ",trans,": { // ",t.getName());
 			w.indent();
-			generateATransition(w, t, model, IN_ACCESS);
+			generateATransition(w, t, model);
 			w.appendLine("return states_emitted;");
 			w.outdent();
 			w.appendLine("}");
@@ -389,16 +385,17 @@ public class LTSminPrinter {
 		w.appendLine();
 	}
 
-	private static void generateGuard(StringWriter w, LTSminModel model, LTSminGuardBase guard, String access) {
+	private static void generateGuard(StringWriter w, LTSminModel model,
+								      LTSminGuardBase guard) {
 		if(guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
-			generateBoolExpression(w, model, g.expr, access);
+			generateBoolExpression(w, g.expr, IN_ACCESS);
 		} else if(guard instanceof LTSminGuardNand) {
 			LTSminGuardNand g = (LTSminGuardNand)guard;
 			w.append("!( true");
 			for(LTSminGuardBase gb: g.guards) {
 				w.append(" && ");
-				generateGuard(w,model, gb, access);
+				generateGuard(w,model, gb);
 			}
 			w.append(")");
 		} else if(guard instanceof LTSminGuardAnd) {
@@ -406,7 +403,7 @@ public class LTSminPrinter {
 			w.append("( true");
 			for(LTSminGuardBase gb: g.guards) {
 				w.append(" && ");
-				generateGuard(w,model, gb, access);
+				generateGuard(w,model, gb);
 			}
 			w.append(")");
 		} else if(guard instanceof LTSminGuardOr) {
@@ -414,7 +411,7 @@ public class LTSminPrinter {
 			w.append("( false");
 			for(LTSminGuardBase gb: g.guards) {
 				w.append(" || ");
-				generateGuard(w,model, gb, access);
+				generateGuard(w,model, gb);
 			}
 			w.append(")");
 		} else {
@@ -432,15 +429,15 @@ public class LTSminPrinter {
 					try {
 						int value = as.getExpr().getConstantValue();
 						w.appendPrefix();
-						generateIntExpression(w, model, id, TMP_ACCESS);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" = ").append(value & id.getVariable().getType().getMaskInt()).append(";");
 						w.appendPostfix();
 					} catch (ParseException ex) {
 						// Could not get Constant value
 						w.appendPrefix();
-						generateIntExpression(w, model, id, TMP_ACCESS);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" = ");
-						generateIntExpression(w, model, as.getExpr(), IN_ACCESS);
+						generateIntExpression(w, as.getExpr(), IN_ACCESS);
 						w.append((mask == null ? "" : " & " + mask));
 						w.append(";");
 						w.appendPostfix();
@@ -449,14 +446,14 @@ public class LTSminPrinter {
 				case INCR:
 					if (mask == null) {
 						w.appendPrefix();
-						generateIntExpression(w, model, id, TMP_ACCESS);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append("++;");
 						w.appendPostfix();
 					} else {
 						w.appendPrefix();
-						generateIntExpression(w, model, id, TMP_ACCESS);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" = (");
-						generateIntExpression(w, model, id, IN_ACCESS);
+						generateIntExpression(w, id, IN_ACCESS);
 						w.append(" + 1) & ").append(mask).append(";");
 						w.appendPostfix();
 					}
@@ -464,14 +461,14 @@ public class LTSminPrinter {
 				case DECR:
 					if (mask == null) {
 						w.appendPrefix();
-						generateIntExpression(w, model, id, TMP_ACCESS);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append("--;");
 						w.appendPostfix();
 					} else {
 						w.appendPrefix();
-						generateIntExpression(w, model, id, TMP_ACCESS);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.appendLine(" = (");
-						generateIntExpression(w, model, id, IN_ACCESS);
+						generateIntExpression(w, id, IN_ACCESS);
 						w.append(" - 1) & ");
 						w.append(mask);
 						w.append(";");
@@ -484,11 +481,11 @@ public class LTSminPrinter {
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
 			
-			String name = wrapName(rpa.getProcess().getName());
+			String name = rpa.getProcess().getName();
 			w.appendLine("#ifndef NORESETPROCESS");
 			w.appendLine("memcpy(&",TMP_ACCESS,name,",(char*)&(",C_STATE_INITIAL,".",name,"),sizeof(state_",name,"_t));");
 			w.appendLine("#endif");
-			String nr_pr = var(TMP_ACCESS, LTSminStateVector._NR_PR)+ ".var";
+			String nr_pr = wrapVar(TMP_ACCESS, LTSminStateVector._NR_PR)+ ".var";
 			w.appendLine(nr_pr +"--;");
 			w.appendLine(getPC(rpa.getProcess(), TMP_ACCESS) +" = -1;");
 		} else if(a instanceof AssertAction) {
@@ -497,7 +494,7 @@ public class LTSminPrinter {
 
 			w.appendPrefix();
 			w.append("if(!");
-			generateBoolExpression(w, model, e, IN_ACCESS);
+			generateBoolExpression(w, e, IN_ACCESS);
 			w.append(") {");
 			w.appendPostfix();
 			w.indent();
@@ -512,7 +509,7 @@ public class LTSminPrinter {
 			w.appendPrefix().append("printf(").append(string);
 			for (final Expression expr : exprs) {
 				w.append(", ");
-				generateIntExpression(w, model, expr, IN_ACCESS);
+				generateIntExpression(w, expr, IN_ACCESS);
 			}
 			w.append(");").appendPostfix();
 		} else if(a instanceof ExprAction) {
@@ -563,52 +560,80 @@ public class LTSminPrinter {
 			} catch (ParseException e) {
 				e.printStackTrace();
 			}
+		} else if(a instanceof OptionAction) { // options in a d_step sequence
+			OptionAction oa = (OptionAction)a;
+			if (oa.loops()) {
+				w.appendLine("while (true) {");
+				w.indent();
+			}
+			boolean first = true;
+			for (Sequence seq : oa) {
+				if (!first)
+					w.appendPrefix().append("} else if (");
+				else
+					w.appendPrefix().append("if (");
+				Action guardAction = seq.iterator().next();
+				if (guardAction instanceof ElseAction) {
+					w.append("true");
+				} else if (guardAction instanceof AssignAction) {
+					w.append("true");
+				} else if (guardAction instanceof ExprAction) {
+					ExprAction ea = (ExprAction)guardAction;
+					generateBoolExpression(w, ea.getExpression(), TMP_ACCESS);
+				} else {
+					throw new AssertionError("Guard action not implemented for d_step option: "+ guardAction);
+				}
+				w.append(") {").appendPostfix();
+				w.indent();
+				for (Action act : seq)
+					generateAction(w, act, model);
+				w.outdent();
+				first = false;
+			}
+			if (oa.loops()) {
+				w.appendPrefix().appendLine("} else { printf(\"Blocking loop in d_step\"); exit(1); }");
+				w.appendLine("}");
+			} else {
+				w.appendLine("}");
+			}
+		} else if(a instanceof ElseAction) {
+			// noop
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
-			ChannelVariable var = (ChannelVariable)csa.getVariable();
-
+			Identifier id = csa.getIdentifier();
+			ChannelVariable var = (ChannelVariable)id.getVariable();
 			if(var.getType().getBufferSize()>0) {
-				String access = var(TMP_ACCESS, var);
-				String access_buffer = access +"[pos]";
-				w.appendLine("pos = (" + access + ".nextRead + "+access+".filled) % "+var.getType().getBufferSize() + ";");
 				List<Expression> exprs = csa.getExprs();
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
-					w.appendPrefix();
-					w.append(access_buffer).append(".m").append(i).append(".var = ");
-					generateIntExpression(w, model, expr, IN_ACCESS);
+					generateIntExpression(w, channelTop(id,i), TMP_ACCESS);
+					w.append(" = ");
+					generateIntExpression(w, expr, IN_ACCESS);
 					w.append(";");
 					w.appendPostfix();
-
 				}
-
-				w.appendLine("++(",access, ".filled);");
+				w.appendLine("++("+ wrapVarRef(TMP_ACCESS, id, false) +".filled);");
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send!");
 			}
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
-			ChannelVariable var = (ChannelVariable)cra.getVariable();
-
+			Identifier id = cra.getIdentifier();
+			ChannelVariable var = (ChannelVariable)id.getVariable();
 			if(var.getType().getBufferSize()>0) {
-				String access = var(TMP_ACCESS, var);
-				String access_buffer = access +"[pos]";
-				w.appendLine("pos = "+ access +".nextRead;");
 				List<Expression> exprs = cra.getExprs();
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
 					if (expr instanceof Identifier) {
 						w.appendPrefix();
-						generateIntExpression(w, model, expr, TMP_ACCESS);
-						w.append(" = ").append(access_buffer).append(".m").append(i).append(".var");
+						generateIntExpression(w, expr, TMP_ACCESS);
+						w.append(" = ");
+						generateIntExpression(w, channelTop(id,i), TMP_ACCESS);
 						w.append(";");
-						w.appendPostfix();
-						w.appendPrefix();
-						w.append(access_buffer).append(".m").append(i).append(".pad = 0;");
 						w.appendPostfix();
 					}
 				}
-
+				String access = wrapVarRef(TMP_ACCESS, id,false);
 				w.appendLine(access,".nextRead = (",access,".nextRead+1)%"+var.getType().getBufferSize()+";");
 				w.appendLine("--(",access, ".filled);");
 			} else {
@@ -625,42 +650,37 @@ public class LTSminPrinter {
 
 	private static String varPrefix(String access, Variable v) {
 		String res = access;
-		if (v.getOwner()==null) {
-			res+= C_STATE_GLOBALS;
-		} else {
-			res += wrapName(v.getOwner().getName());
-		}
+		res += (v.getOwner()==null ? C_STATE_GLOBALS : v.getOwner().getName());
 		return res +".";
 	}
-	
-	private static String var(String access, Variable v) {
-		return varPrefix(access, v) + wrapName(v.getName());
+
+	private static String wrapVar(String access, Variable var) {
+		return varPrefix(access, var) + var.getName();
 	}
 	
-	private static void generateIntExpression(StringWriter w, LTSminModel model, Expression e, String access) {
-		if(e instanceof ChannelSizeExpression) {
-			ChannelSizeExpression cse = (ChannelSizeExpression)e;
-			Variable var = cse.getVariable();
-			w.append(var(access,var)).append(".filled");
-		} else if(e instanceof LTSminIdentifier) {
+	private static String wrapVarRef(String access, Identifier id, boolean buffer) {
+		String base = wrapVar(access, id.getVariable());
+		if (buffer)
+			base += "_buffer";
+		if (id.getVariable().getArraySize() > 1) {
+			if (id.getArrayExpr() != null) {
+				StringWriter w = new StringWriter();
+				generateIntExpression(w,id.getArrayExpr(),access);
+				base += "["+ w.toString() +"]";
+			} else {
+				base += "[0]";
+			}
+		}
+		return base;
+	}
+	
+	private static void generateIntExpression(StringWriter w, Expression e, String access) {
+		if(e instanceof LTSminIdentifier) {
 			LTSminIdentifier id = (LTSminIdentifier)e;
 			w.append(id.getVariable().getName());
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
-			Variable var = id.getVariable();
-			Expression arrayExpr = id.getArrayExpr();
-			if (var.getArraySize() > 1) {
-				if (arrayExpr != null) {
-					w.append(var(access,var));
-					w.append("[");
-					generateIntExpression(w,model,arrayExpr, access);
-					w.append("].var");
-				} else {
-					w.append(var(access,var)).append("[0].var");
-				}
-			} else {
-				w.append(var(access,var)).append(".var");
-			}
+			w.append(wrapVarRef(access,id,false) +".var");
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
 			Expression ex1 = ae.getExpr1();
@@ -668,32 +688,32 @@ public class LTSminPrinter {
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
 				w.append("(").append(ae.getToken().image);
-				generateIntExpression(w, model, ex1, access);
+				generateIntExpression(w, ex1, access);
 				w.append(")");
 			} else if (ex3 == null) {
 				if (ae.getToken().image.equals("%")) {
 					// Modulo takes a special notation to make sure that it
 					// returns a positive value
 					w.append("abs(");
-					generateIntExpression(w, model, ex1, access);
+					generateIntExpression(w, ex1, access);
 					w.append(" % ");
-					generateIntExpression(w, model, ex2, access);
+					generateIntExpression(w, ex2, access);
 					w.append(")");
 				} else {
 
 					w.append("(");
-					generateIntExpression(w, model, ex1, access);
+					generateIntExpression(w, ex1, access);
 					w.append(" ").append(ae.getToken().image).append(" ");
-					generateIntExpression(w, model, ex2, access);
+					generateIntExpression(w, ex2, access);
 					w.append(")");
 				}
 			} else {
 				w.append("(");
-				generateBoolExpression(w, model, ex1, access);
+				generateBoolExpression(w, ex1, access);
 				w.append(" ? ");
-				generateIntExpression(w, model, ex2, access);
+				generateIntExpression(w, ex2, access);
 				w.append(" : ");
-				generateIntExpression(w, model, ex3, access);
+				generateIntExpression(w, ex3, access);
 				w.append(")");
 			}
 		} else if(e instanceof BooleanExpression) {
@@ -702,25 +722,36 @@ public class LTSminPrinter {
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
 				w.append("(").append(be.getToken().image);
-				generateIntExpression(w, model, ex1, access);
+				generateIntExpression(w, ex1, access);
 				w.append( " ? 1 : 0)");
 			} else {
 				w.append("(");
-				generateIntExpression(w, model, ex1, access);
+				generateIntExpression(w, ex1, access);
 				w.append(" ").append(be.getToken().image).append(" ");
-				generateBoolExpression(w,model, ex2, access);
+				generateBoolExpression(w,ex2, access);
 				w.append(" ? 1 : 0)");
 			}
+		} else if(e instanceof ChannelSizeExpression) {
+			ChannelSizeExpression cse = (ChannelSizeExpression)e;
+			String bufRef = wrapVarRef(access, cse.getIdentifier(), false);
+			w.append(bufRef +".filled");
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
-			Variable var = id.getVariable();
-			generateIntExpression(w, model, new ChannelSizeExpression(var), access);
+			generateIntExpression(w, new ChannelSizeExpression(id), access);
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
-			w.append("(");
-			generateBoolExpression (w, model, cre, access);
-			w.append(" ? 1 : 0)");
+			generateBoolExpression (w, cre, access);
+		} else if(e instanceof ChannelTopExpression) {
+			ChannelTopExpression cte = (ChannelTopExpression)e;
+			ChannelReadAction cra = cte.getChannelReadAction();
+			Identifier id = cra.getIdentifier();
+			int size = ((ChannelType)id.getVariable().getType()).getBufferSize();
+			String chan = wrapVarRef(access, id, false);
+			String idx = "("+ chan +".nextRead + "+ chan +".filled) % "+ size;
+			String chan_access = wrapVarRef(access, id, true);
+			String access_buffer = chan_access +"["+ idx + "]";
+			w.append(access_buffer +".m"+ cte.getElem() +".var");
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			String name = co.getToken().image;
@@ -731,7 +762,7 @@ public class LTSminPrinter {
 				throw LTSminTreeWalker.error("Unknown channel length of channel "+ var.getName(), co.getToken());
 			int buffer = ((ChannelType)type).getBufferSize();
 			w.append("(");
-			generateIntExpression(w, model, new ChannelSizeExpression(var), access);
+			generateIntExpression(w, new ChannelSizeExpression(id), access);
 			if (name.equals("empty")) {
 				w.append("== 0");
 			} else if (name.equals("nempty")) {
@@ -745,9 +776,9 @@ public class LTSminPrinter {
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
-			generateIntExpression(w, model, ce.getExpr1(), access);
+			generateIntExpression(w, ce.getExpr1(), access);
 			w.append(" ").append(ce.getToken().image).append(" ");
-			generateIntExpression(w, model, ce.getExpr2(), access);
+			generateIntExpression(w, ce.getExpr2(), access);
 			w.append(" ? 1 : 0)");
 		} else if(e instanceof ConstantExpression) {
 			ConstantExpression ce = (ConstantExpression)e;
@@ -768,18 +799,11 @@ public class LTSminPrinter {
 					w.append("1");
 					break;
 			}
-		} else if(e instanceof ChannelTopExpression) {
-			ChannelTopExpression cte = (ChannelTopExpression)e;
-			ChannelReadAction cra = cte.getChannelReadAction();
-			ChannelVariable var = (ChannelVariable)cra.getVariable();
-			String chan_access = var(TMP_ACCESS, var);
-			String access_buffer = varPrefix(TMP_ACCESS,var) +
-					wrapNameForChannelBuffer(var.getName()) +"["+ chan_access + ".nextRead]";
-			w.append(access_buffer).append(".m").append(cte.getElem()).append(".var");
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof MTypeReference) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			MTypeReference ref = (MTypeReference)e;
+			w.append(ref.getNr());
 		} else if(e instanceof RunExpression) {
 			//we define the "instantiation number" as: next_pid+1 (http://spinroot.com/spin/Man/run.html)
 			//otherwise the first process can never be started if all proctypes are nonactive.
@@ -794,20 +818,12 @@ public class LTSminPrinter {
 		}
 	}
 
-	private static String bufferTopVar(String access, ChannelVariable var, int i) {
-		return bufferTop(access, var) +".m"+ i +".var";
-	}
-
-	private static String bufferTop(String access, ChannelVariable var) {
-		return var(access, var) +"buffer["+ var(access, var) +".nextRead]";
-	}
-	
-	private static void generateBoolExpression(StringWriter w, LTSminModel model,
-											   Expression e, String access) {
+	private static void generateBoolExpression(StringWriter w, Expression e,
+											   String access) {
 
 		if(e instanceof Identifier) { //also LTSminIdentifier
 			w.append("(");
-			generateIntExpression(w, model, e, access);
+			generateIntExpression(w, e, access);
 			w.append(" != 0 )");
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
@@ -816,21 +832,21 @@ public class LTSminPrinter {
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
 				w.append("(").append(ae.getToken().image);
-				generateIntExpression(w, model, ex1, access);
+				generateIntExpression(w, ex1, access);
 				w.append(" != 0)");
 			} else if (ex3 == null) {
 				w.append("(");
-				generateIntExpression(w, model, ex1, access);
+				generateIntExpression(w, ex1, access);
 				w.append(" ").append(ae.getToken().image).append(" ");
-				generateIntExpression(w, model, ex2, access);
+				generateIntExpression(w, ex2, access);
 				w.append(" != 0)");
 			} else { // Can only happen with the x?1:0 expression
 				w.append("(");
-				generateBoolExpression(w, model, ex1, access);
+				generateBoolExpression(w, ex1, access);
 				w.append(" ? ");
-				generateBoolExpression(w, model, ex2, access);
+				generateBoolExpression(w, ex2, access);
 				w.append(" : ");
-				generateBoolExpression(w, model, ex3, access);
+				generateBoolExpression(w, ex3, access);
 				w.append(")");
 			}
 		} else if(e instanceof BooleanExpression) {
@@ -839,27 +855,38 @@ public class LTSminPrinter {
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
 				w.append("(").append(be.getToken().image);
-				generateBoolExpression(w, model, ex1, access);
+				generateBoolExpression(w, ex1, access);
 				w.append(")");
 			} else {
 				w.append("(");
-				generateBoolExpression(w, model, ex1, access);
+				generateBoolExpression(w, ex1, access);
 				w.append(" ").append(be.getToken().image).append(" ");
-				generateBoolExpression(w, model, ex2, access);
+				generateBoolExpression(w, ex2, access);
 				w.append(")");
 			}
+		} else if(e instanceof ChannelTopExpression) {
+			ChannelTopExpression cte = (ChannelTopExpression)e;
+			w.append("(");
+			generateIntExpression(w, cte, access);
+			w.append(" != 0 ? 1 : 0)");
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
-			ChannelVariable var = (ChannelVariable)cre.getVariable();
-			if (var.getType().getBufferSize() == 0)
+			Identifier id = cre.getIdentifier();
+			if (((ChannelType)id.getVariable().getType()).getBufferSize() == 0)
 				throw new AssertionError("ChannelReadAction on rendez-vous channel.");
+			Expression size = new ChannelSizeExpression(id);
+			w.append("(");
+			generateIntExpression(w, size, access);
+			w.append(" > 0) && ");
 			List<Expression> exprs = cre.getExprs();
 			for (int i = 0; i < exprs.size(); i++) {
 				final Expression expr = exprs.get(i);
-				if (expr instanceof Identifier) {
-					generateIntExpression(w, model, expr, access);
-					w.append(" == ").append(bufferTopVar(access, var, i));
-				}
+				if (expr instanceof Identifier) // always matches
+					continue;
+				Expression top = channelTop(id, i);
+				generateIntExpression(w, top, access);
+				w.append(" == ");
+				generateIntExpression(w, expr, access);
 				if (i != exprs.size() - 1) {
 					w.append(" && ");
 				}
@@ -867,18 +894,17 @@ public class LTSminPrinter {
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
-			Variable var = id.getVariable();
 			w.append("(");
-			generateIntExpression(w, model, new ChannelSizeExpression(var), access);
+			generateIntExpression(w, new ChannelSizeExpression(id), access);
 			w.append(" != 0)");
 		} else if(e instanceof ChannelOperation) {
-			generateIntExpression(w, model, e, access);
+			generateIntExpression(w, e, access);
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			w.append("(");
-			generateIntExpression(w, model, ce.getExpr1(), access);
+			generateIntExpression(w, ce.getExpr1(), access);
 			w.append(" ").append(ce.getToken().image).append(" ");
-			generateIntExpression(w, model, ce.getExpr2(), access);
+			generateIntExpression(w, ce.getExpr2(), access);
 			w.append(")");
 		} else if(e instanceof RunExpression) {
 			w.append("("+ IN_NUM_PROCS +" != "+ (PM_MAX_PROCS-1) +")");
@@ -906,8 +932,9 @@ public class LTSminPrinter {
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof MTypeReference) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-
+			w.append("(");
+			generateIntExpression(w, e, access);
+			w.append(" != 0 ? 1 : 0)");
 		} else if(e instanceof TimeoutExpression) {
 //			if( timeoutFalse ) {
 //				w.append("false /* timeout-false */");
@@ -923,6 +950,10 @@ public class LTSminPrinter {
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}
+	}
+
+	private static ChannelTopExpression channelTop(Identifier id, int i) {
+		return new ChannelTopExpression(new ChannelReadAction(null, id), i);
 	}
 
 	private static void generateDepMatrix(StringWriter w, DepMatrix dm, String name) {
@@ -1224,7 +1255,7 @@ public class LTSminPrinter {
 			w.append("  - ");
 			w.append(g);
 			w.append(" - ");
-			LTSminPrinter.generateGuard(w, model, guards.get(g), IN_ACCESS);
+			LTSminPrinter.generateGuard(w, model, guards.get(g));
 			w.appendPostfix();
 //			w.appendLine("  - ",
 //			w.appendLine("  - ",guards.get(g).toString());
@@ -1332,7 +1363,7 @@ public class LTSminPrinter {
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("case ").append(g).append(": return ");
-			LTSminPrinter.generateGuard(w, model, guards.get(g), IN_ACCESS);
+			LTSminPrinter.generateGuard(w, model, guards.get(g));
 			w.append(";");
 			w.appendPostfix();
 		}
@@ -1349,7 +1380,7 @@ public class LTSminPrinter {
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("guard[").append(g).append("] = ");
-			LTSminPrinter.generateGuard(w, model, guards.get(g), IN_ACCESS);
+			LTSminPrinter.generateGuard(w, model, guards.get(g));
 			w.append(";");
 			w.appendPostfix();
 		}
@@ -1418,29 +1449,9 @@ public class LTSminPrinter {
 
 		w.appendLine("typedef struct ",C_TYPE_CHANNEL," {");
 		w.indent();
-		w.appendLine("unsigned int isRendezVous: 2;");
-		w.appendLine("unsigned int nextRead: 15;");
-		w.appendLine("unsigned int filled: 15;");
+		w.appendLine("unsigned int nextRead: 16;");
+		w.appendLine("unsigned int filled: 16;");
 		w.outdent();
 		w.appendLine("} ",C_TYPE_CHANNEL,";");
-	}
-
-
-	/**
-	 * Returns the name
-	 * @param name The name to clean.
-	 * @return The cleaned name.
-	 */
-	public static String wrapName(String name) {
-		return name;
-	}
-
-	/**
-	 * Returns a channel buffer name given the specified name.
-	 * @param name The name to use to instrument a channel buffer name.
-	 * @return The instrumentd, clean channel buffer name.
-	 */
-	private static String wrapNameForChannelBuffer(String name) {
-		return wrapName(name) +"_buffer";
 	}
 }
