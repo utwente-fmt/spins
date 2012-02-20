@@ -966,7 +966,7 @@ public class LTSminPrinter {
 		w.appendLine("// { ... read ...}, { ... write ...}");
 
 		// Iterate over all the rows
-		for(int t=0; t > dm.getRows(); ) {
+		for(int t=0; t < dm.getRows(); ) {
 			w.appendPrefix();
 			w.append("{{");
 			DepRow dr = null;
@@ -1020,7 +1020,6 @@ public class LTSminPrinter {
 
 		// Close array
 		w.appendLine("};");
-
 	}
 
 	private static void generateDMFunctions(StringWriter w, DepMatrix dm) {
@@ -1028,13 +1027,13 @@ public class LTSminPrinter {
 		w.appendLine("");
 		w.appendLine("extern const int* spinja_get_transition_read_dependencies(int t)");
 		w.appendLine("{");
-		w.append("	if (t>=0 && t < ").append(dm.getRows()).appendLine(") return ").append(DM_NAME).append("[t][0];");
+		w.appendLine("	if (t>=0 && t < "+ dm.getRows() +") return "+ DM_NAME +"[t][0];");
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 		w.appendLine("");
 		w.appendLine("extern const int* spinja_get_transition_write_dependencies(int t)");
 		w.appendLine("{");
-		w.append("	if (t>=0 && t < ").append(dm.getRows()).appendLine(") return ").append(DM_NAME).append("[t][1];");
+		w.appendLine("	if (t>=0 && t < "+ dm.getRows()+ ") return "+ DM_NAME +"[t][1];");
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 	}
