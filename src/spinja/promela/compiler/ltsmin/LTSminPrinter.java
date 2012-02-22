@@ -361,7 +361,7 @@ public class LTSminPrinter {
 		w.indent();
 		w.appendLine("transition_info_t transition_info = { NULL, t };");
 		w.appendLine("int states_emitted = 0;");
-		w.appendLine("int atomic = false;");
+		w.appendLine("int atomic = -1;");
 		w.appendLine("register int pos;");
 		w.appendLine(C_STATE_T," local_state;");
 		w.appendLine(C_STATE_T,"* ",C_STATE_TMP," = &local_state;");
