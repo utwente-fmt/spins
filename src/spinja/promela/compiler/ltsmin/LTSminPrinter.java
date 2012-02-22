@@ -506,7 +506,7 @@ public class LTSminPrinter {
 			PrintAction pa = (PrintAction)a;
 			String string = pa.getString();
 			List<Expression> exprs = pa.getExprs();
-			w.appendPrefix().append("printf(").append(string);
+			w.appendPrefix().append("//printf(").append(string);
 			for (final Expression expr : exprs) {
 				w.append(", ");
 				generateIntExpression(w, expr, IN_ACCESS);
