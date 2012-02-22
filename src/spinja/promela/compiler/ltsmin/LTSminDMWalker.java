@@ -125,49 +125,26 @@ public class LTSminDMWalker {
 		if(a instanceof AssignAction) {
 			AssignAction as = (AssignAction)a;
 			Identifier id = as.getIdentifier();
-			final String mask = id.getVariable().getType().getMask();
+			DMAssign(params,id);
 			switch (as.getToken().kind) {
 				case PromelaConstants.ASSIGN:
-					try {
-						as.getExpr().getConstantValue();
-						walkExpression(params,id); // assign
-					} catch (ParseException ex) {
-						// Could not get Constant value
-						walkExpression(params,id); // assign
-						walkExpression(params,as.getExpr()); // read
-					}
-					break;
-				case PromelaConstants.INCR:
-					if (mask == null) {
-						walkExpression(params,id); // assign and read
-					} else {
-						walkExpression(params,id); // assign
-						walkExpression(params,id); // read
-					}
+					walkExpression(params,as.getExpr()); // read
 					break;
 				case PromelaConstants.DECR:
-					if (mask == null) {
-						walkExpression(params,id); // assign and read
-					} else {
-						walkExpression(params,id); // assign
-						walkExpression(params,id); // read
-					}
+				case PromelaConstants.INCR:
+					walkExpression(params,id);
 					break;
 				default:
 					throw new AssertionError("unknown assignment type");
 			}
-			DMAssign(params,id);
-
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
 			DMIncWrite(params, rpa.getProcVar(),0);
-			for(Variable v: rpa.getProcess().getVariables()) {
+			DMIncWrite(params, _NR_PR, 0);
+			DMIncRead(params, _NR_PR, 0); // also done by guard, just to be sure
+			for(Variable v : rpa.getProcess().getVariables()) {
 				DMIncWriteEntire(params, v);
 			}
-
-		} else if(a instanceof ResetProcessAction) {
-			ResetProcessAction rpa = (ResetProcessAction)a;
-			rpa.getProcess();
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
@@ -181,31 +158,41 @@ public class LTSminDMWalker {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
-			String sideEffect;
+			String sideEffect = null;
 			try {
 				sideEffect = expr.getSideEffect();
-				if (sideEffect != null) {
-					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
-					assert (expr instanceof RunExpression);
-					DMIncWrite(params, _NR_PR, 0);
-					DMIncRead(params, _NR_PR, 0);
-					RunExpression re = (RunExpression)expr;
-					Proctype p = re.getSpecification().getProcess(re.getId());
-					DMIncWrite(params,params.sv.getPC(p),0);
-					//write to the arguments of the target process
-					for (Variable v : p.getArguments()) {
-						if (v.getType() instanceof ChannelType) continue; //passed by reference
-						DMIncWrite(params, v, 0);
-					}
-				}
 			} catch (ParseException e) {
 				e.printStackTrace();
+			}
+			if (sideEffect != null) {
+				//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
+				assert (expr instanceof RunExpression);
+				DMIncWrite(params, _NR_PR, 0);
+				DMIncRead(params, _NR_PR, 0);
+				RunExpression re = (RunExpression)expr;
+				Proctype p = re.getSpecification().getProcess(re.getId());
+				DMIncWrite(params,params.sv.getPC(p),0);
+				//write to the arguments of the target process
+				for (Variable v : p.getArguments()) {
+					if (v.getType() instanceof ChannelType) continue; //passed by reference
+					DMIncWrite(params, v, 0);
+				}
+			} else {
+				// simple expressions are guards
 			}
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
 			OptionAction oa = (OptionAction)a;
 			for (Sequence seq : oa) {
+				Action ea = seq.iterator().next();
+				try {
+					walkExpression(params, ((ExprAction)ea).getExpression());
+				} catch (ClassCastException e) {
+					assert (ea instanceof ElseAction);
+				}
 				for (Action act : seq) {
-					walkAction(params, act);
+					if (act != ea) {
+						walkAction(params, act);
+					}
 				}
 			}
 		} else if(a instanceof ElseAction) {
@@ -238,27 +225,17 @@ public class LTSminDMWalker {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
 			Expression arrayExpr = id.getArrayExpr();
-			if (var.getArraySize() > 1) {
-				if (arrayExpr != null) {
-					//w.append(var.getName());
-					walkExpression(params,arrayExpr);
-
-					try {
-						int i = arrayExpr.getConstantValue();
-						//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
+			if (arrayExpr != null) {
+				walkExpression(params,arrayExpr);
+				try {
+					int i = arrayExpr.getConstantValue();
+					DMIncRead(params, var, i);
+				} catch(ParseException pe) {
+					for(int i=0; i<var.getArraySize(); ++i) {
 						DMIncRead(params, var, i);
-					} catch(ParseException pe) {
-						for(int i=0; i<var.getArraySize(); ++i) {
-							//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var)+i);
-							DMIncRead(params, var, i);
-						}
 					}
-				} else {
-					//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var));
-					DMIncRead(params, var, 0);
 				}
 			} else {
-				//if(trans<dep_matrix.getRows()) dep_matrix.incRead(trans, state_var_offset.get(var));
 				DMIncRead(params, var, 0);
 			}
 		} else if(e instanceof AritmicExpression) {
@@ -346,6 +323,10 @@ public class LTSminDMWalker {
 		ChannelVariable var = (ChannelVariable)id.getVariable();
 		Expression arrayExpr = id.getArrayExpr();
 		try {
+			if (arrayExpr != null)
+				walkExpression(params, arrayExpr);
+			else
+				throw new ParseException();
 			int i = arrayExpr.getConstantValue();
 			// mark channel meta data
 			DMIncRead (params, var, i);
@@ -406,18 +387,6 @@ public class LTSminDMWalker {
 		}
 	}
 
-/*
-	static void DMDecrWrite(Params params, Variable var, int offset) {
-		Integer i = params.model.getVariables().get(var);
-		if(i==null) {
-			System.out.println("For some reason var is null, " + var.getName());
-			System.out.println("Vars: " + params.model.getVariables().toString());
-		} else {
-			params.depMatrix.decrWrite(params.trans, i+offset);
-		}
-	}
-*/
-
 	static void DMIncRead(Params params, Variable var, int offset) {
 		Integer i = params.model.getVariables().get(var);
 		if(i==null) {
@@ -433,17 +402,7 @@ public class LTSminDMWalker {
 			params.depMatrix.incRead(params.trans, i);
 		}
 	}
-/*
-	static void DMDecrRead(Params params, Variable var, int offset) {
-		Integer i = params.model.getVariables().get(var);
-		if(i==null) {
-			System.out.println("For some reason var is null, " + var.getName());
-			System.out.println("Vars: " + params.model.getVariables().toString());
-		} else {
-			params.depMatrix.decrRead(params.trans,i+offset);
-		}
-	}
-*/
+
 	static void DMIncWriteEntire(Params params, Variable var) {
 		if (var.getArraySize() > 1) {
 			for(int i=0; i<var.getArraySize(); ++i) {
@@ -459,26 +418,17 @@ public class LTSminDMWalker {
 		Expression arrayExpr = id.getArrayExpr();
 		if (var.getArraySize() > 1) {
 			if (arrayExpr != null) {
+				walkExpression(params, arrayExpr);
 				try {
 					int i = arrayExpr.getConstantValue();
-					//DMDecrRead(params,var,i);
 					DMIncWrite(params,var,i);
 				} catch(ParseException pe) {
-					for(int i=0; i<var.getArraySize(); ++i) {
-						//DMDecrRead(params,var,i);
-						DMIncWrite(params,var,i);
-					}
+					DMIncWriteEntire (params, var);
 				}
 			} else {
-				//DMDecrRead(params,var,0);
 				DMIncWrite(params,var,0);
-				//for(int i=0; i<var.getArraySize(); ++i) {
-				//	DMDecrRead(params,var,i);
-				//	DMIncWrite(params,var,i);
-				//}
 			}
 		} else {
-			//DMDecrRead(params,var,0);
 			DMIncWrite(params,var,0);
 		}
 	}

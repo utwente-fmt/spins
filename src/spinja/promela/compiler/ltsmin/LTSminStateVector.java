@@ -283,6 +283,9 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 				handleVariable(proc_sg,var,name + ".",ls_p, debug);
 			}
 
+			p.addVariable(pid);
+			p.addVariable(pc);
+
 			// Add process state struct to main state struct
 			state_members.add(proc_sg);
 			model.addType(ls_p);
