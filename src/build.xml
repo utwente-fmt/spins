@@ -27,12 +27,15 @@
 
 	<target name="compile" description="Compiles all java files" depends="javacc">
 		<javac destdir="${build}/classes" source="1.5" debug="on" debuglevel="lines,vars,source" srcdir="${spinja}" includeantruntime="false"/>
+		<copy file="${spinja}/promela/compiler/ltsmin/reach.c"  todir="${build}/classes/${spinja}/promela/compiler/ltsmin/" />
+		<copy file="${spinja}/promela/compiler/ltsmin/hashtable.c"  todir="${build}/classes/${spinja}/promela/compiler/ltsmin/" />
 	</target>
 
 	<target name="jar" description="Generates jar-file" depends="compile">
 		<jar destfile="${build}/${name}.jar">
 			<fileset dir="${build}/classes">
 				<include name="**/*.class" />
+                <include name="**/*.c" />
 			</fileset>
 			<manifest>
 				<attribute name="Built-By" value="${user.name}" />
