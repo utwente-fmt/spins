@@ -172,6 +172,8 @@ public class LTSminDMWalker {
 				RunExpression re = (RunExpression)expr;
 				Proctype p = re.getSpecification().getProcess(re.getId());
 				DMIncWrite(params,params.sv.getPC(p),0);
+				DMIncRead(params,params.sv.getPC(p),0); // we also read to check multiple instantiations
+				DMIncWrite(params,params.sv.getPID(p),0);
 				//write to the arguments of the target process
 				for (Variable v : p.getArguments()) {
 					if (v.getType() instanceof ChannelType) continue; //passed by reference
@@ -291,7 +293,7 @@ public class LTSminDMWalker {
 			walkExpression(params,ce.getExpr1());
 			walkExpression(params,ce.getExpr2());
 		} else if(e instanceof RunExpression) {
-			DMIncRead(params, _NR_PR, 0);
+			assert (false);
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
