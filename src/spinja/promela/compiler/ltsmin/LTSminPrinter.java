@@ -515,7 +515,7 @@ public class LTSminPrinter {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
-			String sideEffect;
+			String sideEffect = null;
 			try {
 				sideEffect = expr.getSideEffect();
 				if (sideEffect != null) {
@@ -556,6 +556,8 @@ public class LTSminPrinter {
 							generateAction(w, aa, model);
 						}
 					}
+				} else {
+					// Simple expressions are guards
 				}
 			} catch (ParseException e) {
 				e.printStackTrace();
@@ -606,6 +608,7 @@ public class LTSminPrinter {
 				List<Expression> exprs = csa.getExprs();
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
+					w.appendPrefix();
 					generateIntExpression(w, channelTop(id,i), TMP_ACCESS);
 					w.append(" = ");
 					generateIntExpression(w, expr, IN_ACCESS);
@@ -628,7 +631,11 @@ public class LTSminPrinter {
 						w.appendPrefix();
 						generateIntExpression(w, expr, TMP_ACCESS);
 						w.append(" = ");
-						generateIntExpression(w, channelTop(id,i), TMP_ACCESS);
+						String chan = wrapVarRef(TMP_ACCESS, id, false);
+						String idx = "("+ chan +".nextRead)";
+						String chan_access = wrapVarRef(TMP_ACCESS, id, true);
+						String access_buffer = chan_access +"["+ idx + "]";
+						w.append(access_buffer +".m"+ i +".var");
 						w.append(";");
 						w.appendPostfix();
 					}
