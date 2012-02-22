@@ -175,18 +175,14 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_OUTPUT> SKIP:
 {
-     "\n"|"\r" {
-	 Preprocessor.process(input_stream,image.toString());
-	}: DEFAULT
+    < "\n"|"\r"|"\r\n" > {
+	   Preprocessor.process(input_stream,image.toString());
+	} : DEFAULT
 }
-
+    
 <PREPROCESSOR_OUTPUT> MORE:
 {
- "\\\n"
- |
- "\\\r\n"
- |
- < ~[] >
+    < ~[] >
 }
 
 <IN_COMMENT2> SKIP: {
