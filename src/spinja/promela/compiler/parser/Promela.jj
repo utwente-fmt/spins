@@ -190,7 +190,7 @@ SKIP : { // Skip whitespace and comments
 <PREPROCESSOR_OUTPUT> SKIP:
 {
     < "\n"|"\r"|"\r\n" > {
-	   Preprocessor.process(input_stream,image.toString());
+	   Preprocessor.process(input_stream,image.toString().trim());
 	} : DEFAULT
 }
     
@@ -783,7 +783,7 @@ void recv_arg(CompoundExpression c): {
 	{ c.addExpression(expr); }
 |	t=<EVAL> <LPAREN> expr=varref() <RPAREN>
 	{ c.addExpression(new EvalExpression(t, expr)); }
-|	expr=constant()
+|	expr=onlyconstant()
 	{ c.addExpression(expr); }
 }
 
@@ -807,7 +807,7 @@ Expression varref(): {
 }{
 	id=<IDENTIFIER>
 	{
-        String text = Preprocessor.defines(id.image);
+        String text = Preprocessor.defines(id.image.trim());
         if (text != null) {
             // recursively start the parser
             Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
@@ -859,7 +859,7 @@ Expression base_expr(): {
 	  { throw new MyParseException("Channel random read with brackets are not yet supported!", t); }
 	  )?
 	{ return ex1; }
-|	ex1=constant()
+|	ex1=onlyconstant()
 	{ return ex1; }
 |	t=<TIMEOUT>
 	{ return new TimeoutExpression(t); }
@@ -1014,15 +1014,36 @@ Token chanop(): {
 	{ return t; }
 }
 
+ConstantExpression onlyconstant(): {
+    Token n;
+}{
+    n=<TRUE>
+    { return new ConstantExpression(n, 1); }
+|   n=<FALSE>
+    { return new ConstantExpression(n, 0); }
+|   n=<SKIP_>
+    { return new ConstantExpression(n, 1); }
+|   n=<NUMBER>
+    { return new ConstantExpression(n, Integer.parseInt(n.image)); }
+}
+
 ConstantExpression constant(): {
 	Token n;
+	ConstantExpression ex1;
 }{
-	n=<TRUE>
-	{ return new ConstantExpression(n, 1); }
-|	n=<FALSE>
-	{ return new ConstantExpression(n, 0); }
-|	n=<SKIP_>
-	{ return new ConstantExpression(n, 1); }
-|	n=<NUMBER>
-	{ return new ConstantExpression(n, Integer.parseInt(n.image)); }
+    ex1 = onlyconstant()
+    { return ex1; }
+|   n=<IDENTIFIER>
+    {
+        String text = Preprocessor.defines(n.image.trim());
+        if (text == null) {
+	        int mtypeNr = specification.getMType(n.image);
+	        if(mtypeNr >= 0)
+	            return new MTypeReference(n, mtypeNr);
+            throw new MyParseException("Expected constant!", n);
+        }
+        // recursively start the parser
+        Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
+        return p.constant();
+    }
 }

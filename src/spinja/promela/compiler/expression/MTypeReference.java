@@ -17,35 +17,28 @@ package spinja.promela.compiler.expression;
 import java.util.HashSet;
 import java.util.Set;
 
-import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.VariableAccess;
 import spinja.promela.compiler.variable.VariableType;
 
-public class MTypeReference extends Expression {
-	private final int nr;
-
+public class MTypeReference extends ConstantExpression {
+	
 	public MTypeReference(final Token token, final int nr) {
-		super(token);
-		this.nr = nr;
+		super(token, nr);
 	}
 
 	@Override
-	public String getIntExpression() throws ParseException {
+	public String getIntExpression() {
 		return Integer.toString(nr);
 	}
 
 	@Override
-	public VariableType getResultType() throws ParseException {
+	public VariableType getResultType() {
 		return VariableType.MTYPE;
 	}
 
 	@Override
 	public Set<VariableAccess> readVariables() {
 		return new HashSet<VariableAccess>();
-	}
-
-	public int getNr() {
-		return nr;
 	}
 }

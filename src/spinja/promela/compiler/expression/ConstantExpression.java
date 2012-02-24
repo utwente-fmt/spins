@@ -32,7 +32,7 @@ public class ConstantExpression extends Expression {
 	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -5861698132204844795L;
 
-	private final int nr;
+	protected final int nr;
 
 	/**
 	 * Creates a new ConstantExpression from a specified token and the constant number.
