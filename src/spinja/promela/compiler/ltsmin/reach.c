@@ -9,6 +9,7 @@ typedef struct spinja_args_s {
 	size_t 				outs;
 	state_db_t 		   *seen;
 	int 				pid;
+	int 				real_group;
 } spinja_args_t;
 
 extern void dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state);
@@ -19,6 +20,7 @@ dfs_cb(void* arg, transition_info_t *transition_info, state_t *out)
 {
 	spinja_args_t *args = (spinja_args_t *)arg;
 	if (leaves_atomic[transition_info->group]) {
+	    transition_info->group = args->real_group;
 		args->callback (args->arg, transition_info, out);
 		args->outs++;
 	} else {
@@ -63,6 +65,7 @@ reach (void* model, transition_info_t *transition_info, state_t *in,
 	args.arg = arg;
 	args.outs = 0;
 	args.pid = pid;
+	args.real_group = transition_info->group;
 	args.seen = state_db_create (spinja_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
 	dfs (&args, transition_info, in);
 	state_db_free (args.seen);

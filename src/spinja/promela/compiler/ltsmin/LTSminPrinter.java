@@ -342,6 +342,7 @@ public class LTSminPrinter {
 				w.appendLine("} else {");
 				w.indent();
 					String pid = wrapVar(TMP_ACCESS, model.sv.getPID( t.getProcess() ));
+					w.appendLine("transition_info.group = "+ transition.getGroup() +";");
 					w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ pid +".var);");
 					w.appendLine("states_emitted += count;");
 				w.outdent();
@@ -437,7 +438,7 @@ public class LTSminPrinter {
 						w.appendPrefix();
 						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" = ");
-						generateIntExpression(w, as.getExpr(), IN_ACCESS);
+						generateIntExpression(w, as.getExpr(), TMP_ACCESS);
 						w.append((mask == null ? "" : " & " + mask));
 						w.append(";");
 						w.appendPostfix();
@@ -453,7 +454,7 @@ public class LTSminPrinter {
 						w.appendPrefix();
 						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" = (");
-						generateIntExpression(w, id, IN_ACCESS);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" + 1) & ").append(mask).append(";");
 						w.appendPostfix();
 					}
@@ -468,7 +469,7 @@ public class LTSminPrinter {
 						w.appendPrefix();
 						generateIntExpression(w, id, TMP_ACCESS);
 						w.appendLine(" = (");
-						generateIntExpression(w, id, IN_ACCESS);
+						generateIntExpression(w, id, TMP_ACCESS);
 						w.append(" - 1) & ");
 						w.append(mask);
 						w.append(";");
@@ -494,7 +495,7 @@ public class LTSminPrinter {
 
 			w.appendPrefix();
 			w.append("if(!");
-			generateBoolExpression(w, e, IN_ACCESS);
+			generateBoolExpression(w, e, TMP_ACCESS);
 			w.append(") {");
 			w.appendPostfix();
 			w.indent();
@@ -509,7 +510,7 @@ public class LTSminPrinter {
 			w.appendPrefix().append("//printf(").append(string);
 			for (final Expression expr : exprs) {
 				w.append(", ");
-				generateIntExpression(w, expr, IN_ACCESS);
+				generateIntExpression(w, expr, TMP_ACCESS);
 			}
 			w.append(");").appendPostfix();
 		} else if(a instanceof ExprAction) {
@@ -525,7 +526,7 @@ public class LTSminPrinter {
 					Proctype target = re.getSpecification().getProcess(re.getId()); //TODO: anonymous processes (multiple runs on one proctype)
 
 					//only one dynamic process supported atm
-					w.appendLine("if (-1 != "+ getPC(target, IN_ACCESS) +") {");
+					w.appendLine("if (-1 != "+ getPC(target, TMP_ACCESS) +") {");
 					w.appendLine("	printf (\"SpinJa only supports a maximum " +
 							"one dynamic process creation and only for " +
 							"nonactive proctypes.\\n\");");
@@ -611,7 +612,7 @@ public class LTSminPrinter {
 					w.appendPrefix();
 					generateIntExpression(w, channelTop(id,i), TMP_ACCESS);
 					w.append(" = ");
-					generateIntExpression(w, expr, IN_ACCESS);
+					generateIntExpression(w, expr, TMP_ACCESS);
 					w.append(";");
 					w.appendPostfix();
 				}
