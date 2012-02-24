@@ -196,6 +196,9 @@ SKIP : { // Skip whitespace and comments
     
 <PREPROCESSOR_OUTPUT> MORE:
 {
+    "\\\n" |
+    "\\\r" |
+    "\\\r\n" |
     < ~[] >
 }
 
