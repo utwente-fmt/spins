@@ -190,7 +190,21 @@ SKIP : { // Skip whitespace and comments
 <PREPROCESSOR_OUTPUT> SKIP:
 {
     < "\n"|"\r"|"\r\n" > {
-	   Preprocessor.process(input_stream,image.toString().trim());
+        String text = image.toString();
+        if (text.startsWith("include ")) {
+            String file = text.substring(8).trim();
+            file = file.replaceAll("[\"]", "");  
+            // recursively start the lexer/parser
+            try {
+                Promela p = new Promela(new FileInputStream(file));                p.spec("preprocessor");
+                Preprocessor.addInclude(p); 
+            } catch (FileNotFoundException pe) {
+                System.out.println("Could not locate include: " + file);
+            } catch (ParseException pe) {                System.out.println("Parse exception in file " + file + ": "
+                                + pe.getMessage());
+            }
+        } else {            Preprocessor.process(input_stream, text.trim());
+        }
 	} : DEFAULT
 }
     
@@ -234,7 +248,7 @@ MORE : { // The string
 Specification spec(String name): {
 	specification = new Specification(name);
 }{	
-	(module()) +
+	(module()) *
 	{ return specification; }
 }
 

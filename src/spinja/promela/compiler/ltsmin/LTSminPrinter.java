@@ -811,7 +811,7 @@ public class LTSminPrinter {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof MTypeReference) {
 			MTypeReference ref = (MTypeReference)e;
-			w.append(ref.getNr());
+			w.append(ref.getNumber());
 		} else if(e instanceof RunExpression) {
 			//we define the "instantiation number" as: next_pid+1 (http://spinroot.com/spin/Man/run.html)
 			//otherwise the first process can never be started if all proctypes are nonactive.

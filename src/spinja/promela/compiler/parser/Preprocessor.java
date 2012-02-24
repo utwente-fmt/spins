@@ -1,6 +1,8 @@
 package spinja.promela.compiler.parser;
 
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
@@ -12,6 +14,7 @@ import java.util.Scanner;
 public class Preprocessor {
 	private static String fileName;
 	private static Map<String, String> defines = new HashMap<String, String>();
+	private static List<Promela> includes = new LinkedList<Promela>();
 
 	public static String getFileName() {
 		return fileName;
@@ -24,7 +27,15 @@ public class Preprocessor {
 	public static void setFilename(String fileName) {
 		Preprocessor.fileName = fileName;
 	}
-
+	
+	public static void addInclude(Promela p) {
+		includes.add(p);
+	}
+	
+	public static List<Promela> getInclude() {
+		return includes;
+	}
+	
 	public static void process(SimpleCharStream input_stream, String s) {
 		Scanner sc = new Scanner(s);
 
@@ -60,7 +71,7 @@ public class Preprocessor {
 				System.out.println("error parsing "+ s +"\n"+e);
 			}
 		} else {
-			System.out.println("Unknown preprocessor command");
+			System.out.println("Unknown preprocessor command: "+ command);
 		}
 	}
 }
