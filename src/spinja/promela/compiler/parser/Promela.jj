@@ -30,6 +30,20 @@ import java.util.*;
 
 @SuppressWarnings("all")
 public class Promela {
+
+	/** Copy Constructor. */
+	public Promela(Promela prom, java.io.InputStream stream) {
+	    this(stream);
+	    this.currentProc = prom.currentProc;
+	    this.specification = prom.specification;
+	    this.automaton = prom.automaton;
+	    this.procNr = prom.procNr;
+	    this.labels = prom.labels;
+	    this.gotos = prom.gotos;
+	    this._pid = prom._pid;
+	    this.type = prom.type;
+	}
+
 	private Specification specification;
 	private Proctype currentProc;
 	private Automaton automaton;	
@@ -796,7 +810,7 @@ Expression varref(): {
         String text = Preprocessor.defines(id.image);
         if (text != null) {
             // recursively start the parser
-            Promela p = new Promela(new ByteArrayInputStream(text.getBytes()));
+            Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
             return p.expr();
         }
 		int mtypeNr = specification.getMType(id.image);
