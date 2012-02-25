@@ -221,6 +221,12 @@ public class LTSminDMWalker {
 		}
 	}
 
+	public static void walkOneGuard(LTSminModel model, DepMatrix dm,
+									LTSminGuard g, int num) {
+		Params p = new Params(model, dm, num); 
+		walkExpression(p, g.expr);
+	}
+	
 	static void walkExpression(Params params, Expression e) {
 		if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {

@@ -6,7 +6,7 @@ import java.util.List;
 
 import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.ltsmin.instr.DepMatrix;
-import spinja.promela.compiler.ltsmin.instr.GuardMatrix;
+import spinja.promela.compiler.ltsmin.instr.GuardInfo;
 import spinja.promela.compiler.variable.Variable;
 import spinja.util.StringWriter;
 
@@ -24,7 +24,7 @@ public class LTSminModel {
 	private HashMap<Variable,Integer> variables;
 
 	DepMatrix depMatrix;
-	GuardMatrix guardMatrix;
+	GuardInfo guardMatrix;
 
 	StringWriter header;
 	StringWriter structs;
@@ -74,11 +74,11 @@ public class LTSminModel {
 		this.depMatrix = depMatrix;
 	}
 
-	public GuardMatrix getGuardMatrix() {
+	public GuardInfo getGuardInfo() {
 		return guardMatrix;
 	}
 
-	public void setGuardMatrix(GuardMatrix guardMatrix) {
+	public void setGuardInfo(GuardInfo guardMatrix) {
 		this.guardMatrix = guardMatrix;
 	}
 

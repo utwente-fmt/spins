@@ -70,7 +70,8 @@ public class ConstantExpression extends Expression {
 		if (!(o instanceof ConstantExpression))
 			return false;
 		ConstantExpression ce = (ConstantExpression)o;
-		return nr == ce.nr && getToken().equals(ce.getToken());
+		return getToken().kind == ce.getToken().kind &&
+				getIntExpression().equals(ce.getIntExpression());
 	}
 	
 	@Override

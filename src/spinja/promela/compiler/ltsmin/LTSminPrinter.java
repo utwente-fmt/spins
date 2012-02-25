@@ -61,7 +61,7 @@ import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.instr.DepMatrix;
 import spinja.promela.compiler.ltsmin.instr.DepRow;
-import spinja.promela.compiler.ltsmin.instr.GuardMatrix;
+import spinja.promela.compiler.ltsmin.instr.GuardInfo;
 import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
@@ -93,6 +93,8 @@ public class LTSminPrinter {
 
 	public static final String DM_NAME = "transition_dependency";
 	public static final String GM_DM_NAME = "gm_dm";
+	public static final String CO_DM_NAME = "co_dm";
+	public static final String GM_TRANS_NAME = "gm_trans";
 
 	public static String generateCode(LTSminModel model) {
 		StringWriter w = new StringWriter();
@@ -113,12 +115,12 @@ public class LTSminPrinter {
 		generateReach(w, model);
 		generateGetNext(w,model);
 		generateGetAll(w,model);
-		generateTransitionCount(w,model);
-		generateDepMatrix(w,model.getDepMatrix(),DM_NAME);
-		generateDMFunctions(w,model.getDepMatrix());
-		generateGuardMatrix(w,model);
-		generateGuardFunctions(w, model, model.getGuardMatrix());
-		generateStateDescriptors(w,model);
+		generateTransitionCount(w, model);
+		generateDepMatrix(w, model.getDepMatrix(), DM_NAME, true);
+		generateDMFunctions(w, model.getDepMatrix());
+		generateGuardMatrix(w, model);
+		generateGuardFunctions(w, model, model.getGuardInfo());
+		generateStateDescriptors(w, model);
 	}
 
 	private static void generateTypeDef(StringWriter w, LTSminType type) {
@@ -964,70 +966,47 @@ public class LTSminPrinter {
 		return new ChannelTopExpression(new ChannelReadAction(null, id), i);
 	}
 
-	private static void generateDepMatrix(StringWriter w, DepMatrix dm, String name) {
-		//LTSMinPrinter.DepMatrix dm = model.getDepMatrix();
-
-		if(dm==null) throw new AssertionError("DM is null!");
-
-		w.appendPrefix().append("int ").append(name).append("[][2][").append(dm.getRowLength()).appendLine("] = {");
+	private static void generateDepMatrix(StringWriter w, DepMatrix dm, String name, boolean rw) {
+		String dub = rw ? "[2]" : "";
+		w.appendPrefix();
+		w.appendLine("int "+ name + "[]"+ dub +"["+ dm.getRowLength() +"] = {");
 		w.indent();
-		w.appendLine("// { ... read ...}, { ... write ...}");
+		if (rw)
+			w.appendLine("// { ... read ...}, { ... write ...}");
 
 		// Iterate over all the rows
-		for(int t=0; t < dm.getRows(); ) {
+		for(int t = 0; t < dm.getRows(); t++) {
+			if (t > 0)
+				w.append(", // "+ t).appendPostfix();
 			w.appendPrefix();
-			w.append("{{");
-			DepRow dr = null;
-			if(dm!=null) dr = dm.getRow(t);
-			int s=0;
 
-			// Insert all read dependencies of the current row
-			for(;;) {
-				if(dm==null) {
-					w.append(1);
-				} else {
-					w.append(dr.getReadB(s));
-				}
-
-				if(++s>=dr.getSize()) {
-					break;
-				}
+			DepRow dr = dm.getRow(t);
+			if (rw) { // both read and write
+				w.append("{");
+				generateRow(w, dr, true);
 				w.append(",");
+				generateRow(w, dr, false);			
+				w.append("}");
+			} else {
+				generateRow(w, dr, true);
 			}
-
-			// Bridge
-			w.append("},{");
-			s=0;
-
-			// Insert all write dependencies of the current row
-			for(;;) {
-				if(dm==null) {
-					w.append(1);
-				} else {
-					w.append(dr.getWriteB(s));
-				}
-				if(++s>=dr.getSize()) {
-					break;
-				}
-				w.append(",");
-			}
-
-			// End the row
-			w.append("}}");
-
-			// If this was the last row
-			if(t>=dm.getRows()-1) {
-				w.append("  // ").append(t).appendPostfix();
-				break;
-			}
-			w.append(", // ").append(t).appendPostfix();
-			++t;
 		}
-
 		w.outdent();
-
 		// Close array
 		w.appendLine("};");
+	}
+
+	private static void generateRow(StringWriter w, DepRow dr, boolean read) {
+		w.append("{");
+		
+		// Insert all read dependencies of the current row
+		for(int s=0; s < dr.getSize(); s++) {
+			if(s > 0)
+				w.append(",");
+			w.append(read ? dr.getReadB(s) : dr.getWriteB(s));
+		}
+
+		w.append("}");
 	}
 
 	private static void generateDMFunctions(StringWriter w, DepMatrix dm) {
@@ -1220,38 +1199,27 @@ public class LTSminPrinter {
 	}
 
 	private static void generateGuardMatrix(StringWriter w, LTSminModel model) {
-		GuardMatrix gm = model.getGuardMatrix();
+		GuardInfo gm = model.getGuardInfo();
 		if(gm==null) return;
 
-		List<List<Integer>> co_matrix = gm.getCoMatrix();
-		List<List<LTSminGuardBase>> trans_matrix = gm.getTransMatrix();
-		List<LTSminGuardBase> guards = gm.getGuards();
+		DepMatrix co_matrix = gm.getCoMatrix();
+		List<List<Integer>> trans_matrix = gm.getTransMatrix();
+		List<LTSminGuard> guards = gm.getGuards();
 		
 		generateGuardList(w, model, guards);
 
 		w.appendLine("");
 		w.appendLine("// Guard-Dependency Matrix:");
-//		for(int g=0; g<dp_matrix.size(); ++g) {
-//			w.appendPrefix();
-//
-//			List<Integer> row = dp_matrix.get(g);
-//
-//			for(int s=0; s<row.size(); ++s) {
-//				w.append(row.get(s)).append(", ");
-//			}
-//
-//			w.appendPostfix();
-//		}
-		LTSminPrinter.generateDepMatrix(w,gm.getDepMatrix2(),GM_DM_NAME);
+		generateDepMatrix(w, gm.getDepMatrix(), GM_DM_NAME, false);
 		w.appendLine("");
 		
-		generateCoEnabledMatrix(w, co_matrix);
+		generateDepMatrix(w, co_matrix, CO_DM_NAME, false);
 		
 		generateTransGuardMatrix(w, trans_matrix, guards);
 	}
 
 	private static void generateGuardList(StringWriter w, LTSminModel model,
-										  List<LTSminGuardBase> guards) {
+										  List<LTSminGuard> guards) {
 		w.appendLine("/*");
 		String old_preprefix = w.getPrePrefix();
 		w.setPrePrefix(" * ");
@@ -1262,7 +1230,7 @@ public class LTSminPrinter {
 			w.append("  - ");
 			w.append(g);
 			w.append(" - ");
-			LTSminPrinter.generateGuard(w, model, guards.get(g));
+			generateGuard(w, model, guards.get(g));
 			w.appendPostfix();
 //			w.appendLine("  - ",
 //			w.appendLine("  - ",guards.get(g).toString());
@@ -1271,53 +1239,20 @@ public class LTSminPrinter {
 		w.appendLine(" */");
 	}
 
-	private static void generateCoEnabledMatrix(StringWriter w,
-												List<List<Integer>> co_matrix) {
-		w.appendLine("// Co-Enabled Matrix:");
-		w.appendPrefix().append("int gm_coen[][");
-		w.append(co_matrix.size());
-		w.append("] = {").appendPostfix();
-		w.indent();
-
-		for(int g=0; g<co_matrix.size(); ++g) {
-
-			//w.append(String.format("%07d",g));
-			//w.append("[] = {");
-			w.appendPrefix().append("{");
-			
-			List<Integer> row = co_matrix.get(g);
-
-			if(row.size()>0) {
-				w.append(row.get(0));
-				for(int s=1; s<row.size(); ++s) {
-					w.append(", ").append(row.get(s));
-				}
-			}
-
-			w.append(" },").appendPostfix();
-
-		}
-
-		w.appendLine("{0}");
-		w.outdent();
-		w.appendLine("};");
-		w.appendLine("");
-	}
-
 	private static void generateTransGuardMatrix(StringWriter w,
-			List<List<LTSminGuardBase>> trans_matrix,
-			List<LTSminGuardBase> guards) {
+												List<List<Integer>> trans_matrix,
+												List<LTSminGuard> guards) {
 		w.appendLine("// Transition-Guard Matrix:");
-		w.appendPrefix().append("int* gm_trans[").append(trans_matrix.size()).append("] = {");
+		w.appendPrefix().append("int* "+ GM_TRANS_NAME +"[").append(trans_matrix.size()).append("] = {");
 		w.appendPostfix();
 		for(int g=0; g<trans_matrix.size(); ++g) {
 			w.append("((int[]){");
-			List<LTSminGuardBase> row = trans_matrix.get(g);
+			List<Integer> row = trans_matrix.get(g);
 
 			w.append(" ").append(row.size());
 
 			for(int s=0; s<row.size(); ++s) {
-				w.append(", ").append(guards.indexOf(row.get(s)));
+				w.append(", ").append(row.get(s));
 			}
 
 			w.append(" })");
@@ -1329,8 +1264,8 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static void generateGuardFunctions(StringWriter w, LTSminModel model, GuardMatrix gm) {
-		List<LTSminGuardBase> guards = gm.getGuards();
+	private static void generateGuardFunctions(StringWriter w, LTSminModel model, GuardInfo gm) {
+		List<LTSminGuard> guards = gm.getGuards();
 
 		w.appendLine("int spinja_get_guard_count() {");
 		w.indent();
@@ -1342,25 +1277,34 @@ public class LTSminPrinter {
 		w.appendLine("const int* spinja_get_guards(int t) {");
 		w.indent();
 		w.appendLine("assert(t < ",gm.getTransMatrix().size()," && \"spinja_get_guards: invalid transition\");");
-		w.appendLine("return gm_trans[t];");
+		w.appendLine("return "+ GM_TRANS_NAME +"[t];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
 		w.appendLine("const int*** spinja_get_all_guards() {");
 		w.indent();
-		w.appendLine("return (const int***)&gm_trans;");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("");
-		w.appendLine("const int* spinja_get_guard_may_be_coenabled_matrix(int g) {");
-		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
-		w.appendLine("return gm_coen[g];");
+		w.appendLine("return (const int***)&"+ GM_TRANS_NAME +";");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
+		w.appendLine("const int* spinja_get_guard_may_be_coenabled_matrix(int g) {");
+		w.indent();
+		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
+		w.appendLine("return "+ CO_DM_NAME +"[g];");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("const int* spinja_get_guard_matrix(int g) {");
+		w.indent();
+		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
+		w.appendLine("return "+ GM_DM_NAME +"[g];");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+		
 		w.appendLine("bool spinja_get_guard(void* model, int g, ",C_STATE_T,"* ",IN_VAR,") {");
 		w.indent();
 		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
@@ -1370,7 +1314,7 @@ public class LTSminPrinter {
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("case ").append(g).append(": return ");
-			LTSminPrinter.generateGuard(w, model, guards.get(g));
+			generateGuard(w, model, guards.get(g));
 			w.append(";");
 			w.appendPostfix();
 		}
@@ -1387,7 +1331,7 @@ public class LTSminPrinter {
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("guard[").append(g).append("] = ");
-			LTSminPrinter.generateGuard(w, model, guards.get(g));
+			generateGuard(w, model, guards.get(g));
 			w.append(";");
 			w.appendPostfix();
 		}
