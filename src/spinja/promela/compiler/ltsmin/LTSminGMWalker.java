@@ -15,7 +15,6 @@ import spinja.promela.compiler.ltsmin.instr.GuardInfo;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.PromelaTokenManager;
-import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 
 /**
@@ -99,18 +98,11 @@ public class LTSminGMWalker {
 	private static boolean mayBeCoenabled(LTSminGuard g1, LTSminGuard g2) {
 		return mayBeCoenabledStrong (g1.expr, g2.expr);
 	}
-	
-	static class SimplePredicate {
-		public SimplePredicate(int kind, String var, int c) {
-			comparison = kind;
-			this.var = var;
-			this.constant = c;
-		}
-		public int comparison;
-		public String var;
-		public int constant;
-	}
 
+	/**
+	 * Determine MCE over disjuctions: MCE holds for ex1 and ex2 iff 
+	 * it holds over for all d1,d2 in disjuctions(ex1) X disjunctions(ex2)
+	 */
 	private static boolean mayBeCoenabledStrong(Expression ex1, Expression ex2) {
         List<Expression> ga_ex = new ArrayList<Expression>();
         List<Expression> gb_ex = new ArrayList<Expression>();
@@ -125,7 +117,10 @@ public class LTSminGMWalker {
         }
         return false;
 	}
-	
+
+	/**
+	 * Extracts all disjuctions untill conjunctions or arithmicExpr are encountered
+	 */
 	private static void extract_disjunctions (List<Expression> ds, Expression e) {
 		if(e instanceof BooleanExpression) {
 			BooleanExpression ce = (BooleanExpression)e;
@@ -140,7 +135,22 @@ public class LTSminGMWalker {
 			ds.add(e);
 		}
 	}
-	
+
+	static class SimplePredicate {
+		public SimplePredicate(int kind, String var, int c) {
+			comparison = kind;
+			this.var = var;
+			this.constant = c;
+		}
+		public int comparison;
+		public String var;
+		public int constant;
+	}
+
+	/**
+	 * Determine MCE over conjunctions: MCE holds for ex1 and ex2 iff 
+	 * all sp1,sp2 in simplePreds(ex1) X simplePreds(ex2) do no conflict
+	 */
 	private static boolean mayBeCoenabled(Expression ex1, Expression ex2) {
         List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
         List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
@@ -156,31 +166,12 @@ public class LTSminGMWalker {
         return true;
 	}
 
-	private static String getConstantVar(Expression expr1) throws ParseException {
-		if (expr1 instanceof Identifier) {
-			Identifier id = (Identifier)expr1;
-			Variable var = id.getVariable();
-			if (var.getArraySize() > 1)
-				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"]"; // may throw exception
-			/*if (var instanceof ChannelVariable) {
-				if (((ChannelVariable)var).getType().getBufferSize() > 1)
-					throw new ParseException();
-			}*/ // only needed for random channel reads; not for topExpr + readExpr 
-			return var.getRealName();
-		} else if (expr1 instanceof ChannelSizeExpression)  {
-			Identifier id = ((ChannelSizeExpression)expr1).getIdentifier();
-			Variable var = id.getVariable();
-			if (var.getArraySize() > 1)
-				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"].filled"; // may throw exception
-			return var.getRealName() +".filled";
-		} else if (expr1 instanceof ChannelLengthExpression)  {
-			ChannelLengthExpression cle = (ChannelLengthExpression)expr1;
-			Identifier id = (Identifier)cle.getExpression();
-			return getConstantVar(new ChannelSizeExpression(id));
-		}
-		throw new ParseException();
-	}
-
+	/**
+	 * Collects all simple predicates in an expression e.
+	 * SimplePred ::= cvarref <comparison> constant | constant <comparison> cvarref
+	 * where cvarref is a reference to a singular (channel) variable or a
+	 * constant index in array variable.
+	 */
 	private static void extract_predicates(List<SimplePredicate> sp, Expression e) {
 		int c;
 		String var;
@@ -217,6 +208,35 @@ public class LTSminGMWalker {
     			extract_predicates (sp, ce.getExpr2());
     		}
 		}
+	}
+
+	/**
+	 * Tries to parse an expression as a reference to a singular (channel)
+	 * variable or a constant index in array variable (a cvarref).
+	 */
+	private static String getConstantVar(Expression expr1) throws ParseException {
+		if (expr1 instanceof Identifier) {
+			Identifier id = (Identifier)expr1;
+			Variable var = id.getVariable();
+			if (var.getArraySize() > 1)
+				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"]"; // may throw exception
+			/*if (var instanceof ChannelVariable) {
+				if (((ChannelVariable)var).getType().getBufferSize() > 1)
+					throw new ParseException();
+			}*/ // only needed for random channel reads; not for topExpr + readExpr 
+			return var.getRealName();
+		} else if (expr1 instanceof ChannelSizeExpression)  {
+			Identifier id = ((ChannelSizeExpression)expr1).getIdentifier();
+			Variable var = id.getVariable();
+			if (var.getArraySize() > 1)
+				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"].filled"; // may throw exception
+			return var.getRealName() +".filled";
+		} else if (expr1 instanceof ChannelLengthExpression)  {
+			ChannelLengthExpression cle = (ChannelLengthExpression)expr1;
+			Identifier id = (Identifier)cle.getExpression();
+			return getConstantVar(new ChannelSizeExpression(id));
+		}
+		throw new ParseException();
 	}
 
 /*
