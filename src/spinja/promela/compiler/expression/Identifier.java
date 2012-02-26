@@ -17,6 +17,7 @@ package spinja.promela.compiler.expression;
 import java.util.HashSet;
 import java.util.Set;
 
+import spinja.promela.compiler.parser.MyParseException;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.Variable;
@@ -66,6 +67,10 @@ public class Identifier extends Expression {
 		super(token);
 		this.var = var;
 		arrayExpr = expr;
+	}
+
+	public int getConstantValue() throws ParseException {
+		return var.getConstantValue();
 	}
 
 	/**

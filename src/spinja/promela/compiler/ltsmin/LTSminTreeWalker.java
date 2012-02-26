@@ -462,6 +462,9 @@ public class LTSminTreeWalker {
 	 * Creates the guards denoting when the specified Action is enabled.
 	 * The enabledness of rendezvous channel actions can only be determined
 	 * after all other transitions have been visited (when seenItAll is true).
+	 * 
+	 * Also records the assignTo property of identifier, to detect constants later. 
+	 * 
 	 * @param process The action should be in this process.
 	 * @param a The action for which the guard is created.
 	 * @param t The transition the action is in.
@@ -470,6 +473,8 @@ public class LTSminTreeWalker {
 	 */
 	public void createEnabledGuard(Action a, LTSminGuardContainer lt) throws ParseException {
 		if (a instanceof AssignAction) {
+			AssignAction ae = (AssignAction)a;
+			ae.getIdentifier().getVariable().setAssignedTo();
 		} else if(a instanceof AssertAction) {
 		} else if(a instanceof PrintAction) {
 		} else if(a instanceof ExprAction) {
@@ -507,6 +512,8 @@ public class LTSminTreeWalker {
 					if (!(expr instanceof Identifier)) {
 						ChannelTopExpression cte = new ChannelTopExpression(cra, i);
 						lt.addGuard(compare(PromelaConstants.EQ,cte,expr));
+					} else {
+						((Identifier)expr).getVariable().setAssignedTo();
 					}
 				}
 			} else {

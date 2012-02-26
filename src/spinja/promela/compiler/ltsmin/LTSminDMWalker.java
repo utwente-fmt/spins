@@ -3,6 +3,7 @@ package spinja.promela.compiler.ltsmin;
 import static spinja.promela.compiler.ltsmin.LTSminStateVector._NR_PR;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 
 import spinja.promela.compiler.Proctype;
@@ -121,6 +122,12 @@ public class LTSminDMWalker {
 		}
 	}
 
+	/**
+	 * Also sets constantValues to identifiers, where due.
+	 * 
+	 * @param params
+	 * @param a
+	 */
 	static void walkAction(Params params, Action a) {
 		if(a instanceof AssignAction) {
 			AssignAction as = (AssignAction)a;
@@ -170,14 +177,21 @@ public class LTSminDMWalker {
 				DMIncWrite(params, _NR_PR, 0);
 				DMIncRead(params, _NR_PR, 0);
 				RunExpression re = (RunExpression)expr;
+				Iterator<Expression> rei = re.getExpressions().iterator();
 				Proctype p = re.getSpecification().getProcess(re.getId());
 				DMIncWrite(params,params.sv.getPC(p),0);
 				DMIncRead(params,params.sv.getPC(p),0); // we also read to check multiple instantiations
 				DMIncWrite(params,params.sv.getPID(p),0);
 				//write to the arguments of the target process
 				for (Variable v : p.getArguments()) {
+					Expression next = rei.next();
 					if (v.getType() instanceof ChannelType) continue; //passed by reference
 					DMIncWrite(params, v, 0);
+					if (v.isNotAssignedTo()) {
+						try {
+							v.setConstantValue(next.getConstantValue());
+						} catch (ParseException e) {} // expected
+					}
 				}
 			} else {
 				// simple expressions are guards

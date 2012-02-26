@@ -35,6 +35,10 @@ public class Variable {
 
 	private String realName;
 
+	private boolean assignedTo = false;
+
+	private Integer constant = null;
+
 	public Variable(final VariableType type, final String name, final int arraySize) {
 		this(type,name,arraySize,null);
 	}
@@ -142,5 +146,22 @@ public class Variable {
 	
 	public String getRealName() {
 		return (null == realName ? name : realName);
+	}
+
+	public void setAssignedTo() {
+		assignedTo = true;
+	}
+	public boolean isNotAssignedTo() {
+		return !assignedTo;
+	}
+
+	public void setConstantValue(int constantValue) {
+		constant  = constantValue;
+	}
+	
+	public int getConstantValue() throws ParseException {
+		if (constant == null)
+			throw new ParseException("Variable "+ this +" is not a constant in process "+ owner);
+		return constant;
 	}
 }
