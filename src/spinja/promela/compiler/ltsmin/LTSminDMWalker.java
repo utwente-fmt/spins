@@ -299,7 +299,7 @@ public class LTSminDMWalker {
 			walkExpression(params,ce.getExpr1());
 			walkExpression(params,ce.getExpr2());
 		} else if(e instanceof RunExpression) {
-			assert (false);
+			DMIncRead(params, _NR_PR, 0);
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof ConstantExpression) {
