@@ -9,6 +9,7 @@ import java.util.List;
 
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
+import spinja.promela.compiler.expression.ChannelOperation;
 import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
@@ -20,7 +21,9 @@ import spinja.promela.compiler.ltsmin.instr.GuardInfo;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.PromelaTokenManager;
+import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.Variable;
+import spinja.promela.compiler.variable.VariableType;
 
 /**
  *
@@ -218,7 +221,30 @@ public class LTSminGMWalker {
 							channelTop(id, i), constant(expr.getConstantValue())));
 		    	} catch (ParseException pe2) {}
 			}
-    	} else if(e instanceof BooleanExpression) {
+    	} else if(e instanceof ChannelOperation) {
+			ChannelOperation co = (ChannelOperation)e;
+			String name = co.getToken().image;
+			Identifier id = (Identifier)co.getExpression();
+			VariableType type = id.getVariable().getType();
+			int buffer = ((ChannelType)type).getBufferSize();
+			Expression left = new ChannelSizeExpression(id);
+			Expression right = null;
+			int op = -1;
+			if (name.equals("empty")) {
+				op = PromelaConstants.EQ;
+				right = constant (0);
+			} else if (name.equals("nempty")) {
+				op = PromelaConstants.NEQ;
+				right = constant (0);
+			} else if (name.equals("full")) {
+				op = PromelaConstants.EQ;
+				right = constant (buffer);
+			} else if (name.equals("nfull")) {
+				op = PromelaConstants.NEQ;
+				right = constant (buffer);
+			}
+			extract_predicates(sp, compare(op, left, right));
+		} else if(e instanceof BooleanExpression) {
     		BooleanExpression ce = (BooleanExpression)e;
     		if (ce.getToken().kind == PromelaTokenManager.BAND ||
     			ce.getToken().kind == PromelaTokenManager.LAND) {
@@ -232,9 +258,9 @@ public class LTSminGMWalker {
 	 * Tries to parse an expression as a reference to a singular (channel)
 	 * variable or a constant index in array variable (a cvarref).
 	 */
-	private static String getConstantVar(Expression expr1) throws ParseException {
-		if (expr1 instanceof Identifier) {
-			Identifier id = (Identifier)expr1;
+	private static String getConstantVar(Expression e) throws ParseException {
+		if (e instanceof Identifier) {
+			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
 			if (var.getArraySize() > 1)
 				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"]"; // may throw exception
@@ -243,14 +269,14 @@ public class LTSminGMWalker {
 					throw new ParseException();
 			}*/ // only needed for random channel reads; not for topExpr + readExpr 
 			return var.getRealName();
-		} else if (expr1 instanceof ChannelSizeExpression)  {
-			Identifier id = ((ChannelSizeExpression)expr1).getIdentifier();
+		} else if (e instanceof ChannelSizeExpression)  {
+			Identifier id = ((ChannelSizeExpression)e).getIdentifier();
 			Variable var = id.getVariable();
 			if (var.getArraySize() > 1)
 				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"].filled"; // may throw exception
 			return var.getRealName() +".filled";
-		} else if (expr1 instanceof ChannelLengthExpression)  {
-			ChannelLengthExpression cle = (ChannelLengthExpression)expr1;
+		} else if (e instanceof ChannelLengthExpression)  {
+			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
 			return getConstantVar(new ChannelSizeExpression(id));
 		}
