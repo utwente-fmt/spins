@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import spinja.promela.compiler.expression.BooleanExpression;
+import spinja.promela.compiler.expression.ChannelLengthExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.instr.DepMatrix;
 import spinja.promela.compiler.ltsmin.instr.GuardInfo;
@@ -159,12 +161,22 @@ public class LTSminGMWalker {
 			Identifier id = (Identifier)expr1;
 			Variable var = id.getVariable();
 			if (var.getArraySize() > 1)
-				return var.getName()+ "["+ id.getArrayExpr().getConstantValue() +"]"; // may throw exception
-			if (var instanceof ChannelVariable) {
-				if (((ChannelVariable)var).getType().getBufferSize() != 1)
+				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"]"; // may throw exception
+			/*if (var instanceof ChannelVariable) {
+				if (((ChannelVariable)var).getType().getBufferSize() > 1)
 					throw new ParseException();
-			}
-			return var.getName();
+			}*/ // only needed for random channel reads; not for topExpr + readExpr 
+			return var.getRealName();
+		} else if (expr1 instanceof ChannelSizeExpression)  {
+			Identifier id = ((ChannelSizeExpression)expr1).getIdentifier();
+			Variable var = id.getVariable();
+			if (var.getArraySize() > 1)
+				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"].filled"; // may throw exception
+			return var.getRealName() +".filled";
+		} else if (expr1 instanceof ChannelLengthExpression)  {
+			ChannelLengthExpression cle = (ChannelLengthExpression)expr1;
+			Identifier id = (Identifier)cle.getExpression();
+			return getConstantVar(new ChannelSizeExpression(id));
 		}
 		throw new ParseException();
 	}
@@ -190,7 +202,7 @@ public class LTSminGMWalker {
 			Identifier id = cte.getChannelReadAction().getIdentifier();
 			int i = 0;
 			for (Expression read : cte.getChannelReadAction().getExprs()) {
-				try {
+				try { // this is a conjunction of matchings
 					i += 1;
 	    			var = getConstantVar(id) +"["+ i +"]";
 	    			c = read.getConstantValue();
