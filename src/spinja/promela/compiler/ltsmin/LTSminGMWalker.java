@@ -3,6 +3,7 @@ package spinja.promela.compiler.ltsmin;
 import java.util.ArrayList;
 import java.util.List;
 
+import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
@@ -148,8 +149,8 @@ public class LTSminGMWalker {
             		sp.add(new SimplePredicate(e.getToken().kind, var, c));
         		} catch (ParseException pe2) {}
     		}
-    	} else if(e instanceof CompareExpression) {
-    		CompareExpression ce = (CompareExpression)e;
+    	} else if(e instanceof BooleanExpression) {
+    		BooleanExpression ce = (BooleanExpression)e;
     		if (ce.getToken().kind == PromelaTokenManager.BAND ||
     			ce.getToken().kind == PromelaTokenManager.LAND) {
     			extract_predicates (sp, ce.getExpr1());
