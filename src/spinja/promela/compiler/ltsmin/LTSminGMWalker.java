@@ -51,7 +51,7 @@ public class LTSminGMWalker {
 
 	private static void generateCoenMatrix(GuardInfo gm) {
 		DepMatrix co = new DepMatrix(gm.size(), gm.size());
-		gm.setCoenMatrix(co);
+		gm.setCoMatrix(co);
 		for (int i = 0; i < gm.size(); i++) {
 			// same guard is always coenabled:
 			co.incRead(i, i);

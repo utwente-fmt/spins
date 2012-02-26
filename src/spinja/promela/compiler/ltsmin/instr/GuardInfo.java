@@ -8,7 +8,6 @@ import java.util.Iterator;
 import java.util.List;
 
 import spinja.promela.compiler.ltsmin.LTSminGuard;
-import spinja.promela.compiler.ltsmin.LTSminGuardBase;
 
 public class GuardInfo implements Iterable<LTSminGuard> {
 	/**
@@ -55,9 +54,11 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 		trans_matrix.get(trans).add(idx);
 	}
 
-	public int getGuard(LTSminGuardBase g) { //TODO: HashSet + equals() + hash()
-		for (int i = guards.size(); i-->0;) {
-			if(get(i).equals(g)) return i;
+	public int getGuard(LTSminGuard g) { //TODO: HashSet + equals() + hash()
+		for (int i = 0; i < guards.size(); i++) {
+			LTSminGuard other = get(i);
+			if(other.equals(g))
+				return i;
 		}
 		return -1;
 	}
@@ -68,6 +69,10 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 
 	public DepMatrix getCoMatrix() {
 		return co_matrix;
+	}
+
+	public void setCoMatrix(DepMatrix co) {
+		co_matrix = co;
 	}
 
 	public List< List<Integer> > getTransMatrix() {
@@ -89,10 +94,6 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 
 	public LTSminGuard get(int i) {
 		return guards.get(i);
-	}
-
-	public void setCoenMatrix(DepMatrix co) {
-		co_matrix = co;
 	}
 
 	public int size() {

@@ -61,8 +61,8 @@ public class CompareExpression extends Expression {
 		if (!(o instanceof CompareExpression))
 			return false;
 		CompareExpression ce = (CompareExpression)o;
-		return ex1.equals(ce.getExpr1()) && ex2.equals(ce.getExpr2())
-			&& getToken().equals(ce.getToken());
+		return getToken().kind == ce.getToken().kind &&
+				ex1.equals(ce.ex1) && ex2.equals(ce.ex2);
 	}
 	
 	@Override
@@ -119,11 +119,8 @@ public class CompareExpression extends Expression {
 
 	@Override
 	public String toString() {
-		try {
-			return getBoolExpression();
-		} catch (final ParseException ex) {
-			return "";
-		}
+		return "(" + ex1 + " " + getToken().image + " " + ex2
+					+ ")";
 	}
 
 	public Expression getExpr1() {

@@ -71,9 +71,8 @@ public class BooleanExpression extends Expression {
 		if (!(o instanceof BooleanExpression))
 			return false;
 		BooleanExpression ce = (BooleanExpression)o;
-		return ex1.equals(ce.getExpr1()) &&
-				(ex2==null && ce.getExpr2()==null || ex2.equals(ce.getExpr2()))
-			&& getToken().equals(ce.getToken());
+		return getToken().kind == ce.getToken().kind && ex1.equals(ce.getExpr1()) &&
+				(ex2==null && ce.getExpr2()==null || ex2.equals(ce.getExpr2()));
 	}
 	
 	@Override

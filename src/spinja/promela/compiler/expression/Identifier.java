@@ -120,12 +120,23 @@ public class Identifier extends Expression {
 	public String toString() {
 		if (var.getArraySize() > 1) {
 			if (arrayExpr != null) {
-				return var.getName() + "[" + arrayExpr.toString() + "]";
+				return var.toString() + "[" + arrayExpr.toString() + "]";
 			} else {
-				return var.getName() + "[0]";
+				return var.toString() + "[0]";
 			}
 		} else {
-			return var.getName();
+			return var.toString();
 		}
+	}
+	
+	public boolean equals(Object o) {
+		if (!(o instanceof Identifier)) 
+			return false;
+		Identifier oi = (Identifier)o;
+		if (!var.equals(oi.var))
+			return false;
+		if (arrayExpr == null || oi.arrayExpr == null)
+			return arrayExpr == oi.arrayExpr;
+		return arrayExpr.equals(oi.arrayExpr);
 	}
 }

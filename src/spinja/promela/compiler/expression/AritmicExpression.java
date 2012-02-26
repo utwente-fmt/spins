@@ -148,6 +148,26 @@ public class AritmicExpression extends Expression {
 	}
 
 	@Override
+	public boolean equals(Object o) {
+		if (o == null)
+			return false;
+		if (!(o instanceof AritmicExpression))
+			return false;
+		AritmicExpression ae = (AritmicExpression)o;
+		if (getToken().kind != ae.getToken().kind)
+			return false;
+		if (!ex1.equals(ae.getExpr1()))
+			return false;
+		if (ex2 == null || ae.ex2 == null)
+			return ex2 == ae.ex2;
+		if (!ex2.equals(ae.ex2))
+			return false;
+		if (ex3 == null || ae.ex3 == null)
+			return ex3 == ae.ex3;
+		return ex3.equals(ae.ex3);
+	}
+
+	@Override
 	public VariableType getResultType() {
 		return VariableType.INT;
 	}

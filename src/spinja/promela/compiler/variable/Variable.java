@@ -69,8 +69,8 @@ public class Variable {
 		if (!(o instanceof Variable))
 			return false;
 		Variable ov = (Variable)o;
-		return (owner == ov.owner || owner.equals(ov.owner)) &&
-				name.equals(ov.name); 
+		return this == ov || (name.equals(ov.name) &&
+				(owner == ov.owner || owner.equals(ov.owner))); 
 	}
 
 	public int hashCode() {
@@ -125,7 +125,7 @@ public class Variable {
 
 	@Override
 	public String toString() {
-		return getRealName();
+		return owner == null ? getRealName() : owner.getName() +"."+ getRealName();
 	}
 	
 	public void setOwner(Proctype owner) {

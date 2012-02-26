@@ -54,4 +54,7 @@ public class LTSminGuard implements LTSminGuardBase {
 		w.appendLine(expr.toString());
 	}
 
+	public String toString() {
+		return "G: "+ expr;
+	}
 }
