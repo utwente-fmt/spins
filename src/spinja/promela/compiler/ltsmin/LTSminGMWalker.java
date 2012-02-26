@@ -7,11 +7,13 @@ import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.instr.DepMatrix;
 import spinja.promela.compiler.ltsmin.instr.GuardInfo;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.PromelaTokenManager;
+import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 
 /**
@@ -93,7 +95,7 @@ public class LTSminGMWalker {
 	}
 	
 	private static boolean mayBeCoenabled(LTSminGuard g1, LTSminGuard g2) {
-		return mayBeCoenabled (g1.expr, g2.expr);
+		return mayBeCoenabledStrong (g1.expr, g2.expr);
 	}
 	
 	static class SimplePredicate {
@@ -107,6 +109,36 @@ public class LTSminGMWalker {
 		public int constant;
 	}
 
+	private static boolean mayBeCoenabledStrong(Expression ex1, Expression ex2) {
+        List<Expression> ga_ex = new ArrayList<Expression>();
+        List<Expression> gb_ex = new ArrayList<Expression>();
+        extract_disjunctions (ga_ex, ex1);
+        extract_disjunctions (gb_ex, ex2);
+        for(Expression a : ga_ex) {
+            for(Expression b : gb_ex) {
+                if (mayBeCoenabled(a, b)) {
+                	return true;
+                }
+            }
+        }
+        return false;
+	}
+	
+	private static void extract_disjunctions (List<Expression> ds, Expression e) {
+		if(e instanceof BooleanExpression) {
+			BooleanExpression ce = (BooleanExpression)e;
+			if (ce.getToken().kind == PromelaTokenManager.BOR ||
+				ce.getToken().kind == PromelaTokenManager.LOR) {
+				extract_disjunctions (ds, ce.getExpr1());
+				extract_disjunctions (ds, ce.getExpr2());
+			} else {
+				ds.add(e);
+			}
+		} else {
+			ds.add(e);
+		}
+	}
+	
 	private static boolean mayBeCoenabled(Expression ex1, Expression ex2) {
         List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
         List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
