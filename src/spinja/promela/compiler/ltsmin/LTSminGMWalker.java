@@ -74,6 +74,7 @@ public class LTSminGMWalker {
 	private static void generateCoenMatrix(GuardInfo gm) {
 		DepMatrix co = new DepMatrix(gm.size(), gm.size());
 		gm.setCoMatrix(co);
+		int neverCoEnabled = 0;
 		for (int i = 0; i < gm.size(); i++) {
 			// same guard is always coenabled:
 			co.incRead(i, i);
@@ -81,9 +82,13 @@ public class LTSminGMWalker {
 				if (mayBeCoenabled(gm.get(i),gm.get(j))) {
 					co.incRead(i, j);
 					co.incRead(j, i);
+				} else {
+					neverCoEnabled++;
 				}
 			}
 		}
+		
+		System.out.println("Found "+ neverCoEnabled +"/"+ gm.size()*gm.size()/2 +" guards that can never be enabled at the same time!");
 	}
 	
 	private static boolean mayBeCoenabled(LTSminGuard g1, LTSminGuard g2) {
