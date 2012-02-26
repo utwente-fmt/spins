@@ -24,6 +24,20 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 	private DepMatrix co_matrix;
 
 	/**
+	 *        trans >
+	 * guards ...    ...
+	 *   v    ...    ...
+	 */
+	private DepMatrix nes_matrix;
+	
+	/**
+	 *        trans >
+	 * guards ...    ...
+	 *   v    ...    ...
+	 */
+	private DepMatrix nds_matrix;
+
+	/**
 	 *        guards >
 	 * trans  ...    ...
 	 *   v    ...    ...
@@ -67,6 +81,10 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 		return dm;
 	}
 
+	public void setDepMatrix(DepMatrix dm) {
+		this.dm = dm;
+	}
+
 	public DepMatrix getCoMatrix() {
 		return co_matrix;
 	}
@@ -83,8 +101,20 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 		return guards;
 	}
 
-	public void setDepMatrix(DepMatrix dm) {
-		this.dm = dm;
+	public DepMatrix getNESMatrix() {
+		return nes_matrix;
+	}
+
+	public void setNESMatrix(DepMatrix nes_matrix) {
+		this.nes_matrix = nes_matrix;
+	}
+
+	public DepMatrix getNDSMatrix() {
+		return nds_matrix;
+	}
+
+	public void setNDSMatrix(DepMatrix nds_matrix) {
+		this.nds_matrix = nds_matrix;
 	}
 
 	@Override
