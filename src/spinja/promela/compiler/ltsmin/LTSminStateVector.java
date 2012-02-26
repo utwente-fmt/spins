@@ -100,7 +100,7 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 	}
 
 	/**
-	 * For the specified variable, buiuld a custom struct typedef and print
+	 * For the specified variable, build a custom struct typedef and print
 	 * to the StringWriter.
 	 * ChannelVariable's are also remembered, for later use. In particular for
 	 * rendezvous.
