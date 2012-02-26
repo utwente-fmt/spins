@@ -160,16 +160,20 @@ public class LTSminGMWalker {
 			Variable var = id.getVariable();
 			if (var.getArraySize() > 1)
 				return var.getName()+ "["+ id.getArrayExpr().getConstantValue() +"]"; // may throw exception
+			if (var instanceof ChannelVariable) {
+				if (((ChannelVariable)var).getType().getBufferSize() != 1)
+					throw new ParseException();
+			}
 			return var.getName();
 		}
 		throw new ParseException();
 	}
 
 	private static void extract_predicates(List<SimplePredicate> sp, Expression e) {
+		int c;
+		String var;
     	if(e instanceof CompareExpression) {
     		CompareExpression ce1 = (CompareExpression)e;
-    		int c;
-    		String var;
     		try {
     			var = getConstantVar(ce1.getExpr1());
     			c = ce1.getExpr2().getConstantValue();
@@ -181,6 +185,18 @@ public class LTSminGMWalker {
             		sp.add(new SimplePredicate(e.getToken().kind, var, c));
         		} catch (ParseException pe2) {}
     		}
+		} else if(e instanceof ChannelTopExpression) {
+			ChannelTopExpression cte = (ChannelTopExpression)e;
+			Identifier id = cte.getChannelReadAction().getIdentifier();
+			int i = 0;
+			for (Expression read : cte.getChannelReadAction().getExprs()) {
+				try {
+					i += 1;
+	    			var = getConstantVar(id) +"["+ i +"]";
+	    			c = read.getConstantValue();
+            		sp.add(new SimplePredicate(e.getToken().kind, var, c));
+	    		} catch (ParseException pe2) {}
+			}
     	} else if(e instanceof BooleanExpression) {
     		BooleanExpression ce = (BooleanExpression)e;
     		if (ce.getToken().kind == PromelaTokenManager.BAND ||
