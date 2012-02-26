@@ -1,10 +1,15 @@
 package spinja.promela.compiler.ltsmin;
 
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.channelTop;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.compare;
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.constant;
+
 import java.util.ArrayList;
 import java.util.List;
 
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
+import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
@@ -200,6 +205,19 @@ public class LTSminGMWalker {
             		sp.add(new SimplePredicate(e.getToken().kind, var, c));
 	    		} catch (ParseException pe2) {}
 			}
+		} else if(e instanceof ChannelReadExpression) {
+			ChannelReadExpression cre = (ChannelReadExpression)e;
+			Identifier id = cre.getIdentifier();
+			extract_predicates(sp, compare(PromelaConstants.GT,
+									new ChannelSizeExpression(id), constant(0)));
+			List<Expression> exprs = cre.getExprs();
+			for (int i = 0; i < exprs.size(); i++) {
+				try { // this is a conjunction of matchings
+					final Expression expr = exprs.get(i);
+					extract_predicates(sp, compare(PromelaConstants.EQ,
+							channelTop(id, i), constant(expr.getConstantValue())));
+		    	} catch (ParseException pe2) {}
+			}
     	} else if(e instanceof BooleanExpression) {
     		BooleanExpression ce = (BooleanExpression)e;
     		if (ce.getToken().kind == PromelaTokenManager.BAND ||
@@ -238,26 +256,6 @@ public class LTSminGMWalker {
 		}
 		throw new ParseException();
 	}
-
-/*
-    	} else if(e instanceof Identifier) {
-		} else if(e instanceof AritmicExpression) {
-			AritmicExpression ae = (AritmicExpression)e;
-			if (ae.getConstantValue() != 0)
-				throw new ParseException();
-		} else if (e instanceof ChannelSizeExpression) {
-			throw new ParseException();
-		} else if(e instanceof ChannelLengthExpression) {
-			ChannelLengthExpression cle = (ChannelLengthExpression)e;
-		} else if(e instanceof ChannelReadExpression) {
-			ChannelReadExpression cre = (ChannelReadExpression)e;
-		} else if(e instanceof ChannelOperation) {
-			ChannelOperation co = (ChannelOperation)e;
-		} else if(e instanceof ConstantExpression) {
-		} else if(e instanceof ChannelTopExpression) {
-			ChannelTopExpression cte = (ChannelTopExpression)e;
-		}
-*/
 
 	private static boolean is_conflict_predicate(SimplePredicate p1, SimplePredicate p2) {
 	    // assume no conflict

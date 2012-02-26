@@ -662,6 +662,10 @@ state_loop:	for (State st : p.getAutomaton()) {
 		return name;
 	}
 
+	public static ChannelTopExpression channelTop(Identifier id, int i) {
+		return new ChannelTopExpression(new ChannelReadAction(null, id), i);
+	}
+
 	public static AssignAction assign(Variable v, Expression expr) {
 		return assign (id(v), expr);
 	}
@@ -678,22 +682,22 @@ state_loop:	for (State st : p.getAutomaton()) {
 		return new Identifier(new Token(IDENTIFIER,v.getName()), v);
 	}
 
-	private static CompareExpression compare(int m, Expression e1, Expression e2) {
+	public static CompareExpression compare(int m, Expression e1, Expression e2) {
 		String name = PromelaConstants.tokenImage[m];
 		return new CompareExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
 	}
 	
-	private static BooleanExpression bool(int m, Expression e1, Expression e2) {
+	public static BooleanExpression bool(int m, Expression e1, Expression e2) {
 		String name = PromelaConstants.tokenImage[m];
 		return new BooleanExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
 	}
 	 
-	 private static AritmicExpression calc(int m, Expression e1, Expression e2) {
+	public static AritmicExpression calc(int m, Expression e1, Expression e2) {
 		String name = PromelaConstants.tokenImage[m];
 		return new AritmicExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
 	}
 	
-	private static Expression compare(int m, Expression e1, int nr) {
+	public static Expression compare(int m, Expression e1, int nr) {
 		return compare(m, e1, constant(nr));
 	}
 

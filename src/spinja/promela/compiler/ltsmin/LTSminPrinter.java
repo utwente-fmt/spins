@@ -71,6 +71,8 @@ import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
 import spinja.util.StringWriter;
 
+import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.*;
+
 /**
  * Generates C code from the LTSminModel
  * @author FIB, Alfons Laarman
@@ -960,10 +962,6 @@ public class LTSminPrinter {
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}
-	}
-
-	private static ChannelTopExpression channelTop(Identifier id, int i) {
-		return new ChannelTopExpression(new ChannelReadAction(null, id), i);
 	}
 
 	private static void generateDepMatrix(StringWriter w, DepMatrix dm, String name, boolean rw) {
