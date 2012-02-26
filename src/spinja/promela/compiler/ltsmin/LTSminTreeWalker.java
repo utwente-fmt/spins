@@ -103,7 +103,7 @@ public class LTSminTreeWalker {
 	 */
 	private void bindByReferenceCalls() {
 		debug.say("");
-		for (RunExpression re : spec.getRuns()){
+		for (RunExpression re : spec.getRuns()) {
 			bindArguments(re);
 		}
 	}
@@ -170,7 +170,9 @@ public class LTSminTreeWalker {
 				}
 			}
 		}
-
+		
+		createProcessConstantVars();
+		
 		// create the rendezvous transitions
 		for (Map.Entry<ChannelVariable,ReadersAndWriters> e : channels.entrySet()) {
 			for (SendAction sa : e.getValue().sendActions) {
@@ -236,6 +238,27 @@ public class LTSminTreeWalker {
 			throw new AssertionError("Transition not set at correct location in the transition array");
 
 		return trans;
+	}
+
+	/**
+	 * Run expressions usually pass constants to channel variables. If these
+	 * variables are never assigned to elsewhere, we can safely mark them
+	 * constant.
+	 */
+	private void createProcessConstantVars() {
+		for (RunExpression re : spec.getRuns()){
+			Iterator<Expression> rei = re.getExpressions().iterator();
+			Proctype p = re.getSpecification().getProcess(re.getId());
+			for (Variable v : p.getArguments()) {
+				Expression next = rei.next();
+				if (v.getType() instanceof ChannelType) continue; //passed by reference
+				if (v.isNotAssignedTo()) {
+					try {
+						v.setConstantValue(next.getConstantValue());
+					} catch (ParseException e) {} // expected
+				}
+			}
+		}
 	}
 
 	/**
@@ -602,7 +625,6 @@ state_loop:	for (State st : p.getAutomaton()) {
 									new LTSminTransition(trans, name, ra.p);
 		lt.leavesAtomic(leavesAtomic(sa.t));
 		lt.entersAtomic(entersAtomic(sa.t));
-		model.getTransitions().add(lt);
 
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
@@ -623,6 +645,10 @@ state_loop:	for (State st : p.getAutomaton()) {
 		for (int i = 0; i < cra_exprs.size(); i++) {
 			final Expression csa_expr = csa_exprs.get(i);
 			final Expression cra_expr = cra_exprs.get(i);
+			try { // we skip creating transitions for impotent matches:
+				if (csa_expr.getConstantValue() == cra_expr.getConstantValue())
+					return trans;
+			} catch (ParseException pe) {}
 			if (!(cra_expr instanceof Identifier)) {
 				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
 			}
@@ -642,7 +668,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 				lt.addAction(assign((Identifier)cra_expr,csa_expr));
 			}
 		}
-		
+
+		model.getTransitions().add(lt);
 		return trans + 1;
 	}
 
