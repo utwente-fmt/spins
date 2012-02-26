@@ -790,6 +790,9 @@ public class LTSminPrinter {
 			w.append(" ").append(ce.getToken().image).append(" ");
 			generateIntExpression(w, ce.getExpr2(), access);
 			w.append(" ? 1 : 0)");
+		} else if(e instanceof MTypeReference) {
+			MTypeReference ref = (MTypeReference)e;
+			w.append(ref.getNumber());
 		} else if(e instanceof ConstantExpression) {
 			ConstantExpression ce = (ConstantExpression)e;
 			switch (ce.getToken().kind) {
@@ -811,9 +814,6 @@ public class LTSminPrinter {
 			}
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-		} else if(e instanceof MTypeReference) {
-			MTypeReference ref = (MTypeReference)e;
-			w.append(ref.getNumber());
 		} else if(e instanceof RunExpression) {
 			//we define the "instantiation number" as: next_pid+1 (http://spinroot.com/spin/Man/run.html)
 			//otherwise the first process can never be started if all proctypes are nonactive.

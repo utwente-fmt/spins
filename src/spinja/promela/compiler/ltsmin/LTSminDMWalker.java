@@ -316,14 +316,13 @@ public class LTSminDMWalker {
 			DMIncRead(params, _NR_PR, 0);
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+		} else if(e instanceof MTypeReference) {
 		} else if(e instanceof ConstantExpression) {
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
 			markChannel(params, cte.getChannelReadAction().getIdentifier(), BufferAction.SCAN); //safe overapproximation, since on topExpr is made for each each element.
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-		} else if(e instanceof MTypeReference) {
-			// noop
 		} else if(e instanceof RunExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented as expression: "+e.getClass().getName());
 		} else if(e instanceof TimeoutExpression) {
