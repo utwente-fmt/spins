@@ -96,6 +96,8 @@ public class LTSminPrinter {
 	public static final String DM_NAME = "transition_dependency";
 	public static final String GM_DM_NAME = "gm_dm";
 	public static final String CO_DM_NAME = "co_dm";
+	public static final String NES_DM_NAME = "nes_dm";
+	public static final String NDS_DM_NAME = "nds_dm";
 	public static final String GM_TRANS_NAME = "gm_trans";
 
 	public static String generateCode(LTSminModel model) {
@@ -1097,8 +1099,21 @@ public class LTSminPrinter {
 		w.appendLine("// Guard-Dependency Matrix:");
 		generateDepMatrix(w, gm.getDepMatrix(), GM_DM_NAME, false);
 		w.appendLine("");
-		
+
+		w.appendLine("");
+		w.appendLine("// Maybe Co-Enabled Matrix:");
 		generateDepMatrix(w, co_matrix, CO_DM_NAME, false);
+		w.appendLine("");
+
+		w.appendLine("");
+		w.appendLine("// Necessary Enabling Matrix:");
+		generateDepMatrix(w, gm.getNESMatrix(), NES_DM_NAME, false);
+		w.appendLine("");
+
+		w.appendLine("");
+		w.appendLine("// Necessary Disabling Matrix:");
+		generateDepMatrix(w, gm.getNDSMatrix(), NDS_DM_NAME, false);
+		w.appendLine("");
 		
 		generateTransGuardMatrix(w, trans_matrix, guards);
 	}
@@ -1176,12 +1191,28 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guard_may_be_coenabled_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
+		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guard_may_be_coenabled_matrix: invalid guard\");");
 		w.appendLine("return "+ CO_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
+		w.appendLine("const int* spinja_get_guard_nes_matrix(int g) {");
+		w.indent();
+		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guard_nes_matrix: invalid guard\");");
+		w.appendLine("return "+ NES_DM_NAME +"[g];");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("const int* spinja_get_guard_nds_matrix(int g) {");
+		w.indent();
+		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guard_nds_matrix: invalid guard\");");
+		w.appendLine("return "+ NDS_DM_NAME +"[g];");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+		
 		w.appendLine("const int* spinja_get_guard_matrix(int g) {");
 		w.indent();
 		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
