@@ -333,6 +333,8 @@ public class LTSminStateVector implements Iterable<LTSminStateElement> {
 			VariableStore vs = ct.getVariableStore();
 
 			// channel meta info
+			if (ct.getBufferSize() > 255)
+				throw new AssertionError("Channel buffer cannot be larger than "+ 255);
 			debug.say("\t"+ var.getName() + "["+ var.getArraySize() +"]" +
 					" of {"+ vs.getVariables().size() +"} ["+ ct.getBufferSize() +"]");
 			sg.addMember(C_TYPE_CHANNEL,wrapNameForChannelDesc(name));

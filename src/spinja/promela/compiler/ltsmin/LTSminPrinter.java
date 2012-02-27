@@ -250,8 +250,8 @@ public class LTSminPrinter {
 			Expression e = v.getInitExpr();
 			if (e==null) {
 				if (v instanceof ChannelVariable && se.isMetaData()) {
-					//{nextRead, filled}
-					w.append("0,0");
+					//{pad, nextRead, filled}
+					w.append("0");
 				} else {
 					w.append("0");
 				}
@@ -620,7 +620,7 @@ public class LTSminPrinter {
 					w.append(";");
 					w.appendPostfix();
 				}
-				w.appendLine("++("+ wrapVarRef(TMP_ACCESS, id, false) +".filled);");
+				w.appendLine("++("+ wrapVarRef(TMP_ACCESS, id, null) +".filled);");
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send!");
 			}
@@ -636,16 +636,15 @@ public class LTSminPrinter {
 						w.appendPrefix();
 						generateIntExpression(w, expr, TMP_ACCESS);
 						w.append(" = ");
-						String chan = wrapVarRef(TMP_ACCESS, id, false);
+						String chan = wrapVarRef(TMP_ACCESS, id, null);
 						String idx = "("+ chan +".nextRead)";
-						String chan_access = wrapVarRef(TMP_ACCESS, id, true);
-						String access_buffer = chan_access +"["+ idx + "]";
+						String access_buffer = wrapVarRef(TMP_ACCESS, id, idx);
 						w.append(access_buffer +".m"+ i +".var");
 						w.append(";");
 						w.appendPostfix();
 					}
 				}
-				String access = wrapVarRef(TMP_ACCESS, id,false);
+				String access = wrapVarRef(TMP_ACCESS, id, null);
 				w.appendLine(access,".nextRead = (",access,".nextRead+1)%"+var.getType().getBufferSize()+";");
 				w.appendLine("--(",access, ".filled);");
 			} else {
@@ -670,9 +669,9 @@ public class LTSminPrinter {
 		return varPrefix(access, var) + var.getName();
 	}
 	
-	private static String wrapVarRef(String access, Identifier id, boolean buffer) {
+	private static String wrapVarRef(String access, Identifier id, String buffer_idx) {
 		String base = wrapVar(access, id.getVariable());
-		if (buffer)
+		if (null != buffer_idx)
 			base += "_buffer";
 		if (id.getVariable().getArraySize() > 1) {
 			if (id.getArrayExpr() != null) {
@@ -682,6 +681,11 @@ public class LTSminPrinter {
 			} else {
 				base += "[0]";
 			}
+		} 
+		if (null != buffer_idx) {
+			base += "["+ buffer_idx +"]";
+		} else {
+			base += ".var";
 		}
 		return base;
 	}
@@ -692,7 +696,7 @@ public class LTSminPrinter {
 			w.append(id.getVariable().getName());
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
-			w.append(wrapVarRef(access,id,false) +".var");
+			w.append(wrapVarRef(access,id,null));
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
 			Expression ex1 = ae.getExpr1();
@@ -745,7 +749,7 @@ public class LTSminPrinter {
 			}
 		} else if(e instanceof ChannelSizeExpression) {
 			ChannelSizeExpression cse = (ChannelSizeExpression)e;
-			String bufRef = wrapVarRef(access, cse.getIdentifier(), false);
+			String bufRef = wrapVarRef(access, cse.getIdentifier(), null);
 			w.append(bufRef +".filled");
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
@@ -759,10 +763,9 @@ public class LTSminPrinter {
 			ChannelReadAction cra = cte.getChannelReadAction();
 			Identifier id = cra.getIdentifier();
 			int size = ((ChannelType)id.getVariable().getType()).getBufferSize();
-			String chan = wrapVarRef(access, id, false);
+			String chan = wrapVarRef(access, id, null);
 			String idx = "("+ chan +".nextRead + "+ chan +".filled) % "+ size;
-			String chan_access = wrapVarRef(access, id, true);
-			String access_buffer = chan_access +"["+ idx + "]";
+			String access_buffer = wrapVarRef(access, id, idx);
 			w.append(access_buffer +".m"+ cte.getElem() +".var");
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
@@ -1396,10 +1399,20 @@ public class LTSminPrinter {
 		w.outdent();
 		w.appendLine("} ",C_TYPE_UINT32,";");
 
-		w.appendLine("typedef struct ",C_TYPE_CHANNEL," {");
+		/**
+		 * Stay within 16 bit of default LTSmin fdd-bits length:
+		 */
+		w.appendLine("typedef struct ",C_TYPE_CHANNEL,"_t {");
 		w.indent();
-		w.appendLine("unsigned int nextRead: 16;");
-		w.appendLine("unsigned int filled: 16;");
+		w.appendLine("unsigned short nextRead: 8;");
+		w.appendLine("unsigned short filled: 8;");
+		w.outdent();
+		w.appendLine("} ",C_TYPE_CHANNEL,"_t;");
+
+		w.appendLine("typedef union ",C_TYPE_CHANNEL," {");
+		w.indent();
+		w.appendLine("int pad;");
+		w.appendLine(C_TYPE_CHANNEL,"_t var;");
 		w.outdent();
 		w.appendLine("} ",C_TYPE_CHANNEL,";");
 	}
