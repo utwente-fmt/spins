@@ -83,6 +83,10 @@ public class LTSminGMWalker {
 		}
 	}
 
+	/**************
+	 * MCE
+	 * ************/
+	
 	private static void generateCoenMatrix(GuardInfo gm) {
 		DepMatrix co = new DepMatrix(gm.size(), gm.size());
 		gm.setCoMatrix(co);
@@ -104,12 +108,49 @@ public class LTSminGMWalker {
 	}
 	
 	private static boolean mayBeCoenabled(LTSminGuard g1, LTSminGuard g2) {
-		return mayBeCoenabledStrong (g1.expr, g2.expr);
+		return mayBeCoenabledStronger (g1.expr, g2.expr);
 	}
 
 	/**
 	 * Determine MCE over disjuctions: MCE holds for ex1 and ex2 iff 
-	 * it holds over for all d1,d2 in disjuctions(ex1) X disjunctions(ex2)
+	 * it holds over for all d1,d2 in conjuctions(ex1) X conjunctions(ex2)
+	 */
+	private static boolean mayBeCoenabledStronger(Expression ex1, Expression ex2) {
+        List<Expression> ga_ex = new ArrayList<Expression>();
+        List<Expression> gb_ex = new ArrayList<Expression>();
+        extract_conjunctions (ga_ex, ex1);
+        extract_conjunctions (gb_ex, ex2);
+        for(Expression a : ga_ex) {
+            for(Expression b : gb_ex) {
+                if (!mayBeCoenabledStrong(a, b)) {
+                	return false;
+                }
+            }
+        }
+        return true;
+	}
+
+	/**
+	 * Extracts all conjuctions until disjunctions or arithmicExpr are encountered
+	 */
+	private static void extract_conjunctions (List<Expression> ds, Expression e) {
+		if(e instanceof BooleanExpression) {
+			BooleanExpression ce = (BooleanExpression)e;
+			if (ce.getToken().kind == PromelaTokenManager.BAND ||
+				ce.getToken().kind == PromelaTokenManager.LAND) {
+				extract_disjunctions (ds, ce.getExpr1());
+				extract_disjunctions (ds, ce.getExpr2());
+			} else {
+				ds.add(e);
+			}
+		} else {
+			ds.add(e);
+		}
+	}	
+	
+	/**
+	 * Determine MCE over disjuctions: MCE holds for ex1 and ex2 iff 
+	 * it holds for one d1,d2 in disjuctions(ex1) X disjunctions(ex2)
 	 */
 	private static boolean mayBeCoenabledStrong(Expression ex1, Expression ex2) {
         List<Expression> ga_ex = new ArrayList<Expression>();
@@ -127,7 +168,7 @@ public class LTSminGMWalker {
 	}
 
 	/**
-	 * Extracts all disjuctions untill conjunctions or arithmicExpr are encountered
+	 * Extracts all disjuctions until conjunctions or arithmicExpr are encountered
 	 */
 	private static void extract_disjunctions (List<Expression> ds, Expression e) {
 		if(e instanceof BooleanExpression) {
