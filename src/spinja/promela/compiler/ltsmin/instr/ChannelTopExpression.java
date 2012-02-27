@@ -3,6 +3,7 @@
  */
 package spinja.promela.compiler.ltsmin.instr;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import spinja.promela.compiler.actions.ChannelReadAction;
@@ -25,9 +26,12 @@ public class ChannelTopExpression extends Expression {
 		this.cra = cra;
 		this.elem = elem;
 	}
+
+	@Override
 	public Set<VariableAccess> readVariables() {
-		return null;
+		return new HashSet<VariableAccess>();
 	}
+
 	public VariableType getResultType() throws ParseException {
 		return null;
 	}

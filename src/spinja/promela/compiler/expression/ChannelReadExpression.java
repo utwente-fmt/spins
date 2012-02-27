@@ -82,6 +82,7 @@ public class ChannelReadExpression extends Expression implements CompoundExpress
 		final Set<VariableAccess> rv = new HashSet<VariableAccess>();
 		for (final Expression e : exprs)
 			rv.addAll(e.readVariables());
+		rv.addAll(id.readVariables());
 		return rv;
 	}
 }

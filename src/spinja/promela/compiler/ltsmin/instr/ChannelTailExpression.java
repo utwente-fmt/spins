@@ -5,6 +5,7 @@ package spinja.promela.compiler.ltsmin.instr;
 
 import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_TMP;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import spinja.promela.compiler.actions.ChannelReadAction;
@@ -29,9 +30,12 @@ class ChannelTailExpression extends Expression {
 		this.elem = elem;
 		this.name = name;
 	}
+
+	@Override
 	public Set<VariableAccess> readVariables() {
-		return null;
+		return new HashSet<VariableAccess>();
 	}
+
 	public VariableType getResultType() throws ParseException {
 		return null;
 	}

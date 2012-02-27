@@ -3,10 +3,25 @@ package spinja.promela.compiler.ltsmin;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.channelTop;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.compare;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.constant;
+import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
+import static spinja.promela.compiler.parser.PromelaConstants.DECR;
+import static spinja.promela.compiler.parser.PromelaConstants.INCR;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
+import spinja.promela.compiler.Proctype;
+import spinja.promela.compiler.actions.Action;
+import spinja.promela.compiler.actions.AssignAction;
+import spinja.promela.compiler.actions.ChannelReadAction;
+import spinja.promela.compiler.actions.ChannelSendAction;
+import spinja.promela.compiler.actions.ElseAction;
+import spinja.promela.compiler.actions.ExprAction;
+import spinja.promela.compiler.actions.OptionAction;
+import spinja.promela.compiler.actions.Sequence;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
 import spinja.promela.compiler.expression.ChannelOperation;
@@ -14,20 +29,24 @@ import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.instr.DepMatrix;
 import spinja.promela.compiler.ltsmin.instr.GuardInfo;
+import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.PromelaTokenManager;
 import spinja.promela.compiler.variable.ChannelType;
+import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
+import spinja.promela.compiler.variable.VariableAccess;
 import spinja.promela.compiler.variable.VariableType;
 
 /**
  *
- * @author FIB
+ * @author FIB, Alfons Laarman
  */
 public class LTSminGMWalker {
 
@@ -60,27 +79,117 @@ public class LTSminGMWalker {
 		generateCoenMatrix (guardInfo);
 		
 		// generate NES matrix
-		generateNESMatrix (guardInfo);
+		generateNESMatrix (model, guardInfo);
 
 		// generate NDS matrix
-		generateNDSMatrix (guardInfo);
+		generateNDSMatrix (model, guardInfo);
 	}
 
-	private static void generateNDSMatrix(GuardInfo guardInfo) {
-		
-	}
-
-	private static void generateNESMatrix(GuardInfo guardInfo) {
-		
-	}
-
-	private static void generateGuardMatrix(LTSminModel model,
-			GuardInfo guardInfo) {
+	private static void generateGuardMatrix(LTSminModel model, GuardInfo guardInfo) {
 		DepMatrix dm = new DepMatrix(guardInfo.size(), model.sv.size());
 		guardInfo.setDepMatrix(dm);
 		for (int i = 0; i < guardInfo.size(); i++) {
 			LTSminDMWalker.walkOneGuard(model, dm, guardInfo.get(i), i);
 		}
+	}
+
+	private static void generateNDSMatrix(LTSminModel model, GuardInfo guardInfo) {
+		DepMatrix nds = new DepMatrix(guardInfo.size(), model.getTransitions().size());
+		guardInfo.setNDSMatrix(nds);
+		for (int i = 0; i <  nds.getRows(); i++) {
+			for (int j = 0; j < nds.getRowLength(); j++) {
+				nds.incRead(i, j);
+			}
+		}
+	}
+
+	private static void generateNESMatrix(LTSminModel model, GuardInfo guardInfo) {
+		DepMatrix nes = new DepMatrix(guardInfo.size(), model.getTransitions().size());
+		guardInfo.setNESMatrix(nes);
+		int notNES = 0;
+		for (int i = 0; i <  nes.getRows(); i++) {
+			for (int j = 0; j < nes.getRowLength(); j++) {
+				if (is_nes_guard(guardInfo.get(i), model.getTransitions().get(j))) {
+					nes.incRead(i, j);
+				} else {
+					notNES++;
+				}
+			}
+		}
+		
+		System.out.println("Found "+ notNES +"/"+ guardInfo.size()*model.getTransitions().size() +" guards that do not enable transitions!");
+	}
+
+	private static boolean is_nes_guard(LTSminGuard guard,
+										LTSminTransitionBase transition) {
+		return is_nes_guard(guard.getExpr(), (LTSminTransition)transition);
+	}
+	
+	private static boolean is_nes_guard(Expression g, LTSminTransition transition) {
+		Set<VariableAccess> s = g.readVariables();
+	
+		for (Action a : new HashSet<Action>()){//((LTSminTransition)transition).getActions()) {
+			if (a instanceof AssignAction) {
+				AssignAction ae = (AssignAction)a;
+				Identifier id = ae.getIdentifier();
+				final String mask = id.getVariable().getType().getMask();
+				switch (ae.getToken().kind) {
+					case ASSIGN:
+						try {
+							int value = ae.getExpr().getConstantValue();
+						} catch (ParseException ex) {}
+						break;
+					case INCR:
+						break;
+					case DECR:
+						break;
+					default:
+						throw new AssertionError("unknown assignment type");
+				}
+			} else if(a instanceof ResetProcessAction) {
+				//w.appendLine(nr_pr +"--;");
+			} else if(a instanceof ExprAction) {
+				ExprAction ea = (ExprAction)a;
+				try {
+					String sideEffect = ea.getExpression().getSideEffect();
+					if (sideEffect != null) {
+						RunExpression re = (RunExpression)ea.getExpression();
+						//Action update_pc = LTSminTreeWalker.assign(model.sv.getPC(target), 0);
+						//Action update_pid = LTSminTreeWalker.assign(model.sv.getPID(target),
+						//		LTSminTreeWalker.id(LTSminStateVector._NR_PR));
+
+						Proctype target = re.getSpecification().getProcess(re.getId());
+						List<Variable> args = target.getArguments();
+						Iterator<Expression> eit = re.getExpressions().iterator();
+						
+						//write to the arguments of the target process
+						for (Variable v : args) {
+							Expression e = eit.next();
+							//channels are passed by reference: TreeWalker.bindByReferenceCalls 
+							if (!(v.getType() instanceof ChannelType)) {
+								Action aa = LTSminTreeWalker.assign(v, e);
+								//generateAction(w, aa, model);
+							}
+						}
+					}
+				} catch (ParseException e) {}
+			} else if(a instanceof ChannelSendAction) {
+				ChannelSendAction csa = (ChannelSendAction)a;
+				ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
+			} else if(a instanceof OptionAction) { // options in a d_step sequence
+				OptionAction oa = (OptionAction)a;
+				for (Sequence seq : oa) {
+					Action act = seq.iterator().next(); // guaranteed by parser
+					//if (act instanceof ElseAction)
+				}
+			} else if(a instanceof ElseAction) {
+				throw new AssertionError("ElseAction outside OptionAction!");
+			} else if(a instanceof ChannelReadAction) {
+				ChannelReadAction cra = (ChannelReadAction)a;
+				ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
+			} 
+		}
+		return true;
 	}
 
 	/**************

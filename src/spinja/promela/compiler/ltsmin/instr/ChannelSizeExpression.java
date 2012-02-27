@@ -3,6 +3,7 @@
  */
 package spinja.promela.compiler.ltsmin.instr;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import spinja.promela.compiler.expression.Expression;
@@ -23,9 +24,12 @@ public class ChannelSizeExpression extends Expression {
 		super(new Token(PromelaConstants.NUMBER, id +".filled"));
 		this.id = id;
 	}
+
+	@Override
 	public Set<VariableAccess> readVariables() {
-		return null;
+		return new HashSet<VariableAccess>();
 	}
+
 	public VariableType getResultType() throws ParseException {
 		return null;
 	}
