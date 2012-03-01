@@ -1,8 +1,8 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.LTSminStateVector._NR_PR;
-import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.CHAN_FILL_VAR;
-import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.CHAN_READ_VAR;
+import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_FILL_VAR;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_READ_VAR;
 
 import java.util.Collection;
 import java.util.List;
@@ -32,10 +32,24 @@ import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
-import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
-import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
-import spinja.promela.compiler.ltsmin.instr.DepMatrix;
-import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
+import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
+import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
+import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
+import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
+import spinja.promela.compiler.ltsmin.model.LTSminModel;
+import spinja.promela.compiler.ltsmin.model.LTSminTransition;
+import spinja.promela.compiler.ltsmin.model.LTSminTransitionBase;
+import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
+import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
+import spinja.promela.compiler.ltsmin.state.LTSminSlot;
+import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
+import spinja.promela.compiler.ltsmin.state.LTSminSubVector;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelType;
@@ -43,8 +57,17 @@ import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 
 /**
+ * Traverses LTSminModel structure and records read/write dependencies of
+ * variables (slots in LTSmin state vector) in a matrix.
+ * 
+ * The code heavily depends on the state vector's ability to be navigated upon
+ * its type structure and subdivided into sub vectors.
+ * 
+ * @see LTSminSubVector
+ * 
+ * @see Blom, van de Pol, Weber - Bridging the Gap between Enumerative and Symbolic Model Checkers 
  *
- * @author FIB
+ * @author FIB, Alfons Laarman
  */
 public class LTSminDMWalker {
 

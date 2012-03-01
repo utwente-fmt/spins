@@ -8,10 +8,8 @@ import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.INCR;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
@@ -30,18 +28,27 @@ import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RunExpression;
-import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
-import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
-import spinja.promela.compiler.ltsmin.instr.DepMatrix;
-import spinja.promela.compiler.ltsmin.instr.GuardInfo;
-import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
+import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
+import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
+import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
+import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
+import spinja.promela.compiler.ltsmin.model.LTSminModel;
+import spinja.promela.compiler.ltsmin.model.LTSminTransition;
+import spinja.promela.compiler.ltsmin.model.LTSminTransitionBase;
+import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
+import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.PromelaTokenManager;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
-import spinja.promela.compiler.variable.VariableAccess;
 import spinja.promela.compiler.variable.VariableType;
 
 /**

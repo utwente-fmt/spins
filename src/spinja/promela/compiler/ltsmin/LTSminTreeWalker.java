@@ -32,13 +32,23 @@ import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RunExpression;
-import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
-import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
-import spinja.promela.compiler.ltsmin.instr.ReadAction;
-import spinja.promela.compiler.ltsmin.instr.ReadersAndWriters;
-import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
-import spinja.promela.compiler.ltsmin.instr.SendAction;
-import spinja.promela.compiler.ltsmin.instr.TimeoutTransition;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
+import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
+import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
+import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
+import spinja.promela.compiler.ltsmin.model.LTSminModel;
+import spinja.promela.compiler.ltsmin.model.LTSminTransition;
+import spinja.promela.compiler.ltsmin.model.LTSminTransitionBase;
+import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
+import spinja.promela.compiler.ltsmin.model.ReadAction;
+import spinja.promela.compiler.ltsmin.model.ReadersAndWriters;
+import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
+import spinja.promela.compiler.ltsmin.model.SendAction;
+import spinja.promela.compiler.ltsmin.model.TimeoutTransition;
+import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -48,9 +58,9 @@ import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
 
 /**
- * This class handles the generation of the LTSminModel.
+ * Constructs the LTSminModel by walking over the SpinJa {@link Specification}.
  *
- * TODO: avoid atomic guards / priority updates when possible to improve DM
+ * TODO: avoid atomic guards.
  * 
  * @author Freark van der Berg, Alfons Laarman
  */
@@ -742,12 +752,6 @@ state_loop:	for (State st : p.getAutomaton()) {
 		Expression left = id(pc);
 		Expression right = constant(s.getStateId());
 		Expression e = compare(PromelaConstants.EQ, left, right);
-		return e;
-	}
-
-	private Expression makePCDeathGuard(Proctype p) {
-		Expression left = id(model.sv.getPID(p));
-		Expression e = compare(PromelaConstants.EQ, left, -1);
 		return e;
 	}
 

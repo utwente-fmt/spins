@@ -1,22 +1,22 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE;
-import static spinja.promela.compiler.ltsmin.LTSminStateVector._NR_PR;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.calc;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.channelTop;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.constant;
 import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.id;
-import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.CHAN_FILL_VAR;
-import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.CHAN_READ_VAR;
-import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.bufferVar;
-import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.elemVar;
-import static spinja.promela.compiler.ltsmin.LTSminTypeNative.TYPE_BOOL;
-import static spinja.promela.compiler.ltsmin.LTSminTypeNative.TYPE_INT16;
-import static spinja.promela.compiler.ltsmin.LTSminTypeNative.TYPE_INT32;
-import static spinja.promela.compiler.ltsmin.LTSminTypeNative.TYPE_INT8;
-import static spinja.promela.compiler.ltsmin.LTSminTypeNative.TYPE_UINT16;
-import static spinja.promela.compiler.ltsmin.LTSminTypeNative.TYPE_UINT32;
-import static spinja.promela.compiler.ltsmin.LTSminTypeNative.TYPE_UINT8;
+import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_STATE;
+import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_FILL_VAR;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_READ_VAR;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_BOOL;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT16;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT32;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT8;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_UINT16;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_UINT32;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_UINT8;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.FALSE;
@@ -56,12 +56,27 @@ import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
-import spinja.promela.compiler.ltsmin.instr.ChannelSizeExpression;
-import spinja.promela.compiler.ltsmin.instr.ChannelTopExpression;
-import spinja.promela.compiler.ltsmin.instr.DepMatrix;
-import spinja.promela.compiler.ltsmin.instr.DepRow;
-import spinja.promela.compiler.ltsmin.instr.GuardInfo;
-import spinja.promela.compiler.ltsmin.instr.ResetProcessAction;
+import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
+import spinja.promela.compiler.ltsmin.matrix.DepRow;
+import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
+import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
+import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
+import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
+import spinja.promela.compiler.ltsmin.model.LTSminModel;
+import spinja.promela.compiler.ltsmin.model.LTSminTransition;
+import spinja.promela.compiler.ltsmin.model.LTSminTransitionBase;
+import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
+import spinja.promela.compiler.ltsmin.state.LTSminPointer;
+import spinja.promela.compiler.ltsmin.state.LTSminSlot;
+import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
+import spinja.promela.compiler.ltsmin.state.LTSminTypeI;
+import spinja.promela.compiler.ltsmin.state.LTSminTypeStruct;
+import spinja.promela.compiler.ltsmin.state.LTSminVariable;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -73,6 +88,7 @@ import spinja.util.StringWriter;
 
 /**
  * Generates C code from the LTSminModel
+ * 
  * @author FIB, Alfons Laarman
  */
 public class LTSminPrinter {
@@ -110,7 +126,7 @@ public class LTSminPrinter {
 		generateTransitionCount(w, model);
 		generateDepMatrix(w, model.getDepMatrix(), DM_NAME, true);
 		generateDMFunctions(w, model.getDepMatrix());
-		generateGuardMatrix(w, model);
+		generateGuardMatrices(w, model);
 		generateGuardFunctions(w, model, model.getGuardInfo());
 		generateStateDescriptors(w, model);
 	}
@@ -1011,7 +1027,7 @@ public class LTSminPrinter {
 		w.appendLine("}");
 	}
 
-	private static void generateGuardMatrix(StringWriter w, LTSminModel model) {
+	private static void generateGuardMatrices(StringWriter w, LTSminModel model) {
 		GuardInfo gm = model.getGuardInfo();
 		if(gm==null) return;
 
