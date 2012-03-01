@@ -8,25 +8,18 @@ import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
-import spinja.promela.compiler.variable.Variable;
 import spinja.util.StringWriter;
 
 public class ResetProcessAction extends Action {
 	private Proctype process;
-	private Variable procVar;
 
-	public ResetProcessAction(Proctype process, Variable procVar) {
+	public ResetProcessAction(Proctype process) {
 		super(new Token(PromelaConstants.ASSIGN, "=reset="));
 		this.process = process;
-		this.procVar = procVar;
 	}
 
 	public Proctype getProcess() {
 		return process;
-	}
-
-	public Variable getProcVar() {
-		return procVar;
 	}
 
 	@Override

@@ -1,6 +1,8 @@
 package spinja.promela.compiler.ltsmin;
 
 import static spinja.promela.compiler.ltsmin.LTSminStateVector._NR_PR;
+import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_PROC_COUNTER;
+import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.*;
 
 import java.util.Collection;
 import java.util.List;
@@ -60,6 +62,12 @@ public class LTSminDMWalker {
 		}
 	}
 
+	public static void walkOneGuard(LTSminModel model, DepMatrix dm,
+									LTSminGuard g, int num) {
+		Params p = new Params(model, dm, num); 
+		walkExpression(p, g.expr);
+	}
+	
 	static void walkModel(LTSminModel model) {
 		if(model.getDepMatrix()==null) {
 			model.setDepMatrix(new DepMatrix(model.getTransitions().size(), model.sv.size()));
@@ -139,12 +147,10 @@ public class LTSminDMWalker {
 			}
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
-			DMIncWrite(params, rpa.getProcVar(),0);
-			DMIncWrite(params, _NR_PR, 0);
-			DMIncRead(params, _NR_PR, 0); // also done by guard, just to be sure
-			for(Variable v : rpa.getProcess().getVariables()) {
-				DMIncWriteEntire(params, v);
-			}
+			DMIncWritePC(params, rpa.getProcess());
+			DMIncWrite(params, _NR_PR);
+			DMIncRead(params, _NR_PR); // also done by guard, just to be sure
+			DMIncWriteEntire(params, params.model.sv.sub(rpa.getProcess()));
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
@@ -167,17 +173,17 @@ public class LTSminDMWalker {
 			if (sideEffect != null) {
 				//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
 				assert (expr instanceof RunExpression);
-				DMIncWrite(params, _NR_PR, 0);
-				DMIncRead(params, _NR_PR, 0);
+				DMIncWrite(params, _NR_PR);
+				DMIncRead(params, _NR_PR);
 				RunExpression re = (RunExpression)expr;
 				Proctype p = re.getSpecification().getProcess(re.getId());
-				DMIncWrite(params,params.sv.getPC(p),0);
-				DMIncRead(params,params.sv.getPC(p),0); // we also read to check multiple instantiations
-				DMIncWrite(params,params.sv.getPID(p),0);
+				DMIncWritePC(params, p);
+				DMIncReadPC(params, p); // we also read to check multiple instantiations
+				DMIncWritePID(params, p);
 				//write to the arguments of the target process
 				for (Variable v : p.getArguments()) {
 					if (v.getType() instanceof ChannelType) continue; //passed by reference
-					DMIncWrite(params, v, 0);
+					DMIncWrite(params, params.model.sv.sub(v));
 				}
 			} else {
 				// simple expressions are guards
@@ -220,11 +226,32 @@ public class LTSminDMWalker {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
 	}
-
-	public static void walkOneGuard(LTSminModel model, DepMatrix dm,
-									LTSminGuard g, int num) {
-		Params p = new Params(model, dm, num); 
-		walkExpression(p, g.expr);
+	
+	static void walkExpression(Params params, Identifier id, LTSminSubVector sub) {
+		Expression arrayExpr = id.getArrayExpr();
+		String name = id.getVariable().getName();
+		if (arrayExpr != null) {
+			walkExpression(params, arrayExpr);
+			try {
+				int i = arrayExpr.getConstantValue();
+				if (id.getSub() == null)
+					DMIncRead(params, sub.sub(name +"["+i+"]"));
+				else
+					walkExpression(params, id.getSub(), sub.sub(name +"["+i+"]"));
+			} catch(ParseException pe) {
+				for(int i=0; i < id.getVariable().getArraySize(); ++i) {
+					if (id.getSub() == null)
+						DMIncRead(params, sub.sub(name +"["+i+"]"));
+					else
+						walkExpression(params, id.getSub(), sub.sub(name +"["+i+"]"));
+				}
+			}
+		} else {
+			if (id.getSub() == null)
+				DMIncRead(params, sub.sub(name));
+			else
+				walkExpression(params, id.getSub(), sub.sub(name));
+		}
 	}
 	
 	static void walkExpression(Params params, Expression e) {
@@ -232,19 +259,12 @@ public class LTSminDMWalker {
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
-			Expression arrayExpr = id.getArrayExpr();
-			if (arrayExpr != null) {
-				walkExpression(params,arrayExpr);
-				try {
-					int i = arrayExpr.getConstantValue();
-					DMIncRead(params, var, i);
-				} catch(ParseException pe) {
-					for(int i=0; i<var.getArraySize(); ++i) {
-						DMIncRead(params, var, i);
-					}
-				}
-			} else {
-				DMIncRead(params, var, 0);
+			LTSminSubVector sub = params.sv.sub(var.getOwner());
+			try {
+				walkExpression(params, id, sub);
+			} catch (AssertionError ae) {
+				System.out.println("Query failed: "+ id.toString());
+				throw ae;
 			}
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
@@ -278,57 +298,69 @@ public class LTSminDMWalker {
 				walkExpression(params,ex1);
 				walkExpression(params,ex2);
 			}
+		} else if(e instanceof CompareExpression) {
+			CompareExpression ce = (CompareExpression)e;
+			walkExpression(params,ce.getExpr1());
+			walkExpression(params,ce.getExpr2());
 		} else if (e instanceof ChannelSizeExpression) {
 			ChannelSizeExpression cse = (ChannelSizeExpression)e;
-			markChannel(params, cse.getIdentifier(), BufferAction.NONE);
+			Identifier id = (Identifier)cse.getIdentifier();
+			Identifier mark = new Identifier(id, CHAN_READ_VAR);
+			walkExpression(params, mark);
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
-			markChannel(params, id, BufferAction.NONE);
+			Identifier mark = new Identifier(id, CHAN_READ_VAR);
+			walkExpression(params, mark);
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			// mark variables as read
 			for (Expression expr : cre.getExprs())
 				walkExpression(params, expr);
-			markChannel(params, cre.getIdentifier(), BufferAction.SCAN);
+			Identifier mark = new Identifier(cre.getIdentifier(), CHAN_READ_VAR);
+			walkExpression(params, mark);
+			Identifier mark2 = new Identifier(cre.getIdentifier(), CHAN_FILL_VAR);
+			walkExpression(params, mark2);
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
-			markChannel(params, (Identifier)co.getExpression(), BufferAction.NONE);
-		} else if(e instanceof CompareExpression) {
-			CompareExpression ce = (CompareExpression)e;
-			walkExpression(params,ce.getExpr1());
-			walkExpression(params,ce.getExpr2());
-		} else if(e instanceof RunExpression) {
-			DMIncRead(params, _NR_PR, 0);
-		} else if(e instanceof CompoundExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-		} else if(e instanceof MTypeReference) {
-		} else if(e instanceof ConstantExpression) {
+			Identifier id = (Identifier)co.getExpression();
+			Identifier mark = new Identifier(id, CHAN_READ_VAR);
+			walkExpression(params, mark);
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
-			markChannel(params, cte.getChannelReadAction().getIdentifier(), BufferAction.SCAN); //safe overapproximation, since on topExpr is made for each each element.
+			Identifier id = cte.getChannelReadAction().getIdentifier();
+			Identifier mark = new Identifier(id, CHAN_READ_VAR);
+			walkExpression(params, mark);
+		} else if(e instanceof RunExpression) {
+			DMIncRead(params, _NR_PR);
+		} else if(e instanceof MTypeReference) {
+		} else if(e instanceof ConstantExpression) {
+		} else if(e instanceof TimeoutExpression) {
+		} else if(e instanceof CompoundExpression) {
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof RunExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented as expression: "+e.getClass().getName());
-		} else if(e instanceof TimeoutExpression) {
-			DMIncReadAll(params); // should be optimized
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}
 	}
 
 	public enum BufferAction {
-		NONE,
-		SEND,
+		SCAN,
 		READ,
-		SCAN
+		SEND,
+		NONE
 	}
-	
+
 	private static void markChannel(Params params, Identifier id,
-									BufferAction action) {
+									BufferAction action) {/*
 		ChannelVariable var = (ChannelVariable)id.getVariable();
 		Expression arrayExpr = id.getArrayExpr();
+		int bsize = var.getType().getBufferSize();
+		int tsize = var.getType().getTypes().size();
+		int blen = tsize * bsize + 2; // two for metadata
 		try {
 			if (arrayExpr != null)
 				walkExpression(params, arrayExpr);
@@ -336,44 +368,47 @@ public class LTSminDMWalker {
 				throw new ParseException();
 			int i = arrayExpr.getConstantValue();
 			// mark channel meta data
-			DMIncRead (params, var, i);
+			DMIncRead (params, var, blen*i);
+			DMIncRead (params, var, blen*i+1);
 			if (BufferAction.NONE != action) {
 				// mark channel meta data write
-				if (BufferAction.SCAN != action)
-					DMIncWrite(params, var, i);
-				// mark entire buffer as read (no way to establish current loc)
-				markBuffer(params, var, i, BufferAction.SEND == action);
+				if (BufferAction.SCAN != action) {
+					DMIncWrite(params, var, blen*i);
+					DMIncWrite(params, var, blen*i+1);
+				}
+				// mark entire buffer as read (no way to establish exact loc)
+				markBuffer(params, var, blen*i+2, BufferAction.SEND == action);
 			}
 		} catch(ParseException pe) {
 			for(int i=0; i<var.getArraySize(); ++i) {
 				// mark channel meta data
-				DMIncRead (params, var, i);
+				DMIncRead (params, var, blen*i);
+				DMIncRead (params, var, blen*i+1);
 				if (BufferAction.NONE != action) {
 					// mark channel meta data write
-					if (BufferAction.SCAN != action)
-						DMIncWrite(params, var, i);
-					// mark entire buffer as read (no way to establish current loc)
-					markBuffer(params, var, i, BufferAction.SEND == action);
+					if (BufferAction.SCAN != action) {
+						DMIncWrite(params, var, blen*i);
+						DMIncWrite(params, var, blen*i+1);
+					}
+					// mark entire buffer as read (no way to establish exact loc)
+					markBuffer(params, var, blen*i+2, BufferAction.SEND == action);
 				}
 			}
 		}
-	}
+	*/}
 
 	private static void markBuffer(Params params, ChannelVariable var, int idx,
-									boolean send) {
-		int offset = var.getArraySize(); // channel's meta info
+									boolean send) {/*
 		int bsize = var.getType().getBufferSize();
 		int tsize = var.getType().getTypes().size();
-		for (int i = 0; i < bsize; i++) {
-			for (int j = 0; j < tsize; j++) {
-				if (send) {
-					DMIncWrite (params,var, idx*bsize*tsize + i*tsize + j + offset);
-				} else {
-					DMIncRead (params,var, idx*bsize*tsize + i*tsize + j + offset);
-				}
+		for (int i = 0; i < bsize*tsize; i++) {
+			if (send) {
+				DMIncWrite (params,var, idx + i);
+			} else {
+				DMIncRead (params,var, idx + i);
 			}
 		}
-	}
+	*/}
 
 	private static void markLHS(Params params, Collection<Expression> exprs,
 								ChannelVariable var) {
@@ -383,44 +418,7 @@ public class LTSminDMWalker {
 			}
 		}
 	}
-
-	static void DMIncWrite(Params params, Variable var, int offset) {
-		Integer i = params.model.getVariables().get(var);
-		if(i==null) {
-			System.out.println("For some reason var is null, " + var.getName());
-			System.out.println("Vars: " + params.model.getVariables().toString());
-		} else {
-			params.depMatrix.incWrite(params.trans, i+offset);
-		}
-	}
-
-	static void DMIncRead(Params params, Variable var, int offset) {
-		Integer i = params.model.getVariables().get(var);
-		if(i==null) {
-			System.out.println("For some reason var is null, " + var.getName());
-			System.out.println("Vars: " + params.model.getVariables().toString());
-		} else {
-			params.depMatrix.incRead(params.trans, i+offset);
-		}
-	}
-
-	static void DMIncReadAll(Params params) {
-		for(int i=params.model.sv.size(); i-->0;) {
-			params.depMatrix.incRead(params.trans, i);
-		}
-	}
-
-	static void DMIncWriteEntire(Params params, Variable var) {
-		if (var.getArraySize() > 1) {
-			for(int i=0; i<var.getArraySize(); ++i) {
-				DMIncWrite(params,var,i);
-			}
-		} else {
-			DMIncWrite(params,var,0);
-		}
-	}
-
-	static void DMAssign(Params params, Identifier id) {
+	static void DMAssign(Params params, Identifier id) {/*
 		Variable var = id.getVariable();
 		Expression arrayExpr = id.getArrayExpr();
 		if (var.getArraySize() > 1) {
@@ -438,5 +436,58 @@ public class LTSminDMWalker {
 		} else {
 			DMIncWrite(params,var,0);
 		}
+	*/}
+
+	static void DMIncWrite(Params params, LTSminSubVector sub) {
+		sub = sub(sub);
+		int offset = ((LTSminSlot)sub).getIndex();
+		params.depMatrix.incWrite(params.trans, offset);
+	}
+
+	static void DMIncRead(Params params, LTSminSubVector sub) {
+		sub = sub(sub);
+		int offset = ((LTSminSlot)sub).getIndex();
+		params.depMatrix.incRead(params.trans, offset);
+	}
+
+	private static LTSminSubVector sub(LTSminSubVector sub)
+			throws AssertionError {
+		if (!(sub instanceof LTSminSlot)) {
+			sub = sub.step();
+			if (!(sub instanceof LTSminSlot))
+				throw new AssertionError("Variable is not a native type: "+ sub);
+		}
+		return sub;
+	}
+
+	static void DMIncWriteEntire(Params params, LTSminSubVector sub) {
+		for (LTSminSlot slot : sub) {
+			DMIncWrite(params, slot);
+		}
+	}
+
+	private static void DMIncReadPC(Params params, Proctype p) {
+		Variable pc = params.sv.getPC(p);
+		DMIncRead(params, pc);
+	}
+
+	private static void DMIncWritePC(Params params, Proctype p) {
+		Variable pc = params.sv.getPC(p);
+		DMIncWrite(params, pc);
+	}
+
+	private static void DMIncWritePID(Params params, Proctype p) {
+		Variable pc = params.sv.getPID(p);
+		DMIncWrite(params, pc);
+	}
+	
+	private static void DMIncRead(Params params, Variable var) {
+		LTSminSubVector sub = params.model.sv.sub(var);
+		DMIncRead(params, sub);
+	}
+
+	private static void DMIncWrite(Params params, Variable var) {
+		LTSminSubVector sub = params.model.sv.sub(var);
+		DMIncWrite(params, sub);
 	}
 }

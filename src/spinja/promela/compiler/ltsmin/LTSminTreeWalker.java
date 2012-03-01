@@ -57,12 +57,12 @@ import spinja.promela.compiler.variable.VariableType;
 public class LTSminTreeWalker {
 
 	// The specification of which the model is created,
-	// initialised by constructor
+	// initialized by constructor
 	private final Specification spec;
 
 	private LTSminDebug debug = new LTSminDebug();
 
-	private LTSminModel model;
+	private LTSminModel model = null;
 	
 	// For each channel, a list of read actions and send actions is kept for later processing
 	private HashMap<ChannelVariable,ReadersAndWriters> channels;
@@ -75,11 +75,10 @@ public class LTSminTreeWalker {
 	 * @param spec The specification.
 	 * @param name The name to give the model.
 	 */
-	public LTSminTreeWalker(Specification spec, String name) {
+	public LTSminTreeWalker(Specification spec) {
 		this.spec = spec;
         timeout_transitions = new ArrayList<TimeoutTransition>();
 		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
-		model = new LTSminModel(name);
 	}
 		
 	/**
@@ -87,9 +86,11 @@ public class LTSminTreeWalker {
 	 * when creating this LTSMinPrinter instance.
 	 * @return The LTSminModel according to the Specification.
 	 */
-	public LTSminModel createLTSminModel() {
+	public LTSminModel createLTSminModel(String name) {
 		//long start_t = System.currentTimeMillis();
-		model.createVectorStructs(spec, debug);
+		LTSminStateVector sv = new LTSminStateVector();
+		sv.createVectorStructs(spec, debug);
+		model = new LTSminModel(name, sv);
 		bindByReferenceCalls();
 		createTransitions();
 		LTSminDMWalker.walkModel(model);
@@ -282,7 +283,7 @@ public class LTSminTreeWalker {
 			lt.addGuard(makeAllowedToDie(process));
 			lt.addGuard(makeInAtomicGuard(process));
 
-			lt.addAction(new ResetProcessAction(process,model.sv.getPC(process)));
+			lt.addAction(new ResetProcessAction(process));
 
 			// Keep track of the current transition ID
 			++trans;
@@ -436,7 +437,7 @@ public class LTSminTreeWalker {
 		// Create actions of the transition, iff never is absent, dying or not atomic
 		if  (never_t == null || never_t.getTo()==null || !never_t.getTo().isInAtomic()) {
 			if (t.getTo()==null)
-				lt.addAction(new ResetProcessAction(process,model.sv.getPC(process)));
+				lt.addAction(new ResetProcessAction(process));
 			else // Action: PC counter update
 				lt.addAction(assign(model.sv.getPC(process), t.getTo().getStateId()));
 	       
@@ -706,7 +707,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 	}
 
 	public static Identifier id(Variable v) {
-		return new Identifier(new Token(IDENTIFIER,v.getName()), v);
+		return new Identifier(new Token(IDENTIFIER,v.getName()), v, null);
 	}
 
 	public static CompareExpression compare(int m, Expression e1, Expression e2) {

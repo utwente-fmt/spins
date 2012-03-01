@@ -17,7 +17,6 @@ package spinja.promela.compiler.expression;
 import java.util.HashSet;
 import java.util.Set;
 
-import spinja.promela.compiler.parser.MyParseException;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.Variable;
@@ -38,6 +37,16 @@ public class Identifier extends Expression {
 
 	private Expression arrayExpr = null;
 
+	private Identifier sub = null;
+
+	public Identifier getSub() {
+		return sub;
+	}
+
+	public void setSub(Identifier sub) {
+		this.sub = sub;
+	}
+
 	/**
 	 * Creates a new Identifier that refers to the specified variable.
 	 * 
@@ -46,10 +55,11 @@ public class Identifier extends Expression {
 	 * @param var
 	 *            The variable to which this identifier points.
 	 */
-	public Identifier(final Token token, final Variable var) {
+	public Identifier(final Token token, final Variable var, Identifier sub) {
 		super(token);
 		this.var = var;
 		arrayExpr = null;
+		this.sub = sub;
 	}
 
 	/**
@@ -63,10 +73,24 @@ public class Identifier extends Expression {
 	 * @param expr
 	 *            The expression that calculates the index in the array.
 	 */
-	public Identifier(final Token token, final Variable var, final Expression expr) {
+	public Identifier(final Token token, final Variable var, final Expression expr,
+			Identifier sub) {
 		super(token);
 		this.var = var;
 		arrayExpr = expr;
+		this.sub = sub;
+	}
+
+	public Identifier(final Variable var) {
+		super(null);
+		this.var = var;
+		arrayExpr = null;
+		this.sub = null;
+	}
+
+
+	public Identifier(Identifier id, Variable sub) {
+		this(id.getToken(), id.var, id.getArrayExpr(), new Identifier(sub));
 	}
 
 	public int getConstantValue() throws ParseException {
@@ -123,15 +147,19 @@ public class Identifier extends Expression {
 
 	@Override
 	public String toString() {
+		String res = "";
 		if (var.getArraySize() > 1) {
 			if (arrayExpr != null) {
-				return var.toString() + "[" + arrayExpr.toString() + "]";
+				res = var.toString() + "[" + arrayExpr.toString() + "]";
 			} else {
-				return var.toString() + "[0]";
+				res = var.toString() + "[0]";
 			}
 		} else {
-			return var.toString();
+			res = var.toString();
 		}
+		if (null != sub)
+			res += "."+ sub.toString();
+		return res;
 	}
 	
 	public boolean equals(Object o) {

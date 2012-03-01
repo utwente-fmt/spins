@@ -362,12 +362,12 @@ void utype(): {
 	Token id;
 }{
 	<TYPEDEF> id=<IDENTIFIER> 
-	{ 
-		throw new MyParseException("User defined types are not (yet) supported", id);
-		//CustomVariableType custom = new CustomVariableType(id.image);
-		//specification.addType(custom);
-	}
-	<LCURLY> /*decl_list(custom.getVariableStore())*/ <RCURLY>
+    {
+        CustomVariableType custom = new CustomVariableType(id.image);
+    }
+	<LCURLY>
+	   decl_list(custom.getVariableStore())
+	<RCURLY>
 }
 
 void mtype(): {
@@ -818,8 +818,9 @@ void arg_lst(CompoundExpression expr): {
 /*** All expression statements ***/
 
 Expression varref(): {
-	Token id;
+	Token id, dot = null;
 	Expression expr = null;
+	Expression expr2 = null;
 	Identifier ident;
 }{
 	id=<IDENTIFIER>
@@ -835,19 +836,20 @@ Expression varref(): {
 			return new MTypeReference(id, mtypeNr);
 		}
 	}
-	(<LBRACK> expr=lor_expr() <RBRACK>)? 
+	(<LBRACK> expr=lor_expr() <RBRACK>)?
+    (dot=<DOT> expr2=varref())?
 	{
+	    if (expr2 != null && !(expr2 instanceof Identifier))
+	       throw new MyParseException("Not an identifier: " + expr2, dot);
+	    Identifier id2 = (Identifier)expr2;
 		if(currentProc != null && currentProc.hasVariable(id.image)) {
-			ident = new Identifier(id, currentProc.getVariable(id.image), expr);
+			ident = new Identifier(id, currentProc.getVariable(id.image), expr, id2);
 		} else if(specification.getVariableStore().hasVariable(id.image)) {
-			ident = new Identifier(id, specification.getVariableStore().getVariable(id.image), expr);
+			ident = new Identifier(id, specification.getVariableStore().getVariable(id.image), expr, id2);
 		} else {
 			throw new MyParseException("Undeclared identifier: " + id.image, id);
 		}
-	}	
-	(id=<DOT> expr=varref()
-	{ throw new MyParseException("User defined types not yet supported!", id); }
-	)?
+	}
 	{ return ident; }
 |	id=<VAR_PID>
 	{ return new Identifier(id, _pid, null); }

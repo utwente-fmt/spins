@@ -13,6 +13,6 @@ import spinja.promela.compiler.variable.Variable;
 public class LTSminIdentifier extends Identifier {
 
 	public LTSminIdentifier(Variable var) {
-		super(new Token(PromelaTokenManager.IDENTIFIER,var.getName()), var);
+		super(new Token(PromelaTokenManager.IDENTIFIER,var.getName()), var, null);
 	}
 }

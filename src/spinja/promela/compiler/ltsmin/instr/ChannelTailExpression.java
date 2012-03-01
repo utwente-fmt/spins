@@ -3,8 +3,6 @@
  */
 package spinja.promela.compiler.ltsmin.instr;
 
-import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_TMP;
-
 import java.util.HashSet;
 import java.util.Set;
 
@@ -50,7 +48,7 @@ class ChannelTailExpression extends Expression {
 
 	@Override
 	public String getIntExpression() {
-		return "(["+C_STATE_TMP + "." + name+".nextRead].m" + elem + ")";
+		return "([TMP-TODO" + "." + name+".nextRead].m" + elem + ")";
 	}
 
 }

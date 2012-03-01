@@ -145,6 +145,14 @@ public class Proctype implements VariableContainer {
 		}
 	}
 
+	public void prependVariable(final Variable var) {
+		varStore.prependVariable(var);
+		if (isArgument) {
+			arguments.add(var);
+			var.setWritten(true);
+		}
+	}
+
 	/**
 	 * Adds an identifier that points to a channel to the list of eXclusive Reads
 	 * @param id

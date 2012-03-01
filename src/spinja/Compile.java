@@ -371,8 +371,8 @@ public class Compile {
 	private static void writeLTSminDotFile (final Specification spec, final String name, final File outputDir) {
 		final File dotFile = new File(outputDir, name + ".spinja.dot");
 
-		LTSminTreeWalker walker = new LTSminTreeWalker(spec,name);
-		LTSminModel model = walker.createLTSminModel();
+		LTSminTreeWalker walker = new LTSminTreeWalker(spec);
+		LTSminModel model = walker.createLTSminModel(name);
 		String out = "digraph {\n";
 		for (LTSminTransitionBase t : model.getTransitions()) {
 			String s[] = t.getName().split(" X ");
@@ -426,8 +426,8 @@ public class Compile {
 		final File javaFile = new File(outputDir, name + ".spinja.c");
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
-			LTSminTreeWalker walker = new LTSminTreeWalker(spec,name);
-			LTSminModel model = walker.createLTSminModel();
+			LTSminTreeWalker walker = new LTSminTreeWalker(spec);
+			LTSminModel model = walker.createLTSminModel(name);
 			fos.write(LTSminPrinter.generateCode(model).getBytes());
 			fos.flush();
 			fos.close();

@@ -55,7 +55,14 @@ public class VariableStore implements VariableContainer {
         }
         vars.add(var);
     }
-
+    
+    public void prependVariable(final Variable var) {
+        if (var == null) {
+            throw new IllegalArgumentException();
+        }
+        vars.add(0, var);
+    }
+    
     /**
      * @return The number of bytes that is needed to store all the 
      *         variables currently in the container.
