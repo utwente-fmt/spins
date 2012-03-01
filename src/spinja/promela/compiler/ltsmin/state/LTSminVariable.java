@@ -2,7 +2,6 @@ package spinja.promela.compiler.ltsmin.state;
 
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
-import spinja.promela.compiler.ltsmin.LTSminPrinter;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.variable.Variable;
 

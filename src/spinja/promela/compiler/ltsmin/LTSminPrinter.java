@@ -69,7 +69,6 @@ import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminTransitionBase;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminSlot;
@@ -151,6 +150,7 @@ public class LTSminPrinter {
 		w.appendLine("typedef "+ C_STATE +" state_t;");
 		w.appendLine("");
 	}
+
 	private static void generateHeader(StringWriter w, LTSminModel model) {
 
 		w.appendLine("/** Generated LTSmin model - ",model.getName());
@@ -158,15 +158,13 @@ public class LTSminPrinter {
 		String prefix = w.getPrefix();
 		w.setPrePrefix(" * ");
 		w.setPrefix("  ");
-
 		w.appendLine("State size:  ",model.sv.size()," elements (",model.sv.size()*STATE_ELEMENT_SIZE," bytes)");
 		w.appendLine("Transitions: ",model.getTransitions().size());
-
 		w.setPrefix(prefix);
 		w.setPrePrefix(preprefix);
-
 		w.appendLine(" */");
 		w.appendLine("");
+
 		w.appendLine("#include <stdio.h>");
 		w.appendLine("#include <string.h>");
 		w.appendLine("#include <stdint.h>");
@@ -277,11 +275,11 @@ public class LTSminPrinter {
 	}
 
 	private static void generateLeavesAtomic (StringWriter w, LTSminModel model) {
-		List<LTSminTransitionBase> ts = model.getTransitions();
+		List<LTSminTransition> ts = model.getTransitions();
 		w.append("char leaves_atomic["+ ts.size() +"] = {");
 		if (ts.size() > 0) {
-			LTSminTransitionBase last = ts.get(ts.size()-1);
-			for (LTSminTransitionBase tb : ts) {
+			LTSminTransition last = ts.get(ts.size()-1);
+			for (LTSminTransition tb : ts) {
 				LTSminTransition t = (LTSminTransition)tb;
 				w.append("" + t.leavesAtomic());
 				if (tb != last)	w.append(", ");
@@ -304,8 +302,8 @@ public class LTSminPrinter {
 			w.appendLine("int states_emitted = 0;");
 			w.appendLine("register int pos;");
 			w.appendLine();
-			List<LTSminTransitionBase> transitions = model.getTransitions();
-			for(LTSminTransitionBase t : transitions) {
+			List<LTSminTransition> transitions = model.getTransitions();
+			for(LTSminTransition t : transitions) {
 				generateATransition(w, t, model);
 			}
 			w.appendLine("return states_emitted;");
@@ -314,7 +312,7 @@ public class LTSminPrinter {
 		w.appendLine();
 	}
 
-	public static void generateATransition(StringWriter w, LTSminTransitionBase transition,
+	public static void generateATransition(StringWriter w, LTSminTransition transition,
 										   LTSminModel model) {
 		w.appendLine("// "+transition.getName());
 		if(transition instanceof LTSminTransition) {
@@ -368,9 +366,9 @@ public class LTSminPrinter {
 		w.appendLine(C_STATE,"* ",OUT_VAR," = &local_state;");
 		w.appendLine();
 		w.appendLine("switch(t) {");
-		List<LTSminTransitionBase> transitions = model.getTransitions();
+		List<LTSminTransition> transitions = model.getTransitions();
 		int trans = 0;
-		for(LTSminTransitionBase t: transitions) {
+		for(LTSminTransition t : transitions) {
 			w.appendLine("case ",trans,": { // ",t.getName());
 			w.indent();
 			generateATransition(w, t, model);

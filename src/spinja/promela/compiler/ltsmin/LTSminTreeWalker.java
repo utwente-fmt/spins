@@ -41,7 +41,6 @@ import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminTransitionBase;
 import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
 import spinja.promela.compiler.ltsmin.model.ReadAction;
 import spinja.promela.compiler.ltsmin.model.ReadersAndWriters;
@@ -197,7 +196,7 @@ public class LTSminTreeWalker {
 			}
 		}
 		
-		for (LTSminTransitionBase t : model.getTransitions()) {
+		for (LTSminTransition t : model.getTransitions()) {
 			if (!(t instanceof LTSminTransitionCombo))
 				continue;
 			//LTSminTransitionCombo tc = (LTSminTransitionCombo)t;

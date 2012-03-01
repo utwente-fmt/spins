@@ -40,7 +40,6 @@ import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminTransitionBase;
 import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.parser.ParseException;
@@ -128,7 +127,7 @@ public class LTSminGMWalker {
 	}
 
 	private static boolean is_nes_guard(LTSminGuard guard,
-										LTSminTransitionBase transition) {
+										LTSminTransition transition) {
 		return is_nes_guard(guard.getExpr(), (LTSminTransition)transition);
 	}
 	
@@ -499,13 +498,13 @@ public class LTSminGMWalker {
 	}
 
 	static void walkTransitions(Params params) {
-		for(LTSminTransitionBase t : params.model.getTransitions()) {
+		for(LTSminTransition t : params.model.getTransitions()) {
 			walkTransition(params,t);
 			params.trans++;
 		}
 	}
 
-	static void walkTransition(	Params params, LTSminTransitionBase transition) {
+	static void walkTransition(	Params params, LTSminTransition transition) {
 		if(transition instanceof LTSminTransition) {
 			LTSminTransition t = (LTSminTransition)transition;
 			List<LTSminGuardBase> guards = t.getGuards();
@@ -513,7 +512,7 @@ public class LTSminGMWalker {
 				walkGuard(params, g);
 		} else if (transition instanceof LTSminTransitionCombo) {
 			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
-			for(LTSminTransitionBase tb: t.transitions)
+			for(LTSminTransition tb : t.transitions)
 				walkTransition(params,tb);
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + transition.getClass().getSimpleName());

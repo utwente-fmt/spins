@@ -5,7 +5,6 @@ import java.util.Iterator;
 import java.util.List;
 
 import spinja.promela.compiler.expression.Identifier;
-import spinja.promela.compiler.ltsmin.LTSminPrinter;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 
 /**

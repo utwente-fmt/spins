@@ -1,7 +1,6 @@
 package spinja.promela.compiler.ltsmin.state;
 
 import spinja.promela.compiler.expression.Identifier;
-import spinja.promela.compiler.ltsmin.LTSminPrinter;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.variable.Variable;
 
@@ -20,6 +19,7 @@ public class LTSminTypeNative extends LTSminTypeImpl {
 	private static final String C_TYPE_UINT16 = "sj_uint16";
 	private static final String C_TYPE_UINT32 = "sj_uint32";
 
+	public static final String ACCESS = "var";
 	public static final LTSminTypeNative TYPE_BOOL = new LTSminTypeNative(C_TYPE_UINT1); 
 	public static final LTSminTypeNative TYPE_INT8 = new LTSminTypeNative(C_TYPE_INT8); 
 	public static final LTSminTypeNative TYPE_INT16 = new LTSminTypeNative(C_TYPE_INT16); 
@@ -84,6 +84,6 @@ public class LTSminTypeNative extends LTSminTypeImpl {
 
 	@Override
 	public String printIdentifier(ExprPrinter p, Identifier id) {
-		return "var";
+		return ACCESS;
 	}
 }

@@ -33,7 +33,6 @@ import spinja.promela.compiler.ltsmin.LTSminPrinter;
 import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminTransitionBase;
 import spinja.promela.compiler.optimizer.GraphOptimizer;
 import spinja.promela.compiler.optimizer.RemoveUselessActions;
 import spinja.promela.compiler.optimizer.RemoveUselessGotos;
@@ -374,7 +373,7 @@ public class Compile {
 		LTSminTreeWalker walker = new LTSminTreeWalker(spec);
 		LTSminModel model = walker.createLTSminModel(name);
 		String out = "digraph {\n";
-		for (LTSminTransitionBase t : model.getTransitions()) {
+		for (LTSminTransition t : model.getTransitions()) {
 			String s[] = t.getName().split(" X ");
 			String trans_s;
 			for (String proc : s) {

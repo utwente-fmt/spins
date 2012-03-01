@@ -1,6 +1,7 @@
 package spinja.promela.compiler.ltsmin.model;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
@@ -25,17 +26,17 @@ import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
  * 
  * @author Freark van der Berg, Alfons Laarman
  */
-public class LTSminModel {
+public class LTSminModel implements Iterable<LTSminTransition> {
 
 	private String name;
-	private List<LTSminTransitionBase> transitions;
+	private List<LTSminTransition> transitions;
 	public LTSminStateVector sv;
 	private DepMatrix depMatrix;
 	private GuardInfo guardInfo;
 
 	public LTSminModel(String name, LTSminStateVector sv) {
 		this.name = name;
-		this.transitions = new ArrayList<LTSminTransitionBase>();
+		this.transitions = new ArrayList<LTSminTransition>();
 		this.sv = sv;
 	}
 
@@ -59,11 +60,16 @@ public class LTSminModel {
 		this.guardInfo = guardMatrix;
 	}
 
-	public List<LTSminTransitionBase> getTransitions() {
+	public List<LTSminTransition> getTransitions() {
 		return transitions;
 	}
 
-	public void setTransitions(List<LTSminTransitionBase> transitions) {
+	public void setTransitions(List<LTSminTransition> transitions) {
 		this.transitions = transitions;
+	}
+
+	@Override
+	public Iterator<LTSminTransition> iterator() {
+		return transitions.iterator();
 	}
 }

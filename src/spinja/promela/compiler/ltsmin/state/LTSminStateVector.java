@@ -10,7 +10,6 @@ import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.ltsmin.LTSminDebug;
-import spinja.promela.compiler.ltsmin.LTSminPrinter;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.variable.ChannelType;
@@ -99,14 +98,14 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		for (LTSminVariable v : type) {
 			// recursion
 			for (int i = 0; i < Math.max(v.array(), 1); i++) {
-				String fn = fullName +"."+ v.getName() +
-						(v.array()>1 ? "["+i+"]" : "");
+				String fn = fullName +"."+ v.getName() + //TODO: use ExprPrinter
+						(v.array()>1 || v.isStructBuffer() ? "["+i+"]" : "");
 				if (v.getType() instanceof LTSminTypeStruct) {
 					flattenStateVector ((LTSminTypeStruct)v.getType(), fn);
 				} else {
 					// Leafs (NativeTypes) in DFS order
-					System.out.println(stateVector.size() +"\t"+ fn +"");
-					stateVector.add(new LTSminSlot(v, fn, stateVector.size()));
+					//System.out.println(stateVector.size() +"\t"+ fn +"");
+					stateVector.add(new LTSminSlot(v, fn +"."+ LTSminTypeNative.ACCESS, stateVector.size()));
 				}
 			}
 		}

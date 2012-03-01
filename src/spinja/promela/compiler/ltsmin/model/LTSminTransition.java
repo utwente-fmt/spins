@@ -15,9 +15,24 @@ import spinja.util.StringWriter;
 
 /**
  *
- * @author Freark van der Berg
+ * @author Freark van der Berg, Alfons Laarman
  */
-public class LTSminTransition extends LTSminTransitionBase implements LTSminGuardContainer {
+public class LTSminTransition implements LTSminGuardContainer {
+
+	private int trans;
+	
+	public LTSminTransition(int group) {
+		trans = group;
+	}
+
+	public int getGroup() {
+		return trans;
+	}
+
+	public void setGroup(int trans) {
+		this.trans = trans;
+	}
+	
 	private String name;
 	private Proctype process;
 	private	List<LTSminGuardBase> guards;
@@ -27,7 +42,7 @@ public class LTSminTransition extends LTSminTransitionBase implements LTSminGuar
 	
 
 	public LTSminTransition(int group, String name, Proctype process) {
-		super(group);
+		this(group);
 		this.process = process;
 		this.name = name;
 		this.guards = new LinkedList<LTSminGuardBase>();

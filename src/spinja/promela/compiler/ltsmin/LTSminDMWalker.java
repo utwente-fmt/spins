@@ -44,7 +44,6 @@ import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminTransitionBase;
 import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminSlot;
@@ -100,13 +99,13 @@ public class LTSminDMWalker {
 	}
 
 	static void walkTransitions(Params params) {
-		for(LTSminTransitionBase t: params.model.getTransitions()) {
+		for(LTSminTransition t: params.model.getTransitions()) {
 			walkTransition(params,t);
 			params.trans++;
 		}
 	}
 
-	static void walkTransition(	Params params, LTSminTransitionBase transition) {
+	static void walkTransition(	Params params, LTSminTransition transition) {
 		if(transition instanceof LTSminTransition) {
 			LTSminTransition t = (LTSminTransition)transition;
 			List<LTSminGuardBase> guards = t.getGuards();
@@ -119,7 +118,7 @@ public class LTSminDMWalker {
 			}
 		} else if (transition instanceof LTSminTransitionCombo) {
 			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
-			for(LTSminTransitionBase tb: t.transitions) {
+			for(LTSminTransition tb : t.transitions) {
 				walkTransition(params,tb);
 			}
 		} else {
