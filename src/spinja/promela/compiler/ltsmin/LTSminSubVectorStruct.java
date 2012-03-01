@@ -3,7 +3,7 @@ package spinja.promela.compiler.ltsmin;
 public class LTSminSubVectorStruct extends LTSminSubVector {
 	private LTSminTypeStruct type;
 	
-	protected LTSminSubVectorStruct(LTSminSubVector sv, LTSminType type, int offset) {
+	protected LTSminSubVectorStruct(LTSminSubVector sv, LTSminTypeI type, int offset) {
 		super(sv, offset);
 		if (!(type instanceof LTSminTypeStruct))
 			throw new AssertionError("Trying to initialize a native type as struct!");

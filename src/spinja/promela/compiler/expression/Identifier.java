@@ -88,6 +88,9 @@ public class Identifier extends Expression {
 		this.sub = null;
 	}
 
+	public Identifier(Identifier id, Identifier sub) {
+		this(id.getToken(), id.var, id.getArrayExpr(), sub);
+	}
 
 	public Identifier(Identifier id, Variable sub) {
 		this(id.getToken(), id.var, id.getArrayExpr(), new Identifier(sub));

@@ -8,6 +8,8 @@ import java.util.List;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
+import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
@@ -26,15 +28,15 @@ import spinja.promela.compiler.variable.VariableType;
  *
  * @author Freark van der Berg, Alfons Laarman
  */
-public class LTSminStateVector extends LTSminSubVectorStruct {
+public class LTSminStateVector extends LTSminSubVectorStruct implements LTSminTypeStructI<LTSminSlot> {
 
 	public static String C_STATE;
 	public static final String C_STATE_NAME = "state";
 	public static final String C_STATE_GLOBALS = "globals";
-	public static final String C_STATE_PROC_COUNTER = "_pc";
-	public static final String C_STATE_PID = "_pid";
-	public static final String C_NUM_PROCS_VAR = "_nr_pr";
-	public static final String C_STATE_INITIAL = "initial";
+
+	private static final String C_STATE_PROC_COUNTER = "_pc";
+	private static final String C_STATE_PID = "_pid";
+	private static final String C_NUM_PROCS_VAR = "_nr_pr";
 
 	public static final VariableType C_TYPE_PROC_COUNTER 	= VariableType.BYTE;
 	public static final VariableType C_TYPE_PID 			= VariableType.PID;
@@ -89,11 +91,8 @@ public class LTSminStateVector extends LTSminSubVectorStruct {
 	 */
 	private void flattenStateVector(LTSminTypeStruct type, String fullName) {
 		for (LTSminVariable v : type) {
-			// DFS pre-order
-			//v.setOffset(stateVector.size());
-
 			// recursion
-			for (int i = 0; i < max(v.array(), 1); i++) {
+			for (int i = 0; i < Math.max(v.array(), 1); i++) {
 				String fn = fullName +"."+ v.getName() +
 						(v.array()>1 ? "["+i+"]" : "");
 				if (v.getType() instanceof LTSminTypeStruct) {
@@ -105,10 +104,6 @@ public class LTSminStateVector extends LTSminSubVectorStruct {
 				}
 			}
 		}
-	}
-
-	private static int max(int a, int b) {
-		return a > b ? a : b;
 	}
 
 	/**
@@ -124,7 +119,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct {
 		for (Variable var : globals.getVariables())
 			addVariable(global_t, var, debug);
 		// Add global state struct to main state struct
-		state_t.addMember(new LTSminVariable(global_t, C_STATE_GLOBALS));
+		addMember(new LTSminVariable(global_t, C_STATE_GLOBALS, this));
 
 		// Add Never process
 		if (spec.getNever()!=null) {
@@ -175,7 +170,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct {
 		}
 
 		// Add process state struct to main state struct
-		state_t.addMember(new LTSminVariable(process_t, name));
+		addMember(new LTSminVariable(process_t, name, this));
 	}
 	
 	/**
@@ -193,18 +188,18 @@ public class LTSminStateVector extends LTSminSubVectorStruct {
 			if (ct.getBufferSize() == -1 || ct.getBufferSize() == 0 ) return;
 			debug.say("\t"+ var.getName() + "["+ var.getArraySize() +"]" +
 					" of {"+ ct.getTypes().size() +"} ["+ ct.getBufferSize() +"]");
-			LTSminType infoType = new LTSminTypeChanStruct(cv);
-			lvar = new LTSminVariable(infoType, var);
+			LTSminTypeI infoType = new LTSminTypeChanStruct(cv);
+			lvar = new LTSminVariable(infoType, var, struct);
 		} else if(var.getType() instanceof VariableType) {
 		   	assert (var.getType().getJavaName().equals("int"));
 			debug.say("\t"+ var.getType().getName() +" "+ name);
-			lvar = new LTSminVariable(new LTSminTypeNative(var), var);
+			lvar = new LTSminVariable(new LTSminTypeNative(var), var, struct);
 		} else if (var.getType() instanceof CustomVariableType) {
 			CustomVariableType cvt = (CustomVariableType)var.getType();
 			LTSminTypeStruct type = new LTSminTypeStruct(cvt.getName());
 			for (Variable v : cvt.getVariableStore().getVariables())
 				addVariable(type, v, debug);
-			lvar = new LTSminVariable(type, var);
+			lvar = new LTSminVariable(type, var, struct);
 		} else {
 			throw new AssertionError("ERROR: Unable to handle: " + var.getType().getName());
 		}
@@ -243,4 +238,41 @@ public class LTSminStateVector extends LTSminSubVectorStruct {
 	public Variable getPID(Proctype p) {
 		return p.getVariable(C_STATE_PID);
 	}
+
+	/*********************
+	 * LTSminTypeStruct interface is implemented by delegation
+	 * Multiple Inheritance Pattern
+	 ***********************/
+	@Override
+	public String getName() {
+		return state_t.getName();
+	}
+
+	@Override
+	public void addMember(LTSminVariable var) {
+		state_t.addMember(var);
+	}
+
+	@Override
+	public void fix() {
+		state_t.fix();
+	}
+
+	@Override
+	public String printIdentifier(ExprPrinter p, Identifier id) {
+		return state_t.printIdentifier(p, id);
+	}
+
+	@Override
+	public LTSminVariable getMember(String name) {
+		return state_t.getMember(name);
+	}
+
+	// Additional sub type methods:
+
+	public LTSminVariable getMember(Proctype proc) {
+		String name = (null == proc ? C_STATE_GLOBALS : proc.getName());
+		return getMember(name);
+	}
+
 }

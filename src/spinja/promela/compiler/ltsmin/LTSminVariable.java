@@ -1,6 +1,8 @@
 package spinja.promela.compiler.ltsmin;
 
 import spinja.promela.compiler.expression.Expression;
+import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.variable.Variable;
 
 
@@ -9,38 +11,38 @@ import spinja.promela.compiler.variable.Variable;
  * @author FIB, Alfons Laarman
  */
 public class LTSminVariable {
-	private LTSminType type;
+	protected static final String DEREF = ".";
+
+	private LTSminTypeI type;
 	private String name;
 	private int size;
 	private Variable var = null;
 	private Integer offset = null;
+	private LTSminTypeI parent = null;
 
-	public String getName() {
-		return name;
-	}
-
-	protected LTSminVariable(LTSminType type, String name, int size) {
+	protected LTSminVariable(LTSminTypeI type, String name, int size, LTSminTypeI parent) {
 		this.type = type;
 		this.name = name;
 		this.size = size;
+		this.parent = parent;
 	}
 
-	public LTSminVariable(LTSminType type, Variable v) {
-		this(type, v.getName(), v.getArraySize());
+	public LTSminVariable(LTSminTypeI type, Variable v, LTSminTypeI parent) {
+		this(type, v.getName(), v.getArraySize(), parent);
 		this.type = type;
 		this.var = v;
 	}
 
-	public LTSminVariable(LTSminType type, String name) {
-		this(type, name, 0);
+	public LTSminVariable(LTSminTypeI type, String name, LTSminTypeI parent) {
+		this(type, name, 0, parent);
 	}
 
-	public LTSminVariable(Variable var) {
-		this(new LTSminTypeNative(var), var.getName(), var.getArraySize());
+	public LTSminVariable(Variable var, LTSminTypeI parent) {
+		this(new LTSminTypeNative(var), var.getName(), var.getArraySize(), parent);
 		this.var = var;
 	}
 
-	public LTSminType getType() {
+	public LTSminTypeI getType() {
 		return type;
 	}
 
@@ -53,6 +55,14 @@ public class LTSminVariable {
 	}
 	
 	public String toString() {
+		return name;
+	}
+
+	public LTSminTypeI getParent() {
+		return parent;
+	}
+
+	public String getName() {
 		return name;
 	}
 
@@ -76,5 +86,23 @@ public class LTSminVariable {
 	public Expression getInitExpr() {
 		if (var == null) return null;//throw new AssertionError("SpinJa Variable not set for type: "+ this);
 		return var.getInitExpr();
+	}
+
+	public String printIdentifier(ExprPrinter p, Identifier id) {
+		String res = ""; 
+		if (null != id.getArrayExpr()) {
+			res = "["+ p.print(id.getArrayExpr()) +"]";
+		} else {
+			if (size > 1) {
+				throw new AssertionError("No array expression for array: "+ this);
+			}
+		}
+		res += DEREF;
+		return res + getType().printIdentifier(p, id.getSub());
+	}
+
+	public boolean isStructBuffer() {
+		return ( getParent() instanceof LTSminTypeChanStruct &&
+				 name.equals(LTSminTypeChanStruct.CHAN_BUF) );
 	}
 }

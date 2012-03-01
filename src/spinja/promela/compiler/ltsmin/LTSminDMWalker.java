@@ -1,8 +1,8 @@
 package spinja.promela.compiler.ltsmin;
 
 import static spinja.promela.compiler.ltsmin.LTSminStateVector._NR_PR;
-import static spinja.promela.compiler.ltsmin.LTSminStateVector.C_STATE_PROC_COUNTER;
-import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.*;
+import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.CHAN_FILL_VAR;
+import static spinja.promela.compiler.ltsmin.LTSminTypeChanStruct.CHAN_READ_VAR;
 
 import java.util.Collection;
 import java.util.List;
@@ -305,12 +305,12 @@ public class LTSminDMWalker {
 		} else if (e instanceof ChannelSizeExpression) {
 			ChannelSizeExpression cse = (ChannelSizeExpression)e;
 			Identifier id = (Identifier)cse.getIdentifier();
-			Identifier mark = new Identifier(id, CHAN_READ_VAR);
+			Identifier mark = new Identifier(id, CHAN_FILL_VAR);
 			walkExpression(params, mark);
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
-			Identifier mark = new Identifier(id, CHAN_READ_VAR);
+			Identifier mark = new Identifier(id, CHAN_FILL_VAR);
 			walkExpression(params, mark);
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
@@ -324,13 +324,15 @@ public class LTSminDMWalker {
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			Identifier id = (Identifier)co.getExpression();
-			Identifier mark = new Identifier(id, CHAN_READ_VAR);
+			Identifier mark = new Identifier(id, CHAN_FILL_VAR);
 			walkExpression(params, mark);
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
 			Identifier id = cte.getChannelReadAction().getIdentifier();
-			Identifier mark = new Identifier(id, CHAN_READ_VAR);
+			Identifier mark = new Identifier(id, CHAN_FILL_VAR);
 			walkExpression(params, mark);
+			//TODO TODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODOTODO
+			
 		} else if(e instanceof RunExpression) {
 			DMIncRead(params, _NR_PR);
 		} else if(e instanceof MTypeReference) {

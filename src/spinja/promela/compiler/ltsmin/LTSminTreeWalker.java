@@ -710,6 +710,10 @@ state_loop:	for (State st : p.getAutomaton()) {
 		return new Identifier(new Token(IDENTIFIER,v.getName()), v, null);
 	}
 
+	public static Identifier id(Variable v, Expression mod, Identifier sub) {
+		return new Identifier(new Token(IDENTIFIER,v.getName()), v, mod, sub);
+	}
+
 	public static CompareExpression compare(int m, Expression e1, Expression e2) {
 		String name = PromelaConstants.tokenImage[m];
 		return new CompareExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);

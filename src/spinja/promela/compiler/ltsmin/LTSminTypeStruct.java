@@ -4,11 +4,15 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
+
 /**
  *
  * @author FIB
  */
-public class LTSminTypeStruct extends LTSminType implements Iterable<LTSminVariable> {
+public class LTSminTypeStruct extends LTSminTypeImpl implements LTSminTypeStructI<LTSminVariable> {
+	
 	private static final String STRUCT_PREFIX = "struct_";
 	protected String name;
 	private List<LTSminVariable> members;
@@ -30,9 +34,9 @@ public class LTSminTypeStruct extends LTSminType implements Iterable<LTSminVaria
 		return TYPE_PREFIX + STRUCT_PREFIX + name +"_t";
 	}
 
-	public void addMember(LTSminVariable ltSminVariable) {
+	public void addMember(LTSminVariable var) {
 		if (unmodifiable) throw new AssertionError("Modifying sealed structure.");
-		members.add(ltSminVariable);
+		members.add(var);
 	}
 
 	@Override
@@ -67,5 +71,12 @@ public class LTSminTypeStruct extends LTSminType implements Iterable<LTSminVaria
 		for (LTSminVariable v : this)
 			if (v.getName().equals(name)) return v;
 		throw new AssertionError("Struct "+ this +" has no member "+ name);
+	}
+
+	public String printIdentifier(ExprPrinter p, Identifier id) {
+		if (null == id)
+			throw new AssertionError("Inconclusive identifier for: "+ this);
+		LTSminVariable var = getMember(id.getVariable().getName());
+		return var.getName() + var.printIdentifier(p, id);
 	}
 }

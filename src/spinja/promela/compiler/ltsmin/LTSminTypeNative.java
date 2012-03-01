@@ -1,8 +1,10 @@
 package spinja.promela.compiler.ltsmin;
 
+import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.variable.Variable;
 
-public class LTSminTypeNative extends LTSminType {
+public class LTSminTypeNative extends LTSminTypeImpl {
 
 	private static final String C_TYPE_INT8   = "sj_int8";
 	private static final String C_TYPE_INT16  = "sj_int16";
@@ -64,4 +66,9 @@ public class LTSminTypeNative extends LTSminType {
 
 	@Override
 	public void fix() {}
+
+	@Override
+	public String printIdentifier(ExprPrinter p, Identifier id) {
+		return "var";
+	}
 }
