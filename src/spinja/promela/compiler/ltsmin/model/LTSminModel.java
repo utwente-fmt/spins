@@ -72,4 +72,10 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 	public Iterator<LTSminTransition> iterator() {
 		return transitions.iterator();
 	}
+
+	public boolean hasAtomic() {
+		for (LTSminTransition t : this)
+			if (t.isAtomic()) return true;
+		return false;
+	}
 }

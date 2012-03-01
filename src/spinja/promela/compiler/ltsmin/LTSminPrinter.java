@@ -194,16 +194,18 @@ public class LTSminPrinter {
 	}
 	
 	private static void generateHashTable(StringWriter w, LTSminModel model) {
+		if (!model.hasAtomic()) return;
 		try {
-			w.appendLine(readTextFile(model.getClass(), "hashtable.c"));
+			w.appendLine(readTextFile(new LTSminDebug().getClass(), "hashtable.c"));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
 	private static void generateReach(StringWriter w, LTSminModel model) {
+		if (!model.hasAtomic()) return;
 		try {
-			w.appendLine(readTextFile(model.getClass(), "reach.c"));
+			w.appendLine(readTextFile(new LTSminDebug().getClass(), "reach.c"));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
