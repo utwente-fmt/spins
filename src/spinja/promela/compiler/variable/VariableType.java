@@ -24,6 +24,8 @@ public class VariableType {
 
 	public static VariableType BYTE = new VariableType("byte", "int", 8);
 
+	public static VariableType PC = new VariableType("pc", "uint", 8);
+
 	public static VariableType PID = new VariableType("pid", "int", 8);
 
 	public static VariableType SHORT = new VariableType("short", "int", 16);

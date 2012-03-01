@@ -45,17 +45,26 @@ public class LTSminTypeNative extends LTSminTypeImpl {
 	
 	public static String getCType(Variable var)
 			throws AssertionError {
-		switch(var.getType().getBits()) {
-			case 1:
-				return C_TYPE_UINT1;
-			case 8:
-				return C_TYPE_UINT8;
-			case 16:
-				return C_TYPE_INT16;
-			case 32:
-				return C_TYPE_INT32;
-			default:
-				throw new AssertionError("ERROR: Unable to handle: " + var.getName());
+		if (var.getType().getJavaName().equals("int")) {
+			switch(var.getType().getBits()) {
+				case 1:
+					return C_TYPE_UINT1;
+				case 8:
+					return C_TYPE_UINT8;
+				case 16:
+					return C_TYPE_INT16;
+				case 32:
+					return C_TYPE_INT32;
+				default:
+					throw new AssertionError("ERROR: Unable to handle: " + var.getName());
+			}
+		} else {
+			switch(var.getType().getBits()) {
+				case 8:
+					return C_TYPE_INT8;
+				default:
+					throw new AssertionError("ERROR: Unable to handle: " + var.getName() +" ("+ var.getType().getJavaName() + ").");
+			}
 		}
 	}
 

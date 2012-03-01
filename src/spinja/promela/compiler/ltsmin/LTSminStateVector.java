@@ -38,7 +38,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct implements LTSminTy
 	private static final String C_STATE_PID = "_pid";
 	private static final String C_NUM_PROCS_VAR = "_nr_pr";
 
-	public static final VariableType C_TYPE_PROC_COUNTER 	= VariableType.BYTE;
+	public static final VariableType C_TYPE_PROC_COUNTER 	= VariableType.PC;
 	public static final VariableType C_TYPE_PID 			= VariableType.PID;
 
 	public static final Variable _NR_PR = new Variable(VariableType.BYTE, C_NUM_PROCS_VAR, 1);
@@ -179,7 +179,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct implements LTSminTy
 	private void addVariable(LTSminTypeStruct struct, Variable var, LTSminDebug debug) {
 		String name = var.getName();
 		LTSminVariable lvar = null;
-		
+
 		// Create LTSminType for the Variable
 		if(var instanceof ChannelVariable) {
 			ChannelVariable cv = (ChannelVariable)var;
@@ -191,7 +191,6 @@ public class LTSminStateVector extends LTSminSubVectorStruct implements LTSminTy
 			LTSminTypeI infoType = new LTSminTypeChanStruct(cv);
 			lvar = new LTSminVariable(infoType, var, struct);
 		} else if(var.getType() instanceof VariableType) {
-		   	assert (var.getType().getJavaName().equals("int"));
 			debug.say("\t"+ var.getType().getName() +" "+ name);
 			lvar = new LTSminVariable(new LTSminTypeNative(var), var, struct);
 		} else if (var.getType() instanceof CustomVariableType) {
