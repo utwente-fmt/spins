@@ -28,6 +28,7 @@ import static spinja.promela.compiler.parser.PromelaConstants.TRUE;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -235,12 +236,18 @@ public class LTSminPrinter {
 
 	private static void generateInitialState(StringWriter w, LTSminModel model) {
 		// Generate initial state
-		w.append(C_STATE +" "+ INITIAL_VAR +" = ("+ C_STATE +"){");
-		
+		w.append(C_STATE +" "+ INITIAL_VAR +" = ("+ C_STATE +") {");
+		w.indent();
 		// Insert initial expression of each state element into initial state struct
 		for (LTSminSlot slot : model.sv) {
 			if (0 != slot.getIndex())
 				w.append(",");
+			w.appendPostfix().appendPrefix();
+			w.append(slot.fullName());
+			char[] chars = new char[40 - slot.fullName().length()];
+			Arrays.fill(chars, ' '); 
+			String prefix = new String(chars);
+			w.append(prefix +" = ");
 			LTSminVariable v = slot.getVariable();
 			assert (v!=null);
 			Expression e = v.getInitExpr();
@@ -253,7 +260,9 @@ public class LTSminPrinter {
 					throw new AssertionError("Cannot parse inital value of state vector: "+ e);
 				}
 			}
+			
 		}
+		w.outdent().appendPostfix();
 		w.appendLine("};");
 		w.appendLine("");
 		
