@@ -942,13 +942,12 @@ public class LTSminPrinter {
 		w.appendLine("static const char* var_names[] = {");
 		w.indent();
 		for (LTSminSlot slot : model.sv) {
-			w.appendPrefix();
 			if (0 != slot.getIndex())
-				w.append(",");
+				w.append(",").appendPostfix();
+			w.appendPrefix();
 			w.append("\""+ slot.getVariable() +"\"");
-			w.appendPostfix();
 		}
-		w.outdent();
+		w.outdent().appendPostfix();
 		w.appendLine("};");
 
 		// Generate static list of types
