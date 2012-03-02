@@ -20,13 +20,14 @@ public class LTSminTypeNative extends LTSminTypeImpl {
 	private static final String C_TYPE_UINT32 = "sj_uint32";
 
 	public static final String ACCESS = "var";
-	public static final LTSminTypeNative TYPE_BOOL = new LTSminTypeNative(C_TYPE_UINT1); 
-	public static final LTSminTypeNative TYPE_INT8 = new LTSminTypeNative(C_TYPE_INT8); 
-	public static final LTSminTypeNative TYPE_INT16 = new LTSminTypeNative(C_TYPE_INT16); 
-	public static final LTSminTypeNative TYPE_INT32 = new LTSminTypeNative(C_TYPE_INT32); 
-	public static final LTSminTypeNative TYPE_UINT8 = new LTSminTypeNative(C_TYPE_UINT8); 
-	public static final LTSminTypeNative TYPE_UINT16 = new LTSminTypeNative(C_TYPE_UINT16); 
-	public static final LTSminTypeNative TYPE_UINT32 = new LTSminTypeNative(C_TYPE_UINT32); 
+	public static final LTSminTypeNative TYPE_BOOL = new LTSminTypeNative(C_TYPE_UINT1);
+	public static final LTSminTypeNative TYPE_INT8 = new LTSminTypeNative(C_TYPE_INT8);
+	public static final LTSminTypeNative TYPE_INT16 = new LTSminTypeNative(C_TYPE_INT16);
+	public static final LTSminTypeNative TYPE_INT32 = new LTSminTypeNative(C_TYPE_INT32);
+	public static final LTSminTypeNative TYPE_UINT8 = new LTSminTypeNative(C_TYPE_UINT8);
+	public static final LTSminTypeNative TYPE_UINT16 = new LTSminTypeNative(C_TYPE_UINT16);
+	public static final LTSminTypeNative TYPE_UINT32 = new LTSminTypeNative(C_TYPE_UINT32);
+	public static final LTSminTypeNative TYPE_PC = TYPE_INT8;
 
 	Variable var = null;
 	String name;

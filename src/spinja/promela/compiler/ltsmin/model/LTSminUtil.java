@@ -41,6 +41,10 @@ public class LTSminUtil {
 		return new Identifier(new Token(IDENTIFIER,v.getName()), v, null);
 	}
 
+	public static Identifier id(Variable v, int c) {
+		return new Identifier(new Token(IDENTIFIER,v.getName()), v, constant(c), null);
+	}
+
 	public static Identifier id(Variable v, Expression mod, Identifier sub) {
 		return new Identifier(new Token(IDENTIFIER,v.getName()), v, mod, sub);
 	}

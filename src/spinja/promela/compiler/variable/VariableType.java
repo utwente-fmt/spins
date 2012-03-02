@@ -87,6 +87,16 @@ public class VariableType {
 		return name;
 	}
 
+	public boolean equals(Object o) {
+		if (o == null)
+			return false;
+		if (!(o instanceof VariableType))
+			return false;
+		VariableType ot = (VariableType)o;
+		return this == ot || (bits == ot.bits && name.equals(ot.name) &&
+								javaName.equals(ot.javaName)); 
+	}
+
 	public void writeVariableClass(final StringWriter w) throws ParseException {
 		// For standard classes (int, byte etc..) this is not needed.
 	}

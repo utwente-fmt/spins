@@ -1,15 +1,15 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
+import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_TYPE_PROC_COUNTER;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.INCR;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
-import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssignAction;
 import spinja.promela.compiler.actions.ChannelReadAction;
@@ -17,15 +17,12 @@ import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.actions.ElseAction;
 import spinja.promela.compiler.actions.ExprAction;
 import spinja.promela.compiler.actions.OptionAction;
-import spinja.promela.compiler.actions.Sequence;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
-import spinja.promela.compiler.expression.ChannelOperation;
-import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
-import spinja.promela.compiler.expression.RunExpression;
+import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
@@ -35,18 +32,16 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
 import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
-import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
 import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
+import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.PromelaTokenManager;
-import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
-import spinja.promela.compiler.variable.VariableType;
 
 /**
  *
@@ -80,7 +75,7 @@ public class LTSminGMWalker {
 		generateGuardMatrix(model, guardInfo);
 		
 		// generate Maybe Coenabled matrix
-		generateCoenMatrix (guardInfo);
+		generateCoenMatrix (model, guardInfo);
 		
 		// generate NES matrix
 		generateNESMatrix (model, guardInfo);
@@ -130,32 +125,19 @@ public class LTSminGMWalker {
 	}
 	
 	private static boolean is_nes_guard(Expression g, LTSminTransition transition) {
-		Identifier gid;
-		Expression gexp;
-		try {
-			CompareExpression comp = (CompareExpression)g;
-			gid = (Identifier)comp.getExpr1();
-			gexp = (Expression)comp.getExpr2();
-		} catch (ClassCastException cse) {
-			try {
-				CompareExpression comp = (CompareExpression)g;
-				gid = (Identifier)comp.getExpr2();
-				gexp = (Expression)comp.getExpr1();
-			} catch (ClassCastException cse2) {
-				return true; // only handle simple predicates expressions
-			}
-		}
-		
-		
 		for (Action a : ((LTSminTransition)transition).getActions()) {
 			if (a instanceof AssignAction) {
 				AssignAction ae = (AssignAction)a;
 				Identifier id = ae.getIdentifier();
 				switch (ae.getToken().kind) {
 					case ASSIGN:
-						try {
-							int value = ae.getExpr().getConstantValue();
-						} catch (ParseException ex) {}
+						if (id.getVariable().getType().equals(C_TYPE_PROC_COUNTER)) {
+					        List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
+							extract_predicates(sps, g);
+							for (SimplePredicate sp : sps) {
+								//if (sp.var.endsWith(suffix))
+							}
+						}
 						break;
 					case INCR:
 						break;
@@ -171,40 +153,22 @@ public class LTSminGMWalker {
 				try {
 					String sideEffect = ea.getExpression().getSideEffect();
 					if (sideEffect != null) {
-						RunExpression re = (RunExpression)ea.getExpression();
-						//Action update_pc = LTSminTreeWalker.assign(model.sv.getPC(target), 0);
-						//Action update_pid = LTSminTreeWalker.assign(model.sv.getPID(target),
-						//		LTSminTreeWalker.id(LTSminStateVector._NR_PR));
-
-						Proctype target = re.getSpecification().getProcess(re.getId());
-						List<Variable> args = target.getArguments();
-						Iterator<Expression> eit = re.getExpressions().iterator();
+						//RunExpression re = (RunExpression)ea.getExpression();
 						
-						//write to the arguments of the target process
-						for (Variable v : args) {
-							Expression e = eit.next();
-							//channels are passed by reference: TreeWalker.bindByReferenceCalls 
-							if (!(v.getType() instanceof ChannelType)) {
-								Action aa = assign(v, e);
-								//generateAction(w, aa, model);
-							}
-						}
 					}
 				} catch (ParseException e) {}
 			} else if(a instanceof ChannelSendAction) {
-				ChannelSendAction csa = (ChannelSendAction)a;
-				ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
+				//ChannelSendAction csa = (ChannelSendAction)a;
 			} else if(a instanceof OptionAction) { // options in a d_step sequence
-				OptionAction oa = (OptionAction)a;
-				for (Sequence seq : oa) {
-					Action act = seq.iterator().next(); // guaranteed by parser
+				//OptionAction oa = (OptionAction)a;
+				//for (Sequence seq : oa) {
+					//Action act = seq.iterator().next(); // guaranteed by parser
 					//if (act instanceof ElseAction)
-				}
+				//}
+			} else if(a instanceof ChannelReadAction) {
+				//ChannelReadAction cra = (ChannelReadAction)a;
 			} else if(a instanceof ElseAction) {
 				throw new AssertionError("ElseAction outside OptionAction!");
-			} else if(a instanceof ChannelReadAction) {
-				ChannelReadAction cra = (ChannelReadAction)a;
-				ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
 			} 
 		}
 		return true;
@@ -214,7 +178,7 @@ public class LTSminGMWalker {
 	 * MCE
 	 * ************/
 	
-	private static void generateCoenMatrix(GuardInfo gm) {
+	private static void generateCoenMatrix(LTSminModel model, GuardInfo gm) {
 		DepMatrix co = new DepMatrix(gm.size(), gm.size());
 		gm.setCoMatrix(co);
 		int neverCoEnabled = 0;
@@ -222,7 +186,7 @@ public class LTSminGMWalker {
 			// same guard is always coenabled:
 			co.incRead(i, i);
 			for (int j = i+1; j < gm.size(); j++) {
-				if (mayBeCoenabled(gm.get(i),gm.get(j))) {
+				if (mayBeCoenabled(model, gm.get(i),gm.get(j))) {
 					co.incRead(i, j);
 					co.incRead(j, i);
 				} else {
@@ -234,22 +198,22 @@ public class LTSminGMWalker {
 		System.out.println("Found "+ neverCoEnabled +"/"+ gm.size()*gm.size()/2 +" guards that can never be enabled at the same time!");
 	}
 	
-	private static boolean mayBeCoenabled(LTSminGuard g1, LTSminGuard g2) {
-		return mayBeCoenabledStronger (g1.expr, g2.expr);
+	private static boolean mayBeCoenabled(LTSminModel model, LTSminGuard g1, LTSminGuard g2) {
+		return mayBeCoenabled (model, g1.expr, g2.expr);
 	}
 
 	/**
 	 * Determine MCE over disjuctions: MCE holds for ex1 and ex2 iff 
 	 * it holds over for all d1,d2 in conjuctions(ex1) X conjunctions(ex2)
 	 */
-	private static boolean mayBeCoenabledStronger(Expression ex1, Expression ex2) {
+	private static boolean mayBeCoenabledStronger(LTSminModel model, Expression ex1, Expression ex2) {
         List<Expression> ga_ex = new ArrayList<Expression>();
         List<Expression> gb_ex = new ArrayList<Expression>();
         extract_conjunctions (ga_ex, ex1);
         extract_conjunctions (gb_ex, ex2);
         for(Expression a : ga_ex) {
             for(Expression b : gb_ex) {
-                if (!mayBeCoenabledStrong(a, b)) {
+                if (!mayBeCoenabledStrong(model, a, b)) {
                 	return false;
                 }
             }
@@ -279,14 +243,14 @@ public class LTSminGMWalker {
 	 * Determine MCE over disjuctions: MCE holds for ex1 and ex2 iff 
 	 * it holds for one d1,d2 in disjuctions(ex1) X disjunctions(ex2)
 	 */
-	private static boolean mayBeCoenabledStrong(Expression ex1, Expression ex2) {
+	private static boolean mayBeCoenabledStrong(LTSminModel model, Expression ex1, Expression ex2) {
         List<Expression> ga_ex = new ArrayList<Expression>();
         List<Expression> gb_ex = new ArrayList<Expression>();
         extract_disjunctions (ga_ex, ex1);
         extract_disjunctions (gb_ex, ex2);
         for(Expression a : ga_ex) {
             for(Expression b : gb_ex) {
-                if (mayBeCoenabled(a, b)) {
+                if (mayBeCoenabled(model, a, b)) {
                 	return true;
                 }
             }
@@ -313,28 +277,36 @@ public class LTSminGMWalker {
 	}
 
 	static class SimplePredicate {
-		public SimplePredicate(int kind, String var, int c) {
+		public SimplePredicate(int kind, Identifier id, int c) {
 			comparison = kind;
-			this.var = var;
+			this.id = id;
 			this.constant = c;
 		}
+
 		public int comparison;
-		public String var;
+		public Identifier id;
+		public String ref = null;
 		public int constant;
+		
+		public String getRef(LTSminModel model) {
+			LTSminPointer svp = new LTSminPointer(model.sv, "");
+			ExprPrinter p = new ExprPrinter(svp);
+			return p.print(id);
+		}
 	}
 
 	/**
 	 * Determine MCE over conjunctions: MCE holds for ex1 and ex2 iff 
 	 * all sp1,sp2 in simplePreds(ex1) X simplePreds(ex2) do no conflict
 	 */
-	private static boolean mayBeCoenabled(Expression ex1, Expression ex2) {
+	private static boolean mayBeCoenabled(LTSminModel model, Expression ex1, Expression ex2) {
         List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
         List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
         extract_predicates(ga_sp, ex1);
         extract_predicates(gb_sp, ex2);
         for(SimplePredicate a : ga_sp) {
             for(SimplePredicate b : gb_sp) {
-                if (is_conflict_predicate(a, b)) {
+                if (is_conflict_predicate(model, a, b)) {
                 	return false;
                 }
             }
@@ -350,7 +322,7 @@ public class LTSminGMWalker {
 	 */
 	private static void extract_predicates(List<SimplePredicate> sp, Expression e) {
 		int c;
-		String var;
+		Identifier var;
     	if(e instanceof CompareExpression) {
     		CompareExpression ce1 = (CompareExpression)e;
     		try {
@@ -364,19 +336,24 @@ public class LTSminGMWalker {
             		sp.add(new SimplePredicate(e.getToken().kind, var, c));
         		} catch (ParseException pe2) {}
     		}
-		} else if(e instanceof ChannelTopExpression) {
+		}/* else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
 			Identifier id = cte.getChannelReadAction().getIdentifier();
+			ChannelVariable cv = (ChannelVariable)id.getVariable();
 			int i = 0;
+			Identifier chan;
 			for (Expression read : cte.getChannelReadAction().getExprs()) {
 				try { // this is a conjunction of matchings
 					i += 1;
-	    			var = getConstantVar(id) +"["+ i +"]";
+					chan = getConstantVar(id);
+					Identifier elem = id(elemVar(i));
+					Identifier buf = id(bufferVar(cv), constant(0), elem); // top is equal to top on the same channel!
+					var = new Identifier(chan, buf);
 	    			c = read.getConstantValue();
             		sp.add(new SimplePredicate(e.getToken().kind, var, c));
 	    		} catch (ParseException pe2) {}
 			}
-		} else if(e instanceof ChannelReadExpression) {
+		} else if(e instanceof ChannelReadExpression) { //TODO: buffer isBufferVar
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
 			extract_predicates(sp, compare(PromelaConstants.GT,
@@ -412,7 +389,7 @@ public class LTSminGMWalker {
 				right = constant (buffer);
 			}
 			extract_predicates(sp, compare(op, left, right));
-		} else if(e instanceof BooleanExpression) {
+		}*/ else if(e instanceof BooleanExpression) {
     		BooleanExpression ce = (BooleanExpression)e;
     		if (ce.getToken().kind == PromelaTokenManager.BAND ||
     			ce.getToken().kind == PromelaTokenManager.LAND) {
@@ -426,36 +403,47 @@ public class LTSminGMWalker {
 	 * Tries to parse an expression as a reference to a singular (channel)
 	 * variable or a constant index in array variable (a cvarref).
 	 */
-	private static String getConstantVar(Expression e) throws ParseException {
+	private static Identifier getConstantVar(Expression e) throws ParseException {
 		if (e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
-			if (var.getArraySize() > 1)
-				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"]"; // may throw exception
+			if (var instanceof ChannelVariable)
+				throw new ParseException(); //TODO
+			if (var.getArraySize() > 1) {
+				 int c = id.getArrayExpr().getConstantValue(); // may throw exception
+				 return id(var, c);
+			} else {
+				return id(var);
+			}
 			/*if (var instanceof ChannelVariable) {
 				if (((ChannelVariable)var).getType().getBufferSize() > 1)
 					throw new ParseException();
-			}*/ // only needed for random channel reads; not for topExpr + readExpr 
-			return var.getRealName();
-		} else if (e instanceof ChannelSizeExpression)  {
+			}*/ // only needed for random channel reads; not for topExpr + readExpr \
+		}/* else if (e instanceof ChannelSizeExpression)  {
 			Identifier id = ((ChannelSizeExpression)e).getIdentifier();
 			Variable var = id.getVariable();
 			if (var.getArraySize() > 1)
-				return var.getRealName()+ "["+ id.getArrayExpr().getConstantValue() +"].filled"; // may throw exception
-			return var.getRealName() +".filled";
+				id.getArrayExpr().getConstantValue(); // may throw exception
+			return chanLength(id(var));
 		} else if (e instanceof ChannelLengthExpression)  {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
 			return getConstantVar(new ChannelSizeExpression(id));
-		}
+		}*/
 		throw new ParseException();
 	}
 
-	private static boolean is_conflict_predicate(SimplePredicate p1, SimplePredicate p2) {
+	private static boolean is_conflict_predicate(LTSminModel model, SimplePredicate p1, SimplePredicate p2) {
 	    // assume no conflict
 	    boolean no_conflict = true;
 	    // conflict only possible on same variable
-	    if (p1.var.equals(p2.var)) {
+	    //try {
+		    String ref = p1.getRef(model);
+			String ref2 = p2.getRef(model);
+	    //} catch (AssertionError ae) {
+	    	
+	    //}
+		if (ref.equals(ref2)) {
 	        switch(p1.comparison) {
 	            case PromelaConstants.LT:
 	                // no conflict if one of these cases
@@ -464,7 +452,6 @@ public class LTSminGMWalker {
 	                (p2.constant == p1.constant - 1 && p2.comparison != PromelaConstants.GT) ||
 	                (p2.comparison == PromelaConstants.LT || p2.comparison == PromelaConstants.LTE || p2.comparison == PromelaConstants.NEQ);
 	                break;
-	
 	            case PromelaConstants.LTE:
 	                // no conflict if one of these cases
 	                no_conflict =
@@ -472,7 +459,6 @@ public class LTSminGMWalker {
 	                (p2.constant == p1.constant && p2.comparison != PromelaConstants.GT) ||
 	                (p2.comparison == PromelaConstants.LT || p2.comparison == PromelaConstants.LTE || p2.comparison == PromelaConstants.NEQ);
 	                break;
-	
 	            case PromelaConstants.EQ:
 	                // no conflict if one of these cases
 	                no_conflict =
@@ -481,14 +467,12 @@ public class LTSminGMWalker {
 	                (p2.constant < p1.constant && p2.comparison == PromelaConstants.GT || p2.comparison == PromelaConstants.GTE) ||
 	                (p2.constant > p1.constant && (p2.comparison == PromelaConstants.LT || p2.comparison == PromelaConstants.LTE));
 	                break;
-	
 	            case PromelaConstants.NEQ:
 	                // no conflict if one of these cases
 	                no_conflict =
 	                (p2.constant != p1.constant) ||
 	                (p2.constant == p1.constant && p2.comparison != PromelaConstants.EQ);
 	                break;
-	
 	            case PromelaConstants.GT:
 	                // no conflict if one of these cases
 	                no_conflict =
@@ -496,7 +480,6 @@ public class LTSminGMWalker {
 	                (p2.constant == p1.constant + 1 && p2.comparison != PromelaConstants.LT) ||
 	                (p2.comparison == PromelaConstants.GT || p2.comparison == PromelaConstants.GTE || p2.comparison == PromelaConstants.NEQ);
 	                break;
-	
 	            case PromelaConstants.GTE:
 	                // no conflict if one of these cases
 	                no_conflict =
