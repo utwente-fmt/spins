@@ -85,6 +85,11 @@ public class LTSminUtil {
 		return printVar(var, out);
 	}
 
+	public static String printPID(Proctype process, LTSminPointer out) {
+		Variable var = out.getPID(process);
+		return printVar(var, out);
+	}
+
 	public static String printVar(Variable var, LTSminPointer out) {
 		return printId(new Identifier(var), out);
 	}

@@ -1,6 +1,18 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanRead;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelTop;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.exception;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printId;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPC;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPID;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_STATE;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
@@ -332,22 +344,19 @@ public class LTSminPrinter {
 			w.indent();
 			w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
 			List<Action> actions = t.getActions();
-			for(Action a: actions) {
+			for(Action a: actions)
 				generateAction(w,a,model);
-			}
 			if (t.isAtomic()) {
+				String pid = printPID(transition.getProcess(), out(model));
 				w.appendLine("if (-1!=atomic) {");
-					w.indent();
-					generateACallback(w,transition.getGroup());
-					w.outdent();
+				w.indent();
+				generateACallback(w,transition.getGroup());
+				w.outdent();
 				w.appendLine("} else {");
 				w.indent();
-					
-					w.appendLine("transition_info.group = "+ transition.getGroup() +";");
-					w.append("int count = reach (model, &transition_info, tmp, callback, arg, "); 
-					
-					w.appendLine(");");
-					w.appendLine("states_emitted += count;");
+				w.appendLine("transition_info.group = "+ transition.getGroup() +";");
+				w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ pid +");");
+				w.appendLine("states_emitted += count;");
 				w.outdent();
 				w.appendLine("}");
 			} else {
@@ -487,7 +496,7 @@ public class LTSminPrinter {
 			String name = rpa.getProcess().getName();
 			String struct_t = model.sv.getMember(rpa.getProcess()).getType().getName();
 			w.appendLine("#ifndef NORESETPROCESS");
-			w.appendLine("memcpy(&",OUT_VAR,",(char*)&(",INITIAL_VAR,".",name,"),sizeof("+ struct_t +"));");
+			w.appendLine("memcpy(",OUT_VAR,",(char*)&(",INITIAL_VAR,".",name,"),sizeof("+ struct_t +"));");
 			w.appendLine("#endif");
 			w.appendLine(printVar(_NR_PR, out(model)) +"--;");
 			w.appendLine(printPC(rpa.getProcess(), out(model)) +" = -1;");
