@@ -1,8 +1,6 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.channelTop;
-import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.compare;
-import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.constant;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.INCR;
@@ -132,13 +130,27 @@ public class LTSminGMWalker {
 	}
 	
 	private static boolean is_nes_guard(Expression g, LTSminTransition transition) {
-		Set<VariableAccess> s = g.readVariables();
-	
-		for (Action a : new HashSet<Action>()){//((LTSminTransition)transition).getActions()) {
+		Identifier gid;
+		Expression gexp;
+		try {
+			CompareExpression comp = (CompareExpression)g;
+			gid = (Identifier)comp.getExpr1();
+			gexp = (Expression)comp.getExpr2();
+		} catch (ClassCastException cse) {
+			try {
+				CompareExpression comp = (CompareExpression)g;
+				gid = (Identifier)comp.getExpr2();
+				gexp = (Expression)comp.getExpr1();
+			} catch (ClassCastException cse2) {
+				return true; // only handle simple predicates expressions
+			}
+		}
+		
+		
+		for (Action a : ((LTSminTransition)transition).getActions()) {
 			if (a instanceof AssignAction) {
 				AssignAction ae = (AssignAction)a;
 				Identifier id = ae.getIdentifier();
-				final String mask = id.getVariable().getType().getMask();
 				switch (ae.getToken().kind) {
 					case ASSIGN:
 						try {
@@ -173,7 +185,7 @@ public class LTSminGMWalker {
 							Expression e = eit.next();
 							//channels are passed by reference: TreeWalker.bindByReferenceCalls 
 							if (!(v.getType() instanceof ChannelType)) {
-								Action aa = LTSminTreeWalker.assign(v, e);
+								Action aa = assign(v, e);
 								//generateAction(w, aa, model);
 							}
 						}
