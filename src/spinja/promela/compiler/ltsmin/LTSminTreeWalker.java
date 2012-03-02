@@ -1,6 +1,12 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.bool;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -197,7 +203,6 @@ public class LTSminTreeWalker {
 				continue;
 			//LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
 			//linearize(tc.getRealTransition().getTo(), seen, tc, trans);
-			//TODO: bundle reachable atomic transition for DM 
 		}
 
 		/*
@@ -626,7 +631,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 	private int createRendezVousTransition(SendAction sa, ReadAction ra,
 										   int trans, Transition never_t) {
 		String name = makeTranstionName(sa.t, ra.t, never_t);
-		LTSminTransition lt = isAtomic(sa.t) ? //TODO
+		LTSminTransition lt = isAtomic(sa.t) ?
 									new LTSminTransitionCombo(trans, name,  ra.p, sa.t) :
 									new LTSminTransition(trans, name, ra.p);
 		lt.leavesAtomic(leavesAtomic(sa.t));
