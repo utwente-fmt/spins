@@ -426,8 +426,4 @@ public class Specification implements Iterable<Proctype> {
 		}
 		this.never = never;
 	}
-
-	List<ChannelType> getChannels() {
-		return channels;
-	}
 }
