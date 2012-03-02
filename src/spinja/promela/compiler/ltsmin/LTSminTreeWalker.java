@@ -1,6 +1,6 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.parser.PromelaConstants.IDENTIFIER;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,10 +25,7 @@ import spinja.promela.compiler.actions.Sequence;
 import spinja.promela.compiler.automaton.ElseTransition;
 import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
-import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
-import spinja.promela.compiler.expression.CompareExpression;
-import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RunExpression;
@@ -50,7 +47,6 @@ import spinja.promela.compiler.ltsmin.model.TimeoutTransition;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
-import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
@@ -698,53 +694,6 @@ state_loop:	for (State st : p.getAutomaton()) {
 			name += " X "+ makeTranstionName(never_t);
 		return name;
 	}
-
-	public static ChannelTopExpression channelTop(Identifier id, int i) {
-		return new ChannelTopExpression(new ChannelReadAction(null, id), i);
-	}
-
-	public static AssignAction assign(Variable v, Expression expr) {
-		return assign (id(v), expr);
-	}
-	
-	public static AssignAction assign(Identifier id, Expression expr) {
-		return new AssignAction(new Token(PromelaConstants.ASSIGN,"="), id, expr);
-	}
-
-	public static AssignAction assign(Variable v, int nr) {
-		return assign(id(v), constant(nr));
-	}
-
-	public static Identifier id(Variable v) {
-		return new Identifier(new Token(IDENTIFIER,v.getName()), v, null);
-	}
-
-	public static Identifier id(Variable v, Expression mod, Identifier sub) {
-		return new Identifier(new Token(IDENTIFIER,v.getName()), v, mod, sub);
-	}
-
-	public static CompareExpression compare(int m, Expression e1, Expression e2) {
-		String name = PromelaConstants.tokenImage[m];
-		return new CompareExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
-	}
-	
-	public static BooleanExpression bool(int m, Expression e1, Expression e2) {
-		String name = PromelaConstants.tokenImage[m];
-		return new BooleanExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
-	}
-	 
-	public static AritmicExpression calc(int m, Expression e1, Expression e2) {
-		String name = PromelaConstants.tokenImage[m];
-		return new AritmicExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
-	}
-	
-	public static Expression compare(int m, Expression e1, int nr) {
-		return compare(m, e1, constant(nr));
-	}
-
-	public static ConstantExpression constant(int nr) {
-		return new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+nr), nr);
-	}
 	
     private Expression makePCGuard(State s, Proctype p) {
 		Variable pc = model.sv.getPC(p);
@@ -772,9 +721,5 @@ state_loop:	for (State st : p.getAutomaton()) {
 		Expression left = new ChannelSizeExpression(id);
 		Expression e = compare(PromelaConstants.GT, left, constant(0));
 		return e;
-	}
-
-	public static AssertionError error(String string, Token token) {
-		return new AssertionError(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
 	}
 }

@@ -21,7 +21,6 @@ import java.util.Set;
 
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
-import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableAccess;
 import spinja.promela.compiler.variable.VariableType;
 import spinja.util.StringWriter;

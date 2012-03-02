@@ -1,13 +1,8 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.calc;
-import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.channelTop;
-import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.constant;
-import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.id;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_STATE;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
-import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_FILL_VAR;
-import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_READ_VAR;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_BOOL;
@@ -79,7 +74,6 @@ import spinja.promela.compiler.ltsmin.state.LTSminTypeStruct;
 import spinja.promela.compiler.ltsmin.state.LTSminVariable;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
-import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
@@ -543,13 +537,13 @@ public class LTSminPrinter {
 					w.appendLine("}");
 					
 					//activate process
-					Action update_pc = LTSminTreeWalker.assign(model.sv.getPC(target), 0);
+					Action update_pc = assign(model.sv.getPC(target), 0);
 					generateAction(w, update_pc, model);
 					w.appendLine("++("+ printVar(_NR_PR, out(model)) +");");
 					
 					//set pid
-					Action update_pid = LTSminTreeWalker.assign(model.sv.getPID(target),
-							LTSminTreeWalker.id(LTSminStateVector._NR_PR));
+					Action update_pid = assign(model.sv.getPID(target),
+												id(LTSminStateVector._NR_PR));
 					generateAction(w, update_pid, model);
 					
 					List<Variable> args = target.getArguments();
@@ -561,7 +555,7 @@ public class LTSminPrinter {
 						Expression e = eit.next();
 						//channels are passed by reference: TreeWalker.bindByReferenceCalls 
 						if (!(v.getType() instanceof ChannelType)) {
-							Action aa = LTSminTreeWalker.assign(v, e);
+							Action aa = assign(v, e);
 							generateAction(w, aa, model);
 						}
 					}
@@ -662,32 +656,6 @@ public class LTSminPrinter {
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
-	}
-
-	private static Identifier chanLength(Identifier id) {
-		return new Identifier(id, CHAN_FILL_VAR);
-	}
-
-	private static Identifier chanRead(Identifier id) {
-		return new Identifier(id, CHAN_READ_VAR);
-	}
-
-	private static String printPC(Proctype process, LTSminPointer out) {
-		Variable var = out.getPC(process);
-		return printVar(var, out);
-	}
-
-	private static String printVar(Variable var, LTSminPointer out) {
-		return printId(new Identifier(var), out);
-	}
-
-	private static String printId(Identifier id, LTSminPointer out) {
-		ExprPrinter printer = new ExprPrinter(out);
-		return printer.print(id);
-	}
-
-	private static ParseException exception(String string, Token token) {
-		return new ParseException(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");
 	}
 
 	public static class ExprPrinter {
@@ -823,7 +791,7 @@ public class LTSminPrinter {
 			Variable var = id.getVariable();
 			VariableType type = var.getType();
 			if (!(type instanceof ChannelType) || ((ChannelType)type).getBufferSize()==-1)
-				throw LTSminTreeWalker.error("Unknown channel length of channel "+ var.getName(), co.getToken());
+				throw error("Unknown channel length of channel "+ var.getName(), co.getToken());
 			int buffer = ((ChannelType)type).getBufferSize();
 			w.append("(");
 			generateExpression(w, chanLength(id), state);

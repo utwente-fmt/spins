@@ -1,6 +1,6 @@
 package spinja.promela.compiler.ltsmin.state;
 
-import static spinja.promela.compiler.ltsmin.LTSminTreeWalker.constant;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
 
 import java.util.ArrayList;
 import java.util.Iterator;
