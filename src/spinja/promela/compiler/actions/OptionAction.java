@@ -29,8 +29,12 @@ import spinja.util.StringWriter;
 
 public class OptionAction extends Action implements Iterable<Sequence> {
 	private final boolean loops;
+	
+	private String label = null;
 
 	private final List<Sequence> options;
+
+	private boolean hasSuccessor = false;
 
 	public OptionAction(Token token, boolean loops) {
 		super(token);
@@ -140,5 +144,24 @@ public class OptionAction extends Action implements Iterable<Sequence> {
 	@Override
 	public Iterator<Sequence> iterator() {
 		return options.iterator();
+	}
+
+	static int number = 0; // TODO
+	public String newLabel() {
+		if (label == null)
+			label = "do_label_"+ number++;
+		return label;
+	}
+	
+	public String getLabel() {
+		return label;
+	}
+
+	public boolean hasSuccessor() {
+		return hasSuccessor;
+	}
+
+	public void hasSuccessor(boolean hasSuccessor) {
+		this.hasSuccessor = hasSuccessor;
 	}
 }

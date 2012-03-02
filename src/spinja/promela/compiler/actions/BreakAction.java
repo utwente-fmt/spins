@@ -19,9 +19,11 @@ import spinja.promela.compiler.parser.Token;
 import spinja.util.StringWriter;
 
 public class BreakAction extends Action {
+	private OptionAction loop;
 
-	public BreakAction(Token token) {
+	public BreakAction(Token token, OptionAction loop) {
 		super(token);
+		this.loop = loop;
 	}
 
 	@Override
@@ -39,4 +41,7 @@ public class BreakAction extends Action {
 		return "break";
 	}
 
+	public OptionAction getLoop() {
+		return loop;
+	}
 }

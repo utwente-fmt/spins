@@ -43,6 +43,7 @@ import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssertAction;
 import spinja.promela.compiler.actions.AssignAction;
+import spinja.promela.compiler.actions.BreakAction;
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.actions.ElseAction;
@@ -599,17 +600,31 @@ public class LTSminPrinter {
 				}
 				w.append(") {").appendPostfix();
 				w.indent();
-				for (Action act : seq)
+				for (Action act : seq) {
+					if (act instanceof BreakAction) {
+						OptionAction loop = ((BreakAction)act).getLoop();
+						String label = loop.newLabel();
+						w.appendLine("goto "+ label +";");
+					}
 					generateAction(w, act, model);
+				}
 				w.outdent();
 				first = false;
 			}
 			if (oa.loops()) {
 				w.appendPrefix().appendLine("} else { printf(\"Blocking loop in d_step\"); exit(1); }");
 				w.appendLine("}");
+				String label = oa.getLabel();
+				if (null != label) {
+					if (!oa.hasSuccessor())
+						System.err.println("Warning place skip after loop in d_step for clean break in SPIN.");
+					w.append(label +":");
+				}
 			} else {
 				w.appendLine("}");
 			}
+		} else if(a instanceof BreakAction) {
+			// noop
 		} else if(a instanceof ElseAction) {
 			// noop
 		} else if(a instanceof ChannelSendAction) {

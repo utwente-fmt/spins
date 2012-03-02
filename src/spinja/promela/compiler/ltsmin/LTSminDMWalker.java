@@ -16,6 +16,7 @@ import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssertAction;
 import spinja.promela.compiler.actions.AssignAction;
+import spinja.promela.compiler.actions.BreakAction;
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.actions.ElseAction;
@@ -230,6 +231,8 @@ public class LTSminDMWalker {
 					}
 				}
 			}
+		} else if(a instanceof BreakAction) {
+			// noop
 		} else if(a instanceof ElseAction) {
 			// noop
 		} else if(a instanceof ChannelSendAction) {

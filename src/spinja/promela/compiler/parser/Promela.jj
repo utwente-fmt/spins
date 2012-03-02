@@ -363,10 +363,10 @@ void utype(): {
 }{
 	<TYPEDEF> id=<IDENTIFIER> 
     {
-        CustomVariableType custom = new CustomVariableType(id.image);
+        CustomVariableType custom = specification.newCustomType(id.image);
     }
 	<LCURLY>
-	   decl_list(custom.getVariableStore())
+	   decl_list(custom.getVariableStore()) (<SEMICOLON>)?
 	<RCURLY>
 }
 
@@ -391,7 +391,7 @@ void inline(): {
 
 void decl_list(VariableContainer store): {
 }{
-	one_decl(store) (<SEMICOLON> one_decl(store))*
+	one_decl(store) (LOOKAHEAD(<SEMICOLON> one_decl(store)) <SEMICOLON> one_decl(store))*
 }
 
 void one_decl(VariableContainer store): {
@@ -461,8 +461,12 @@ VariableType typename(): {
 |	<MTYPE> { return VariableType.MTYPE; }
 |	<CHAN> { return ChannelType.UNASSIGNED_CHANNEL; }
 |	t=<IDENTIFIER> {
-		throw new MyParseException("The given type was not supported", t); 
-		//return specification.getType(t.image); 
+        String text = Preprocessor.defines(t.image.trim());
+        if (text != null) { // recursively start the parser
+            Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
+            return p.typename();
+        }
+        return specification.getCustomType(t.image.trim());
 	}
 }
 
@@ -569,7 +573,7 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 		end = new State(automaton, inAtomic);
 		trans = start.newTransition(end); 
 	}
-	<LCURLY> dstep_sequence(trans) <RCURLY>
+	<LCURLY> dstep_sequence(trans, null) <RCURLY>
 	(end=sequence(end, breakNode, inAtomic))?
 |	<LCURLY> end=sequence(start, breakNode, inAtomic) <RCURLY>
 	(end=sequence(end, breakNode, inAtomic))?
@@ -655,76 +659,80 @@ State assign(State start, State breakNode, boolean inAtomic): {
 
 /*** Special dstep statement parsing ***/
 
-void dstep_sequence(ActionContainer cont): {
+void dstep_sequence(ActionContainer cont, OptionAction loop): {
 	Token t, id;
 	Expression expr;
 	OptionAction opt;
 }{
-	delim() (dstep_sequence(cont))?
+	delim() (dstep_sequence(cont, loop))?
 |	LOOKAHEAD(one_decl())
 	{ throw new ParseException("Variables can not be declared inside a d_step"); }
 	one_decl(null)
-	(delim() (dstep_sequence(cont))?)?
+	(delim() (dstep_sequence(cont, loop))?)?
 |	(t=<XR> | t=<XS>) expr=varref()
 	{ throw new MyParseException("Can not declare exclusive reads or writes in a d_step", t); } 
 	(<COMMA> expr=varref())*
-	(delim() (dstep_sequence(cont))?)?
+	(delim() (dstep_sequence(cont, loop))?)?
 |	t=<IF> 
 	{ opt = new OptionAction(t, false); cont.addAction(opt); }
-	(dstep_option(opt))+
+	(dstep_option(opt, loop))+
 	<FI>
-	(dstep_sequence(cont))?
+	(dstep_sequence(cont, loop))?
 |	t=<DO>
 	{ opt = new OptionAction(t, true); cont.addAction(opt); }
-	(dstep_option(opt))+
+	(dstep_option(opt, opt))+
 	<OD>
-	(dstep_sequence(cont))?
+	( dstep_sequence(cont, loop) { opt.hasSuccessor(true); } )?
 |	LOOKAHEAD(<IDENTIFIER> <COLON>)
 	<IDENTIFIER> t=<COLON>
 	{ throw new MyParseException("Goto-labels are not supported in a d_step", t); }
-	dstep_sequence(cont)
+	dstep_sequence(cont, loop)
 |	LOOKAHEAD(dstep_channel_statement())
 	dstep_channel_statement(cont)
-	(delim() (dstep_sequence(cont))?)?
+	(delim() (dstep_sequence(cont, loop))?)?
 |	LOOKAHEAD(dstep_assign())
 	dstep_assign(cont)
-	(delim() (dstep_sequence(cont))?)?
+	(delim() (dstep_sequence(cont, loop))?)?
 |	expr=expr()
 	{ cont.addAction(new ExprAction(expr)); }
-	(delim() (dstep_sequence(cont))?)?
+	(delim() (dstep_sequence(cont, loop))?)?
 |	t=<ELSE>
 	{ cont.addAction(new ElseAction(t)); }
-	(delim() (dstep_sequence(cont))?)?
+	(delim() (dstep_sequence(cont, loop))?)?
 |	t=<GOTO> <IDENTIFIER>
 	{ throw new MyParseException("Goto-statements are not supported in a d_step", t); }
-	(delim() (dstep_sequence(cont))?)?
+	(delim() (dstep_sequence(cont, loop))?)?
 |	t=<PRINT> <LPAREN> id=<STRING>
 	{ PrintAction pa = new PrintAction(t, id.image); }
 	(<COMMA> arg_lst(pa))? <RPAREN>
 	{ cont.addAction(pa); }
-	(delim() (dstep_sequence(cont))?)?
+	(delim() (dstep_sequence(cont, loop))?)?
 |	t=<ASSERT> expr=expr()
 	{ cont.addAction(new AssertAction(t, expr)); }
-	(delim() (dstep_sequence(cont))?)?
+	(delim() (dstep_sequence(cont, loop))?)?
 |	t=<BREAK>
-	{ cont.addAction(new BreakAction(t)); }
-	(delim() (dstep_sequence(cont))?)?
+	{
+        if(loop == null)
+            throw new MyParseException("Breakstatement found without a do-loop to break out of!", t);
+        cont.addAction(new BreakAction(t, loop));
+    }
+	(delim() (dstep_sequence(cont, loop))?)?
 |	t=<ATOMIC> // is ignored
-	<LCURLY> dstep_sequence(cont) <RCURLY>
-	(dstep_sequence(cont))?
+	<LCURLY> dstep_sequence(cont, loop) <RCURLY>
+	(dstep_sequence(cont, loop))?
 |	t=<D_STEP> // is ignored
-	<LCURLY> dstep_sequence(cont) <RCURLY>
-	(dstep_sequence(cont))?
-|	<LCURLY> dstep_sequence(cont) <RCURLY>
-	(dstep_sequence(cont))?
+	<LCURLY> dstep_sequence(cont, loop) <RCURLY>
+	(dstep_sequence(cont, loop))?
+|	<LCURLY> dstep_sequence(cont, loop) <RCURLY>
+	(dstep_sequence(cont, loop))?
 }
 
-void dstep_option(OptionAction opt): {
+void dstep_option(OptionAction opt, OptionAction loop): {
 	Sequence seq;
 }{
 	<OPTION>
 	{ seq = opt.startNewOption(); }
-	dstep_sequence(seq)
+	dstep_sequence(seq, loop)
 }
 
 void dstep_channel_statement(ActionContainer cont): {

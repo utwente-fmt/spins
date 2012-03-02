@@ -15,13 +15,16 @@
 package spinja.promela.compiler;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
+import spinja.promela.compiler.variable.CustomVariableType;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableStore;
 import spinja.util.StringWriter;
@@ -32,12 +35,12 @@ public class Specification implements Iterable<Proctype> {
 	private final List<Proctype> procs;
 
 	private final List<ChannelType> channels;
+
+	private final Map<String, CustomVariableType> userTypes;
 	
     private List<RunExpression> runs = new ArrayList<RunExpression>();
 
 	private Proctype never;
-
-	// private final Map<String, VariableType> usertypes;
 
 	private final VariableStore varStore;
 
@@ -47,7 +50,7 @@ public class Specification implements Iterable<Proctype> {
 		this.name = name;
 		procs = new ArrayList<Proctype>();
 		channels = new ArrayList<ChannelType>();
-		// usertypes = new HashMap<String, VariableType>();
+		userTypes = new HashMap<String, CustomVariableType>();
 		varStore = new VariableStore();
 		mtypes = new ArrayList<String>();
 	}
@@ -68,6 +71,20 @@ public class Specification implements Iterable<Proctype> {
 		return type;
 	}
 
+	/**
+	 * Creates a new Custom type for in this Specification.
+	 * 
+	 * @param bufferSize
+	 * @return The new ChannelType
+	 */
+	public CustomVariableType newCustomType(String name) throws ParseException {
+		if (userTypes.containsKey(name))
+			throw new ParseException("Duplicate type declaration with name: "+ name);
+		CustomVariableType type = new CustomVariableType(name);
+		userTypes.put(name, type);
+		return type;
+	}
+	
 	public boolean usesRendezvousChannel() {
 		for (ChannelType t : channels) {
 			if (t.getBufferSize() == 0) {
@@ -95,13 +112,6 @@ public class Specification implements Iterable<Proctype> {
 		}
 		procs.add(proc);
 	}
-
-	// public void addType(final VariableType type) throws ParseException {
-	// if (usertypes.containsKey(type.getName())) {
-	// throw new ParseException("Duplicate type declaration with name: " + type.getName());
-	// }
-	// usertypes.put(type.getName(), type);
-	// }
 
 	private void generateConstructor(final StringWriter w) throws ParseException {
 		w.appendLine("public ", name, "Model() throws SpinJaException {").indent();
@@ -385,13 +395,13 @@ public class Specification implements Iterable<Proctype> {
 		return null;
 	}
 
-	// public VariableType getType(final String name) throws ParseException {
-	// if (usertypes.containsKey(name)) {
-	// return usertypes.get(name);
-	// } else {
-	// throw new ParseException("Could not find a type with name: " + name);
-	// }
-	// }
+	public CustomVariableType getCustomType(final String name) throws ParseException {
+		if (userTypes.containsKey(name)) {
+			return userTypes.get(name);
+		} else {
+			throw new ParseException("Could not find a type with name: " + name);
+		}
+	}
 
 	public VariableStore getVariableStore() {
 		return varStore;
