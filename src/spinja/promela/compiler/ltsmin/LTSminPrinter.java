@@ -309,22 +309,22 @@ public class LTSminPrinter {
 	private static void generateGetAll(StringWriter w, LTSminModel model) {
 		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-			w.appendLine("state_t out;");
-			w.appendLine("spinja_get_successor_all2(model, in, callback, arg, &out, -1);");
+		w.appendLine("state_t out;");
+		w.appendLine("int atomic_process = -1;");
+		w.appendLine("spinja_get_successor_all2(model, in, callback, arg, &out, &atomic_process);");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
-		w.appendLine("int spinja_get_successor_all2( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, state_t *tmp, int atomic) {");
+		w.appendLine("int spinja_get_successor_all2( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, state_t *tmp, int *atomic) {");
 		w.indent();
-			w.appendLine("transition_info_t transition_info = { NULL, -1 };");
-			w.appendLine("int states_emitted = 0;");
-			w.appendLine("register int pos;");
-			w.appendLine();
-			List<LTSminTransition> transitions = model.getTransitions();
-			for(LTSminTransition t : transitions) {
-				generateATransition(w, t, model);
-			}
-			w.appendLine("return states_emitted;");
+		w.appendLine("transition_info_t transition_info = { NULL, -1 };");
+		w.appendLine("int states_emitted = 0;");
+		w.appendLine();
+		List<LTSminTransition> transitions = model.getTransitions();
+		for(LTSminTransition t : transitions) {
+			generateATransition(w, t, model);
+		}
+		w.appendLine("return states_emitted;");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine();
@@ -348,16 +348,20 @@ public class LTSminPrinter {
 			for(Action a: actions)
 				generateAction(w,a,model);
 			if (t.isAtomic()) {
-				String pid = printPID(transition.getProcess(), out(model));
-				w.appendLine("if (-1!=atomic) {");
+				w.appendLine("if (-1 != *atomic) {");
 				w.indent();
+				if (null != transition.passesControlAtomically()) {
+					String pid = printPID(transition.passesControlAtomically(), out(model));
+					w.appendLine("*atomic = "+ pid +";");
+				}
 				generateACallback(w,transition.getGroup());
 				w.outdent();
 				w.appendLine("} else {");
 				w.indent();
+				String pid = printPID(transition.getProcess(), out(model));
 				w.appendLine("transition_info.group = "+ transition.getGroup() +";");
 				w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ pid +");");
-				w.appendLine("states_emitted += count;");
+				w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
 				w.outdent();
 				w.appendLine("}");
 			} else {
@@ -375,8 +379,8 @@ public class LTSminPrinter {
 		w.indent();
 		w.appendLine("transition_info_t transition_info = { NULL, t };");
 		w.appendLine("int states_emitted = 0;");
-		w.appendLine("int atomic = -1;");
-		w.appendLine("register int pos;");
+		w.appendLine("int minus_one = -1;");
+		w.appendLine("int *atomic = &minus_one;");
 		w.appendLine(C_STATE," local_state;");
 		w.appendLine(C_STATE,"* ",OUT_VAR," = &local_state;");
 		w.appendLine();
@@ -705,7 +709,7 @@ public class LTSminPrinter {
 	private static void generateExpression(StringWriter w, Expression e, LTSminPointer state) {
 		if(e instanceof LTSminIdentifier) {
 			LTSminIdentifier id = (LTSminIdentifier)e;
-			w.append(id.getVariable().getName());
+			w.append("*"+ id.getVariable().getName());
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
 			w.append(printId(id, state));

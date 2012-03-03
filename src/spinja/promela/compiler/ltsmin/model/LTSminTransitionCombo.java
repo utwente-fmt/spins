@@ -16,13 +16,12 @@ public class LTSminTransitionCombo extends LTSminTransition {
 	public Set<LTSminTransition> transitions;
 	
 	private String name;
-	private Transition realTransition;
 
-	public LTSminTransitionCombo(int group, String name,Proctype p, Transition real) {
-		super(group, name, p);
+	public LTSminTransitionCombo(Transition t, int group, String name,Proctype p) {
+		super(t, group, name, p);
 		transitions = new HashSet<LTSminTransition>();
-		this.setRealTransition(real);
-	}	
+	}
+
 	public void addTransition(LTSminTransition t) {
 		transitions.add(t);
 	}
@@ -34,13 +33,5 @@ public class LTSminTransitionCombo extends LTSminTransition {
 			t.prettyPrint(w,printer);
 		}
 		w.outdent();
-	}
-
-	public Transition getRealTransition() {
-		return realTransition;
-	}
-
-	public void setRealTransition(Transition realTransition) {
-		this.realTransition = realTransition;
 	}
 }

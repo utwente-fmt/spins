@@ -13,7 +13,7 @@ typedef struct spinja_args_s {
 } spinja_args_t;
 
 extern void dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state);
-extern int spinja_get_successor_all2( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, state_t *tmp, int atomic);
+extern int spinja_get_successor_all2( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, state_t *tmp, int *atomic);
 
 void
 dfs_cb(void* arg, transition_info_t *transition_info, state_t *out)
@@ -35,7 +35,7 @@ dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state)
 	switch ( result ) {
 	case false: { // new state
 		state_t out;
-		int count = spinja_get_successor_all2 (args->model, state, dfs_cb, args, &out, args->pid);
+		int count = spinja_get_successor_all2 (args->model, state, dfs_cb, args, &out, &args->pid);
 		if (count == 0) {
 			printf ("Loss of atomicity!\n");	// loss of atomicity
 			int a;

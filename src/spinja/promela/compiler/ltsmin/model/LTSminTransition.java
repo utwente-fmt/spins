@@ -6,6 +6,7 @@ import java.util.List;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
+import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
@@ -37,18 +38,19 @@ public class LTSminTransition implements LTSminGuardContainer {
 	private Proctype process;
 	private	List<LTSminGuardBase> guards;
 	private List<Action> actions;
-	private boolean leavesAtomic = false;
-	private boolean entersAtomic;
+	private Transition t;
+	private Proctype passControl = null;
 	
 
-	public LTSminTransition(int group, String name, Proctype process) {
+	public LTSminTransition(Transition t, int group, String name, Proctype process) {
 		this(group);
+		this.t = t;
 		this.process = process;
 		this.name = name;
 		this.guards = new LinkedList<LTSminGuardBase>();
 		this.actions = new ArrayList<Action>();
 	}
-
+/*
 	public LTSminTransition(int group, Proctype process) {
 		this(group, process.getName(), process);
 	}
@@ -59,7 +61,7 @@ public class LTSminTransition implements LTSminGuardContainer {
 		this.guards = guards;
 		this.actions = actions;
 	}
-
+*/
 	public String getName() {
 		return name;
 	}
@@ -129,36 +131,32 @@ public class LTSminTransition implements LTSminGuardContainer {
 		w.indent();
 		for(Action a: actions) {
 			w.appendLine(a.toString());
-//			try {
-//				printer.generateAction(w,process,a,9000000,null);
-//			// Handle parse exceptions
-//			} catch(ParseException e) {
-//				e.printStackTrace();
-//				System.exit(0);
-//			}
 		}
 		w.outdent();
 		w.outdent();
 
 	}
 
-	public void leavesAtomic(boolean b) {
-		leavesAtomic = b;		
+	public boolean entersAtomic() {
+		if (t == null) return false;
+		return !t.getFrom().isInAtomic() && t.getTo() != null && t.getTo().isInAtomic();
+	}
+
+	public boolean leavesAtomic() {
+		if (t == null) return false;
+		return t.getFrom().isInAtomic() && (t.getTo() == null || !t.getTo().isInAtomic());
 	}
 	
-	public boolean leavesAtomic() {
-		return leavesAtomic;		
-	}
-
-	public void entersAtomic(boolean entersAtomic) {
-		this.entersAtomic = entersAtomic;
-	}
-
-	public boolean entersAtomic() {
-		return entersAtomic;
-	}
-
 	public boolean isAtomic() {
-		return this instanceof LTSminTransitionCombo;
+		if (t == null) return false;
+		return t.getFrom().isInAtomic() || (t.getTo() != null && t.getTo().isInAtomic());
+	}
+
+	public Proctype passesControlAtomically() {
+		return passControl;
+	}
+
+	public void passesControlAtomically(Proctype to) {
+		passControl = to;
 	}
 }

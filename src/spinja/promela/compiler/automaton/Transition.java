@@ -327,4 +327,8 @@ public abstract class Transition implements ActionContainer {
 	public boolean isAlwaysEnabled() {
 		return false;
 	}
+
+	public boolean isAtomic() {
+		return getFrom().isInAtomic() || (getTo() != null && getTo().isInAtomic());
+	}
 }

@@ -286,7 +286,7 @@ public class LTSminTreeWalker {
 
 		// Check if it is an ending state
 		if (state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
-			LTSminTransition lt = new LTSminTransition(trans, process.getName() +"_end", process);
+			LTSminTransition lt = new LTSminTransition(null, trans, process.getName() +"_end", process);
 			model.getTransitions().add(lt);
 
 			lt.addGuard(makePCGuard(state, process));
@@ -325,18 +325,6 @@ public class LTSminTreeWalker {
 		return guard;
 	}
 
-	private boolean entersAtomic(Transition t) {
-		return !t.getFrom().isInAtomic() && t.getTo() != null && t.getTo().isInAtomic();
-	}
-
-	private boolean leavesAtomic(Transition t) {
-		return t.getFrom().isInAtomic() && (t.getTo() == null || !t.getTo().isInAtomic());
-	}
-	
-	private boolean isAtomic(Transition t) {
-		return t.getFrom().isInAtomic() || (t.getTo() != null && t.getTo().isInAtomic());
-	}
-	
 	/**
  	 * Collects else transition or rendezvous enabled action for later processing 
 	 * Check only for the normal process, not for the never claim
@@ -396,12 +384,8 @@ public class LTSminTreeWalker {
 		--debug.say_indent;
 
 		String t_name = makeTranstionName(t, null, never_t);
-		LTSminTransition lt = isAtomic(t) ?
-									new LTSminTransitionCombo(trans, t_name, process, t) :
-									new LTSminTransition(trans, t_name, process);
-		lt.leavesAtomic(leavesAtomic(t));
-		lt.entersAtomic(entersAtomic(t));
-		
+		LTSminTransition lt = makeTransition(process, trans, t, t_name);
+
 		// Guard: process counter
 		lt.addGuard(makePCGuard(t.getFrom(), process));
 		if(never_t!=null)
@@ -473,6 +457,15 @@ public class LTSminTreeWalker {
 		}
 		return lt;
 	}
+
+	private LTSminTransition makeTransition(Proctype process, int trans,
+											Transition t, String t_name) {
+		if (t == null || !t.isAtomic()) {
+			return new LTSminTransition(t, trans, t_name, process);
+		} else {
+			return new LTSminTransitionCombo(t, trans, t_name, process);
+		}
+	}
 	
 	/**
 	 * Creates the guard of a transition for its action and for the end states.
@@ -487,7 +480,7 @@ public class LTSminTreeWalker {
 				Action a = t.iterator().next();
 				createEnabledGuard(a, lt);
 			}
-		} catch(ParseException e) { // removed if (a.getEnabledExpression()!=null)
+		} catch (ParseException e) { // removed if (a.getEnabledExpression()!=null)
 			e.printStackTrace();
 		}
 	}
@@ -590,7 +583,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 	 * @param tt The TimeoutTransition
 	 */
 	private int createTotalTimeout(int trans, Proctype process) {
-		LTSminTransition lt = new LTSminTransition(trans, "total timeout", process);
+		LTSminTransition lt = new LTSminTransition(null, trans, "total timeout", process);
 		LTSminGuardOr gor = new LTSminGuardOr();
 		lt.addGuard(gor);
 		model.getTransitions().add(lt);
@@ -624,6 +617,10 @@ state_loop:	for (State st : p.getAutomaton()) {
     /**
 	 * Creates the transition for one rendezvous couple. The specified
 	 * transition ID will be used to identify the created transition.
+	 * 
+	 * "If an atomic sequence contains a rendezvous send statement, control
+	 * passes from sender to receiver when the rendezvous handshake completes."
+	 * 
 	 * @param sa The SendAction component.
 	 * @param ra The ReadAction component.
 	 * @param trans The transition ID to use for the created transition.
@@ -631,11 +628,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 	private int createRendezVousTransition(SendAction sa, ReadAction ra,
 										   int trans, Transition never_t) {
 		String name = makeTranstionName(sa.t, ra.t, never_t);
-		LTSminTransition lt = isAtomic(sa.t) ?
-									new LTSminTransitionCombo(trans, name,  ra.p, sa.t) :
-									new LTSminTransition(trans, name, ra.p);
-		lt.leavesAtomic(leavesAtomic(sa.t));
-		lt.entersAtomic(entersAtomic(sa.t));
+		LTSminTransition lt = makeTransition(ra.p, trans, ra.t, name);
+		//new LTSminTransitionCombo(trans, name,  ra.p, sa.t)
 
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
@@ -666,6 +660,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 		}
 
 		lt.addGuard(makeInAtomicGuard(sa.p));
+		if (sa.t.isAtomic() && ra.t.isAtomic()) // control passes from sender to receiver
+			lt.passesControlAtomically(ra.p);
 		
 		// Change process counter of sender
 		lt.addAction(assign(model.sv.getPC(sa.p),sa.t.getTo().getStateId()));
