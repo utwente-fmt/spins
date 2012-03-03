@@ -15,6 +15,7 @@
 options {
   JDK_VERSION = "1.5";
   STATIC = false;
+  TOKEN_MANAGER_USES_PARSER = true;
 }
 
 PARSER_BEGIN(Promela)
@@ -30,6 +31,8 @@ import java.util.*;
 
 @SuppressWarnings("all")
 public class Promela {
+
+    public Object preprocessing = null;
 
 	/** Copy Constructor. */
 	public Promela(Promela prom, java.io.InputStream stream) {
@@ -172,8 +175,36 @@ TOKEN : {	/* Operators */
 |	<DOT: ".">
 }
 
+<*> TOKEN:
+{
+    < EOF >
+    {
+        if (null != parser.preprocessing) {
+            ReInit((SimpleCharStream)parser.preprocessing);
+            parser.preprocessing = null;
+            Token next = getNextToken();
+            matchedToken.image = next.image;
+            matchedToken.kind = next.kind;
+            matchedToken.next = next.next;
+            matchedToken.specialToken = next.specialToken;
+        }
+    }
+}
+    
 TOKEN : { /* Identifiers and numbers */
 	<IDENTIFIER: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
+	{
+        String text = Preprocessor.defines(image.toString());
+        if (null != text) {
+            parser.preprocessing = input_stream;
+            ReInit(new SimpleCharStream(new ByteArrayInputStream(text.getBytes())));
+            Token next = getNextToken();
+            matchedToken.image = next.image;
+            matchedToken.kind = next.kind;
+            matchedToken.next = next.next;
+            matchedToken.specialToken = next.specialToken;
+        } 
+	}
 |	<NUMBER: (["0"-"9"])+ >
 }
 
@@ -184,31 +215,17 @@ SKIP : { // Skip whitespace and comments
 |	"\n"
 |	"/*" : IN_COMMENT
 |   "//" : IN_COMMENT2
-|	"#" : PREPROCESSOR_OUTPUT
+|	"#define" : PREPROCESSOR_DEFINE
 }
 
-<PREPROCESSOR_OUTPUT> SKIP:
+<PREPROCESSOR_DEFINE> SKIP:
 {
     < "\n"|"\r"|"\r\n" > {
-        String text = image.toString();
-        if (text.startsWith("include ")) {
-            String file = text.substring(8).trim();
-            file = file.replaceAll("[\"]", "");  
-            // recursively start the lexer/parser
-            try {
-                Promela p = new Promela(new FileInputStream(file));                p.spec("preprocessor");
-                Preprocessor.addInclude(p); 
-            } catch (FileNotFoundException pe) {
-                System.out.println("Could not locate include: " + file);
-            } catch (ParseException pe) {                System.out.println("Parse exception in file " + file + ": "
-                                + pe.getMessage());
-            }
-        } else {            Preprocessor.process(input_stream, text.trim());
-        }
+        String text = image.toString();        Preprocessor.addDefine(input_stream, text.trim());
 	} : DEFAULT
 }
     
-<PREPROCESSOR_OUTPUT> MORE:
+<PREPROCESSOR_DEFINE> MORE:
 {
     "\\\n" |
     "\\\r" |
@@ -483,12 +500,12 @@ VariableType typename(): {
 |	<MTYPE> { return VariableType.MTYPE; }
 |	<CHAN> { return ChannelType.UNASSIGNED_CHANNEL; }
 |	t=<IDENTIFIER> {
-        String text = Preprocessor.defines(t.image.trim());
+        /*String text = Preprocessor.defines(t.image.trim());
         if (text != null) { // recursively start the parser
             try {                Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
                 return p.typename();
             } catch (ParseException e) { throw new MyParseException(e.getMessage(), t); }
-        }
+        }*/
         return specification.getCustomType(t.image.trim());
 	}
 }
@@ -856,13 +873,13 @@ Expression varref(): {
 }{
 	id=<IDENTIFIER>
 	{
-        String text = Preprocessor.defines(id.image.trim());
+        /*String text = Preprocessor.defines(id.image.trim());
         if (text != null) { // recursively start the parser
             try {
 	            Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
 	            return p.expr();
             } catch (ParseException e) { throw new MyParseException(e.getMessage(), id); }
-        }
+        } */
 		int mtypeNr = specification.getMType(id.image);
 		if(mtypeNr >= 0) {
 			return new MTypeReference(id, mtypeNr);
@@ -1086,16 +1103,17 @@ ConstantExpression constant(): {
     { return ex1; }
 |   n=<IDENTIFIER>
     {
-        String text = Preprocessor.defines(n.image.trim());
-        if (text == null) {
+        /*String text = Preprocessor.defines(n.image.trim());
+        if (text == null) {*/
 	        int mtypeNr = specification.getMType(n.image);
 	        if(mtypeNr >= 0)
 	            return new MTypeReference(n, mtypeNr);
             throw new MyParseException("Expected constant!", n);
-        }
+        /*}
         try { // recursively start the parser
 	        Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
 	        return p.constant();
         } catch (ParseException e) { throw new MyParseException(e.getMessage(), n); }
+        */
     }
 }

@@ -35,7 +35,22 @@ public class Preprocessor {
 	public static List<Promela> getInclude() {
 		return includes;
 	}
-	
+
+	public static void addDefine(SimpleCharStream input_stream, String s) {
+		Scanner sc = new Scanner(s);
+		try {
+			String id = sc.next();
+			String text = "";
+			while (sc.hasNext())
+				text += sc.nextLine();
+			defines.put(id, text.trim());
+		} catch(NoSuchElementException e) {
+			System.out.println("error parsing "+ s +"\n"+e);
+		} catch(IllegalStateException e) {
+			System.out.println("error parsing "+ s +"\n"+e);
+		}
+	}
+
 	public static void process(SimpleCharStream input_stream, String s) {
 		Scanner sc = new Scanner(s);
 
@@ -56,19 +71,6 @@ public class Preprocessor {
 				fileName = file;
 			} catch(NoSuchElementException e) {
 			} catch(IllegalStateException e) {
-			}
-		} else if(command.equals("define")) {
-			try {
-				String id = sc.next();
-				String text = "";
-				while (sc.hasNext())
-					text += sc.nextLine();
-				//System.out.println("Setting define "+ id +" name to '" + text.trim() +"'");
-				defines.put(id, text.trim());
-			} catch(NoSuchElementException e) {
-				System.out.println("error parsing "+ s +"\n"+e);
-			} catch(IllegalStateException e) {
-				System.out.println("error parsing "+ s +"\n"+e);
 			}
 		} else {
 			System.out.println("Unknown preprocessor command: "+ command);
