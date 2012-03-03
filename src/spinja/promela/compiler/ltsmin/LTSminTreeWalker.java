@@ -657,7 +657,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 			final Expression csa_expr = csa_exprs.get(i);
 			final Expression cra_expr = cra_exprs.get(i);
 			try { // we skip creating transitions for impotent matches:
-				if (csa_expr.getConstantValue() == cra_expr.getConstantValue())
+				if (csa_expr.getConstantValue() != cra_expr.getConstantValue())
 					return trans;
 			} catch (ParseException pe) {}
 			if (!(cra_expr instanceof Identifier)) {
