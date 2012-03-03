@@ -114,11 +114,11 @@ public abstract class LTSminSubVector implements Iterable<LTSminSlot> {
 	@Override
 	public Iterator<LTSminSlot> iterator() {
 		return new Iterator<LTSminSlot>() {
-			int index = offset;
+			int index = 0;
 
 			@Override
 			public boolean hasNext() {
-				return index == length();
+				return index < length();
 			}
 
 			@Override
