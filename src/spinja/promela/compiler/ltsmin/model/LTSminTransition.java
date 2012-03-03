@@ -44,6 +44,7 @@ public class LTSminTransition implements LTSminGuardContainer {
 
 	public LTSminTransition(Transition t, int group, String name, Proctype process) {
 		this(group);
+		assert (t != null);
 		this.t = t;
 		this.process = process;
 		this.name = name;
@@ -62,6 +63,10 @@ public class LTSminTransition implements LTSminGuardContainer {
 		this.actions = actions;
 	}
 */
+	public String toString() {
+		return name;
+	}
+	
 	public String getName() {
 		return name;
 	}
@@ -138,17 +143,14 @@ public class LTSminTransition implements LTSminGuardContainer {
 	}
 
 	public boolean entersAtomic() {
-		if (t == null) return false;
 		return !t.getFrom().isInAtomic() && t.getTo() != null && t.getTo().isInAtomic();
 	}
 
 	public boolean leavesAtomic() {
-		if (t == null) return false;
 		return t.getFrom().isInAtomic() && (t.getTo() == null || !t.getTo().isInAtomic());
 	}
 	
 	public boolean isAtomic() {
-		if (t == null) return false;
 		return t.getFrom().isInAtomic() || (t.getTo() != null && t.getTo().isInAtomic());
 	}
 
@@ -158,5 +160,9 @@ public class LTSminTransition implements LTSminGuardContainer {
 
 	public void passesControlAtomically(Proctype to) {
 		passControl = to;
+	}
+
+	public Transition getTransition() {
+		return t;
 	}
 }

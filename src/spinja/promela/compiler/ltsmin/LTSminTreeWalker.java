@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
@@ -78,6 +79,9 @@ public class LTSminTreeWalker {
 	// For each channel, a list of read actions and send actions is kept for later processing
 	private HashMap<ChannelVariable,ReadersAndWriters> channels;
 
+	// Maintain transition
+	private HashMap<Transition, Set<LTSminTransition>> t2t;
+
 	// List of transition with a TimeoutExpression
     List<TimeoutTransition> timeout_transitions;
 
@@ -90,6 +94,7 @@ public class LTSminTreeWalker {
 		this.spec = spec;
         timeout_transitions = new ArrayList<TimeoutTransition>();
 		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
+		t2t = new HashMap<Transition, Set<LTSminTransition>>();
 	}
 		
 	/**
@@ -201,8 +206,11 @@ public class LTSminTreeWalker {
 		for (LTSminTransition t : model.getTransitions()) {
 			if (!(t instanceof LTSminTransitionCombo))
 				continue;
-			//LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
-			//linearize(tc.getRealTransition().getTo(), seen, tc, trans);
+			LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
+			HashSet<State> seen = new HashSet<State>();
+			reachability(tc.getTransition().getTo(), seen, tc);
+			tc.addTransition(tc);
+			//System.out.println(tc +" --> "+ tc.transitions);
 		}
 
 		/*
@@ -252,6 +260,23 @@ public class LTSminTreeWalker {
 	}
 
 	/**
+	 * Add all reachable atomic transitions to tc
+	 */
+	private void reachability(State state, HashSet<State> seen,
+			LTSminTransitionCombo tc) {
+		if (state == null || !state.isInAtomic()) return;
+		seen.add(state);
+		for (Transition t : state.output) {
+			Set<LTSminTransition> set = t2t.get(t);
+			for (LTSminTransition lt : set) {
+				assert (lt.isAtomic());
+				tc.addTransition(lt);
+			}
+			reachability(t.getTo(), seen, tc);
+		}
+	}
+
+	/**
 	 * Run expressions usually pass constants to channel variables. If these
 	 * variables are never assigned to elsewhere, we can safely mark them
 	 * constant.
@@ -286,7 +311,7 @@ public class LTSminTreeWalker {
 
 		// Check if it is an ending state
 		if (state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
-			LTSminTransition lt = new LTSminTransition(null, trans, process.getName() +"_end", process);
+			LTSminTransition lt = makeTransition(process, trans, state, process.getName() +"_end");
 			model.getTransitions().add(lt);
 
 			lt.addGuard(makePCGuard(state, process));
@@ -458,13 +483,27 @@ public class LTSminTreeWalker {
 		return lt;
 	}
 
+    private LTSminTransition makeTransition(Proctype process, int trans,
+			State from, String t_name) {
+		Transition t = from.newTransition(null);
+		return makeTransition(process, trans, t, t_name);
+	}
+
 	private LTSminTransition makeTransition(Proctype process, int trans,
 											Transition t, String t_name) {
+		LTSminTransition lt;
 		if (t == null || !t.isAtomic()) {
-			return new LTSminTransition(t, trans, t_name, process);
+			lt = new LTSminTransition(t, trans, t_name, process);
 		} else {
-			return new LTSminTransitionCombo(t, trans, t_name, process);
+			lt = new LTSminTransitionCombo(t, trans, t_name, process);
 		}
+		Set <LTSminTransition> set = t2t.get(t);
+		if (null == set) {
+			set = new HashSet<LTSminTransition>();
+			t2t.put(t, set);
+		}
+		set.add(lt);
+		return lt;
 	}
 	
 	/**
@@ -582,8 +621,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 	 * The dependency matrix is fixed accordingly.
 	 * @param tt The TimeoutTransition
 	 */
-	private int createTotalTimeout(int trans, Proctype process) {
-		LTSminTransition lt = new LTSminTransition(null, trans, "total timeout", process);
+	private int createTotalTimeout(State from, int trans, Proctype process) {
+		LTSminTransition lt = makeTransition(process, trans, from, "total timeout");
 		LTSminGuardOr gor = new LTSminGuardOr();
 		lt.addGuard(gor);
 		model.getTransitions().add(lt);
@@ -614,7 +653,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 		return trans + 1;
 	}
 
-    /**
+	/**
 	 * Creates the transition for one rendezvous couple. The specified
 	 * transition ID will be used to identify the created transition.
 	 * 

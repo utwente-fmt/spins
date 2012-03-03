@@ -127,7 +127,6 @@ public class LTSminPrinter {
 		generateStateCount(w, model);
 		generateInitialState(w, model);
 		generateLeavesAtomic(w, model);
-		generateReach(w, model);
 		generateGetNext(w, model);
 		generateGetAll(w, model);
 		generateTransitionCount(w, model);
@@ -136,6 +135,8 @@ public class LTSminPrinter {
 		generateGuardMatrices(w, model);
 		generateGuardFunctions(w, model, model.getGuardInfo());
 		generateStateDescriptors(w, model);
+		generateHashTable(w, model);
+		generateReach(w, model);
 	}
 
 	private static void generateTypeDef(StringWriter w, LTSminModel model) {
@@ -180,7 +181,6 @@ public class LTSminPrinter {
 		w.appendLine("#include <stdlib.h>");
 		w.appendLine("#include <assert.h>");
 		w.appendLine("");
-		generateHashTable(w, model);
 		w.appendLine("typedef struct transition_info {");
 		w.indent();
 		w.appendLine("int* label;");
@@ -237,6 +237,7 @@ public class LTSminPrinter {
 	}
 
 	private static void generateForwardDeclarations(StringWriter w) {
+		w.appendLine("extern inline int reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
 		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 	}
@@ -248,7 +249,7 @@ public class LTSminPrinter {
 		// Insert initial expression of each state element into initial state struct
 		for (LTSminSlot slot : model.sv) {
 			if (0 != slot.getIndex())
-				w.append(",");
+				w.append(", // "+ (slot.getIndex()-1));
 			w.appendPostfix().appendPrefix();
 			w.append(slot.fullName());
 			char[] chars = new char[40 - slot.fullName().length()];
@@ -294,16 +295,22 @@ public class LTSminPrinter {
 
 	private static void generateLeavesAtomic (StringWriter w, LTSminModel model) {
 		List<LTSminTransition> ts = model.getTransitions();
-		w.append("char leaves_atomic["+ ts.size() +"] = {");
+		w.appendLine("char leaves_atomic["+ ts.size() +"] = {");
+		w.indent();
 		if (ts.size() > 0) {
-			LTSminTransition last = ts.get(ts.size()-1);
+			int i = 0;
 			for (LTSminTransition tb : ts) {
+				if (0 != i) w.append(",\t// "+ i).appendPostfix();
 				LTSminTransition t = (LTSminTransition)tb;
+				w.appendPrefix();
 				w.append("" + t.leavesAtomic());
-				if (tb != last)	w.append(", ");
+				i++;
 			}
+			w.appendPostfix();
 		}
+		w.outdent();
 		w.appendLine("};");
+		w.appendLine("");
 	}
 	
 	private static void generateGetAll(StringWriter w, LTSminModel model) {
@@ -311,11 +318,11 @@ public class LTSminPrinter {
 		w.indent();
 		w.appendLine("state_t out;");
 		w.appendLine("int atomic_process = -1;");
-		w.appendLine("spinja_get_successor_all2(model, in, callback, arg, &out, &atomic_process);");
+		w.appendLine("spinja_get_successor_all_real(model, in, callback, arg, &out, &atomic_process);");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
-		w.appendLine("int spinja_get_successor_all2( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, state_t *tmp, int *atomic) {");
+		w.appendLine("int spinja_get_successor_all_real( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, state_t *tmp, int *atomic) {");
 		w.indent();
 		w.appendLine("transition_info_t transition_info = { NULL, -1 };");
 		w.appendLine("int states_emitted = 0;");
@@ -882,7 +889,7 @@ public class LTSminPrinter {
 		// Iterate over all the rows
 		for(int t = 0; t < dm.getRows(); t++) {
 			if (t > 0)
-				w.append(", // "+ t).appendPostfix();
+				w.append(", // "+ (t-1)).appendPostfix();
 			w.appendPrefix();
 
 			DepRow dr = dm.getRow(t);

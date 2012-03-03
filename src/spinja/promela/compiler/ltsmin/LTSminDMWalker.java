@@ -111,22 +111,26 @@ public class LTSminDMWalker {
 		}
 	}
 
-	static void walkTransition(	Params params, LTSminTransition transition) {
-		if(transition instanceof LTSminTransition) {
+	static void walkTransition(Params params, LTSminTransition transition) {
+		if (transition instanceof LTSminTransitionCombo) {
+			LTSminTransitionCombo tc = (LTSminTransitionCombo)transition;
+			for(LTSminTransition t : tc.transitions) {
+				List<LTSminGuardBase> guards = t.getGuards();
+				for(LTSminGuardBase g: guards)
+					walkGuard(params,g);
+				List<Action> actions = t.getActions();
+				for(Action a: actions) {
+					walkAction(params,a);
+				}
+			}
+		} else if(transition instanceof LTSminTransition) {
 			LTSminTransition t = (LTSminTransition)transition;
 			List<LTSminGuardBase> guards = t.getGuards();
-			for(LTSminGuardBase g: guards) {
+			for(LTSminGuardBase g: guards)
 				walkGuard(params,g);
-			}
 			List<Action> actions = t.getActions();
-			for(Action a: actions) {
+			for(Action a: actions)
 				walkAction(params,a);
-			}
-		} else if (transition instanceof LTSminTransitionCombo) {
-			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
-			for(LTSminTransition tb : t.transitions) {
-				walkTransition(params,tb);
-			}
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + transition.getClass().getSimpleName());
 		}
