@@ -497,7 +497,7 @@ public class LTSminPrinter {
 			String name = rpa.getProcess().getName();
 			String struct_t = model.sv.getMember(rpa.getProcess()).getType().getName();
 			w.appendLine("#ifndef NORESETPROCESS");
-			w.appendLine("memcpy(",OUT_VAR,",(char*)&(",INITIAL_VAR,".",name,"),sizeof("+ struct_t +"));");
+			w.appendLine("memcpy(&",OUT_VAR,"->"+ name +",(char*)&(",INITIAL_VAR,".",name,"),sizeof("+ struct_t +"));");
 			w.appendLine("#endif");
 			w.appendLine(printVar(_NR_PR, out(model)) +"--;");
 			w.appendLine(printPC(rpa.getProcess(), out(model)) +" = -1;");
