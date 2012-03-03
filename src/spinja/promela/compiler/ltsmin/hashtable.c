@@ -131,22 +131,26 @@ resize (state_db_t *dbs)
 {
     if (dbs->size == dbs->max)
         return false;
-    memset (dbs->hash + dbs->size, 0, sizeof (mem_hash_t[dbs->size]));
     size_t i;
     size_t size = dbs->size;
-    dbs->size <<= 1;
+    size_t newsize = dbs->size <<= 1;
     dbs->size3 <<= 1;
     dbs->mask = dbs->size - 1;
+
+    // collect elements at dbs->table + newsize
+    int todos = 0;
     for (i = 0; i < size; i++) {
         mem_hash_t h = *memoized(dbs,i);
-        if (EMPTY == h || !(h & size))
-            continue;
-        h &= MASK;
-        *memoized(dbs,i) = TOMB;
-        int seen = state_db_lookup_hash (dbs, state(dbs,i), &h);
-        if (!seen) {
-            dbs->load--;
-        }
+        if (EMPTY == h || (h&MASK) == i) continue;
+        size_t newidx = newsize + todos;
+        *memoized(dbs,newidx) = h;
+        memcpy(state(dbs,newidx),state(dbs,i),dbs->bytes);
+        *memoized(dbs,i) = EMPTY;
+    }
+    memset (dbs->hash + size, 0, sizeof (mem_hash_t[size]));
+    for (i = newsize; i < newsize + todos; i++) {
+        mem_hash_t h = *memoized(dbs,i);
+        state_db_lookup_hash (dbs, state(dbs,i), &h);
     }
     return true;
 }
