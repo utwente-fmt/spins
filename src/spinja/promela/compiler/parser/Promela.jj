@@ -474,8 +474,9 @@ VariableType typename(): {
 |	t=<IDENTIFIER> {
         String text = Preprocessor.defines(t.image.trim());
         if (text != null) { // recursively start the parser
-            Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
-            return p.typename();
+            try {                Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
+                return p.typename();
+            } catch (ParseException e) { throw new MyParseException(e.getMessage(), t); }
         }
         return specification.getCustomType(t.image.trim());
 	}
@@ -845,10 +846,11 @@ Expression varref(): {
 	id=<IDENTIFIER>
 	{
         String text = Preprocessor.defines(id.image.trim());
-        if (text != null) {
-            // recursively start the parser
-            Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
-            return p.expr();
+        if (text != null) { // recursively start the parser
+            try {
+	            Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
+	            return p.expr();
+            } catch (ParseException e) { throw new MyParseException(e.getMessage(), id); }
         }
 		int mtypeNr = specification.getMType(id.image);
 		if(mtypeNr >= 0) {
@@ -1080,8 +1082,9 @@ ConstantExpression constant(): {
 	            return new MTypeReference(n, mtypeNr);
             throw new MyParseException("Expected constant!", n);
         }
-        // recursively start the parser
-        Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
-        return p.constant();
+        try { // recursively start the parser
+	        Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
+	        return p.constant();
+        } catch (ParseException e) { throw new MyParseException(e.getMessage(), n); }
     }
 }
