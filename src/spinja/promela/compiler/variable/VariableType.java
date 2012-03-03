@@ -32,7 +32,7 @@ public class VariableType {
 
 	public static VariableType INT = new VariableType("int", "int", 32);
 
-	public static VariableType MTYPE = new VariableType("mtype", "int", 8) {
+	public static VariableType MTYPE = new VariableType("mtype", "uint", 8) {
 		@Override
 		public boolean canConvert(VariableType type) {
 			return type == VariableType.MTYPE;

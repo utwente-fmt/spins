@@ -371,8 +371,19 @@ void utype(): {
 }
 
 void mtype(): {
-	Token id;
+	Token id, ref;
 }{
+    LOOKAHEAD(<MTYPE> <IDENTIFIER>)
+    <MTYPE> id=<IDENTIFIER> <ASSIGN> ref=<IDENTIFIER>
+    {
+	    Variable var = new Variable(VariableType.MTYPE, id.image, 1, currentProc);
+        int mtypeNr = specification.getMType(ref.image);
+        if(mtypeNr < 0)
+            throw new MyParseException("MType not found", ref);
+        var.setInitExpr(new MTypeReference(id, mtypeNr));
+        specification.getVariableStore().addVariable(var);
+    }
+    |
 	<MTYPE> (<ASSIGN>)? <LCURLY> id=<IDENTIFIER>
 	{ specification.addMType(id.image); }
 	(<COMMA> id=<IDENTIFIER>
