@@ -488,7 +488,7 @@ void one_decl(VariableContainer store): {
 
 void ivar(VariableContainer store, VariableType type): {
 	Token id;
-	int arraySize = 1;
+	int arraySize = -1;
 	Expression expr = null;
 	ConstantExpression c = null;
 }{
@@ -504,7 +504,7 @@ void ivar(VariableContainer store, VariableType type): {
 
 void ivar_chan(VariableContainer store): {
 	Token id;	
-	int arraySize = 1;
+	int arraySize = -1;
 	ConstantExpression c = null;
 	ChannelVariable var;
 }{

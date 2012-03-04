@@ -147,7 +147,7 @@ public class LTSminPrinter {
 				LTSminTypeI type = v.getType();
 				w.appendPrefix();
 				w.append(type +" "+ v.getName());
-				if(v.array()>1 || v.isStructBuffer())
+				if(v.array() > 0)
 					w.append("["+ v.array() +"]");
 				w.append(";");
 				w.appendPostfix();

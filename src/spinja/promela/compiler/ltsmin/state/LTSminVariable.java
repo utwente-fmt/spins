@@ -104,9 +104,4 @@ public class LTSminVariable {
 		res += DEREF;
 		return res + getType().printIdentifier(p, id.getSub());
 	}
-
-	public boolean isStructBuffer() {
-		return ( getParent() instanceof LTSminTypeChanStruct &&
-				 name.equals(LTSminTypeChanStruct.CHAN_BUF) );
-	}
 }
