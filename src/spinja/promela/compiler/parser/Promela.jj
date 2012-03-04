@@ -32,8 +32,6 @@ import java.util.*;
 @SuppressWarnings("all")
 public class Promela {
 
-    public Object preprocessing = null;
-
 	/** Copy Constructor. */
 	public Promela(Promela prom, java.io.InputStream stream) {
 	    this(stream);
@@ -179,9 +177,8 @@ TOKEN : {	/* Operators */
 {
     < EOF >
     {
-        if (null != parser.preprocessing) {
-            ReInit((SimpleCharStream)parser.preprocessing);
-            parser.preprocessing = null;
+        if (!Preprocessor.preprocessing.empty()) {
+            ReInit(Preprocessor.preprocessing.pop());
             Token next = getNextToken();
             matchedToken.image = next.image;
             matchedToken.kind = next.kind;
@@ -190,14 +187,15 @@ TOKEN : {	/* Operators */
         }
     }
 }
-    
+
 TOKEN : { /* Identifiers and numbers */
 	<IDENTIFIER: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
 	{
         String text = Preprocessor.defines(image.toString());
         if (null != text) {
-            parser.preprocessing = input_stream;
+            Preprocessor.preprocessing.push(input_stream);
             ReInit(new SimpleCharStream(new ByteArrayInputStream(text.getBytes())));
+            if (matchedToken == null) return;
             Token next = getNextToken();
             matchedToken.image = next.image;
             matchedToken.kind = next.kind;
@@ -215,17 +213,74 @@ SKIP : { // Skip whitespace and comments
 |	"\n"
 |	"/*" : IN_COMMENT
 |   "//" : IN_COMMENT2
+|   "#line" : PREPROCESSOR_FILE
+|   "#file" : PREPROCESSOR_LINE
 |	"#define" : PREPROCESSOR_DEFINE
+|   "#include" : PREPROCESSOR_INCLUDE
+}
+
+<PREPROCESSOR_FILE> SKIP:
+{
+    < "\n"|"\r"|"\r\n" > {
+        Preprocessor.file(input_stream, image.toString());
+    } : DEFAULT
+}
+    
+<PREPROCESSOR_FILE> MORE:
+{
+    "\\\n" |
+    "\\\r" |
+    "\\\r\n" |
+    < ~[] >
+}
+
+<PREPROCESSOR_LINE> SKIP:
+{
+    < "\n"|"\r"|"\r\n" > {
+        Preprocessor.line(input_stream, image.toString());
+    } : DEFAULT
+}
+    
+<PREPROCESSOR_LINE> MORE:
+{
+    "\\\n" |
+    "\\\r" |
+    "\\\r\n" |
+    < ~[] >
 }
 
 <PREPROCESSOR_DEFINE> SKIP:
 {
-    < "\n"|"\r"|"\r\n" > {
-        String text = image.toString();        Preprocessor.addDefine(input_stream, text.trim());
+    < "\n"|"\r"|"\r\n" > {        Preprocessor.addDefine(input_stream, image.toString().trim());
 	} : DEFAULT
 }
     
 <PREPROCESSOR_DEFINE> MORE:
+{
+    "\\\n" |
+    "\\\r" |
+    "\\\r\n" |
+    < ~[] >
+}
+
+<PREPROCESSOR_INCLUDE> SKIP:
+{
+    < "\n"|"\r"|"\r\n" > {
+        Preprocessor.preprocessing.push(input_stream);
+        String file = Preprocessor.parseFile(image.toString());
+        try {
+            ReInit(new SimpleCharStream(new FileInputStream(file)));
+        } catch (FileNotFoundException fne) { throw new AssertionError(fne); }
+        if (matchedToken == null) return;
+        Token next = getNextToken();
+        matchedToken.image = next.image;
+        matchedToken.kind = next.kind;
+        matchedToken.next = next.next;
+        matchedToken.specialToken = next.specialToken;
+    } : DEFAULT
+}
+
+<PREPROCESSOR_INCLUDE> MORE:
 {
     "\\\n" |
     "\\\r" |

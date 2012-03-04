@@ -49,6 +49,8 @@ public class Compile {
 		                                 final boolean verbose) {
 		try {
 			Preprocessor.setFilename(promFile.getName());
+			String path = promFile.getAbsolutePath();
+			Preprocessor.setDirname(path.substring(0, path.lastIndexOf("/")));
 			if (verbose)
 				System.out.print("Start parsing " + promFile.getName() + "...");
 			final Promela prom = new Promela(new FileInputStream(promFile));
