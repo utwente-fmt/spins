@@ -828,6 +828,10 @@ public class LTSminPrinter {
 			if (!(type instanceof ChannelType) || ((ChannelType)type).getBufferSize()==-1)
 				throw error("Unknown channel length of channel "+ var.getName(), co.getToken());
 			int buffer = ((ChannelType)type).getBufferSize();
+			if (0 == buffer) { // chanops on rendez-vous return true
+				w.append("true");
+				return;
+			}
 			w.append("(");
 			generateExpression(w, chanLength(id), state);
 			if (name.equals("empty")) {

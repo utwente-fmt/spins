@@ -383,7 +383,9 @@ public class LTSminDMWalker {
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			Identifier id = (Identifier)co.getExpression();
-			walkExpression(params, chanLength(id), mark);
+			ChannelType ct = (ChannelType)id.getVariable().getType();
+			if (0 != ct.getBufferSize()) // chanops on rendez-vous return true
+				walkExpression(params, chanLength(id), mark);
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
 			Identifier id = cte.getChannelReadAction().getIdentifier();
