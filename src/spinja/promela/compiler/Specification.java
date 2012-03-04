@@ -15,6 +15,7 @@
 package spinja.promela.compiler;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -401,6 +402,10 @@ public class Specification implements Iterable<Proctype> {
 		} else {
 			throw new ParseException("Could not find a type with name: " + name);
 		}
+	}
+
+	public Collection<CustomVariableType> getUserTypes() {
+		return userTypes.values();
 	}
 
 	public VariableStore getVariableStore() {

@@ -555,12 +555,6 @@ VariableType typename(): {
 |	<MTYPE> { return VariableType.MTYPE; }
 |	<CHAN> { return ChannelType.UNASSIGNED_CHANNEL; }
 |	t=<IDENTIFIER> {
-        /*String text = Preprocessor.defines(t.image.trim());
-        if (text != null) { // recursively start the parser
-            try {                Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
-                return p.typename();
-            } catch (ParseException e) { throw new MyParseException(e.getMessage(), t); }
-        }*/
         return specification.getCustomType(t.image.trim());
 	}
 }
@@ -928,13 +922,6 @@ Expression varref(): {
 }{
 	id=<IDENTIFIER>
 	{
-        /*String text = Preprocessor.defines(id.image.trim());
-        if (text != null) { // recursively start the parser
-            try {
-	            Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
-	            return p.expr();
-            } catch (ParseException e) { throw new MyParseException(e.getMessage(), id); }
-        } */
 		int mtypeNr = specification.getMType(id.image);
 		if(mtypeNr >= 0) {
 			return new MTypeReference(id, mtypeNr);
@@ -951,6 +938,13 @@ Expression varref(): {
 		} else if(specification.getVariableStore().hasVariable(id.image)) {
 			ident = new Identifier(id, specification.getVariableStore().getVariable(id.image), expr, id2);
 		} else {
+            Collection<CustomVariableType> types = specification.getUserTypes();
+            for (CustomVariableType cvt : types) {
+                Variable v = cvt.getVariableStore().getVariable(id.image);
+                if (null != v) {
+                    return new Identifier(id, v, expr, id2);
+                }
+            }
 			throw new MyParseException("Undeclared identifier: " + id.image, id);
 		}
 	}
@@ -1158,17 +1152,9 @@ ConstantExpression constant(): {
     { return ex1; }
 |   n=<IDENTIFIER>
     {
-        /*String text = Preprocessor.defines(n.image.trim());
-        if (text == null) {*/
-	        int mtypeNr = specification.getMType(n.image);
-	        if(mtypeNr >= 0)
-	            return new MTypeReference(n, mtypeNr);
-            throw new MyParseException("Expected constant!", n);
-        /*}
-        try { // recursively start the parser
-	        Promela p = new Promela(this, new ByteArrayInputStream(text.getBytes()));
-	        return p.constant();
-        } catch (ParseException e) { throw new MyParseException(e.getMessage(), n); }
-        */
+        int mtypeNr = specification.getMType(n.image);
+        if(mtypeNr >= 0)
+            return new MTypeReference(n, mtypeNr);
+        throw new MyParseException("Expected constant!", n);
     }
 }
