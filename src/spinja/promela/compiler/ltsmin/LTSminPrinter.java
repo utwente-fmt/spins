@@ -252,7 +252,7 @@ public class LTSminPrinter {
 				w.append(", // "+ (slot.getIndex()-1));
 			w.appendPostfix().appendPrefix();
 			w.append(slot.fullName());
-			char[] chars = new char[40 - slot.fullName().length()];
+			char[] chars = new char[Math.max(40 - slot.fullName().length(),0)];
 			Arrays.fill(chars, ' '); 
 			String prefix = new String(chars);
 			w.append(prefix +" = ");
