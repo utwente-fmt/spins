@@ -15,6 +15,7 @@ public class Preprocessor {
 	private static String fileName;
 	private static Map<String, String> defines = new HashMap<String, String>();
     public static Stack<SimpleCharStream> preprocessing = new Stack<SimpleCharStream>();
+	public static boolean parsing = false;
 
 	public static String getDirName() {
 		return dirName;
@@ -36,14 +37,16 @@ public class Preprocessor {
 		Preprocessor.fileName = fileName;
 	}
 
-	public static void addDefine(SimpleCharStream input_stream, String s) {
+	public static void addDefine(String s) {
 		Scanner sc = new Scanner(s);
 		try {
 			String id = sc.next();
 			String text = "";
 			while (sc.hasNext())
 				text += sc.nextLine();
-			defines.put(id, text.trim());
+			String put = defines.put(id, text.trim());
+			if (null != put)
+				System.err.println("Overwriting preprocessor define "+ id +" --> "+ put +" with "+ s +"\n");
 		} catch(NoSuchElementException e) {
 			System.out.println("error parsing "+ s +"\n"+e);
 		} catch(IllegalStateException e) {
@@ -51,6 +54,10 @@ public class Preprocessor {
 		}
 	}
 
+	public static void removeDefine(String s) {
+		defines.remove(s);
+	}
+	
 	public static String parseFile(String s) {
 	    Scanner sc = new Scanner(s);
 	    String text = "";

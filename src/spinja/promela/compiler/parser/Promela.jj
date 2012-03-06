@@ -192,7 +192,38 @@ TOKEN : { /* Identifiers and numbers */
 	<IDENTIFIER: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
 	{
         String text = Preprocessor.defines(image.toString());
-        if (null != text) {
+        if (null != text && !Preprocessor.parsing) {
+            List<String> parameters = new ArrayList<String>();  
+            Preprocessor.parsing = true;
+            Token nextToken = getNextToken();
+            int offset = nextToken.image.length();
+            if (PromelaConstants.LPAREN != nextToken.kind) {
+                input_stream.backup(offset);
+            } else {
+                while (true) { // parse: LPAREN (COMMA|ID)* RPAREN 
+                               // TODO: LPAREN (ID)? (COMMA ID)* RPAREN
+                    nextToken = getNextToken();
+                    offset += nextToken.image.length();
+                    switch (nextToken.kind) {
+                    case PromelaConstants.RPAREN: break;
+                    case PromelaConstants.COMMA: continue;
+                    case PromelaConstants.IDENTIFIER:
+                        Preprocessor.addDefine(nextToken.image.trim() +" ");
+                        parameters.add(nextToken.image.trim());
+                        break;
+                    default: 
+                        input_stream.backup(offset);
+			            for (String param : parameters) {
+			                Preprocessor.removeDefine(param);
+			            }
+                        parameters.clear();
+                        break;  
+                    //throw new AssertionError("Unexpected token ("+ nextToken +") while parsing preprocessor rule: "+ text);
+                    }
+                }
+            }
+            Preprocessor.parsing = false;
+            // switch character stream
             Preprocessor.preprocessing.push(input_stream);
             ReInit(new SimpleCharStream(new ByteArrayInputStream(text.getBytes())));
             if (matchedToken == null) return;
@@ -201,6 +232,9 @@ TOKEN : { /* Identifiers and numbers */
             matchedToken.kind = next.kind;
             matchedToken.next = next.next;
             matchedToken.specialToken = next.specialToken;
+            for (String param : parameters) {
+                Preprocessor.removeDefine(param);
+            }
         } 
 	}
 |	<NUMBER: (["0"-"9"])+ >
@@ -249,9 +283,17 @@ SKIP : { // Skip whitespace and comments
     < ~[] >
 }
 
+<NONE> TOKEN : {
+< NONE1 : "\"none\"" >
+|
+< NONE2 : "\'none\'" >
+}
+
+void None() : {} { <NONE1> | <NONE2> }
+
 <PREPROCESSOR_DEFINE> SKIP:
 {
-    < "\n"|"\r"|"\r\n" > {        Preprocessor.addDefine(input_stream, image.toString().trim());
+    < "\n"|"\r"|"\r\n" > {        Preprocessor.addDefine(image.toString().trim());
 	} : DEFAULT
 }
     
@@ -529,7 +571,7 @@ void ch_init(VariableContainer store, ChannelVariable var): {
         ChannelVariable cv = (ChannelVariable)var2;
 	    var.setType(cv.getType());
 	    var.setOwner(cv.getOwner());
-	    var.setName(cv.getName());    }
+	    //var.setName(cv.getName()); //TODO: will be declared double    }
   |
 	<LBRACK> size=constant() <RBRACK> <OF> 
 	{ 
