@@ -1,6 +1,8 @@
 package spinja.promela.compiler.parser;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
@@ -11,12 +13,31 @@ import java.util.Stack;
  * @author FIB
  */
 public class Preprocessor {
+	public static class DefineMapping {
+		public DefineMapping(String text, List<String> parameters2) {
+			this.defineText = text;
+			this.parameters = parameters2;
+		}
+		public String name;
+		public String defineText;
+		public List<String> parameters = new ArrayList<String>();
+		public int size() {
+			return parameters.size();
+		}
+	}
+	
 	private static String dirName;
 	private static String fileName;
-	private static Map<String, String> defines = new HashMap<String, String>();
+	private static Map<String, DefineMapping> defines = new HashMap<String, DefineMapping>();
     public static Stack<SimpleCharStream> preprocessing = new Stack<SimpleCharStream>();
 	public static boolean parsing = false;
+	public static String defineId;
+	public static Stack<DefineMapping> current = new Stack<DefineMapping>();
+	public static int parameterLength;
+	public static List<String> parameters = new ArrayList<String>();
 
+	public static int level = 0;
+	
 	public static String getDirName() {
 		return dirName;
 	}
@@ -29,7 +50,7 @@ public class Preprocessor {
 		return fileName;
 	}
 
-	public static String defines(String s) {
+	public static DefineMapping defines(String s) {
 		return defines.get(s);
 	}
 
@@ -37,20 +58,18 @@ public class Preprocessor {
 		Preprocessor.fileName = fileName;
 	}
 
-	public static void addDefine(String s) {
-		Scanner sc = new Scanner(s);
+	public static void addDefine(String text) {
 		try {
-			String id = sc.next();
-			String text = "";
-			while (sc.hasNext())
-				text += sc.nextLine();
-			String put = defines.put(id, text.trim());
+			DefineMapping m = new DefineMapping(text, parameters);
+			parameters = new ArrayList<String>();
+			m.name = defineId;
+			DefineMapping put = defines.put(defineId, m);
 			if (null != put)
-				System.err.println("Overwriting preprocessor define "+ id +" --> "+ put +" with "+ s +"\n");
+				System.err.println("Overwriting preprocessor define "+ defineId +" --> '"+ put.defineText +"' with '"+ text +"'\n");
 		} catch(NoSuchElementException e) {
-			System.out.println("error parsing "+ s +"\n"+e);
+			System.out.println("error parsing '"+ text +"'\n"+e);
 		} catch(IllegalStateException e) {
-			System.out.println("error parsing "+ s +"\n"+e);
+			System.out.println("error parsing '"+ text +"'\n"+e);
 		}
 	}
 

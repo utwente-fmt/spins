@@ -184,6 +184,10 @@ TOKEN : {	/* Operators */
             matchedToken.kind = next.kind;
             matchedToken.next = next.next;
             matchedToken.specialToken = next.specialToken;
+            Preprocessor.DefineMapping current = Preprocessor.current.pop();
+            for (String param : current.parameters) {
+                Preprocessor.removeDefine(param);
+            }
         }
     }
 }
@@ -191,53 +195,45 @@ TOKEN : {	/* Operators */
 TOKEN : { /* Identifiers and numbers */
 	<IDENTIFIER: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
 	{
-        String text = Preprocessor.defines(image.toString());
-        if (null != text && !Preprocessor.parsing) {
-            List<String> parameters = new ArrayList<String>();  
-            Preprocessor.parsing = true;
-            Token nextToken = getNextToken();
-            int offset = nextToken.image.length();
-            if (PromelaConstants.LPAREN != nextToken.kind) {
-                input_stream.backup(offset);
-            } else {
-                while (true) { // parse: LPAREN (COMMA|ID)* RPAREN 
-                               // TODO: LPAREN (ID)? (COMMA ID)* RPAREN
-                    nextToken = getNextToken();
-                    offset += nextToken.image.length();
-                    switch (nextToken.kind) {
-                    case PromelaConstants.RPAREN: break;
-                    case PromelaConstants.COMMA: continue;
-                    case PromelaConstants.IDENTIFIER:
-                        Preprocessor.addDefine(nextToken.image.trim() +" ");
-                        parameters.add(nextToken.image.trim());
-                        break;
-                    default: 
-                        input_stream.backup(offset);
-			            for (String param : parameters) {
-			                Preprocessor.removeDefine(param);
-			            }
-                        parameters.clear();
-                        break;  
-                    //throw new AssertionError("Unexpected token ("+ nextToken +") while parsing preprocessor rule: "+ text);
+        Preprocessor.DefineMapping current = Preprocessor.defines(image.toString());
+        if (null != current) {
+            Preprocessor.current.push(current);
+            if (current.size() > 0) { // parse arguments
+                int level = 0;
+                String text = ""; 
+loop:           while (true) {
+                    Token next = getNextToken();
+                    text += next.image;
+                    switch (next.kind) {
+                    case PromelaConstants.LPAREN: level++; break;
+                    case PromelaConstants.RPAREN: level--; if (0 == level) break loop;
                     }
                 }
+                text = text.substring(1, text.length()-1);
+		        String split[] = text.split(",");
+		        if (split.length != current.size()) 
+		            throw new AssertionError("Mismatching "+ current.name +" --> '"+ current.defineText +"' with \""+ text +"\"");
+		        int i = 0;
+		        for (String param : current.parameters) {
+                    System.out.println("Parameter "+ param  +" to "+ split[i]);
+		            Preprocessor.defineId = param;
+		            Preprocessor.addDefine(split[i++]);
+		        }
             }
-            Preprocessor.parsing = false;
-            // switch character stream
-            Preprocessor.preprocessing.push(input_stream);
-            ReInit(new SimpleCharStream(new ByteArrayInputStream(text.getBytes())));
-            if (matchedToken == null) return;
-            Token next = getNextToken();
+		    Preprocessor.preprocessing.push(input_stream);
+		    System.out.println("Reinit "+ image.toString() +" to "+ current.defineText);
+		    ReInit(new SimpleCharStream(new ByteArrayInputStream(
+		                     current.defineText.getBytes())));
+            Token next = getNextToken(); 
             matchedToken.image = next.image;
+            System.out.println(next.image);
             matchedToken.kind = next.kind;
             matchedToken.next = next.next;
             matchedToken.specialToken = next.specialToken;
-            for (String param : parameters) {
-                Preprocessor.removeDefine(param);
-            }
-        } 
+        }
 	}
-|	<NUMBER: (["0"-"9"])+ >
+|
+	<NUMBER: (["0"-"9"])+ >
 }
 
 SKIP : { // Skip whitespace and comments
@@ -249,7 +245,7 @@ SKIP : { // Skip whitespace and comments
 |   "//" : IN_COMMENT2
 |   "#line" : PREPROCESSOR_FILE
 |   "#file" : PREPROCESSOR_LINE
-|	"#define" : PREPROCESSOR_DEFINE
+|	"#define " : PREPROCESSOR_DEFINE
 |   "#include" : PREPROCESSOR_INCLUDE
 }
 
@@ -283,25 +279,84 @@ SKIP : { // Skip whitespace and comments
     < ~[] >
 }
 
-<NONE> TOKEN : {
-< NONE1 : "\"none\"" >
-|
-< NONE2 : "\'none\'" >
+/**
+ * PREPROCESSOR IN-LEXER PARSING OF DEFINE PARAMETERS
+ */
+ 
+<PREPROCESSOR_DEFINE> MORE:
+{
+    <DEFINE: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+        Preprocessor.defineId = image.toString();
+        Preprocessor.parameterLength = 0; // backup length if parsing fails
+        image.setLength(0);
+    } : PREPROCESSOR_DEFINE_PARAM
 }
 
-void None() : {} { <NONE1> | <NONE2> }
+<PREPROCESSOR_DEFINE_PARAM> MORE:
+{
+    < "(" > {
+        Preprocessor.parameterLength += image.length();
+        image.setLength(0);
+    } : PREPROCESSOR_DEFINE_PARAM1
+    |
+     < ~[] > {
+        Preprocessor.parameterLength += image.length();
+        input_stream.backup(Preprocessor.parameterLength);
+        image.setLength(0);
+        Preprocessor.parameters.clear();
+     } : PREPROCESSOR_DEFINE_REST
+}
 
-<PREPROCESSOR_DEFINE> SKIP:
+<PREPROCESSOR_DEFINE_PARAM1> MORE:
+{
+    <PARAM: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+        Preprocessor.parameters.add(image.toString().trim());
+        Preprocessor.parameterLength += image.length();
+        image.setLength(0);
+    } : PREPROCESSOR_DEFINE_PARAM2
+    |
+     < ~[] > {
+        Preprocessor.parameterLength += image.length();
+        input_stream.backup(Preprocessor.parameterLength);
+        image.setLength(0);
+        Preprocessor.parameters.clear();
+     } : PREPROCESSOR_DEFINE_REST
+}
+
+<PREPROCESSOR_DEFINE_PARAM2> MORE:
+{
+    < "," > {
+        Preprocessor.parameterLength += image.length();
+        image.setLength(0);
+    } : PREPROCESSOR_DEFINE_PARAM1
+    |
+    < ")" > {
+        image.setLength(0);
+    } : PREPROCESSOR_DEFINE_REST
+    |
+     < ~[] > {
+        Preprocessor.parameterLength += image.length();
+        input_stream.backup(Preprocessor.parameterLength);
+        image.setLength(0);
+        Preprocessor.parameters.clear();
+     } : PREPROCESSOR_DEFINE_REST
+}
+
+/**
+ * END PREPROCESSOR IN-LEXER PARSING OF DEFINE PARAMETERS
+ */
+
+<PREPROCESSOR_DEFINE_REST> SKIP:
 {
     < "\n"|"\r"|"\r\n" > {        Preprocessor.addDefine(image.toString().trim());
 	} : DEFAULT
 }
     
-<PREPROCESSOR_DEFINE> MORE:
+<PREPROCESSOR_DEFINE_REST> MORE:
 {
-    "\\\n" |
-    "\\\r" |
-    "\\\r\n" |
+    "\\\n" {image = image.deleteCharAt(image.length()-2); } |
+    "\\\r" {image = image.deleteCharAt(image.length()-2);} |
+    "\\\r\n" {image = image.deleteCharAt(image.length()-3);} |
     < ~[] >
 }
 
