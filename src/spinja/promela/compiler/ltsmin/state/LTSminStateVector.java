@@ -195,15 +195,15 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 					" of {"+ ct.getTypes().size() +"} ["+ ct.getBufferSize() +"]");
 			LTSminTypeI infoType = new LTSminTypeChanStruct(cv);
 			lvar = new LTSminVariable(infoType, var, struct);
-		} else if(var.getType() instanceof VariableType) {
-			debug.say("\t"+ var.getType().getName() +" "+ name);
-			lvar = new LTSminVariable(new LTSminTypeNative(var), var, struct);
 		} else if (var.getType() instanceof CustomVariableType) {
 			CustomVariableType cvt = (CustomVariableType)var.getType();
 			LTSminTypeStruct type = new LTSminTypeStruct(cvt.getName());
 			for (Variable v : cvt.getVariableStore().getVariables())
 				addVariable(type, v, debug);
 			lvar = new LTSminVariable(type, var, struct);
+		} else if(var.getType() instanceof VariableType) {
+			debug.say("\t"+ var.getType().getName() +" "+ name);
+			lvar = new LTSminVariable(new LTSminTypeNative(var), var, struct);
 		} else {
 			throw new AssertionError("ERROR: Unable to handle: " + var.getType().getName());
 		}
