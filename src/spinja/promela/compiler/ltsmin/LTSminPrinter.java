@@ -448,7 +448,6 @@ public class LTSminPrinter {
 		if(a instanceof AssignAction) { //TODO: assign + expr + runexp
 			AssignAction as = (AssignAction)a;
 			Identifier id = as.getIdentifier();
-			final String mask = id.getVariable().getType().getMask();
 			switch (as.getToken().kind) {
 				case ASSIGN:
 					try {
@@ -463,42 +462,21 @@ public class LTSminPrinter {
 						generateExpression(w, id, out(model));
 						w.append(" = ");
 						generateExpression(w, as.getExpr(), out(model));
-						w.append((mask == null ? "" : " & " + mask));
 						w.append(";");
 						w.appendPostfix();
 					}
 					break;
 				case INCR:
-					if (mask == null) {
-						w.appendPrefix();
-						generateExpression(w, id, out(model));
-						w.append("++;");
-						w.appendPostfix();
-					} else {
-						w.appendPrefix();
-						generateExpression(w, id, out(model));
-						w.append(" = (");
-						generateExpression(w, id, out(model));
-						w.append(" + 1) & ").append(mask).append(";");
-						w.appendPostfix();
-					}
+					w.appendPrefix();
+					generateExpression(w, id, out(model));
+					w.append("++;");
+					w.appendPostfix();
 					break;
 				case DECR:
-					if (mask == null) {
-						w.appendPrefix();
-						generateExpression(w, id, out(model));
-						w.append("--;");
-						w.appendPostfix();
-					} else {
-						w.appendPrefix();
-						generateExpression(w, id, out(model));
-						w.appendLine(" = (");
-						generateExpression(w, id, out(model));
-						w.append(" - 1) & ");
-						w.append(mask);
-						w.append(";");
-						w.appendPostfix();
-					}
+					w.appendPrefix();
+					generateExpression(w, id, out(model));
+					w.append("--;");
+					w.appendPostfix();
 					break;
 				default:
 					throw new AssertionError("unknown assignment type");
