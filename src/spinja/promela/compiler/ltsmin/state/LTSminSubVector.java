@@ -91,7 +91,7 @@ public abstract class LTSminSubVector implements Iterable<LTSminSlot> {
 				try {
 					next = follow();
 				} catch (AssertionError ae) {
-					throw new AssertionError("Query failed: "+ query +". "+ ae.getMessage());
+					throw new AssertionError("Query failed: "+ query +". "+ ae.getMessage()+". "+ err.getMessage());
 				}
 				next = next.sub(path);
 			};
