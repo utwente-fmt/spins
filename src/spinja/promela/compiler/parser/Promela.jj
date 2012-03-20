@@ -226,7 +226,6 @@ loop:           while (true) {
 		                     current.defineText.getBytes())));
             Token next = getNextToken(); 
             matchedToken.image = next.image;
-            System.out.println(next.image);
             matchedToken.kind = next.kind;
             matchedToken.next = next.next;
             matchedToken.specialToken = next.specialToken;
