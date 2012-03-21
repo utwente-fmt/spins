@@ -263,11 +263,20 @@ public class LTSminTreeWalker {
 	 * Add all reachable atomic transitions to tc
 	 */
 	private void reachability(State state, HashSet<State> seen,
-			LTSminTransitionCombo tc) {
+							  LTSminTransitionCombo tc) {
 		if (state == null || !state.isInAtomic()) return;
 		if (!seen.add(state)) return;
 		for (Transition t : state.output) {
 			Set<LTSminTransition> set = t2t.get(t);
+			if (null == set) {
+				Action a = t.iterator().next();
+				if (a instanceof ChannelSendAction) {
+					ChannelSendAction send = (ChannelSendAction)a;
+					ChannelType ct = (ChannelType)send.getIdentifier().getVariable().getType();
+					if (0 == ct.getBufferSize()) continue; // rendez-vous send
+				}
+				throw new AssertionError("No transition created for "+ t);
+			}
 			for (LTSminTransition lt : set) {
 				assert (lt.isAtomic());
 				tc.addTransition(lt);
@@ -411,10 +420,31 @@ public class LTSminTreeWalker {
 		String t_name = makeTranstionName(t, null, never_t);
 		LTSminTransition lt = makeTransition(process, trans, t, t_name);
 
+		// Guard: never enabled action or else transition
+        if (never_t != null) {
+        	if (never_t.getTo().isInAtomic() || never_t.getFrom().isInAtomic())
+        		throw new AssertionError("Atomic in never claim not implemented");
+			lt.addGuard(makePCGuard(never_t.getFrom(),spec.getNever()));
+	        if (never_t instanceof ElseTransition) {
+	            ElseTransition et = (ElseTransition)never_t;
+	            for (Transition ot : t.getFrom().output) {
+	                if (ot!=et) {
+	                	LTSminGuardNand nand = new LTSminGuardNand();
+	                    createEnabledGuard(spec.getNever(),ot,nand);
+	                    lt.addGuard(nand);
+	                }
+	            }
+	        } else {
+	        	createEnabledGuard(process, never_t, lt);
+	        }
+
+	        // never claim executes first
+	        lt.addAction(assign(model.sv.getPC(process),
+								never_t.getTo()==null?-1:never_t.getTo().getStateId()));
+		}
+		
 		// Guard: process counter
 		lt.addGuard(makePCGuard(t.getFrom(), process));
-		if(never_t!=null)
-			lt.addGuard(makePCGuard(never_t.getFrom(),spec.getNever()));
 
         // Guard: enabled action or else transition
         if (t instanceof ElseTransition) {
@@ -434,52 +464,22 @@ public class LTSminTreeWalker {
 		if (t.getTo()==null) {
 			lt.addGuard(makeAllowedToDie(process));
 		}
-
-		// Guard: never enabled action or else transition
-        if (never_t != null) {
-	        if (never_t instanceof ElseTransition) {
-	            ElseTransition et = (ElseTransition)never_t;
-	            for (Transition ot : t.getFrom().output) {
-	                if (ot!=et) {
-	                	LTSminGuardNand nand = new LTSminGuardNand();
-	                    createEnabledGuard(spec.getNever(),ot,nand);
-	                    lt.addGuard(nand);
-	                }
-	            }
-	        } else {
-	        	createEnabledGuard(process, never_t, lt);
-	        }
-        }
         
 		lt.addGuard(makeInAtomicGuard(process));
 
 		// Create actions of the transition, iff never is absent, dying or not atomic
 		if  (never_t == null || never_t.getTo()==null || !never_t.getTo().isInAtomic()) {
-			if (t.getTo()==null)
+			if (t.getTo()==null) {
 				lt.addAction(new ResetProcessAction(process));
-			else // Action: PC counter update
+			} else { // Action: PC counter update
 				lt.addAction(assign(model.sv.getPC(process), t.getTo().getStateId()));
-	       
+			}
 			// Actions: transition
 			for (Action action : t) {
 	            lt.addAction(action);
 	        }
-
-			/*
-			// Action: priority (take if to.isInAtomic)
-			if (t.getTo()!=null && t.getTo().isInAtomic()) {
-				lt.addAction(assign(priorityIdentifier, model.sv.procOffset(process)));
-			} else {
-				lt.addAction(assign(priorityIdentifier, -1));
-			}
-			*/
 		}
 
-		// Action: Never PC update
-		if (never_t != null) {
-			lt.addAction(assign(model.sv.getPC(process),
-								never_t.getTo()==null?-1:never_t.getTo().getStateId()));
-		}
 		return lt;
 	}
 
@@ -667,13 +667,21 @@ state_loop:	for (State st : p.getAutomaton()) {
 	private int createRendezVousTransition(SendAction sa, ReadAction ra,
 										   int trans, Transition never_t) {
 		String name = makeTranstionName(sa.t, ra.t, never_t);
-		LTSminTransition lt = makeTransition(ra.p, trans, ra.t, name);
-		//new LTSminTransitionCombo(trans, name,  ra.p, sa.t)
-
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
 		List<Expression> csa_exprs = csa.getExprs();
 		List<Expression> cra_exprs = cra.getExprs();
+		try {
+			for (int i = 0; i < cra_exprs.size(); i++) {
+				final Expression csa_expr = csa_exprs.get(i);
+				final Expression cra_expr = cra_exprs.get(i);
+				try { // we skip creating transitions for impotent matches:
+					if (csa_expr.getConstantValue() != cra_expr.getConstantValue())
+						return trans;
+				} catch (ParseException pe) {}
+			}
+		} catch (IndexOutOfBoundsException iobe) {} // skip missing arguments
+		LTSminTransition lt = makeTransition(ra.p, trans, ra.t, name);
 
 		lt.addGuard(makePCGuard(sa.t.getFrom(), sa.p));
 		lt.addGuard(makePCGuard(ra.t.getFrom(), ra.p));
@@ -685,35 +693,32 @@ state_loop:	for (State st : p.getAutomaton()) {
 			if (e2 == null) e2 = constant(0);
 			lt.addGuard(compare(PromelaConstants.EQ, e2, e2));
 		}
-		/* Channel matches */
-		for (int i = 0; i < cra_exprs.size(); i++) {
-			final Expression csa_expr = csa_exprs.get(i);
-			final Expression cra_expr = cra_exprs.get(i);
-			try { // we skip creating transitions for impotent matches:
-				if (csa_expr.getConstantValue() != cra_expr.getConstantValue())
-					return trans;
-			} catch (ParseException pe) {}
-			if (!(cra_expr instanceof Identifier)) {
-				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
-			}
-		}
 
-		lt.addGuard(makeInAtomicGuard(sa.p));
-		if (sa.t.isAtomic() && ra.t.isAtomic()) // control passes from sender to receiver
-			lt.passesControlAtomically(ra.p);
-		
+		/* Channel matches */
+		try {
+			for (int i = 0; i < cra_exprs.size(); i++) {
+				final Expression csa_expr = csa_exprs.get(i);
+				final Expression cra_expr = cra_exprs.get(i);
+				try { // we skip creating transitions for impotent matches:
+					if (csa_expr.getConstantValue() != cra_expr.getConstantValue())
+						return trans;
+				} catch (ParseException pe) {}
+				if (cra_expr instanceof Identifier) {
+					lt.addAction(assign((Identifier)cra_expr,csa_expr));
+				} else {
+					lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
+				}
+			}
+		} catch (IndexOutOfBoundsException iobe) {} // skip missing arguments TODO: check semantics
+
 		// Change process counter of sender
 		lt.addAction(assign(model.sv.getPC(sa.p),sa.t.getTo().getStateId()));
 		// Change process counter of receiver
 		lt.addAction(assign(model.sv.getPC(ra.p),ra.t.getTo().getStateId()));
-		
-		for (int i = 0; i < cra_exprs.size(); i++) {
-			final Expression csa_expr = csa_exprs.get(i);
-			final Expression cra_expr = cra_exprs.get(i);
-			if ((cra_expr instanceof Identifier)) {
-				lt.addAction(assign((Identifier)cra_expr,csa_expr));
-			}
-		}
+
+		lt.addGuard(makeInAtomicGuard(sa.p));
+		if (sa.t.isAtomic() && ra.t.isAtomic()) // control passes from sender to receiver
+			lt.passesControlAtomically(ra.p);
 
 		model.getTransitions().add(lt);
 		return trans + 1;
