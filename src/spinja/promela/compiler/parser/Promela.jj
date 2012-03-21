@@ -423,9 +423,7 @@ Specification spec(String name): {
 /* Each part in the specification is a called a module */
 void module(): {
 }{
-	utype()
-|	LOOKAHEAD(1) mtype()
-| 	inline()
+ 	inline()
 |   LOOKAHEAD(2) proctype()
 |	one_decl(specification.getVariableStore())
 |	init()
@@ -526,45 +524,6 @@ void never(): {
 	}
 }
 
-void utype(): {
-	Token id;
-}{
-	<TYPEDEF> id=<IDENTIFIER> 
-    {
-        CustomVariableType custom = specification.newCustomType(id.image);
-    }
-	<LCURLY>
-	   decl_list(custom.getVariableStore()) (<SEMICOLON>)?
-	<RCURLY>
-}
-
-void mtype(): {
-	Token id, ref;
-}{
-    LOOKAHEAD(<MTYPE> <IDENTIFIER>)
-    <MTYPE> id=<IDENTIFIER> <ASSIGN> ref=<IDENTIFIER>
-    {
-	    Variable var = new Variable(VariableType.MTYPE, id.image, 1, currentProc);
-        int mtypeNr = specification.getMType(ref.image);
-        if(mtypeNr < 0)
-            throw new MyParseException("MType not found", ref);
-        var.setInitExpr(new MTypeReference(id, mtypeNr));
-        specification.getVariableStore().addVariable(var);
-    }
-    |
-	<MTYPE> (<ASSIGN>)? <LCURLY> id=<IDENTIFIER>
-	{ specification.addMType(id.image); }
-	(<COMMA> id=<IDENTIFIER>
-	{ specification.addMType(id.image); }
-	)* <RCURLY>
-}
-
-void inline(): {
-	Token t;
-}{
-	t = <INLINE>
-	{ throw new MyParseException("Inlines are not yet supported!", t); }
-}
 
 /*** Here the declarations start ***/
 
@@ -573,13 +532,36 @@ void decl_list(VariableContainer store): {
 	one_decl(store) (LOOKAHEAD(<SEMICOLON> one_decl(store)) <SEMICOLON> one_decl(store))*
 }
 
+
 void one_decl(VariableContainer store): {
 }{
-	type=typename()
-	(LOOKAHEAD( {type instanceof ChannelType} )
-	  ivar_chan(store) (<COMMA> ivar_chan(store))*
-	| ivar(store, type) (<COMMA> ivar(store, type))*
+    <TYPEDEF> utype() (<COMMA> utype())*
+|   LOOKAHEAD(3) <MTYPE> mtype() (<COMMA> mtype())*
+|	type=typename()
+    (LOOKAHEAD( {type instanceof ChannelType} )
+	   ivar_chan(store) (<COMMA> ivar_chan(store))*
+	|  ivar(store, type) (<COMMA> ivar(store, type))*
 	)
+}
+
+void utype(): {
+    Token id;
+}{
+    id=<IDENTIFIER> 
+    { CustomVariableType custom = specification.newCustomType(id.image); }
+    <LCURLY>
+       decl_list(custom.getVariableStore()) (<SEMICOLON>)?
+    <RCURLY>
+}
+
+void mtype(): {
+    Token id, ref = null;
+}{
+    (<ASSIGN>)? <LCURLY> id=<IDENTIFIER>
+       { specification.addMType(id.image); }
+    (<COMMA> id=<IDENTIFIER>
+       { specification.addMType(id.image); }
+    )* <RCURLY>
 }
 
 void ivar(VariableContainer store, VariableType type): {
@@ -1019,7 +1001,7 @@ Expression varref(): {
 	id=<IDENTIFIER>
 	{
 		int mtypeNr = specification.getMType(id.image);
-		if(mtypeNr >= 0) {
+		if(mtypeNr > 0) {
 			return new MTypeReference(id, mtypeNr);
 		}
 	}
@@ -1249,8 +1231,15 @@ ConstantExpression constant(): {
 |   n=<IDENTIFIER>
     {
         int mtypeNr = specification.getMType(n.image);
-        if(mtypeNr >= 0)
+        if(mtypeNr > 0)
             return new MTypeReference(n, mtypeNr);
         throw new MyParseException("Expected constant!", n);
     }
+}
+
+void inline(): {
+    Token t;
+}{
+    t = <INLINE>
+    { throw new MyParseException("Inlines are not yet supported!", t); }
 }

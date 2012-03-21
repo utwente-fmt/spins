@@ -379,8 +379,16 @@ public class Specification implements Iterable<Proctype> {
 		// }
 	}
 
+	/**
+	 * Returns mtype constant for an identifier. If there is no corresponding
+	 * MType, 0 is returned
+	 * @param name, the name of the identifier
+	 * @return 0 or the number of the MType
+	 */
 	public int getMType(final String name) {
-		return mtypes.indexOf(name);
+		int index = mtypes.indexOf(name);
+		if (-1 == index) return 0;
+		return mtypes.size() - index; // SPIN does reverse numbering of mtypes
 	}
 
 	public Proctype getNever() {
