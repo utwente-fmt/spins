@@ -265,7 +265,7 @@ public class LTSminTreeWalker {
 	private void reachability(State state, HashSet<State> seen,
 			LTSminTransitionCombo tc) {
 		if (state == null || !state.isInAtomic()) return;
-		seen.add(state);
+		if (!seen.add(state)) return;
 		for (Transition t : state.output) {
 			Set<LTSminTransition> set = t2t.get(t);
 			for (LTSminTransition lt : set) {
