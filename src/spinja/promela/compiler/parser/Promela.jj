@@ -215,6 +215,7 @@ loop:           while (true) {
 		            throw new AssertionError("Mismatching "+ current.name +" --> '"+ current.defineText +"' with \""+ text +"\"");
 		        int i = 0;
 		        for (String param : current.parameters) {
+		            if (param.equals(split[i])) continue; // avoid inf recursion
                     System.out.println("Parameter "+ param  +" to "+ split[i]);
 		            Preprocessor.defineId = param;
 		            Preprocessor.addDefine(split[i++]);
