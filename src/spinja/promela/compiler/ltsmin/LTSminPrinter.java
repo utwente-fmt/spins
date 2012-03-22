@@ -395,7 +395,7 @@ public class LTSminPrinter {
 		List<LTSminTransition> transitions = model.getTransitions();
 		int trans = 0;
 		for(LTSminTransition t : transitions) {
-			w.appendLine("case ",trans,": { // ",t.getName());
+			w.appendLine("case ",trans,": {");
 			w.indent();
 			generateATransition(w, t, model);
 			w.appendLine("return states_emitted;");

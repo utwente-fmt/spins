@@ -214,28 +214,6 @@ public class LTSminTreeWalker {
 		}
 
 		/*
-		// Create loss of atomicity transition.
-		// This is used when a process blocks inside an atomic transition.
-		LTSminTransitionCombo ltc = new LTSminTransitionCombo("loss of atomicity");
-		model.getTransitions().add(ltc);
-		for (AtomicState as : atomicStates) {
-			LTSminTransition lt = new LTSminTransition(as.p);
-			ltc.addTransition(lt);
-			State s = as.s;
-			Proctype process = as.p;
-			assert (s.isInAtomic());
-
-			lt.addGuard(trans, makePCGuard(s, process));
-			//lt.addGuard(trans, makeExclusiveAtomicGuard(process));
-			for (Transition ot : s.output) {
-				LTSminGuardNand gnand = new LTSminGuardNand();
-				createEnabledAndDieGuard(process,ot,trans,gnand);
-				lt.addGuard(gnand);
-			}
-			//lt.addAction(assign(priorityIdentifier, -1));
-		}
-		++trans;
-
 		// Add total timeout transition in case of a never claim.
 		// This is because otherwise accepting cycles might not be found,
 		// although the never claim is violated.

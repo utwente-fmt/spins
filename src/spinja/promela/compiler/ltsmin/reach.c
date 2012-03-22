@@ -39,7 +39,7 @@ dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state)
 			printf ("Loss of atomicity!\n");	// loss of atomicity
 			int a;
 			for (a = 0; a < spinja_get_state_size(); a++)
-				printf("%d, ",a);
+				printf("%d, ", ((int*)&out)[a]);
 			printf ("\n");
 			args->callback (args->arg, transition_info, state);
 			args->outs++;
