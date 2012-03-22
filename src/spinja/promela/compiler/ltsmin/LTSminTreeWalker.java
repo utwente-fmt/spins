@@ -2,11 +2,15 @@ package spinja.promela.compiler.ltsmin;
 
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.bool;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanEmptyGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.dieGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.makeTranstionName;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,7 +44,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
-import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
@@ -301,8 +304,8 @@ public class LTSminTreeWalker {
 			LTSminTransition lt = makeTransition(process, trans, state, process.getName() +"_end");
 			model.getTransitions().add(lt);
 
-			lt.addGuard(makePCGuard(state, process));
-			lt.addGuard(makeAllowedToDie(process));
+			lt.addGuard(pcGuard(model, state, process));
+			lt.addGuard(dieGuard(model, process));
 			lt.addGuard(makeInAtomicGuard(process));
 
 			lt.addAction(new ResetProcessAction(process));
@@ -402,7 +405,7 @@ public class LTSminTreeWalker {
         if (never_t != null) {
         	if (never_t.getTo().isInAtomic() || never_t.getFrom().isInAtomic())
         		throw new AssertionError("Atomic in never claim not implemented");
-			lt.addGuard(makePCGuard(never_t.getFrom(),spec.getNever()));
+			lt.addGuard(pcGuard(model,never_t.getFrom(), spec.getNever()));
 	        if (never_t instanceof ElseTransition) {
 	            ElseTransition et = (ElseTransition)never_t;
 	            for (Transition ot : t.getFrom().output) {
@@ -422,7 +425,7 @@ public class LTSminTreeWalker {
 		}
 		
 		// Guard: process counter
-		lt.addGuard(makePCGuard(t.getFrom(), process));
+		lt.addGuard(pcGuard(model, t.getFrom(), process));
 
         // Guard: enabled action or else transition
         if (t instanceof ElseTransition) {
@@ -440,7 +443,7 @@ public class LTSminTreeWalker {
 
         // Guard: allowed to die
 		if (t.getTo()==null) {
-			lt.addGuard(makeAllowedToDie(process));
+			lt.addGuard(dieGuard(model, process));
 		}
         
 		lt.addGuard(makeInAtomicGuard(process));
@@ -528,7 +531,7 @@ public class LTSminTreeWalker {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
 			if(var.getType().getBufferSize()>0) {
-				lt.addGuard(makeChannelUnfilledGuard(csa.getIdentifier()));
+				lt.addGuard(chanEmptyGuard(csa.getIdentifier()));
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send before all others! "+ var);
 			}
@@ -549,7 +552,7 @@ public class LTSminTreeWalker {
 			ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
 			if(var.getType().getBufferSize()>0) {
 				List<Expression> exprs = cra.getExprs();
-				lt.addGuard(makeChannelHasContentsGuard(cra.getIdentifier()));
+				lt.addGuard(chanContentsGuard(cra.getIdentifier()));
 				// Compare constant arguments with channel content
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
@@ -574,7 +577,7 @@ public class LTSminTreeWalker {
 	 * dependency matrix is fixed accordingly. If tt is null,
 	 * @param tt The timeoutTransition.
 	 */
-	private void createTimeoutExpression(TimeoutTransition tt) {
+	public void createTimeoutExpression(TimeoutTransition tt) {
 		for (Proctype p : spec) {
 state_loop:	for (State st : p.getAutomaton()) {
 				// Check if this state has an ElseTransition
@@ -585,7 +588,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 				}
 				// Loop over all transitions of the state
 				for (Transition trans : st.output) {
-					tt.lt.addGuard(makeAllowedToDie(p));
+					tt.lt.addGuard(dieGuard(model, p));
 					//tt.lt.addGuard(tt.trans,makeAtomicGuard(p));
                     createEnabledGuard(p,trans,tt.lt);
 				}
@@ -599,14 +602,14 @@ state_loop:	for (State st : p.getAutomaton()) {
 	 * The dependency matrix is fixed accordingly.
 	 * @param tt The TimeoutTransition
 	 */
-	private int createTotalTimeout(State from, int trans, Proctype process) {
+	public int createTotalTimeout(State from, int trans, Proctype process) {
 		LTSminTransition lt = makeTransition(process, trans, from, "total timeout");
 		LTSminGuardOr gor = new LTSminGuardOr();
 		lt.addGuard(gor);
 		model.getTransitions().add(lt);
 		for (State s : spec.getNever().getAutomaton()) {
 			if (s.isAcceptState()) {
-				gor.addGuard(makePCGuard(s, spec.getNever()));
+				gor.addGuard(pcGuard(model, s, spec.getNever()));
 			}
 		}
 		for (Proctype p: spec) {
@@ -622,7 +625,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 					// current state in the current process is not enabled.
 					LTSminGuardNand gnand = new LTSminGuardNand();
 					lt.addGuard(gnand);
-					gnand.addGuard(makePCGuard(st, p));
+					gnand.addGuard(pcGuard(model, st, p));
 					//gnand.addGuard(trans, makeAtomicGuard(p));
 					createEnabledGuard(p,t,gnand);
 				}
@@ -661,8 +664,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 		} catch (IndexOutOfBoundsException iobe) {} // skip missing arguments
 		LTSminTransition lt = makeTransition(ra.p, trans, ra.t, name);
 
-		lt.addGuard(makePCGuard(sa.t.getFrom(), sa.p));
-		lt.addGuard(makePCGuard(ra.t.getFrom(), ra.p));
+		lt.addGuard(pcGuard(model, sa.t.getFrom(), sa.p));
+		lt.addGuard(pcGuard(model, ra.t.getFrom(), ra.p));
 		Identifier sendId = sa.csa.getIdentifier();
 		if (sendId.getVariable().getArraySize() > -1) { // array of channels
 			Expression e1 = ra.cra.getIdentifier().getArrayExpr();
@@ -700,49 +703,5 @@ state_loop:	for (State st : p.getAutomaton()) {
 
 		model.getTransitions().add(lt);
 		return trans + 1;
-	}
-
-	private String makeTranstionName(Transition t) {
-		String t_name = t.getFrom().getAutomaton().getProctype().getName();
-		t_name += "("+ t.getFrom().getStateId() +"-->";
-		return t_name + (t.getTo()== null ? "end" : t.getTo().getStateId()) +")";
-	}
-
-	private String makeTranstionName(Transition t, Transition sync_t,
-									 Transition never_t) {
-		String name = makeTranstionName(t);
-		if (sync_t != null)
-			name += " X "+ makeTranstionName(sync_t);
-		if (never_t != null)
-			name += " X "+ makeTranstionName(never_t);
-		return name;
-	}
-	
-    private Expression makePCGuard(State s, Proctype p) {
-		Variable pc = model.sv.getPC(p);
-		Expression left = id(pc);
-		Expression right = constant(s.getStateId());
-		Expression e = compare(PromelaConstants.EQ, left, right);
-		return e;
-	}
-
-	/* TODO: die sequence of dynamically started processes ala http://spinroot.com/spin/Man/init.html */
-	private Expression makeAllowedToDie(Proctype p) {
-		Variable pid = model.sv.getPID(p);
-		Expression left = calc(PromelaConstants.PLUS, id(pid), constant(1)); 
-		return compare (PromelaConstants.EQ, left, id(LTSminStateVector._NR_PR));
-	}
-
-	private Expression makeChannelUnfilledGuard(Identifier id) {
-		Expression left = new ChannelSizeExpression(id);
-		Expression right = constant(((ChannelType)id.getVariable().getType()).getBufferSize());
-		Expression e = compare(PromelaConstants.LT, left, right);
-		return e;
-	}
-
-	private Expression makeChannelHasContentsGuard(Identifier id) {
-		Expression left = new ChannelSizeExpression(id);
-		Expression e = compare(PromelaConstants.GT, left, constant(0));
-		return e;
 	}
 }
