@@ -350,7 +350,7 @@ public class LTSminTreeWalker {
 	}
 
 	private LTSminLocalGuard makeInAtomicGuard(Proctype process) {
-		Identifier id = new LTSminIdentifier(new Variable(VariableType.BOOL, "atomic", 0));
+		Identifier id = new LTSminIdentifier(new Variable(VariableType.BOOL, "atomic", -1));
 		Variable pid = model.sv.getPID(process);
 		BooleanExpression boolExpr = bool(PromelaConstants.LOR,
 				compare(PromelaConstants.EQ, id, constant(-1)),
@@ -686,7 +686,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 		lt.addGuard(makePCGuard(sa.t.getFrom(), sa.p));
 		lt.addGuard(makePCGuard(ra.t.getFrom(), ra.p));
 		Identifier sendId = sa.csa.getIdentifier();
-		if (sendId.getVariable().getArraySize() > 1) { // array of channels
+		if (sendId.getVariable().getArraySize() > -1) { // array of channels
 			Expression e1 = ra.cra.getIdentifier().getArrayExpr();
 			Expression e2 = sa.csa.getIdentifier().getArrayExpr();
 			if (e1 == null) e1 = constant(0);

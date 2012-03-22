@@ -21,7 +21,7 @@ public class LTSminTypeChanStruct extends LTSminTypeStruct {
 	}
 
 	public static Variable elemVar(int index) {
-		return new Variable(null, elemName(index), 0);
+		return new Variable(null, elemName(index), -1);
 	}
 	
 	private static final String CHAN_PREFIX 	= "channel_";

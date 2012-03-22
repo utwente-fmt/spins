@@ -57,7 +57,7 @@ public class ChannelVariable extends Variable {
 
 	@Override
 	public void printInitExpr(final StringWriter w) {
-		if (getArraySize() > 1) {
+		if (getArraySize() > -1) {
 			w.appendLine(getName(), " = new ", getType().getJavaName(), "[", getArraySize(), "];");
 			w.appendLine("for(int _i = 0; _i < ", getArraySize(), "; _i++) {");
 			w.indent();

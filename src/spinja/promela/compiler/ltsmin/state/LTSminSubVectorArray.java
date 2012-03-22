@@ -11,14 +11,14 @@ public class LTSminSubVectorArray extends LTSminSubVector {
 	}
 
 	protected LTSminSubVector getSubVector(int index) {
-		if (index > (var.array()>0?var.array():1))
+		if (index > (var.array() > -1 ? var.array() : 1))
 			throw new AssertionError("Array index out of bound for: "+ var);
 		return follow(index);
 	}
 
 	@Override
 	protected LTSminSubVector follow() {
-		if (var.array() > 1)
+		if (var.array() > -1)
 			throw new AssertionError("Array variable requires index: "+ var);
 		return follow(0);
 	}

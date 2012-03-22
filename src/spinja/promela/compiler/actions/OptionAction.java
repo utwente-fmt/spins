@@ -123,7 +123,7 @@ public class OptionAction extends Action implements Iterable<Sequence> {
 	public boolean isComplex() {
 		for (Sequence seq : options) {
 			for (Identifier id : seq.getChangedVariables()) {
-				if (id.getVariable().getArraySize() > 1) {
+				if (id.getVariable().getArraySize() > -1) {
 					return true;
 				}
 			}

@@ -364,7 +364,7 @@ public class Specification implements Iterable<Proctype> {
 		// Create the variables
 		for (final Variable var : varStore.getVariables()) {
 			if (var.getName().charAt(0) != '_') {
-				w.appendLine(var.getType().getJavaName(), (var.getArraySize() > 1 ? "[]" : ""),
+				w.appendLine(var.getType().getJavaName(), (var.getArraySize() > -1 ? "[]" : ""),
 					" ", var.getName(), ";");
 			}
 		}

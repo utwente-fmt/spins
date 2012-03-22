@@ -237,7 +237,7 @@ public class Proctype implements VariableContainer {
 
 	protected void generateLocalVars(final StringWriter w) {
 		for (final Variable var : varStore.getVariables()) {
-			w.appendLine("protected ", var.getType().getJavaName(), (var.getArraySize() > 1 ? "[]" : ""), 
+			w.appendLine("protected ", var.getType().getJavaName(), (var.getArraySize() > -1 ? "[]" : ""),
 				" ", var.getName(), ";");
 		}
 		w.appendLine();

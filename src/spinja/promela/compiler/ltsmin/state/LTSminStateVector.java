@@ -99,7 +99,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 			// recursion
 			for (int i = 0; i < Math.max(v.array(), 1); i++) {
 				String fn = fullName +"."+ v.getName() + //TODO: use ExprPrinter
-						(v.array() > 0 ? "["+i+"]" : "");
+						(v.array() > -1 ? "["+i+"]" : "");
 				if (v.getType() instanceof LTSminTypeStruct) {
 					flattenStateVector ((LTSminTypeStruct)v.getType(), fn);
 				} else {
@@ -138,7 +138,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		int nr_active = 0;
 		for (Proctype p : spec) {
 			// Add PID
-			Variable pid = new Variable(C_TYPE_PID, C_STATE_PID, 0, p);
+			Variable pid = new Variable(C_TYPE_PID, C_STATE_PID, -1, p);
 			try { pid.setInitExpr(constant(p.getID()));
 			} catch (ParseException e) { assert (false); }
 			p.prependVariable(pid);
@@ -162,7 +162,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		LTSminTypeStruct process_t = new LTSminTypeStruct(name);
 
 		// Add PC
-		Variable pc = new Variable(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER, 0, p);
+		Variable pc = new Variable(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER, -1, p);
 		int initial_pc = (p.getNrActive() == 0 ? -1 : 0);
 		try { pc.setInitExpr(constant(initial_pc));
 		} catch (ParseException e) { assert (false); }
@@ -191,7 +191,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 			ChannelType ct = cv.getType();
 			//skip channels references (ie proc arguments) and rendez-vous channels
 			if (ct.getBufferSize() == -1 || ct.getBufferSize() == 0 ) return;
-			debug.say("\t"+ var.getName() + "["+ var.getArraySize() +"]" +
+			debug.say("\t"+ var.getName() + (var.getArraySize() == -1 ? "" : "["+ var.getArraySize() +"]") +
 					" of {"+ ct.getTypes().size() +"} ["+ ct.getBufferSize() +"]");
 			LTSminTypeI infoType = new LTSminTypeChanStruct(cv);
 			lvar = new LTSminVariable(infoType, var, struct);

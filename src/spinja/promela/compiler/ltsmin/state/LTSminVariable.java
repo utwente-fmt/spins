@@ -38,7 +38,7 @@ public class LTSminVariable {
 	}
 
 	public LTSminVariable(LTSminTypeI type, String name, LTSminTypeI parent) {
-		this(type, name, 0, parent);
+		this(type, name, -1, parent);
 	}
 
 	public LTSminVariable(Variable var, LTSminTypeI parent) {
@@ -74,7 +74,7 @@ public class LTSminVariable {
 	 * @return variable's length in number of slots
 	 */
 	public int length() {
-		int s = size > 1 ? size : 1;
+		int s = size > -1 ? size : 1;
 		return s * type.length();
 	}
 

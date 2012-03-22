@@ -109,10 +109,11 @@ public class Identifier extends Expression {
 
 	@Override
 	public String getIntExpression() throws ParseException {
-		if (var.getArraySize() > 1) {
+		if (var.getArraySize() > -1) {
 			if (arrayExpr != null) {
 				return var.getName() + "[" + arrayExpr.getIntExpression() + "]";
 			} else {
+				assert (false);
 				return var.getName() + "[0]";
 			}
 		} else {
@@ -151,10 +152,11 @@ public class Identifier extends Expression {
 	@Override
 	public String toString() {
 		String res = "";
-		if (var.getArraySize() > 1) {
+		if (var.getArraySize() > -1) {
 			if (arrayExpr != null) {
 				res = var.toString() + "[" + arrayExpr.toString() + "]";
 			} else {
+				assert (false);
 				res = var.toString() + "[0]";
 			}
 		} else {
