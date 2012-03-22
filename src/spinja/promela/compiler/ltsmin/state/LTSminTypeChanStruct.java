@@ -29,8 +29,7 @@ public class LTSminTypeChanStruct extends LTSminTypeStruct {
 	private int elements = 0;
 	
 	public LTSminTypeChanStruct(ChannelVariable cv) {
-		super();
-		this.name = wrapName(cv.getName());
+		super(wrapName(cv.getName()));
 		addMember(new LTSminVariable(CHAN_READ_VAR, this));
 		addMember(new LTSminVariable(CHAN_FILL_VAR, this));
 		LTSminTypeStruct buf = new LTSminTypeStruct(CHAN_BUF_PREFIX + cv.getName());
@@ -47,8 +46,7 @@ public class LTSminTypeChanStruct extends LTSminTypeStruct {
 		return elemName(elements++);
 	}
 
-	@Override
-	protected String wrapName(String name) {
+	protected static String wrapName(String name) {
 		return TYPE_PREFIX + CHAN_PREFIX + name +"_t";
 	}
 }

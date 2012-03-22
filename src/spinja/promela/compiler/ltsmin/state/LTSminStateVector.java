@@ -1,10 +1,12 @@
 package spinja.promela.compiler.ltsmin.state;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
@@ -76,15 +78,19 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	public List<LTSminTypeStruct> getTypes() {
 		if (null == types) {
 			types = new ArrayList<LTSminTypeStruct>();
-			extractStructs(types, state_t);
+			Set<LTSminTypeStruct> seen = new HashSet<LTSminTypeStruct>();
+			extractStructs(types, state_t, seen);
 		}
 		return types;
 	}
 
-	private void extractStructs(List<LTSminTypeStruct> list, LTSminTypeStruct struct) {
+	private void extractStructs(List<LTSminTypeStruct> list,
+								LTSminTypeStruct struct,
+								Set<LTSminTypeStruct> seen) {
+		if (!seen.add(struct)) return;
 		for (LTSminVariable v : struct) {
 			if (v.getType() instanceof LTSminTypeStruct) {
-				extractStructs(list, (LTSminTypeStruct)v.getType());
+				extractStructs(list, (LTSminTypeStruct)v.getType(), seen);
 			}
 		}
 		list.add(struct);

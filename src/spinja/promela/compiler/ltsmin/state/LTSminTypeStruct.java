@@ -22,16 +22,12 @@ public class LTSminTypeStruct extends LTSminTypeImpl implements LTSminTypeStruct
 		return name;
 	}
 
-	public LTSminTypeStruct(String name) {
-		this();
+	protected LTSminTypeStruct(String name) {
+		this.members = new ArrayList<LTSminVariable>();
 		this.name = wrapName(name);
 	}
 
-	protected LTSminTypeStruct() {
-		this.members = new ArrayList<LTSminVariable>();
-	}
-
-	protected String wrapName(String name) {
+	protected static String wrapName(String name) {
 		return TYPE_PREFIX + STRUCT_PREFIX + name +"_t";
 	}
 
@@ -79,5 +75,15 @@ public class LTSminTypeStruct extends LTSminTypeImpl implements LTSminTypeStruct
 			throw new AssertionError("Inconclusive identifier for: "+ this);
 		LTSminVariable var = getMember(id.getVariable().getName());
 		return var.getName() + var.printIdentifier(p, id);
+	}
+
+	public boolean equals(Object o) {
+		if (!(o instanceof LTSminTypeStruct)) return false;
+		LTSminTypeStruct other = (LTSminTypeStruct)o;
+		return name.equals(other.name);
+	}
+	
+	public int hashCode() {
+		return name.hashCode();
 	}
 }
