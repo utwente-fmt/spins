@@ -72,6 +72,9 @@ public class Promela {
 		gotos.clear();
 		labels.clear();
 	}
+
+    Expression varref() throws ParseException { return varref(null); }
+	
 }
 PARSER_END(Promela)
 
@@ -83,7 +86,6 @@ TOKEN : {	/* Keywords */
 |	<NOTRACE: "notrace">
 |	<TYPEDEF: "typedef">
 |	<MTYPE: "mtype">
-| 	<INLINE: "inline">
 |	<BIT: "bit">
 |	<BOOL: "bool">
 |	<BYTE: "byte">
@@ -189,13 +191,17 @@ TOKEN : {	/* Operators */
     }
 }
 
+SKIP : { // Skip whitespace and comments
+   "inline" : PREPROCESSOR_INLINE
+}
+
 TOKEN : { /* Identifiers and numbers */
 	<IDENTIFIER: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
 	{
         Preprocessor.DefineMapping current = Preprocessor.defines(image.toString());
         if (null != current) {
             Preprocessor.current.push(current);
-            if (current.size() > 0) { // parse arguments
+            if (current.size() > 0 || current.inline) { // parse arguments (or parantheses for inline)
                 int level = 0;
                 String text = ""; 
 loop:           while (true) {
@@ -208,18 +214,18 @@ loop:           while (true) {
                 }
                 text = text.substring(1, text.length()-1);
 		        String split[] = text.split(",");
-		        if (split.length != current.size()) 
+		        if (text.length() != 0 && split.length != current.size()) 
 		            throw new AssertionError("Mismatching "+ current.name +" --> '"+ current.defineText +"' with \""+ text +"\"");
 		        int i = 0;
 		        for (String param : current.parameters) {
 		            if (param.equals(split[i])) continue; // avoid inf recursion
                     System.out.println("Parameter "+ param  +" to "+ split[i]);
 		            Preprocessor.defineId = param;
-		            Preprocessor.addDefine(split[i++]);
+		            Preprocessor.addDefine(split[i++], false);
 		        }
             }
 		    Preprocessor.preprocessing.push(input_stream);
-		    System.out.println("Reinit "+ image.toString() +" to "+ current.defineText);
+		    System.out.println("Reinit "+ current.name +" to "+ current.defineText);
 		    ReInit(new SimpleCharStream(new ByteArrayInputStream(
 		                     current.defineText.getBytes())));
             Token next = getNextToken(); 
@@ -242,7 +248,7 @@ SKIP : { // Skip whitespace and comments
 |   "//" : IN_COMMENT2
 |   "#line" : PREPROCESSOR_FILE
 |   "#file" : PREPROCESSOR_LINE
-|	"#define " : PREPROCESSOR_DEFINE
+|	"#define" : PREPROCESSOR_DEFINE
 |   "#include" : PREPROCESSOR_INCLUDE
 }
 
@@ -252,7 +258,7 @@ SKIP : { // Skip whitespace and comments
         Preprocessor.file(input_stream, image.toString());
     } : DEFAULT
 }
-    
+
 <PREPROCESSOR_FILE> MORE:
 {
     "\\\n" |
@@ -276,14 +282,86 @@ SKIP : { // Skip whitespace and comments
     < ~[] >
 }
 
+
+/**
+ * PREPROCESSOR IN-LEXER PARSING OF INLINE PARAMETERS
+ * Could be moved to the parser with a new InlineAction.
+ */
+
+<PREPROCESSOR_INLINE> SKIP:
+{
+    " " : PREPROCESSOR_INLINE
+|   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+        Preprocessor.defineId = image.toString();
+    } : PREPROCESSOR_INLINE_PARAM
+}
+
+<PREPROCESSOR_INLINE_PARAM> SKIP:
+{
+    " " : PREPROCESSOR_INLINE_PARAM
+|   < "(" > : PREPROCESSOR_INLINE_PARAM0
+|   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.defineId);} }
+}
+
+<PREPROCESSOR_INLINE_PARAM0> SKIP:
+{
+    " " : PREPROCESSOR_INLINE_PARAM0
+|   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+        Preprocessor.parameters.add(image.toString().trim());
+    } : PREPROCESSOR_INLINE_PARAM2
+|   < ")" > : PREPROCESSOR_INLINE_TEXT
+|   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.defineId);} }
+}
+
+<PREPROCESSOR_INLINE_PARAM1> SKIP:
+{
+    " " : PREPROCESSOR_INLINE_PARAM1
+|   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+        Preprocessor.parameters.add(image.toString().trim());
+    } : PREPROCESSOR_INLINE_PARAM2
+|   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.defineId);} }
+}
+
+<PREPROCESSOR_INLINE_PARAM2> SKIP:
+{
+    " " : PREPROCESSOR_INLINE_PARAM2
+|   < "," > : PREPROCESSOR_INLINE_PARAM1
+|   < ")" > : PREPROCESSOR_INLINE_TEXT
+|   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.defineId);} }
+}
+
+/**
+ * END PREPROCESSOR IN-LEXER PARSING OF INLINE PARAMETERS
+ */
+
+<PREPROCESSOR_INLINE_TEXT> SKIP:
+{
+     < " "|"\n"|"\r"|"\r\n" > : PREPROCESSOR_INLINE_TEXT
+|    < "{" > : PREPROCESSOR_INLINE_REST
+}
+
+<PREPROCESSOR_INLINE_REST> SKIP:
+{
+    < "}" > {
+        image.setLength(image.length() - 1);
+        Preprocessor.addDefine(image.toString().trim(), true);
+    } : DEFAULT
+}
+    
+<PREPROCESSOR_INLINE_REST> MORE:
+{
+    < ~[] >
+}
+
 /**
  * PREPROCESSOR IN-LEXER PARSING OF DEFINE PARAMETERS
  */
  
 <PREPROCESSOR_DEFINE> MORE:
 {
-    <DEFINE: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
-        Preprocessor.defineId = image.toString();
+    " " : PREPROCESSOR_DEFINE
+|   <DEFINE: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+        Preprocessor.defineId = image.toString().trim();
         Preprocessor.parameterLength = 0; // backup length if parsing fails
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_PARAM
@@ -291,12 +369,12 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_DEFINE_PARAM> MORE:
 {
-    < "(" > {
+    " " : PREPROCESSOR_DEFINE_PARAM
+|   < "(" > {
         Preprocessor.parameterLength += image.length();
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_PARAM1
-    |
-     < ~[] > {
+|   < ~[] > {
         Preprocessor.parameterLength += image.length();
         input_stream.backup(Preprocessor.parameterLength);
         image.setLength(0);
@@ -306,13 +384,13 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_DEFINE_PARAM1> MORE:
 {
-    <PARAM: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+    " " : PREPROCESSOR_DEFINE_PARAM1
+|    <PARAM: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.parameters.add(image.toString().trim());
         Preprocessor.parameterLength += image.length();
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_PARAM2
-    |
-     < ~[] > {
+|   < ~[] > {
         Preprocessor.parameterLength += image.length();
         input_stream.backup(Preprocessor.parameterLength);
         image.setLength(0);
@@ -322,16 +400,15 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_DEFINE_PARAM2> MORE:
 {
-    < "," > {
+    " " : PREPROCESSOR_DEFINE_PARAM2
+|   < "," > {
         Preprocessor.parameterLength += image.length();
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_PARAM1
-    |
-    < ")" > {
+|   < ")" > {
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_REST
-    |
-     < ~[] > {
+|   < ~[] > {
         Preprocessor.parameterLength += image.length();
         input_stream.backup(Preprocessor.parameterLength);
         image.setLength(0);
@@ -345,7 +422,7 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_DEFINE_REST> SKIP:
 {
-    < "\n"|"\r"|"\r\n" > {        Preprocessor.addDefine(image.toString().trim());
+    < "\n"|"\r"|"\r\n" > {        Preprocessor.addDefine(image.toString().trim(), false);
 	} : DEFAULT
 }
     
@@ -421,8 +498,7 @@ Specification spec(String name): {
 /* Each part in the specification is a called a module */
 void module(): {
 }{
- 	inline()
-|   LOOKAHEAD(2) proctype()
+    LOOKAHEAD(2) proctype()
 |	one_decl(specification.getVariableStore())
 |	init()
 |	never()
@@ -990,7 +1066,7 @@ void arg_lst(CompoundExpression expr): {
 
 /*** All expression statements ***/
 
-Expression varref(): {
+Expression varref(Identifier context): {
 	Token id, dot = null;
 	Expression expr = null;
 	Expression expr2 = null;
@@ -1004,26 +1080,37 @@ Expression varref(): {
 		}
 	}
 	(<LBRACK> expr=lor_expr() <RBRACK>)?
-    (dot=<DOT> expr2=varref())?
 	{
-	    if (expr2 != null && !(expr2 instanceof Identifier))
-	       throw new MyParseException("Not an identifier: " + expr2, dot);
-	    Identifier id2 = (Identifier)expr2;
-		if(currentProc != null && currentProc.hasVariable(id.image)) {
-			ident = new Identifier(id, currentProc.getVariable(id.image), expr, id2);
-		} else if(specification.getVariableStore().hasVariable(id.image)) {
-			ident = new Identifier(id, specification.getVariableStore().getVariable(id.image), expr, id2);
-		} else {
-            Collection<CustomVariableType> types = specification.getUserTypes();
-            for (CustomVariableType cvt : types) {
-                Variable v = cvt.getVariableStore().getVariable(id.image);
-                if (null != v) {
-                    return new Identifier(id, v, expr, id2);
-                }
+		if (null == context) {
+			if (currentProc != null && currentProc.hasVariable(id.image)) {
+				ident = new Identifier(id, currentProc.getVariable(id.image), expr, null);
+			} else if (specification.getVariableStore().hasVariable(id.image)) {
+				ident = new Identifier(id, specification.getVariableStore().getVariable(id.image), expr, null);
+			} else {
+	           throw new MyParseException("Undeclared identifier: " + id.image, id);
+	        }
+	    } else {
+	       CustomVariableType cvt;
+            try {
+                cvt = (CustomVariableType)context.getVariable().getType();
+            } catch (ClassCastException cce) {
+                throw new MyParseException("Variable is not a struct " + context, context.getToken());
             }
-			throw new MyParseException("Undeclared identifier: " + id.image, id);
-		}
-	}
+            if (cvt.getVariableStore().hasVariable(id.image)) {
+                ident = new Identifier(id, cvt.getVariableStore().getVariable(id.image), expr, null);
+            } else {
+                throw new MyParseException("Struct "+ cvt +" has no member " + id.image, id);
+            }
+	    }
+        if ((null == expr) != (-1 == ident.getVariable().getArraySize())) {
+            throw new MyParseException("Invalid array semantics in expression: "+ id, id);
+        }
+    }
+    (dot=<DOT> expr2=varref(ident) {
+	        if (!(expr2 instanceof Identifier))
+	            throw new MyParseException("Not an identifier: " + expr2, dot);
+		    ident.setSub((Identifier)expr2);
+		})?
 	{ return ident; }
 |	id=<VAR_PID>
 	{ throw new MyParseException("PID not implemented", id); }
@@ -1233,11 +1320,4 @@ ConstantExpression constant(): {
             return new MTypeReference(n, mtypeNr);
         throw new MyParseException("Expected constant!", n);
     }
-}
-
-void inline(): {
-    Token t;
-}{
-    t = <INLINE>
-    { throw new MyParseException("Inlines are not yet supported!", t); }
 }

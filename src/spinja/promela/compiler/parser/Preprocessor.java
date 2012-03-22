@@ -18,6 +18,7 @@ public class Preprocessor {
 			this.defineText = text;
 			this.parameters = parameters2;
 		}
+		public boolean inline = false;
 		public String name;
 		public String defineText;
 		public List<String> parameters = new ArrayList<String>();
@@ -58,11 +59,12 @@ public class Preprocessor {
 		Preprocessor.fileName = fileName;
 	}
 
-	public static void addDefine(String text) {
+	public static void addDefine(String text, boolean inline) {
 		try {
 			DefineMapping m = new DefineMapping(text, parameters);
 			parameters = new ArrayList<String>();
 			m.name = defineId;
+			m.inline = inline;
 			DefineMapping put = defines.put(defineId, m);
 			if (null != put)
 				System.err.println("Overwriting preprocessor define "+ defineId +" --> '"+ put.defineText +"' with '"+ text +"'\n");
