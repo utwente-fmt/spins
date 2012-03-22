@@ -41,7 +41,6 @@ public class Promela {
 	    this.procNr = prom.procNr;
 	    this.labels = prom.labels;
 	    this.gotos = prom.gotos;
-	    this._pid = prom._pid;
 	    this.type = prom.type;
 	}
 
@@ -58,8 +57,6 @@ public class Promela {
 	private Map<String, State> labels = new HashMap<String, State>();
 	
 	private Map<State, Token> gotos = new HashMap<State, Token>();
-	
-	private Variable _pid = new Variable(VariableType.BYTE, "_pid", 1);
 	
 	VariableType type;
 	
@@ -1029,7 +1026,7 @@ Expression varref(): {
 	}
 	{ return ident; }
 |	id=<VAR_PID>
-	{ return new Identifier(id, _pid, null); }
+	{ throw new MyParseException("PID not implemented", id); }
 }
 
 Expression base_expr(): {
