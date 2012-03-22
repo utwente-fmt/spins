@@ -1,5 +1,8 @@
 package spinja.promela.compiler.ltsmin.state;
 
+import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.LTSminDMWalker.IdMarker;
+
 public class LTSminSubVectorStruct extends LTSminSubVector {
 	private LTSminTypeStruct type;
 	
@@ -34,5 +37,13 @@ public class LTSminSubVectorStruct extends LTSminSubVector {
 	@Override
 	protected LTSminSubVector follow() {
 		throw new AssertionError("Chose member of struct: "+ type);
+	}
+
+	@Override
+	public void mark(IdMarker idMarker, Identifier id)  {
+		if (null == id)
+			throw new AssertionError("Inconclusive identifier for: "+ type);
+		LTSminSubVector sub = getSubVector(id.getVariable().getName());
+		sub.mark(idMarker, id);
 	}
 }

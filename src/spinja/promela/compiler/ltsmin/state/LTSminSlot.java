@@ -1,5 +1,8 @@
 package spinja.promela.compiler.ltsmin.state;
 
+import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.LTSminDMWalker.IdMarker;
+
 
 public class LTSminSlot extends LTSminSubVector {
 	private LTSminVariable var;
@@ -34,5 +37,11 @@ public class LTSminSlot extends LTSminSubVector {
 	@Override
 	protected LTSminSubVector follow() {
 		throw new AssertionError("Native type not navigable!");
+	}
+
+	@Override
+	public void mark(IdMarker idMarker, Identifier id) {
+		if (id != null) throw new AssertionError("Variable "+ var +" has no member "+ id);
+		idMarker.doMark(this);
 	}
 }

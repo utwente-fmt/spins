@@ -215,7 +215,7 @@ public class LTSminDMWalker {
 				//write to the arguments of the target process
 				for (Variable v : p.getArguments()) {
 					if (v.getType() instanceof ChannelType) continue; //passed by reference
-					DMIncWrite(params, params.model.sv.sub(v));
+					DMIncWrite(params, v);
 				}
 			} else {
 				// simple expressions are guards
@@ -268,34 +268,47 @@ public class LTSminDMWalker {
 		}
 	}
 	
-	static void walkExpression(Params params, Identifier id,
-								LTSminSubVector sub, MarkAction mark) {
-		Expression arrayExpr = id.getArrayExpr();
-		String name = id.getVariable().getName();
-		if (arrayExpr != null) {
-			walkExpression(params, arrayExpr, MarkAction.READ); // array expr is only read!
-			try {
-				int i = arrayExpr.getConstantValue();
-				if (id.getSub() == null)
-					mark.DMIncMark(params, sub.sub(name +"["+i+"]"));
-				else
-					walkExpression(params, id.getSub(), sub.sub(name +"["+i+"]"), mark);
-			} catch(ParseException pe) {
-				for(int i=0; i < id.getVariable().getArraySize(); ++i) {
-					if (id.getSub() == null)
-						mark.DMIncMark(params, sub.sub(name +"["+i+"]"));
-					else
-						walkExpression(params, id.getSub(), sub.sub(name +"["+i+"]"), mark);
+	/**
+	 * Uses Identifier expressions to walk over LTSmin sub vectors. Complete
+	 * identifiers, i.e. those that point to (an index of) a native type,
+	 * will be marked in the DM using the associated MarkAction. Incomplete ones
+	 * throw an AssertionError.
+	 */
+	public static class IdMarker {
+		MarkAction mark;
+		Params params;
+		public IdMarker(Params params, MarkAction mark) {
+			this.params = params;
+			this.mark = mark;
+		}
+		public IdMarker(IdMarker idMarker, MarkAction mark) {
+			this.params = idMarker.params;
+			this.mark = mark;
+		}
+
+		public void mark(Expression e) {
+			if (null == e) return;
+			if (e instanceof Identifier) {
+				Identifier id = (Identifier)e;
+				LTSminSubVector sub = params.sv.sub(id.getVariable());
+				try {
+					sub.mark(this, id);
+				} catch (AssertionError ae) {
+					throw new AssertionError("Marking expression "+ id +" failed with: "+ ae);
 				}
+			} else {
+				walkExpression(params, e, mark);
 			}
-		} else {
-			if (id.getSub() == null)
-				mark.DMIncMark(params, sub.sub(name));
-			else
-				walkExpression(params, id.getSub(), sub.sub(name), mark);
+		}
+
+		public void doMark(LTSminSubVector sub) {
+			mark.DMIncMark(params, sub);
 		}
 	}
 
+	/**
+	 * A marker for SLOTS in the state vector: READ, WRITE or BOTH.
+	 */
 	public static enum	MarkAction {
 		READ,
 		WRITE,
@@ -315,15 +328,7 @@ public class LTSminDMWalker {
 			throw new AssertionError("Only identifiers and TopExpressions can be written to!");
 		if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {
-			Identifier id = (Identifier)e;
-			Variable var = id.getVariable();
-			LTSminSubVector sub = params.sv.sub(var.getOwner());
-			try {
-				walkExpression(params, id, sub, mark);
-			} catch (AssertionError ae) {
-				System.out.println("Query failed: "+ id.toString());
-				throw ae;
-			}
+			new IdMarker(params, mark).mark(e);
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
 			Expression ex1 = ae.getExpr1();
@@ -414,25 +419,17 @@ public class LTSminDMWalker {
 	}
 
 	static void DMIncWrite(Params params, LTSminSubVector sub) {
-		sub = sub(sub);
+		if (!(sub instanceof LTSminSlot))
+			throw new AssertionError("Variable is not a native type: "+ sub);
 		int offset = ((LTSminSlot)sub).getIndex();
 		params.depMatrix.incWrite(params.trans, offset);
 	}
 
 	static void DMIncRead(Params params, LTSminSubVector sub) {
-		sub = sub(sub);
+		if (!(sub instanceof LTSminSlot))
+			throw new AssertionError("Variable is not a native type: "+ sub);
 		int offset = ((LTSminSlot)sub).getIndex();
 		params.depMatrix.incRead(params.trans, offset);
-	}
-
-	private static LTSminSubVector sub(LTSminSubVector sub)
-			throws AssertionError {
-		if (!(sub instanceof LTSminSlot)) {
-			sub = sub.step();
-			if (!(sub instanceof LTSminSlot))
-				throw new AssertionError("Variable is not a native type: "+ sub);
-		}
-		return sub;
 	}
 
 	static void DMIncWriteEntire(Params params, LTSminSubVector sub) {
@@ -457,12 +454,10 @@ public class LTSminDMWalker {
 	}
 	
 	private static void DMIncRead(Params params, Variable var) {
-		LTSminSubVector sub = params.model.sv.sub(var);
-		DMIncRead(params, sub);
+		walkExpression(params, id(var), MarkAction.READ);
 	}
 
 	private static void DMIncWrite(Params params, Variable var) {
-		LTSminSubVector sub = params.model.sv.sub(var);
-		DMIncWrite(params, sub);
+		walkExpression(params, id(var), MarkAction.WRITE);
 	}
 }

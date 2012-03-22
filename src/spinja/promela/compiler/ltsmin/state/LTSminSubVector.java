@@ -2,6 +2,9 @@ package spinja.promela.compiler.ltsmin.state;
 
 import java.util.Iterator;
 
+import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.LTSminDMWalker.IdMarker;
+
 /**
  * Encodes sub vectors of vectors. Each sub vector can be split according to:
  *  - type struct information (LTSminSubVectorStruct)
@@ -58,7 +61,6 @@ public abstract class LTSminSubVector implements Iterable<LTSminSlot> {
 	 * 
 	 * @param query a query string, like: "a.b.c[1].d[*].x" 
 	 * @return a subvector
-	 */
 	public LTSminSubVector sub(String query) {
 		LTSminSubVector next;
 		int len = query.length();
@@ -98,6 +100,7 @@ public abstract class LTSminSubVector implements Iterable<LTSminSlot> {
 			return next.sub(query.substring(dot < len ? (dot == brace ? dot : dot+1 ) : len));
 		}
 	}
+	 */
 
 	protected LTSminSlot slot(int offset) {
 		return root.get(this.offset + offset);
@@ -132,4 +135,6 @@ public abstract class LTSminSubVector implements Iterable<LTSminSlot> {
 			}
 		};
 	}
+
+	abstract public void mark(IdMarker idMarker, Identifier id);
 }

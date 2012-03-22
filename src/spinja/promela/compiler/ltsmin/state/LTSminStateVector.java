@@ -232,7 +232,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 
 	public LTSminSubVector sub(Variable v) {
 		LTSminSubVectorArray ar = sub(v.getOwner());
-		return ar.sub(v.getName());
+		return ar.follow();
 	}
 
 	public Variable getPC(Proctype process) {

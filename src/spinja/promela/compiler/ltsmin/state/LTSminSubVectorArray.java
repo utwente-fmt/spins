@@ -1,5 +1,11 @@
 package spinja.promela.compiler.ltsmin.state;
 
+import spinja.promela.compiler.expression.Expression;
+import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.ltsmin.LTSminDMWalker.IdMarker;
+import spinja.promela.compiler.ltsmin.LTSminDMWalker.MarkAction;
+import spinja.promela.compiler.parser.ParseException;
+
 
 
 public class LTSminSubVectorArray extends LTSminSubVector {
@@ -33,5 +39,24 @@ public class LTSminSubVectorArray extends LTSminSubVector {
 	@Override
 	public int length() {
 		return var.length();
+	}
+	
+	@Override
+	public void mark(IdMarker idMarker, Identifier id) {
+		Expression arrayExpr = id.getArrayExpr();
+		int first = 0;
+		int last = 0;
+		if (arrayExpr != null) {
+			new IdMarker(idMarker, MarkAction.READ).mark(arrayExpr); // array expr is only read!
+			if (-1 == id.getVariable().getArraySize()) throw new AssertionError("Index a non-array: "+ var);
+			last = id.getVariable().getArraySize() - 1;
+			try {
+				first = last = arrayExpr.getConstantValue();
+			} catch(ParseException pe) {}
+		}
+		for (int i = first; i < last + 1; i++) {
+			LTSminSubVector sub = follow(i);
+			sub.mark(idMarker, id.getSub());
+		}
 	}
 }
