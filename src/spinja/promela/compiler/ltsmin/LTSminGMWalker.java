@@ -1,6 +1,6 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_TYPE_PROC_COUNTER;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
@@ -18,7 +18,6 @@ import spinja.promela.compiler.actions.ElseAction;
 import spinja.promela.compiler.actions.ExprAction;
 import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.expression.BooleanExpression;
-import spinja.promela.compiler.expression.ChannelLengthExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
@@ -31,7 +30,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
-import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
 import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
@@ -289,9 +287,11 @@ public class LTSminGMWalker {
 		public int constant;
 		
 		public String getRef(LTSminModel model) {
+			if (null!= ref)
+				return ref;
 			LTSminPointer svp = new LTSminPointer(model.sv, "");
 			ExprPrinter p = new ExprPrinter(svp);
-			return p.print(id);
+			return ref = p.print(id);
 		}
 	}
 
@@ -409,12 +409,19 @@ public class LTSminGMWalker {
 			Variable var = id.getVariable();
 			if (var instanceof ChannelVariable)
 				throw new ParseException(); //TODO
-			if (var.getArraySize() > 1) {
-				 int c = id.getArrayExpr().getConstantValue(); // may throw exception
-				 return id(var, c);
-			} else {
-				return id(var);
+			
+			Expression ar = id.getArrayExpr();
+			if ((null == ar) != (-1 == var.getArraySize()))
+				throw new AssertionError("Invalid array semantics in expression: "+ id);
+			if (null != ar) { 
+				try {
+					ar = constant(ar.getConstantValue());
+				} catch (ParseException pe) {}
 			}
+			Identifier sub = null;
+			if (null != id.getSub())
+				sub = getConstantVar(id.getSub());
+			return id(var, ar, sub);
 			/*if (var instanceof ChannelVariable) {
 				if (((ChannelVariable)var).getType().getBufferSize() > 1)
 					throw new ParseException();
@@ -437,13 +444,14 @@ public class LTSminGMWalker {
 	    // assume no conflict
 	    boolean no_conflict = true;
 	    // conflict only possible on same variable
-	    //try {
-		    String ref = p1.getRef(model);
-			String ref2 = p2.getRef(model);
-	    //} catch (AssertionError ae) {
-	    	
-	    //}
-		if (ref.equals(ref2)) {
+	    String ref1, ref2;
+	    try {
+		    ref1 = p1.getRef(model);
+			ref2 = p2.getRef(model);
+	    } catch (AssertionError ae) {
+	    	throw new AssertionError("Serializing of expression "+ p1.id +" or "+ p2.id +" failed: "+ ae);
+	    }
+		if (ref1.equals(ref2)) {
 	        switch(p1.comparison) {
 	            case PromelaConstants.LT:
 	                // no conflict if one of these cases
