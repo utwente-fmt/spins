@@ -388,7 +388,7 @@ SKIP : { // Skip whitespace and comments
 
 /**
  * PREPROCESSOR IN-LEXER PARSING OF INLINE PARAMETERS
- * Could be moved to the parser with a new InlineAction.
+ * Could be moved to the parser with a new InlineAction class.
  */
 
 <PREPROCESSOR_INLINE> SKIP:
@@ -399,14 +399,14 @@ SKIP : { // Skip whitespace and comments
     } : PREPROCESSOR_INLINE_PARAM
 }
 
-<PREPROCESSOR_INLINE_PARAM> SKIP:
+<PREPROCESSOR_INLINE_PARAM> SKIP: // parse parameters
 {
     " " : PREPROCESSOR_INLINE_PARAM
 |   < "(" > : PREPROCESSOR_INLINE_PARAM0
 |   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.defineId);} }
 }
 
-<PREPROCESSOR_INLINE_PARAM0> SKIP:
+<PREPROCESSOR_INLINE_PARAM0> SKIP: // parse parameters
 {
     " " : PREPROCESSOR_INLINE_PARAM0
 |   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
@@ -416,7 +416,7 @@ SKIP : { // Skip whitespace and comments
 |   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.defineId);} }
 }
 
-<PREPROCESSOR_INLINE_PARAM1> SKIP:
+<PREPROCESSOR_INLINE_PARAM1> SKIP: // parse parameters
 {
     " " : PREPROCESSOR_INLINE_PARAM1
 |   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
@@ -425,7 +425,7 @@ SKIP : { // Skip whitespace and comments
 |   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.defineId);} }
 }
 
-<PREPROCESSOR_INLINE_PARAM2> SKIP:
+<PREPROCESSOR_INLINE_PARAM2> SKIP: // parse parameters
 {
     " " : PREPROCESSOR_INLINE_PARAM2
 |   < "," > : PREPROCESSOR_INLINE_PARAM1
@@ -437,16 +437,17 @@ SKIP : { // Skip whitespace and comments
  * END PREPROCESSOR IN-LEXER PARSING OF INLINE PARAMETERS
  */
 
-<PREPROCESSOR_INLINE_TEXT> SKIP:
+<PREPROCESSOR_INLINE_TEXT> SKIP: // parse inline text
 {
      < " "|"\n"|"\r"|"\r\n" > : PREPROCESSOR_INLINE_TEXT
 |    < "{" > : PREPROCESSOR_INLINE_REST
 }
 
-<PREPROCESSOR_INLINE_REST> SKIP:
+<PREPROCESSOR_INLINE_REST> SKIP: // end parse inline text
 {
     < "}" > {
         image.setLength(image.length() - 1);
+        // add inline to preprocessor defines
         Preprocessor.addDefine(image.toString().trim(), true);
     } : DEFAULT
 }
@@ -460,7 +461,7 @@ SKIP : { // Skip whitespace and comments
  * PREPROCESSOR IN-LEXER PARSING OF DEFINE PARAMETERS
  */
  
-<PREPROCESSOR_DEFINE> MORE:
+<PREPROCESSOR_DEFINE> MORE: // parse define name
 {
     " " : PREPROCESSOR_DEFINE
 |   <DEFINE: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
@@ -470,14 +471,14 @@ SKIP : { // Skip whitespace and comments
     } : PREPROCESSOR_DEFINE_PARAM
 }
 
-<PREPROCESSOR_DEFINE_PARAM> MORE:
+<PREPROCESSOR_DEFINE_PARAM> MORE: // parse define parameters
 {
     " " : PREPROCESSOR_DEFINE_PARAM
 |   < "(" > {
         Preprocessor.parameterLength += image.length();
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_PARAM1
-|   < ~[] > {
+|   < ~[] > { // parsing failed, restore input_stream to initial state
         Preprocessor.parameterLength += image.length();
         input_stream.backup(Preprocessor.parameterLength);
         image.setLength(0);
@@ -485,7 +486,7 @@ SKIP : { // Skip whitespace and comments
      } : PREPROCESSOR_DEFINE_REST
 }
 
-<PREPROCESSOR_DEFINE_PARAM1> MORE:
+<PREPROCESSOR_DEFINE_PARAM1> MORE: // parse define parameters
 {
     " " : PREPROCESSOR_DEFINE_PARAM1
 |    <PARAM: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
@@ -493,7 +494,7 @@ SKIP : { // Skip whitespace and comments
         Preprocessor.parameterLength += image.length();
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_PARAM2
-|   < ~[] > {
+|   < ~[] > { // parsing failed, restore input_stream to initial state
         Preprocessor.parameterLength += image.length();
         input_stream.backup(Preprocessor.parameterLength);
         image.setLength(0);
@@ -501,7 +502,7 @@ SKIP : { // Skip whitespace and comments
      } : PREPROCESSOR_DEFINE_REST
 }
 
-<PREPROCESSOR_DEFINE_PARAM2> MORE:
+<PREPROCESSOR_DEFINE_PARAM2> MORE: // parse define parameters
 {
     " " : PREPROCESSOR_DEFINE_PARAM2
 |   < "," > {
@@ -511,7 +512,7 @@ SKIP : { // Skip whitespace and comments
 |   < ")" > {
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_REST
-|   < ~[] > {
+|   < ~[] > { // parsing failed, restore input_stream to initial state
         Preprocessor.parameterLength += image.length();
         input_stream.backup(Preprocessor.parameterLength);
         image.setLength(0);
@@ -523,13 +524,13 @@ SKIP : { // Skip whitespace and comments
  * END PREPROCESSOR IN-LEXER PARSING OF DEFINE PARAMETERS
  */
 
-<PREPROCESSOR_DEFINE_REST> SKIP:
+<PREPROCESSOR_DEFINE_REST> SKIP: // end parse define text
 {
-    < "\n"|"\r"|"\r\n" > {        Preprocessor.addDefine(image.toString().trim(), false);
+    < "\n"|"\r"|"\r\n" > { // add define text (and parameters) to preprocessor        Preprocessor.addDefine(image.toString().trim(), false);
 	} : DEFAULT
 }
     
-<PREPROCESSOR_DEFINE_REST> MORE:
+<PREPROCESSOR_DEFINE_REST> MORE: // parse define text
 {
     "\\\n" {image = image.deleteCharAt(image.length()-2); } |
     "\\\r" {image = image.deleteCharAt(image.length()-2);} |
@@ -537,15 +538,17 @@ SKIP : { // Skip whitespace and comments
     < ~[] >
 }
 
-<PREPROCESSOR_INCLUDE> SKIP:
+<PREPROCESSOR_INCLUDE> SKIP: // launch virtual input stream for include
 {
     < "\n"|"\r"|"\r\n" > {
+        // create new virtual input stream and push the previous one to a stack
         Preprocessor.preprocessing.push(input_stream);
         String file = Preprocessor.parseFile(image.toString());
-        try {
+        try { // switch input stream
             ReInit(new SimpleCharStream(new FileInputStream(file)));
         } catch (FileNotFoundException fne) { throw new AssertionError(fne); }
         if (matchedToken == null) return;
+        // override TOKEN result with next token after id (+ arguments).
         Token next = getNextToken();
         matchedToken.image = next.image;
         matchedToken.kind = next.kind;
