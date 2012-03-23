@@ -259,10 +259,17 @@ public class LTSminDMWalker {
 					walkExpression(params, e, MarkAction.WRITE);
 					walkExpression(params, top, MarkAction.READ);
 				}
-				walkExpression(params, top, MarkAction.WRITE);
+				if (!cra.isPoll()) {
+					walkExpression(params, top, MarkAction.WRITE);
+				}
 			}
-			walkExpression(params, chanLength(id), MarkAction.BOTH);
-			walkExpression(params, chanRead(id), MarkAction.BOTH);
+			if (cra.isPoll()) {
+				walkExpression(params, chanLength(id), MarkAction.READ);
+				walkExpression(params, chanRead(id), MarkAction.READ);
+			} else {
+				walkExpression(params, chanLength(id), MarkAction.BOTH);
+				walkExpression(params, chanRead(id), MarkAction.BOTH);
+			}
 		} else { // Handle not yet implemented action
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}

@@ -373,6 +373,7 @@ public class LTSminTreeWalker {
 				}
 			} else if (a instanceof ChannelReadAction) {
 				ChannelReadAction cra = (ChannelReadAction)a;
+				if (!cra.isNormal()) System.err.println("Abnormal receive on rendez-vous channel.");
 				ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
 				if (var.getType().getBufferSize()==0) {
 					ReadersAndWriters raw = channels.get(var);

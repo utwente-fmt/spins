@@ -652,17 +652,21 @@ public class LTSminPrinter {
 						w.append(";");
 						w.appendPostfix();
 					}
-					w.appendPrefix();
-					generateExpression(w, channelTop(id,i), out(model));
-					w.append(" = ");
-					generateExpression(w, constant(0), out(model));
-					w.append(";");
-					w.appendPostfix();
+					if (!cra.isPoll()) {
+						w.appendPrefix();
+						generateExpression(w, channelTop(id,i), out(model));
+						w.append(" = ");
+						generateExpression(w, constant(0), out(model));
+						w.append(";");
+						w.appendPostfix();
+					}
 				}
-				String read = printId(chanRead(id), out(model));
-				w.appendLine(read," = (", read ,"+1)%"+bufferSize+";");
-				String len = printId(chanLength(id), out(model));
-				w.appendLine("--(", len, ");");
+				if (!cra.isPoll()) {
+					String read = printId(chanRead(id), out(model));
+					w.appendLine(read," = (", read ,"+1)%"+bufferSize+";");
+					String len = printId(chanLength(id), out(model));
+					w.appendLine("--(", len, ");");
+				}
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous receive!");
 			}
@@ -770,19 +774,17 @@ public class LTSminPrinter {
 			Expression size = new ChannelSizeExpression(id);
 			w.append("((");
 			generateExpression(w, size, state);
-			w.append(" > 0) && ");
+			w.append(" > 0)");
 			List<Expression> exprs = cre.getExprs();
 			for (int i = 0; i < exprs.size(); i++) {
 				final Expression expr = exprs.get(i);
 				if (expr instanceof Identifier) // always matches
 					continue;
+				w.append(" && ");
 				Expression top = channelTop(id, i);
 				generateExpression(w, top, state);
 				w.append(" == ");
 				generateExpression(w, expr, state);
-				if (i != exprs.size() - 1) {
-					w.append(" && ");
-				}
 			}
 			w.append(")");
 		} else if(e instanceof ChannelTopExpression) {

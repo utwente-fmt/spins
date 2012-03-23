@@ -32,10 +32,17 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 
 	private final List<Expression> exprs;
 
-	public ChannelReadAction(final Token token, final Identifier id) {
+	private boolean poll;
+	
+	public ChannelReadAction(final Token token, final Identifier id, boolean poll) {
 		super(token);
 		this.id = id;
 		exprs = new ArrayList<Expression>();
+		this.poll = poll;
+	}
+
+	public ChannelReadAction(final Token token, final Identifier id) {
+		this(token, id, false);
 	}
 
 	public void addExpression(final Expression expr) {
@@ -184,5 +191,13 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 
 	public List<Expression> getExprs() {
 		return exprs;
+	}
+
+	public boolean isPoll() {
+		return poll;
+	}
+
+	public boolean isNormal() {
+		return !poll;
 	}
 }
