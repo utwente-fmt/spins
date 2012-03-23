@@ -36,6 +36,7 @@ public class Preprocessor {
 	public static Stack<DefineMapping> current = new Stack<DefineMapping>();
 	public static int parameterLength;
 	public static List<String> parameters = new ArrayList<String>();
+	public static Stack<Boolean> ifs = new Stack<Boolean>();
 
 	public static int level = 0;
 	

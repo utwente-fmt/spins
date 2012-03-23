@@ -32,17 +32,26 @@ import java.util.*;
 @SuppressWarnings("all")
 public class Promela {
 
-	/** Copy Constructor. */
+	/** Copy Constructors */
+    public Promela(Promela prom, PromelaTokenManager tm) {
+        this(tm);
+        copy(this, prom);
+    }
+
 	public Promela(Promela prom, java.io.InputStream stream) {
 	    this(stream);
-	    this.currentProc = prom.currentProc;
-	    this.specification = prom.specification;
-	    this.automaton = prom.automaton;
-	    this.procNr = prom.procNr;
-	    this.labels = prom.labels;
-	    this.gotos = prom.gotos;
-	    this.type = prom.type;
+	    copy(this, prom);
 	}
+
+    private void copy(Promela dst, Promela src) {
+        dst.currentProc = src.currentProc;
+        dst.specification = src.specification;
+        dst.automaton = src.automaton;
+        dst.procNr = src.procNr;
+        dst.labels = src.labels;
+        dst.gotos = src.gotos;
+        dst.type = src.type;
+    }
 
 	private Specification specification;
 	private Proctype currentProc;
@@ -72,9 +81,8 @@ public class Promela {
 		gotos.clear();
 		labels.clear();
 	}
-
-    Expression varref() throws ParseException { return varref(null); }
 	
+    Expression varref() throws ParseException { return varref(null); }
 }
 PARSER_END(Promela)
 
@@ -172,12 +180,24 @@ TOKEN : {	/* Operators */
 |	<DOT: ".">
 }
 
+/**
+ * End of file may mean:
+ * - End of input file, then we are done.
+ * - End of virtual input (see ReInit) from preprocessor define,
+ *   then we have to switch back to the previous stream (on preprocessing stack).
+ * - End of preprocessor #if condition, then we terminate the parsing because a
+ *   recursive parser was started (see PREPROCESSOR_IF, new Promela).
+ * - Premature end of input if the preprocessor if stack is non-emptym,
+ *   erroneous input. 
+ */
 <*> TOKEN:
 {
     < EOF >
     {
         if (!Preprocessor.preprocessing.empty()) {
-            ReInit(Preprocessor.preprocessing.pop());
+            SimpleCharStream scs = Preprocessor.preprocessing.pop();
+            if (null == scs) return; // #if
+            ReInit(scs);
             Token next = getNextToken();
             matchedToken.image = next.image;
             matchedToken.kind = next.kind;
@@ -187,6 +207,10 @@ TOKEN : {	/* Operators */
             for (String param : current.parameters) {
                 Preprocessor.removeDefine(param);
             }
+        } else {
+            if (!Preprocessor.ifs.empty()) {
+                throw new AssertionError("Missing #endif");
+            }
         }
     }
 }
@@ -195,13 +219,14 @@ SKIP : { // Skip whitespace and comments
    "inline" : PREPROCESSOR_INLINE
 }
 
-TOKEN : { /* Identifiers and numbers */
+TOKEN : { /* Identifiers and numbers OR preprocessor defines */
 	<IDENTIFIER: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
 	{
         Preprocessor.DefineMapping current = Preprocessor.defines(image.toString());
-        if (null != current) {
+        if (null != current) { // Identifier is defined in preprocessor
             Preprocessor.current.push(current);
-            if (current.size() > 0 || current.inline) { // parse arguments (or parantheses for inline)
+            // parse arguments (or only parantheses for inline)
+            if (current.size() > 0 || current.inline) {
                 int level = 0;
                 String text = ""; 
 loop:           while (true) {
@@ -212,22 +237,23 @@ loop:           while (true) {
                     case PromelaConstants.RPAREN: level--; if (0 == level) break loop;
                     }
                 }
-                text = text.substring(1, text.length()-1);
+                text = text.substring(1, text.length()-1); // delete parentheses
 		        String split[] = text.split(",");
 		        if (text.length() != 0 && split.length != current.size()) 
 		            throw new AssertionError("Mismatching "+ current.name +" --> '"+ current.defineText +"' with \""+ text +"\"");
 		        int i = 0;
+		        // bind arguments to parameters via preprocessor
 		        for (String param : current.parameters) {
-		            if (param.equals(split[i])) continue; // avoid inf recursion
-                    System.out.println("Parameter "+ param  +" to "+ split[i]);
+		            if (param.equals(split[i])) continue; // avoid inf. recursion
 		            Preprocessor.defineId = param;
 		            Preprocessor.addDefine(split[i++], false);
 		        }
             }
+            // switch to a virtual stream and push the previous stream on a stack
 		    Preprocessor.preprocessing.push(input_stream);
-		    System.out.println("Reinit "+ current.name +" to "+ current.defineText);
 		    ReInit(new SimpleCharStream(new ByteArrayInputStream(
 		                     current.defineText.getBytes())));
+            // override TOKEN result with next token after id (+ arguments).
             Token next = getNextToken(); 
             matchedToken.image = next.image;
             matchedToken.kind = next.kind;
@@ -246,10 +272,87 @@ SKIP : { // Skip whitespace and comments
 |	"\n"
 |	"/*" : IN_COMMENT
 |   "//" : IN_COMMENT2
+|   "#if" : PREPROCESSOR_IF
+|   "#else"
+    {
+        Boolean b = Preprocessor.ifs.peek();
+        if (null == b) {
+            throw new AssertionError("Spurious null in #if");
+        } else if (true == b.booleanValue()) {
+            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // if was true, ignore else
+        } else {
+            SwitchTo(PromelaConstants.DEFAULT); // if was false, parse else
+        }
+    }
+|   "#endif"
+    {
+    System.out.println("<?");
+        if (null == Preprocessor.ifs.pop()) { // pop last if
+            throw new AssertionError("Spurious null in #if");
+        } else {
+            SwitchTo(PromelaConstants.DEFAULT); // end ITE
+        }
+    }
 |   "#line" : PREPROCESSOR_FILE
 |   "#file" : PREPROCESSOR_LINE
 |	"#define" : PREPROCESSOR_DEFINE
 |   "#include" : PREPROCESSOR_INCLUDE
+}
+
+/** Preprocessor if **/
+<PREPROCESSOR_IF> SKIP:
+{
+    < "\n"|"\r"|"\r\n" > { // constion expression is read
+        InputStream is = new ByteArrayInputStream(image.toString().getBytes());
+        Preprocessor.preprocessing.push(null);
+        Promela prom = new Promela(parser, is); // start new parser for condition
+        try {
+            Expression expr = prom.expr();
+            int num = expr.getConstantValue();
+            if (0 != num) { // true
+                Preprocessor.ifs.push(true);
+                SwitchTo(PromelaConstants.DEFAULT); // parse if until else/endif
+            } else { // false
+                Preprocessor.ifs.push(false);
+                SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore if until else/enfi
+            }
+        } catch (Exception e) {
+            throw new AssertionError("Failed to parse #if:"+ e);
+        }
+    }
+}
+
+<PREPROCESSOR_IF> MORE:
+{
+    "\\\n" {image = image.deleteCharAt(image.length()-2); } |
+    "\\\r" {image = image.deleteCharAt(image.length()-2);} |
+    "\\\r\n" {image = image.deleteCharAt(image.length()-3);} |
+    < ~[] >
+}
+
+<PREPROCESSOR_SKIP> SKIP:
+{
+    "#if" { Preprocessor.ifs.push(null); } : PREPROCESSOR_SKIP
+          // push if (null = ignore complete ITE) 
+|   "#else"
+    {
+        Boolean b2 = Preprocessor.ifs.peek();
+        if (null == b2) {
+            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore else
+        } else {
+            if (true == b2.booleanValue()) throw new AssertionError("Spurious #else.");
+            SwitchTo(PromelaConstants.DEFAULT);
+        }
+    }
+|   "#endif"
+    {
+        if (null == Preprocessor.ifs.pop()) { // pop last if
+            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // keep ignoring input
+        } else { // maybe false of true:
+            SwitchTo(PromelaConstants.DEFAULT); // end ITE
+        }
+    }
+|   < ~[] > : PREPROCESSOR_SKIP
 }
 
 <PREPROCESSOR_FILE> SKIP:
