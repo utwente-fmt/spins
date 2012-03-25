@@ -535,15 +535,15 @@ public class LTSminPrinter {
 					w.appendLine("	exit (1);");
 					w.appendLine("}");
 					
-					//activate process
-					Action update_pc = assign(model.sv.getPC(target), 0);
-					generateAction(w, update_pc, model);
-					w.appendLine("++("+ printVar(_NR_PR, out(model)) +");");
-					
 					//set pid
 					Action update_pid = assign(model.sv.getPID(target),
 												id(LTSminStateVector._NR_PR));
 					generateAction(w, update_pid, model);
+
+					//activate process
+					Action update_pc = assign(model.sv.getPC(target), 0);
+					generateAction(w, update_pc, model);
+					w.appendLine("++("+ printVar(_NR_PR, out(model)) +");");
 					
 					List<Variable> args = target.getArguments();
 					Iterator<Expression> eit = re.getExpressions().iterator();
