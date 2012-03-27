@@ -113,6 +113,9 @@ public class LTSminPrinter {
 	public static final String GM_TRANS_NAME = "gm_trans";
 	public static final int    STATE_ELEMENT_SIZE = 4;
 
+	// first value of assertions indicates a passed assertion
+	static List<String> assertions = new ArrayList<String>(Arrays.asList("PASS"));
+
 	public static String generateCode(LTSminModel model) {
 		StringWriter w = new StringWriter();
 		LTSminPrinter.generateModel(w, model);
@@ -135,6 +138,7 @@ public class LTSminPrinter {
 		generateGuardMatrices(w, model);
 		generateGuardFunctions(w, model, model.getGuardInfo());
 		generateStateDescriptors(w, model);
+		generateEdgeDescriptors(w, model);
 		generateHashTable(w, model);
 		generateReach(w, model);
 	}
@@ -225,6 +229,7 @@ public class LTSminPrinter {
 		w.appendLine("return ",model.sv.size(),";");
 		w.outdent();
 		w.appendLine("}");
+		w.appendLine("");
 	}
 
 	private static void generateTransitionCount(StringWriter w, LTSminModel model) {
@@ -240,6 +245,8 @@ public class LTSminPrinter {
 		w.appendLine("extern inline int reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
 		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
+		w.appendLine("static const int numbers[10] = {0,1,2,3,4,5,6,7,8,9};");
+		w.appendLine("");
 	}
 
 	private static void generateInitialState(StringWriter w, LTSminModel model) {
@@ -324,7 +331,7 @@ public class LTSminPrinter {
 		w.appendLine("");
 		w.appendLine("int spinja_get_successor_all_real( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, state_t *tmp, int *atomic) {");
 		w.indent();
-		w.appendLine("transition_info_t transition_info = { NULL, -1 };");
+		w.appendLine("transition_info_t transition_info = { (int *)&numbers[0], -1 };");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine();
 		List<LTSminTransition> transitions = model.getTransitions();
@@ -384,7 +391,7 @@ public class LTSminPrinter {
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
 		w.appendLine("int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-		w.appendLine("transition_info_t transition_info = { NULL, t };");
+		w.appendLine("transition_info_t transition_info = { (int *)&numbers[0], t };");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("int minus_one = -1;");
 		w.appendLine("int *atomic = &minus_one;");
@@ -493,15 +500,22 @@ public class LTSminPrinter {
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
-
+			StringWriter w2 = new StringWriter();
+			generateExpression(w2, e, out(model));
+			String expression = w2.toString();
+			int index = assertions.indexOf(expression);
+			if (-1 == index) {
+				assertions.add(expression);
+				index = assertions.size() - 1;
+				assert (index < 10); // enlarge 'numbers' otherwise
+			}
 			w.appendPrefix();
 			w.append("if(!");
-			generateExpression(w, e, out(model));
+			w.append(expression);
 			w.append(") {");
 			w.appendPostfix();
 			w.indent();
-			w.appendLine("printf(\"Assertion violated: ",as.getExpr().toString(), "\\n\");");
-			//w.appendLine("print_state(",C_STATE_TMP,");"); //TODO: invalid states!
+			w.appendLine("transition_info.label = (int *)&numbers["+ index  +"];");
 			w.outdent();
 			w.appendLine("}");
 		} else if(a instanceof PrintAction) {
@@ -932,7 +946,9 @@ public class LTSminPrinter {
 			if (0 != slot.getIndex())
 				w.append(",").appendPostfix();
 			w.appendPrefix();
-			w.append("\""+ slot.getVariable() +"\"");
+			String fn = slot.fullName();
+			fn = fn.substring(1, fn.length() - 4); // .A.B.var --> A.B
+			w.append("\""+ fn +"\"");
 		}
 		w.outdent().appendPostfix();
 		w.appendLine("};");
@@ -1020,8 +1036,43 @@ public class LTSminPrinter {
 		w.appendLine("return 0;");
 		w.outdent();
 		w.appendLine("}");
+		w.appendLine("");
 	}
 
+	private static void generateEdgeDescriptors(StringWriter w, LTSminModel model) {
+		if (assertions.size() == 1) return; // only the passed assertion is present
+		
+		// Generate static list of names
+		w.appendLine("static const char* edge_names[] = {");
+		w.indent();
+		int i = 0;
+		for (String edge : assertions) {
+			if (0 != i)
+				w.append(",").appendPostfix();
+			w.appendPrefix();
+			w.append("\""+ edge +"\"");
+			i++;
+		}
+		w.outdent().appendPostfix();
+		w.appendLine("};");
+		w.appendLine("");
+
+		w.appendLine("extern int spinja_get_edge_count() {");
+		w.indent();
+		w.appendLine("return ",assertions.size(),";");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+
+		w.appendLine("extern const char* spinja_get_edge_name(int type) {");
+		w.indent();
+		w.appendLine("assert(type < ",assertions.size()," && \"spinja_get_type_name: invalid type\");");
+		w.appendLine("return edge_names[type];");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+	}
+	
 	private static void generateGuardMatrices(StringWriter w, LTSminModel model) {
 		GuardInfo gm = model.getGuardInfo();
 		if(gm==null) return;
