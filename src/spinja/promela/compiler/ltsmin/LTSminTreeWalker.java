@@ -402,26 +402,26 @@ public class LTSminTreeWalker {
 		String t_name = makeTranstionName(t, null, never_t);
 		LTSminTransition lt = makeTransition(process, trans, t, t_name);
 
-		// Guard: never enabled action or else transition
+        // never claim executes first
         if (never_t != null) {
         	if (never_t.getTo().isInAtomic() || never_t.getFrom().isInAtomic())
         		throw new AssertionError("Atomic in never claim not implemented");
-			lt.addGuard(pcGuard(model,never_t.getFrom(), spec.getNever()));
+    		// Guard: never enabled action or else transition
+			lt.addGuard(pcGuard(model, never_t.getFrom(), spec.getNever()));
 	        if (never_t instanceof ElseTransition) {
 	            ElseTransition et = (ElseTransition)never_t;
 	            for (Transition ot : t.getFrom().output) {
 	                if (ot!=et) {
 	                	LTSminGuardNand nand = new LTSminGuardNand();
-	                    createEnabledGuard(spec.getNever(),ot,nand);
+	                    createEnabledGuard(ot, nand);
 	                    lt.addGuard(nand);
 	                }
 	            }
 	        } else {
-	        	createEnabledGuard(process, never_t, lt);
+	        	createEnabledGuard(never_t, lt);
 	        }
 
-	        // never claim executes first
-	        lt.addAction(assign(model.sv.getPC(process),
+	        lt.addAction(assign(model.sv.getPC(spec.getNever()),
 								never_t.getTo()==null?-1:never_t.getTo().getStateId()));
 		}
 		
@@ -434,12 +434,12 @@ public class LTSminTreeWalker {
             for (Transition ot : t.getFrom().output) {
                 if (ot!=et) {
                 	LTSminGuardNand nand = new LTSminGuardNand();
-                    createEnabledGuard(process,ot,nand);
+                    createEnabledGuard(ot,nand);
                     lt.addGuard(nand);
                 }
             }
         } else {
-            createEnabledGuard(process, t, lt);
+            createEnabledGuard(t, lt);
         }
 
         // Guard: allowed to die
@@ -490,12 +490,10 @@ public class LTSminTreeWalker {
 	
 	/**
 	 * Creates the guard of a transition for its action and for the end states.
-	 * @param process The state should be in this process.
 	 * @param t The transition of which the guard will be created.
 	 * @param trans The transition group ID to use for generation.
 	 */
-	private void createEnabledGuard(Proctype process, Transition t, 
-								   LTSminGuardContainer lt) {
+	private void createEnabledGuard(Transition t, LTSminGuardContainer lt) {
 		try {
 			if (t.iterator().hasNext()) {
 				Action a = t.iterator().next();
@@ -591,7 +589,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 				for (Transition trans : st.output) {
 					tt.lt.addGuard(dieGuard(model, p));
 					//tt.lt.addGuard(tt.trans,makeAtomicGuard(p));
-                    createEnabledGuard(p,trans,tt.lt);
+                    createEnabledGuard(trans,tt.lt);
 				}
 			}
 		}
@@ -628,7 +626,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 					lt.addGuard(gnand);
 					gnand.addGuard(pcGuard(model, st, p));
 					//gnand.addGuard(trans, makeAtomicGuard(p));
-					createEnabledGuard(p,t,gnand);
+					createEnabledGuard(t,gnand);
 				}
 			}
 		}
