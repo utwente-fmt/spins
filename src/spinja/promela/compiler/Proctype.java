@@ -71,6 +71,14 @@ public class Proctype implements VariableContainer {
 	 * The store where all the variables are stored.
 	 */
 	private final VariableStore varStore;
+    
+    public void addVariableMapping(String s, Variable v) {
+    	varStore.addVariableMapping(s, v);
+    }
+
+    public Variable getVariableMapping(String s) {
+    	return varStore.getVariableMapping(s);
+    }
 
 	/**
 	 * The expression which can enable or disable all actions.

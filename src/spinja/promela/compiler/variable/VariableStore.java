@@ -15,8 +15,10 @@
 package spinja.promela.compiler.variable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import spinja.promela.compiler.parser.ParseException;
 import spinja.util.StringWriter;
@@ -35,11 +37,22 @@ public class VariableStore implements VariableContainer {
 
     private final List<Variable> vars;
 
+    private final Map<String, Variable> mapping;
+    
+    public void addVariableMapping(String s, Variable v) {
+    	mapping.put(s, v);
+    }
+
+    public Variable getVariableMapping(String s) {
+    	return mapping.get(s);
+    }
+
     /**
      * Creates a new VariableStore.
      */
     public VariableStore() {
         vars = new LinkedList<Variable>();
+        mapping = new HashMap<String, Variable>();
     }
 
     /**
@@ -94,7 +107,7 @@ public class VariableStore implements VariableContainer {
                 return var;
             }
         }
-        return null;
+        return getVariableMapping(name);
     }
 
     /**
@@ -117,7 +130,7 @@ public class VariableStore implements VariableContainer {
                 return true;
             }
         }
-        return false;
+        return null != getVariableMapping(name);
     }
     
     /**

@@ -76,7 +76,7 @@ public class Promela {
 			if(ref == null) {
 				throw new MyParseException("Could not find label: " + t.image, t);
 			}
-			new GotoTransition(n, ref, "goto " + t.image);
+			new GotoTransition(n, ref, t.image);
 		}
 		gotos.clear();
 		labels.clear();
@@ -770,7 +770,6 @@ void ivar_chan(VariableContainer store): {
 	(<LBRACK> c=constant() <RBRACK> { arraySize = c.getNumber(); })? 
 	{ var = new ChannelVariable(id.image, arraySize); var.setOwner(currentProc); }
 	(<ASSIGN> ch_init(store, var))?
-	{ store.addVariable(var); var.setRead(true); }
 }
 
 void ch_init(VariableContainer store, ChannelVariable var): {
@@ -782,12 +781,7 @@ void ch_init(VariableContainer store, ChannelVariable var): {
     id=<IDENTIFIER>
     {
         Variable var2 = store.getVariable(id.image);
-        if (var2 == null || !(var2 instanceof ChannelVariable))
-            throw new MyParseException("Unknown channel", id);
-        ChannelVariable cv = (ChannelVariable)var2;
-	    var.setType(cv.getType());
-	    var.setOwner(cv.getOwner());
-	    //var.setName(cv.getName()); //TODO: will be declared double    }
+		store.addVariableMapping(var.getName(), var2); var2.setRead(true);    }
   |
 	<LBRACK> size=constant() <RBRACK> <OF> 
 	{ 
@@ -799,6 +793,7 @@ void ch_init(VariableContainer store, ChannelVariable var): {
 	(<COMMA> type=typename()
 	{ ctype.addType(type); }
 	)* <RCURLY>
+	{ store.addVariable(var); var.setRead(true); }
 }
 
 VariableType typename(): {
