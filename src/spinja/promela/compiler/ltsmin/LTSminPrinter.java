@@ -346,10 +346,18 @@ public class LTSminPrinter {
 
 	public static void generateATransition(StringWriter w, LTSminTransition transition,
 										   LTSminModel model) {
-		w.appendLine("// "+transition.getName());
 		if(transition instanceof LTSminTransition) {
 			LTSminTransition t = (LTSminTransition)transition;
-
+			Iterator<Action> it = t.getActions().iterator();
+			String name = "tau";
+			if (it.hasNext()) {
+				Action action = it.next();
+				StringWriter w2 = new StringWriter();
+				generateAction(w2, action, model);
+				name = w2.toString();
+			}
+			w.appendLine("// "+transition.getName() +" "+ name);
+			
 			w.appendPrefix().append("if (true");
 			for(LTSminGuardBase g: t.getGuards()) {
 				w.appendPostfix().appendPrefix().append("&&");
