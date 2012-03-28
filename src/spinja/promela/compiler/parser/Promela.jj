@@ -769,9 +769,9 @@ void mtype(): {
 }{
     (<ASSIGN>)? <LCURLY> id=<IDENTIFIER>
        { specification.addMType(id.image); }
-    (<COMMA> id=<IDENTIFIER>
+    (LOOKAHEAD(2) <COMMA> id=<IDENTIFIER>
        { specification.addMType(id.image); }
-    )* <RCURLY>
+    )* (<COMMA>)? <RCURLY>
 }
 
 void ivar(VariableContainer store, VariableType type): {
