@@ -791,22 +791,31 @@ void ivar(VariableContainer store, VariableType type): {
 }
 
 void ivar_chan(VariableContainer store): {
-	Token id;	
+	Token id, as;	
 	int arraySize = -1;
 	ConstantExpression c = null;
 	ChannelVariable var;
 }{
 	id=<IDENTIFIER>
 	(<LBRACK> c=constant() <RBRACK> { arraySize = c.getNumber(); })? 
-	{ var = new ChannelVariable(id.image, arraySize); var.setOwner(currentProc); }
-	(<ASSIGN> ch_init(store, var))?
+	{
+		var = new ChannelVariable(id.image, arraySize);
+		var.setOwner(currentProc);
+		if (null != currentProc && currentProc.isArgument()) {
+			store.addVariable(var); // proc arguments can be uninitialized channels
+		}
+	}
+	(as=<ASSIGN> ch_init(as, store, var))?
 }
 
-void ch_init(VariableContainer store, ChannelVariable var): {
+void ch_init(Token as, VariableContainer store, ChannelVariable var): {
 	Expression size;
 	VariableType type;
 	ChannelType ctype;
 	Token id;
+	if (null != currentProc && currentProc.isArgument()) {
+		throw new MyParseException("Illegal assignment to proc arguments.", as);
+	}
 }{
     id=<IDENTIFIER>
     {

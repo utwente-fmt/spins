@@ -422,6 +422,10 @@ public class Proctype implements VariableContainer {
 		isArgument = false;
 	}
 
+	public boolean isArgument() {
+		return isArgument;
+	}
+
 	/**
 	 * Changes the enabler expression of the process.
 	 * 
