@@ -469,7 +469,7 @@ public class LTSminPrinter {
 						int value = as.getExpr().getConstantValue();
 						w.appendPrefix();
 						generateExpression(w, id, out(model));
-						w.append(" = ").append(value & id.getVariable().getType().getMaskInt()).append(";");
+						w.append(" = ").append(value).append(";");
 						w.appendPostfix();
 					} catch (ParseException ex) {
 						// Could not get Constant value
