@@ -1,6 +1,7 @@
 package spinja.promela.compiler.ltsmin.state;
 
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
+import static spinja.promela.compiler.parser.Promela.*;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -41,13 +42,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	public static final String C_STATE_NAME = "state";
 	public static final String C_STATE_GLOBALS = "globals";
 
-	private static final String C_STATE_PROC_COUNTER = "_pc";
-	private static final String C_STATE_PID = "_pid";
 	private static final String C_NUM_PROCS_VAR = "_nr_pr";
-
-	public static final VariableType C_TYPE_PROC_COUNTER 	= VariableType.PC;
-	public static final VariableType C_TYPE_PID 			= VariableType.PID;
-
 	public static final Variable _NR_PR = new Variable(VariableType.INT, C_NUM_PROCS_VAR, -1);
 
 	private List<LTSminSlot> 			stateVector;// the flattened vector
@@ -143,12 +138,6 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		debug.say("== Processes");
 		int nr_active = 0;
 		for (Proctype p : spec) {
-			// Add PID
-			Variable pid = new Variable(C_TYPE_PID, C_STATE_PID, -1, p);
-			try { pid.setInitExpr(constant(p.getID()));
-			} catch (ParseException e) { assert (false); }
-			p.prependVariable(pid);
-			
 			addProcess (state_t, p, debug);
 			nr_active += p.getNrActive();
 		}
@@ -166,13 +155,6 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		// Initialise process state struct and add to main state struct
 		debug.say("[Proc] " + name);
 		LTSminTypeStruct process_t = new LTSminTypeStruct(name);
-
-		// Add PC
-		Variable pc = new Variable(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER, -1, p);
-		int initial_pc = (p.getNrActive() == 0 && !p.getName().equals("never") ? -1 : 0);
-		try { pc.setInitExpr(constant(initial_pc));
-		} catch (ParseException e) { assert (false); }
-		p.prependVariable(pc);
 	
 		// Locals: add locals to the process state struct
 		List<Variable> proc_vars = p.getVariables();

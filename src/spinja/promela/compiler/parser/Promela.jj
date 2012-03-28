@@ -31,6 +31,11 @@ import java.util.*;
 
 @SuppressWarnings("all")
 public class Promela {
+	public static final String C_STATE_PROC_COUNTER = "_pc";
+	public static final String C_STATE_PID = "_pid";
+	
+	public static final VariableType C_TYPE_PROC_COUNTER 	= VariableType.PC;
+	public static final VariableType C_TYPE_PID 			= VariableType.PID;
 
 	/** Copy Constructors */
     public Promela(Promela prom, PromelaTokenManager tm) {
@@ -81,7 +86,23 @@ public class Promela {
 		gotos.clear();
 		labels.clear();
 	}
-	
+
+	public void addPID(Proctype p) {
+		Variable pid = new Variable(C_TYPE_PID, C_STATE_PID, -1, p);
+		int nr = p.getID();
+		try { pid.setInitExpr(new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+nr), nr));
+		} catch (ParseException e) { assert (false); }
+		p.addVariable(pid);
+	}
+
+	public void addPC(Proctype p) {
+		Variable pc = new Variable(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER, -1, p);
+		int initial_pc = (p.getNrActive() == 0 && !p.getName().equals("never") ? -1 : 0);
+		try { pc.setInitExpr(new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+initial_pc), initial_pc));
+		} catch (ParseException e) { assert (false); }
+		p.addVariable(pc);
+	}
+
     Expression varref() throws ParseException { return varref(null); }
 }
 PARSER_END(Promela)
@@ -637,7 +658,11 @@ void proctype(): {
 		specification.addProc(currentProc);
 	}
 	<LPAREN> (decl_list(currentProc))? <RPAREN>
-	{ currentProc.lastArgument(); }
+	{
+		currentProc.lastArgument();
+		addPID(currentProc);
+		addPC(currentProc);
+	}
 	(priority())?
 	(enabler())?
 	<LCURLY> s=sequence(currentProc.getStartState(), null, false) <RCURLY>
@@ -674,6 +699,8 @@ void init(): {
 		automaton = currentProc.getAutomaton();
 		specification.addProc(currentProc);
 		currentProc.lastArgument();
+		addPID(currentProc);
+		addPC(currentProc);
 	}
 	(priority())?
 	<LCURLY> s=sequence(currentProc.getStartState(), null, false) <RCURLY>
@@ -695,6 +722,7 @@ void never(): {
 		automaton = currentProc.getAutomaton();
 		specification.setNever(currentProc);
 		currentProc.lastArgument();
+		addPC(currentProc);
 	}
 	<LCURLY> s=sequence(currentProc.getStartState(), null, false) <RCURLY>
 	{
@@ -1215,7 +1243,7 @@ Expression varref(Identifier context): {
 		})?
 	{ return ident; }
 |	id=<VAR_PID>
-	{ throw new MyParseException("PID not implemented", id); }
+	{ return new Identifier(id, currentProc.getVariable(id.image), expr, null); }
 }
 
 Expression base_expr(): {

@@ -2,7 +2,7 @@ package spinja.promela.compiler.ltsmin;
 
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
-import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_TYPE_PROC_COUNTER;
+import static spinja.promela.compiler.parser.Promela.C_TYPE_PROC_COUNTER;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.INCR;
