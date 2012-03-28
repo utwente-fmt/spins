@@ -18,15 +18,15 @@ import spinja.promela.compiler.parser.ParseException;
 import spinja.util.StringWriter;
 
 public class VariableType {
-	public static VariableType BIT = new VariableType("bit", "int", 1);
+	public static VariableType BIT = new VariableType("bit", "uint", 1);
 
-	public static VariableType BOOL = new VariableType("bool", "int", 1);
+	public static VariableType BOOL = new VariableType("bool", "uint", 1);
 
-	public static VariableType BYTE = new VariableType("byte", "int", 8);
+	public static VariableType BYTE = new VariableType("byte", "uint", 8);
 
-	public static VariableType PC = new VariableType("pc", "uint", 8);
+	public static VariableType PC = new VariableType("pc", "int", 16);
 
-	public static VariableType PID = new VariableType("pid", "int", 8);
+	public static VariableType PID = new VariableType("pid", "uint", 8);
 
 	public static VariableType SHORT = new VariableType("short", "int", 16);
 

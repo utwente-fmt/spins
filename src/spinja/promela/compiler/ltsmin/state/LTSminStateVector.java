@@ -48,7 +48,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	public static final VariableType C_TYPE_PROC_COUNTER 	= VariableType.PC;
 	public static final VariableType C_TYPE_PID 			= VariableType.PID;
 
-	public static final Variable _NR_PR = new Variable(VariableType.BYTE, C_NUM_PROCS_VAR, -1);
+	public static final Variable _NR_PR = new Variable(VariableType.INT, C_NUM_PROCS_VAR, -1);
 
 	private List<LTSminSlot> 			stateVector;// the flattened vector
 	LTSminTypeStruct 					state_t;	// tree of structs

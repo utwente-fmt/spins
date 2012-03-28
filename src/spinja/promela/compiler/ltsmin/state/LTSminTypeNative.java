@@ -54,24 +54,26 @@ public class LTSminTypeNative extends LTSminTypeImpl {
 			throws AssertionError {
 		if (var.getType().getJavaName().equals("int")) {
 			switch(var.getType().getBits()) {
-				case 1:
-					return C_TYPE_UINT1;
-				case 8:
-					return C_TYPE_UINT8;
 				case 16:
-					return C_TYPE_INT16;
+					return C_TYPE_INT16; // SHORT
 				case 32:
-					return C_TYPE_INT32;
+					return C_TYPE_INT32; // INT
 				default:
 					throw new AssertionError("ERROR: Unable to handle: " + var.getName());
 			}
-		} else {
+		} else if (var.getType().getJavaName().equals("uint")) {
 			switch(var.getType().getBits()) {
+				case 1:
+					return C_TYPE_UINT1; // BIT / BOOL
 				case 8:
-					return C_TYPE_INT8;
+					return C_TYPE_UINT8; // BYTE
+				case 16:
+					return C_TYPE_UINT16; // PC
 				default:
 					throw new AssertionError("ERROR: Unable to handle: " + var.getName() +" ("+ var.getType().getJavaName() + ").");
 			}
+		} else {
+			throw new AssertionError("ERROR: Unable to handle: " + var.getName());
 		}
 	}
 
