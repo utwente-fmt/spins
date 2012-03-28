@@ -646,6 +646,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 	 */
 	private int createRendezVousTransition(SendAction sa, ReadAction ra,
 										   int trans, Transition never_t) {
+		if (sa.p == ra.p) return trans; // skip impotent matches
 		String name = makeTranstionName(sa.t, ra.t, never_t);
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
