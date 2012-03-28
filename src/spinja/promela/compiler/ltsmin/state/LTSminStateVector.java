@@ -169,7 +169,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 
 		// Add PC
 		Variable pc = new Variable(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER, -1, p);
-		int initial_pc = (p.getNrActive() == 0 ? -1 : 0);
+		int initial_pc = (p.getNrActive() == 0 && !p.getName().equals("never") ? -1 : 0);
 		try { pc.setInitExpr(constant(initial_pc));
 		} catch (ParseException e) { assert (false); }
 		p.prependVariable(pc);
