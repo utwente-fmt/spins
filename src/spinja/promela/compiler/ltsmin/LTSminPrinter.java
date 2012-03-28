@@ -354,7 +354,7 @@ public class LTSminPrinter {
 				Action action = it.next();
 				StringWriter w2 = new StringWriter();
 				generateAction(w2, action, model);
-				name = w2.toString();
+				name = w2.toString().replace("\n", " ");
 			}
 			w.appendLine("// "+transition.getName() +" "+ name);
 			
