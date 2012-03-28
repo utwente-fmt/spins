@@ -17,6 +17,7 @@ public class LTSminTypeStruct extends LTSminTypeImpl implements LTSminTypeStruct
 	private static final String STRUCT_PREFIX = "struct_";
 	protected String name;
 	private List<LTSminVariable> members;
+	private LTSminVariable parent;
 
 	public String getName() {
 		return name;
@@ -85,5 +86,13 @@ public class LTSminTypeStruct extends LTSminTypeImpl implements LTSminTypeStruct
 	
 	public int hashCode() {
 		return name.hashCode();
+	}
+
+	public void setParent(LTSminVariable ltSminVariable) {
+		this.parent = ltSminVariable;
+	}
+
+	public LTSminVariable getParent() {
+		return this.parent;
 	}
 }

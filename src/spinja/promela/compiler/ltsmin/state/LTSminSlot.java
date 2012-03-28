@@ -1,5 +1,6 @@
 package spinja.promela.compiler.ltsmin.state;
 
+import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.ltsmin.LTSminDMWalker.IdMarker;
 
@@ -43,5 +44,21 @@ public class LTSminSlot extends LTSminSubVector {
 	public void mark(IdMarker idMarker, Identifier id) {
 		if (id != null) throw new AssertionError("Variable "+ var +" has no member "+ id);
 		idMarker.doMark(this);
+	}
+
+	public Expression getInitExpr() {
+		LTSminVariable var = getParent();
+		if (null == var) throw new AssertionError("Slot without variable.");
+		if (var.getInitExpr() != null) return var.getInitExpr();
+		LTSminTypeI parent = var.getParent();
+		if (null == parent || !(parent instanceof LTSminTypeStruct)) throw new AssertionError("Variable with wrong parent struct: "+ parent);
+		LTSminTypeStruct struct = (LTSminTypeStruct)parent;
+		var = struct.getParent();
+		if (null == var ) return null;
+		return var.getInitExpr();
+	}
+
+	protected LTSminVariable getParent() {
+		return var;
 	}
 }

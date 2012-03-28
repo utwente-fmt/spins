@@ -263,9 +263,7 @@ public class LTSminPrinter {
 			Arrays.fill(chars, ' '); 
 			String prefix = new String(chars);
 			w.append(prefix +" = ");
-			LTSminVariable v = slot.getVariable();
-			assert (v!=null);
-			Expression e = v.getInitExpr();
+			Expression e = slot.getInitExpr();
 			if (e==null) {
 				w.append("0");
 			} else {

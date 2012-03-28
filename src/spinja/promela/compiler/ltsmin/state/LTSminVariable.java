@@ -29,6 +29,9 @@ public class LTSminVariable {
 		this.name = name;
 		this.size = size;
 		this.parent = parent;
+		if (type instanceof LTSminTypeStruct) {
+			((LTSminTypeStruct)type).setParent(this);
+		}
 	}
 
 	public LTSminVariable(LTSminTypeI type, Variable v, LTSminTypeI parent) {

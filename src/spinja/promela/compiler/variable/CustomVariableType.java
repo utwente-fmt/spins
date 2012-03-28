@@ -27,7 +27,9 @@ public class CustomVariableType extends VariableType {
 
 	@Override
 	public boolean canConvert(final VariableType type) {
-		return type == this;
+		for (Variable v : store.getVariables())
+			if (!v.getType().canConvert(type)) return false;
+		return true;
 	}
 
 	public VariableStore getVariableStore() {
