@@ -204,6 +204,7 @@ TOKEN : {	/* Operators */
             matchedToken.next = next.next;
             matchedToken.specialToken = next.specialToken;
             Preprocessor.DefineMapping current = Preprocessor.current.pop();
+            if (null == current) return; // #include
             for (String param : current.parameters) {
                 Preprocessor.removeDefine(param);
             }
@@ -543,6 +544,7 @@ SKIP : { // Skip whitespace and comments
     < "\n"|"\r"|"\r\n" > {
         // create new virtual input stream and push the previous one to a stack
         Preprocessor.preprocessing.push(input_stream);
+        Preprocessor.current.push(null);
         String file = Preprocessor.parseFile(image.toString());
         try { // switch input stream
             ReInit(new SimpleCharStream(new FileInputStream(file)));
