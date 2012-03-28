@@ -36,11 +36,12 @@ dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state)
 		state_t out;
 		int count = spinja_get_successor_all_real (args->model, state, dfs_cb, args, &out, &args->pid);
 		if (count == 0) {
-			printf ("Loss of atomicity!\n");	// loss of atomicity
+			/*printf ("Loss of atomicity!\n");	// loss of atomicity
 			int a;
 			for (a = 0; a < spinja_get_state_size(); a++)
-				printf("%d, ", ((int*)&out)[a]);
-			printf ("\n");
+				printf("%d, ", ((int*)&state)[a]);
+			printf ("\n");*/
+		    transition_info->group = args->real_group;
 			args->callback (args->arg, transition_info, state);
 			args->outs++;
 		}
