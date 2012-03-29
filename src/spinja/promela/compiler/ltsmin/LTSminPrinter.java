@@ -954,6 +954,8 @@ public class LTSminPrinter {
 			w.appendPrefix();
 			String fn = slot.fullName();
 			fn = fn.substring(1, fn.length() - 4); // .A.B.var --> A.B
+			if (fn.startsWith("globals."))
+				fn = fn.substring(8); // globals.B --> B
 			w.append("\""+ fn +"\"");
 		}
 		w.outdent().appendPostfix();
