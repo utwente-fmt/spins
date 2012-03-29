@@ -1174,10 +1174,8 @@ void send_args(CompoundExpression c): {
 
 void recv_args(CompoundExpression c): {
 }{
-	recv_arg(c)
-	( (<COMMA> recv_arg(c))+
-	| <LPAREN> recv_args(c) <RPAREN>
-	)?
+	recv_arg(c) (<COMMA> recv_args(c) | <LPAREN> recv_args(c) <RPAREN>)?
+| 	<LPAREN> recv_args(c) <RPAREN>
 }
 
 void recv_arg(CompoundExpression c): {
