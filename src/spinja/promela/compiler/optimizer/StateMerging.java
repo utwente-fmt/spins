@@ -34,7 +34,7 @@ public class StateMerging implements GraphOptimizer {
 				Transition in = state.getIn(0);
 				Transition out = state.getOut(0);
 
-				if (in.getActionCount() > 0 && out.getActionCount() > 0 && out.isAlwaysEnabled()
+				if (!out.isSkip() && in.getActionCount() > 0 && out.getActionCount() > 0 && out.isAlwaysEnabled()
 					&& (out.isLocal() || state.isInAtomic()) && !in.hasChannelSendAction()) {
 					in.changeTo(out.getTo());
 					for (final Action action : out) {

@@ -20,6 +20,9 @@ import java.util.Iterator;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.ActionContainer;
 import spinja.promela.compiler.actions.ChannelSendAction;
+import spinja.promela.compiler.actions.ExprAction;
+import spinja.promela.compiler.expression.ConstantExpression;
+import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.util.StringWriter;
 
@@ -330,5 +333,20 @@ public abstract class Transition implements ActionContainer {
 
 	public boolean isAtomic() {
 		return getFrom().isInAtomic() || (getTo() != null && getTo().isInAtomic());
+	}
+
+	public boolean isSkip() {
+		Action a;
+		try {
+			a = getAction(0);
+		} catch (IndexOutOfBoundsException iobe) {
+			return false;
+		}
+		if (a instanceof ExprAction) {
+			Expression e = ((ExprAction)a).getExpression();
+			if (!(e instanceof ConstantExpression)) return false;
+			return e.getToken().image.equals("skip");
+		}
+		return false;
 	}
 }
