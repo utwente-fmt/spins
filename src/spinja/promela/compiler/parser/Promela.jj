@@ -295,6 +295,7 @@ SKIP : { // Skip whitespace and comments
 |	"/*" : IN_COMMENT
 |   "//" : IN_COMMENT2
 |   "#if" : PREPROCESSOR_IF
+|   "#ifdef" : PREPROCESSOR_IFDEF
 |   "#else"
     {
         Boolean b = Preprocessor.ifs.peek();
@@ -308,7 +309,6 @@ SKIP : { // Skip whitespace and comments
     }
 |   "#endif"
     {
-    System.out.println("<?");
         if (null == Preprocessor.ifs.pop()) { // pop last if
             throw new AssertionError("Spurious null in #if");
         } else {
@@ -324,7 +324,7 @@ SKIP : { // Skip whitespace and comments
 /** Preprocessor if **/
 <PREPROCESSOR_IF> SKIP:
 {
-    < "\n"|"\r"|"\r\n" > { // constion expression is read
+    < "\n"|"\r"|"\r\n" > { // constant expression is read
         InputStream is = new ByteArrayInputStream(image.toString().getBytes());
         Preprocessor.preprocessing.push(null);
         Promela prom = new Promela(parser, is); // start new parser for condition
@@ -349,6 +349,26 @@ SKIP : { // Skip whitespace and comments
     "\\\n" {image = image.deleteCharAt(image.length()-2); } |
     "\\\r" {image = image.deleteCharAt(image.length()-2);} |
     "\\\r\n" {image = image.deleteCharAt(image.length()-3);} |
+    < ~[] >
+}
+
+/** Preprocessor ifdef **/
+<PREPROCESSOR_IFDEF> SKIP:
+{
+    < "\n"|"\r"|"\r\n" > { // defineId expression is read
+        String def = image.toString().trim();
+        if (null != Preprocessor.defines(def)) { // true
+            Preprocessor.ifs.push(true);
+            SwitchTo(PromelaConstants.DEFAULT); // parse if until else/endif
+        } else { // false
+            Preprocessor.ifs.push(false);
+            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore if until else/enfi
+        }
+    }
+}
+
+<PREPROCESSOR_IFDEF> MORE:
+{
     < ~[] >
 }
 
