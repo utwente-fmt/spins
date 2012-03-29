@@ -301,7 +301,7 @@ SKIP : { // Skip whitespace and comments
 |	"\r"
 |	"\t"
 |	"\n"
-|	"/*" : IN_COMMENT
+|	"/*" { Preprocessor.level++; } : IN_COMMENT
 |   "//" : IN_COMMENT2
 |   "#if" : PREPROCESSOR_IF
 |   "#ifdef" : PREPROCESSOR_IFDEF
@@ -626,11 +626,19 @@ SKIP : { // Skip whitespace and comments
 }
 
 <IN_COMMENT> SKIP: {
-	< ~[] >
+	"/*" { Preprocessor.level++; }
+|	< ~[] >
 }
 
 <IN_COMMENT> SKIP: {
-	"*/": DEFAULT
+	"*/" {
+		Preprocessor.level--;
+		if (0 == Preprocessor.level) {
+			SwitchTo(PromelaConstants.DEFAULT);
+		} else {
+			SwitchTo(PromelaConstants.IN_COMMENT);
+		}
+	}
 }
 
 MORE : { // The string
