@@ -622,7 +622,8 @@ public class LTSminPrinter {
 				first = false;
 			}
 			if (oa.loops()) {
-				w.appendPrefix().appendLine("} else { printf(\"Blocking loop in d_step\"); exit(1); }");
+				w.appendLine("} else { printf(\"Blocking loop in d_step\"); exit(1); }");
+				w.outdent();
 				w.appendLine("}");
 				String label = oa.getLabel();
 				if (null != label) {
