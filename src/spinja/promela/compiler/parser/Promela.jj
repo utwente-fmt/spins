@@ -61,11 +61,20 @@ public class Promela {
 	private Specification specification;
 	private Proctype currentProc;
 	private Automaton automaton;	
-		
-	private int procNr = 1;
+
+	/* Active processes can be differentiated from each other by the value of
+	 * their process instantiation number, which is available in the predefined
+	 * local variable _pid . Active processes are always instantiated in the
+	 * order in which they appear in the model, so that the first such process
+	 * (whether it is declared as an active process or as an init process) will
+	 * receive the lowest instantiation number, which is zero. */
+	private int procNr = 0;
 	
-	public int getNextProcNr() {
-		return procNr++;
+	public int getNextProcNr(int nrActive) {
+		if (0 == nrActive) return -1;
+		int p = procNr;
+		procNr += nrActive;
+		return p;
 	}
 
 	private Map<String, State> labels = new HashMap<String, State>();
@@ -673,7 +682,7 @@ void proctype(): {
 	<PROCTYPE>
 	id=<IDENTIFIER>
 	{
-		currentProc = new Proctype(specification, getNextProcNr(), nrActive, id.image);
+		currentProc = new Proctype(specification, getNextProcNr(nrActive), nrActive, id.image);
 		automaton = currentProc.getAutomaton();
 		specification.addProc(currentProc);
 	}
@@ -715,7 +724,7 @@ void init(): {
 }{
 	<INIT>
 	{
-		currentProc = new Proctype(specification, 0, 1, "init");
+		currentProc = new Proctype(specification, getNextProcNr(1), 1, "init");
 		automaton = currentProc.getAutomaton();
 		specification.addProc(currentProc);
 		currentProc.lastArgument();
@@ -738,7 +747,7 @@ void never(): {
 }{
 	<NEVER>
 	{
-		currentProc = new Proctype(specification, getNextProcNr(), 0, "never");
+		currentProc = new Proctype(specification, -1, 0, "never"); // a never claim has no PID
 		automaton = currentProc.getAutomaton();
 		specification.setNever(currentProc);
 		currentProc.lastArgument();
