@@ -137,6 +137,7 @@ public class LTSminPrinter {
 		generateDMFunctions(w, model.getDepMatrix());
 		generateGuardMatrices(w, model);
 		generateGuardFunctions(w, model, model.getGuardInfo());
+		generateAcceptingFunction(w, model);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
 		generateHashTable(w, model);
@@ -938,6 +939,20 @@ public class LTSminPrinter {
 		w.appendLine("{");
 		w.appendLine("	if (t>=0 && t < "+ dm.getRows()+ ") return "+ DM_NAME +"[t][1];");
 		w.appendLine("	return NULL;");
+		w.appendLine("}");
+		w.appendLine("");
+	}
+
+	private static void generateAcceptingFunction(StringWriter w, LTSminModel model) {
+		// Function to access the dependency matrix
+		w.appendLine("");
+		w.appendLine("extern const int spinja_buchi_is_accepting(void* model, state_t *in)");
+		w.appendLine("{");
+		w.appendPrefix();
+		w.append("	return ");
+		generateGuard(w, model, model.getAcceptingConditions());
+		w.append(";");
+		w.appendPostfix();
 		w.appendLine("}");
 		w.appendLine("");
 	}

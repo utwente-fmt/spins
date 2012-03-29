@@ -4,14 +4,20 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
+
+import spinja.promela.compiler.Proctype;
+import spinja.promela.compiler.Specification;
+import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 
 /**
- * An LTSmin model consists is dirived from a SpinJa Specification and
+ * An LTSmin model consists is derived from a SpinJa Specification and
  * encapsulates transitions (which are transition groups), a state vector
- * consisting physically of slots and depenency information. 
+ * consisting physically of slots and dependency information. 
  * 
  * Transitions of the model are mapped to transition groups (LTSminTransition)
  * with guard and action expressions.
@@ -30,14 +36,30 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 
 	private String name;
 	private List<LTSminTransition> transitions;
+	private LTSminGuardOr accepting_conditions;
 	public LTSminStateVector sv;
 	private DepMatrix depMatrix;
 	private GuardInfo guardInfo;
 
-	public LTSminModel(String name, LTSminStateVector sv) {
+	public LTSminModel(String name, LTSminStateVector sv, Specification spec) {
 		this.name = name;
 		this.transitions = new ArrayList<LTSminTransition>();
 		this.sv = sv;
+		this.accepting_conditions = new LTSminGuardOr();
+		Proctype never = spec.getNever();
+		if (null != never) {
+			 for (State s : never.getAutomaton()) {
+				 if (s.isAcceptState()) {
+					 accepting_conditions.addGuard(pcGuard(this, s, never));
+				 }
+			 }
+		} else {
+			accepting_conditions.addGuard(constant(0));
+		}
+	}
+
+	public LTSminGuardOr getAcceptingConditions() {
+		return accepting_conditions;
 	}
 
 	public String getName() {

@@ -109,7 +109,7 @@ public class LTSminTreeWalker {
 		//long start_t = System.currentTimeMillis();
 		LTSminStateVector sv = new LTSminStateVector();
 		sv.createVectorStructs(spec, debug);
-		model = new LTSminModel(name, sv);
+		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
 		createTransitions();
 		LTSminDMWalker.walkModel(model);
