@@ -13,32 +13,37 @@ import java.util.Stack;
  * @author FIB
  */
 public class Preprocessor {
+
+	private static String dirName;
+	private static String fileName;
+
+	private static Stack<Map<String, DefineMapping>> defs = new Stack<Map<String, DefineMapping>>();
+	private static Map<String, DefineMapping> defines = new HashMap<String, DefineMapping>();
+
 	public static class DefineMapping {
-		public DefineMapping(String text, List<String> parameters2) {
-			this.defineText = text;
-			this.parameters = parameters2;
+		public DefineMapping() {
+			this.parameters = new ArrayList<String>();
 		}
 		public boolean inline = false;
 		public String name;
+		public int length = 0;
+		public int line = -1;
+		public int column = -1;
 		public String defineText;
-		public List<String> parameters = new ArrayList<String>();
+		public List<String> parameters;
 		public int size() {
 			return parameters.size();
 		}
 	}
-	
-	private static String dirName;
-	private static String fileName;
-	private static Map<String, DefineMapping> defines = new HashMap<String, DefineMapping>();
+
+	public static int level = 0; // inside comment counters
+
+	// stacks of preprocessing reinitialized streams, defines and ifs.
     public static Stack<SimpleCharStream> preprocessing = new Stack<SimpleCharStream>();
-	public static boolean parsing = false;
-	public static String defineId;
 	public static Stack<DefineMapping> current = new Stack<DefineMapping>();
-	public static int parameterLength;
-	public static List<String> parameters = new ArrayList<String>();
 	public static Stack<Boolean> ifs = new Stack<Boolean>();
 
-	public static int level = 0;
+	public static DefineMapping define = new DefineMapping();
 	
 	public static String getDirName() {
 		return dirName;
@@ -53,7 +58,13 @@ public class Preprocessor {
 	}
 
 	public static DefineMapping defines(String s) {
-		return defines.get(s);
+		DefineMapping map = defines.get(s);
+		if (map != null) return map;
+		for (Map<String, DefineMapping> defines : defs) {
+			map = defines.get(s);
+			if (map != null) return map;
+		}
+		return null;
 	}
 
 	public static void setFilename(String fileName) {
@@ -62,13 +73,12 @@ public class Preprocessor {
 
 	public static void addDefine(String text, boolean inline) {
 		try {
-			DefineMapping m = new DefineMapping(text, parameters);
-			parameters = new ArrayList<String>();
-			m.name = defineId;
-			m.inline = inline;
-			DefineMapping put = defines.put(defineId, m);
+			define.inline = inline;
+			define.defineText = text;
+			DefineMapping put = defines.put(define.name, define);
 			if (null != put)
-				System.err.println("Overwriting preprocessor define "+ defineId +" --> '"+ put.defineText +"' with '"+ text +"'");
+				System.err.println("Redefining preprocessor define "+ define.name +" --> '"+ put.defineText +"' with '"+ text +"'");
+			define = new DefineMapping();
 		} catch(NoSuchElementException e) {
 			System.out.println("error parsing '"+ text +"'\n"+e);
 		} catch(IllegalStateException e) {
@@ -76,10 +86,15 @@ public class Preprocessor {
 		}
 	}
 
-	public static void removeDefine(String s) {
-		defines.remove(s);
+	public static void pushDefines() {
+		defs.push(defines);
+		defines = new HashMap<String, DefineMapping>();
 	}
-	
+
+	public static void removeDefines() {
+		defines = defs.pop();
+	}
+
 	public static String parseFile(String s) {
 	    Scanner sc = new Scanner(s);
 	    String text = "";
