@@ -237,12 +237,12 @@ TOKEN : {	/* Operators */
     }
 }
 
-SKIP : { // Skip whitespace and comments
+SKIP : {
    "inline" : PREPROCESSOR_INLINE
 }
 
 TOKEN : { /* Identifiers and numbers OR preprocessor defines */
-	<IDENTIFIER: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
+	<IDENTIFIER: ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
 	{
         Preprocessor.DefineMapping current = Preprocessor.defines(image.toString());
         if (null != current) { // Identifier is defined in preprocessor

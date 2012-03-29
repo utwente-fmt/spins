@@ -68,7 +68,7 @@ public class Preprocessor {
 			m.inline = inline;
 			DefineMapping put = defines.put(defineId, m);
 			if (null != put)
-				System.err.println("Overwriting preprocessor define "+ defineId +" --> '"+ put.defineText +"' with '"+ text +"'\n");
+				System.err.println("Overwriting preprocessor define "+ defineId +" --> '"+ put.defineText +"' with '"+ text +"'");
 		} catch(NoSuchElementException e) {
 			System.out.println("error parsing '"+ text +"'\n"+e);
 		} catch(IllegalStateException e) {
