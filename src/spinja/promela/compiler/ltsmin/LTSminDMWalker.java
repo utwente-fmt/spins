@@ -96,12 +96,19 @@ public class LTSminDMWalker {
 		walkExpression(p, g.expr, MarkAction.READ);
 	}
 	
-	static void walkModel(LTSminModel model) {
+	static void walkModel(LTSminModel model, LTSminDebug debug) {
+		debug.say("Generating DM information ...");
+		debug.say_indent++;
+
 		if(model.getDepMatrix()==null) {
 			model.setDepMatrix(new DepMatrix(model.getTransitions().size(), model.sv.size()));
 		}
 		Params params = new Params(model, model.getDepMatrix(), 0);
 		walkTransitions(params);
+
+		debug.say_indent--;
+		debug.say("Generating DM information done");
+		debug.say("");
 	}
 
 	static void walkTransitions(Params params) {

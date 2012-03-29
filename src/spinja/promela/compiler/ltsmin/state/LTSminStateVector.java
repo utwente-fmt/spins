@@ -13,6 +13,7 @@ import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.ltsmin.LTSminDebug;
+import spinja.promela.compiler.ltsmin.LTSminDebug.MessageKind;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.variable.ChannelType;
@@ -118,7 +119,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	private void addSpecification(LTSminTypeStruct state_t, Specification spec,
 			LTSminDebug debug) {
 		// Globals: initialise globals state struct and add to main state struct
-		debug.say("== Globals");
+		debug.say(MessageKind.DEBUG, "== Globals");
 		LTSminTypeStruct global_t = new LTSminTypeStruct(C_STATE_GLOBALS);
 		VariableStore globals = spec.getVariableStore();
 		globals.addVariable(_NR_PR);
@@ -129,13 +130,13 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 
 		// Add Never process
 		if (spec.getNever()!=null) {
-			debug.say("== Never");
+			debug.say(MessageKind.DEBUG, "== Never");
 			Proctype p = spec.getNever();
 			addProcess (state_t, p, debug);
 		}
 
 		// Processes:
-		debug.say("== Processes");
+		debug.say(MessageKind.DEBUG, "== Processes");
 		int nr_active = 0;
 		for (Proctype p : spec) {
 			addProcess (state_t, p, debug);
@@ -153,7 +154,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		String name = p.getName();
 		
 		// Initialise process state struct and add to main state struct
-		debug.say("[Proc] " + name);
+		debug.say(MessageKind.DEBUG, "[Proc] " + name);
 		LTSminTypeStruct process_t = new LTSminTypeStruct(name);
 	
 		// Locals: add locals to the process state struct
@@ -172,14 +173,15 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	private void addVariable(LTSminTypeStruct struct, Variable var, LTSminDebug debug) {
 		String name = var.getName();
 		LTSminVariable lvar = null;
-
+		debug.say_indent++;
+		
 		// Create LTSminType for the Variable
 		if(var instanceof ChannelVariable) {
 			ChannelVariable cv = (ChannelVariable)var;
 			ChannelType ct = cv.getType();
 			//skip channels references (ie proc arguments) and rendez-vous channels
 			if (ct.getBufferSize() == -1 || ct.getBufferSize() == 0 ) return;
-			debug.say("\t"+ var.getName() + (var.getArraySize() == -1 ? "" : "["+ var.getArraySize() +"]") +
+			debug.say(MessageKind.DEBUG, var.getName() + (var.getArraySize() == -1 ? "" : "["+ var.getArraySize() +"]") +
 					" of {"+ ct.getTypes().size() +"} ["+ ct.getBufferSize() +"]");
 			LTSminTypeI infoType = new LTSminTypeChanStruct(cv);
 			lvar = new LTSminVariable(infoType, var, struct);
@@ -190,12 +192,13 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 				addVariable(type, v, debug);
 			lvar = new LTSminVariable(type, var, struct);
 		} else if(var.getType() instanceof VariableType) {
-			debug.say("\t"+ var.getType().getName() +" "+ name);
+			debug.say(MessageKind.DEBUG, var.getType().getName() +" "+ name);
 			lvar = new LTSminVariable(new LTSminTypeNative(var), var, struct);
 		} else {
 			throw new AssertionError("ERROR: Unable to handle: " + var.getType().getName());
 		}
 
+		debug.say_indent--;
 		// Add it to the struct
 		struct.addMember(lvar);
 	}

@@ -40,6 +40,7 @@ import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RunExpression;
+import spinja.promela.compiler.ltsmin.LTSminDebug.MessageKind;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
@@ -75,7 +76,7 @@ public class LTSminTreeWalker {
 	// initialized by constructor
 	private final Specification spec;
 
-	private LTSminDebug debug = new LTSminDebug();
+	private LTSminDebug debug;
 
 	private LTSminModel model = null;
 	
@@ -105,15 +106,16 @@ public class LTSminTreeWalker {
 	 * when creating this LTSMinPrinter instance.
 	 * @return The LTSminModel according to the Specification.
 	 */
-	public LTSminModel createLTSminModel(String name) {
+	public LTSminModel createLTSminModel(String name, boolean verbose) {
 		//long start_t = System.currentTimeMillis();
+		this.debug = new LTSminDebug(verbose);
 		LTSminStateVector sv = new LTSminStateVector();
 		sv.createVectorStructs(spec, debug);
 		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
 		createTransitions();
-		LTSminDMWalker.walkModel(model);
-		LTSminGMWalker.walkModel(model);
+		LTSminDMWalker.walkModel(model, debug);
+		LTSminGMWalker.walkModel(model, debug);
 		//long end_t = System.currentTimeMillis();
 		return model;
 	}
@@ -122,7 +124,7 @@ public class LTSminTreeWalker {
 	 * Binds any channel type arguments of all RunExpressions by reference.
 	 */
 	private void bindByReferenceCalls() {
-		debug.say("");
+		debug.say(MessageKind.DEBUG, "");
 		for (RunExpression re : spec.getRuns()) {
 			bindArguments(re);
 		}
@@ -130,6 +132,7 @@ public class LTSminTreeWalker {
 
 	private void bindArguments(RunExpression re) {
 		Proctype target = spec.getProcess(re.getId());
+		if (null == target) throw new AssertionError("Target of run expression is not found: "+ re.getId());
 		List<Variable> args = target.getArguments();
 		Iterator<Expression> eit = re.getExpressions().iterator();
 		if (args.size() != re.getExpressions().size())
@@ -151,7 +154,7 @@ public class LTSminTreeWalker {
 				if (ct.getBufferSize() == -1) //TODO: implement more analysis on AST
 					throw error("Could not deduce channel declaration for parameter "+ count +" of "+ re.getId() +".", re.getToken());
 				String name = v.getName();
-				debug.say("Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
+				debug.say(MessageKind.DEBUG, "Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
 				v.setRealName(v.getName());
 				v.setType(varParameter.getType());
 				v.setOwner(varParameter.getOwner());
@@ -177,13 +180,13 @@ public class LTSminTreeWalker {
 	 */
 	private int createTransitions() {
 		int trans = 0;
-		debug.say("");
+		debug.say(MessageKind.DEBUG, "");
 
 		// Create the normal transitions for all processes.
 		// This excludes: rendezvous, else, timeout and loss of atomicity
 		// Calculate cross product with the never claim when not in atomic state 
 		for (Proctype p : spec) {
-			debug.say("[Proc] " + p.getName());
+			debug.say(MessageKind.DEBUG, "[Proc] " + p.getName());
 			for (State st : p.getAutomaton()) {
 				for (State ns : getNeverAutomatonOrNullSet(st.isInAtomic())) {
 					trans = createTransitionsFromState(p,trans,st, ns);
@@ -297,7 +300,7 @@ public class LTSminTreeWalker {
 	 */
 	private int createTransitionsFromState (Proctype process, int trans, State state, State never_state) {
 		++debug.say_indent;
-		debug.say(state.toString());
+		debug.say(MessageKind.DEBUG, state.toString());
 
 		// Check if it is an ending state
 		if (state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
@@ -373,9 +376,9 @@ public class LTSminTreeWalker {
 				}
 			} else if (a instanceof ChannelReadAction) {
 				ChannelReadAction cra = (ChannelReadAction)a;
-				if (!cra.isNormal()) System.err.println("Abnormal receive on rendez-vous channel.");
 				ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
 				if (var.getType().getBufferSize()==0) {
+					if (!cra.isNormal()) debug.say(MessageKind.ERROR, "Abnormal receive on rendez-vous channel.");
 					ReadersAndWriters raw = channels.get(var);
 					if (raw == null) {
 						raw = new ReadersAndWriters();
@@ -391,15 +394,15 @@ public class LTSminTreeWalker {
 
 	private LTSminTransition createStateTransition(Proctype process, int trans,
 											Transition t, Transition never_t) {
+		String t_name = makeTranstionName(t, null, never_t);
 		++debug.say_indent;
 		if(never_t!=null) {
-			debug.say("Handling trans: " + t.getClass().getName() + " || " + never_t.getClass().getName());
+			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName() + " || " + never_t.getClass().getName());
 		} else {
-			debug.say("Handling trans: " + t.getClass().getName());
+			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName());
 		}
 		--debug.say_indent;
 
-		String t_name = makeTranstionName(t, null, never_t);
 		LTSminTransition lt = makeTransition(process, trans, t, t_name);
 
         // never claim executes first

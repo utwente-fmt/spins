@@ -19,11 +19,12 @@ import spinja.promela.compiler.automaton.State;
 
 public class RenumberAll implements GraphOptimizer {
 
-	public void optimize(Automaton automaton) {
+	public int optimize(Automaton automaton) {
 		int nr = 0;
 		for (State s : automaton) {
 			s.setStateId(nr++);
 		}
+		return automaton.size();
 	}
 
 }

@@ -209,7 +209,7 @@ public class LTSminPrinter {
 	private static void generateHashTable(StringWriter w, LTSminModel model) {
 		if (!model.hasAtomic()) return;
 		try {
-			w.appendLine(readTextFile(new LTSminDebug().getClass(), "hashtable.c"));
+			w.appendLine(readTextFile(new LTSminPrinter().getClass(), "hashtable.c"));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -218,7 +218,7 @@ public class LTSminPrinter {
 	private static void generateReach(StringWriter w, LTSminModel model) {
 		if (!model.hasAtomic()) return;
 		try {
-			w.appendLine(readTextFile(new LTSminDebug().getClass(), "reach.c"));
+			w.appendLine(readTextFile(new LTSminPrinter().getClass(), "reach.c"));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -271,7 +271,7 @@ public class LTSminPrinter {
 				try {
 					w.append(e.getConstantValue());
 				} catch (ParseException pe) {
-					throw new AssertionError("Cannot parse inital value of state vector: "+ e);
+					throw new AssertionError("Cannot parse initial value of state vector: "+ e);
 				}
 			}
 			

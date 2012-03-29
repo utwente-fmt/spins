@@ -17,5 +17,5 @@ package spinja.promela.compiler.optimizer;
 import spinja.promela.compiler.automaton.Automaton;
 
 public interface GraphOptimizer {
-	public void optimize(Automaton automaton);
+	public int optimize(Automaton automaton);
 }

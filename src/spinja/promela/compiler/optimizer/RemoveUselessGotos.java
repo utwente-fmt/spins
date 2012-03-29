@@ -22,8 +22,9 @@ import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
 
 public class RemoveUselessGotos implements GraphOptimizer {
-	public void optimize(Automaton automaton) {
+	public int optimize(Automaton automaton) {
 		Iterator<State> it = automaton.iterator();
+		int gotoCount = 0;
 		while (it.hasNext()) {
 			final State state = it.next();
 			for (final Transition out : state.output) {
@@ -39,9 +40,11 @@ public class RemoveUselessGotos implements GraphOptimizer {
 						automaton.setStartState(out.getTo());
 					}
 					it = automaton.iterator();
+					gotoCount++;
 					break;
 				}
 			}
 		}
+		return gotoCount;
 	}
 }

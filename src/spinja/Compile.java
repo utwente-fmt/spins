@@ -51,35 +51,34 @@ public class Compile {
 			Preprocessor.setFilename(promFile.getName());
 			String path = promFile.getAbsolutePath();
 			Preprocessor.setDirname(path.substring(0, path.lastIndexOf("/")));
-			if (verbose)
-				System.out.print("Start parsing " + promFile.getName() + "...");
+
+			System.out.print("Start parsing " + promFile.getName() + "...");
 			final Promela prom = new Promela(new FileInputStream(promFile));
 			final Specification spec = prom.spec(name);
-			if (verbose)
-				System.out.println("done");
+			System.out.println("done");
+			System.out.println("");
 
-			if (verbose) 
-				System.out.println("Optimizing graphs...");
+			System.out.println("Optimizing graphs...");
 			final GraphOptimizer[] optimizers = new GraphOptimizer[] {
 					useStateMerging ? new StateMerging() : null, new RemoveUselessActions(),
 					new RemoveUselessGotos(), new RenumberAll(),
 			};
-			for (final Proctype proc : spec) {
-				if (verbose) {
-					System.out.println("Initial graph for process " + proc + ":");
-					System.out.println(proc.getAutomaton());
-				}
-				for (final GraphOptimizer opt : optimizers) {
-					if (opt == null)
-						continue;
-					opt.optimize(proc.getAutomaton());
+			for (final GraphOptimizer opt : optimizers) {
+				if (opt == null) continue;
+				int reduction = 0;
+				for (final Proctype proc : spec) {
+					if (verbose) {
+						System.out.println("Initial graph for process " + proc + ":");
+						System.out.println(proc.getAutomaton());
+					}
+					reduction += opt.optimize(proc.getAutomaton());
 					if (verbose) {
 						System.out.println("After " + opt.getClass().getSimpleName() + ":");
 						System.out.println(proc.getAutomaton());
 					}
+					if (verbose) System.out.println(proc.getAutomaton());
 				}
-				if (verbose)
-					System.out.println(proc.getAutomaton());
+				System.out.println("  "+ opt.getClass().getSimpleName() +" changed "+ reduction +" states/transitions.");
 			}
 
 			final Proctype never = spec.getNever();
@@ -89,20 +88,18 @@ public class Compile {
 					System.out.println(never.getAutomaton());
 				}
 				for (final GraphOptimizer opt : optimizers) {
-					if (opt != null) {
-						opt.optimize(never.getAutomaton());
-					}
+					if (opt == null) continue;
+					int reduction = opt.optimize(never.getAutomaton());
+					System.out.println("  "+ opt.getClass().getSimpleName() +" reduces "+ reduction +" states");
 					if (verbose) {
 						System.out.println("After " + opt.getClass().getSimpleName() + ":");
 						System.out.println(never.getAutomaton());
 					}
 				}
-				if (verbose)
-					System.out.println(never.getAutomaton());
+				if (verbose) System.out.println(never.getAutomaton());
 			}
-			if (verbose)
-				System.out.println("Optimization done");
-
+			System.out.println("Optimization done");
+			System.out.println("");
 			return spec;
 		} catch (final FileNotFoundException ex) {
 			System.out.println("Promela file " + promFile.getName() + " could not be found.");
@@ -310,11 +307,11 @@ public class Compile {
 
 		if (ltsmin.isSet()) {
 			if (dot.isSet()) {
-				Compile.writeLTSminDotFile(spec, file.getName(), outputDir);
-				System.out.println("Written DOT file for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.dot");
+				Compile.writeLTSminDotFile(spec, file.getName(), outputDir, verbose.isSet());
+				System.out.println("Written DOT file to " + outputDir + "/" + file.getName()+".spinja.dot");
 			} else {
-				Compile.writeLTSMinFiles(spec, file.getName(), outputDir);
-				System.out.println("Written C model for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spinja.c");
+				Compile.writeLTSMinFiles(spec, file.getName(), outputDir, verbose.isSet());
+				System.out.println("Written C model to " + outputDir + "/" + file.getName()+".spinja.c");
 			}
 		} else {
 			outputDir = new File(userDir, "spinja");
@@ -369,11 +366,11 @@ public class Compile {
 		}
 	}
 	
-	private static void writeLTSminDotFile (final Specification spec, final String name, final File outputDir) {
+	private static void writeLTSminDotFile (final Specification spec, final String name, final File outputDir, boolean verbose) {
 		final File dotFile = new File(outputDir, name + ".spinja.dot");
 
 		LTSminTreeWalker walker = new LTSminTreeWalker(spec);
-		LTSminModel model = walker.createLTSminModel(name);
+		LTSminModel model = walker.createLTSminModel(name, verbose);
 		String out = "digraph {\n";
 		for (LTSminTransition t : model.getTransitions()) {
 			String s[] = t.getName().split(" X ");
@@ -423,12 +420,12 @@ public class Compile {
 		}
 	}
 
-	private static void writeLTSMinFiles(final Specification spec, final String name, final File outputDir) {
+	private static void writeLTSMinFiles(final Specification spec, final String name, final File outputDir, boolean verbose) {
 		final File javaFile = new File(outputDir, name + ".spinja.c");
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
 			LTSminTreeWalker walker = new LTSminTreeWalker(spec);
-			LTSminModel model = walker.createLTSminModel(name);
+			LTSminModel model = walker.createLTSminModel(name, verbose);
 			fos.write(LTSminPrinter.generateCode(model).getBytes());
 			fos.flush();
 			fos.close();

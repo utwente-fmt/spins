@@ -23,8 +23,9 @@ import spinja.promela.compiler.automaton.Transition;
 
 public class StateMerging implements GraphOptimizer {
 
-	public void optimize(final Automaton graph) {
+	public int optimize(final Automaton graph) {
 		Iterator<State> it = graph.iterator();
+		int merged = 0;
 		while (it.hasNext()) {
 			final State state = it.next();
 			if (graph.getStartState() == state) {
@@ -42,8 +43,10 @@ public class StateMerging implements GraphOptimizer {
 					}
 					state.delete();
 					it = graph.iterator();
+					merged++;
 				}
 			}
 		}
+		return merged;
 	}
 }
