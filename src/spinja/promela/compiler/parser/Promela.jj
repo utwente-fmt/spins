@@ -247,7 +247,30 @@ TOKEN : {	/* Operators */
 }
 
 SKIP : {
-   "inline" : PREPROCESSOR_INLINE
+   	"inline" : PREPROCESSOR_INLINE
+| 	"defined"
+	{
+		// parse defined
+	   	Token next2 = getNextToken();
+	   	boolean parenthesized = false;
+	    if (next2.kind == PromelaConstants.LPAREN) {
+	    	parenthesized = true;
+	    	next2 = getNextToken();
+	    }
+		if (next2.kind != PromelaConstants.IDENTIFIER) throw new AssertionError("Expected identifier after defined.");
+		String defined = next2.image;
+		if (parenthesized && getNextToken().kind != PromelaConstants.RPAREN)
+			throw new AssertionError("Missing closing parenthesis after defined.");
+		// reinitialize input_stream
+	    String newText = null != Preprocessor.defines(defined) ? "true" : "false";
+	    int line = input_stream.getEndLine();
+	    int column = input_stream.getEndColumn();
+	    ByteArrayInputStream is2 = new ByteArrayInputStream(newText.getBytes());
+	    System.out.println(defined +" --> "+ newText);
+	    Preprocessor.current.push(null);
+	    Preprocessor.preprocessing.push(input_stream);
+		ReInit(new SimpleCharStream(is2, line, column));
+	}
 }
 
 TOKEN : { /* Identifiers and numbers OR preprocessor defines */
