@@ -407,7 +407,7 @@ public class LTSminTreeWalker {
 
         // never claim executes first
         if (never_t != null) {
-        	if (never_t.getTo().isInAtomic() || never_t.getFrom().isInAtomic())
+        	if ((null != never_t.getTo() && never_t.getTo().isInAtomic()) || never_t.getFrom().isInAtomic())
         		throw new AssertionError("Atomic in never claim not implemented");
     		// Guard: never enabled action or else transition
 			lt.addGuard(pcGuard(model, never_t.getFrom(), spec.getNever()));

@@ -180,7 +180,8 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 			ChannelVariable cv = (ChannelVariable)var;
 			ChannelType ct = cv.getType();
 			//skip channels references (ie proc arguments) and rendez-vous channels
-			if (ct.getBufferSize() == -1 || ct.getBufferSize() == 0 ) return;
+			if (ct.getBufferSize() == -1 || ct.getBufferSize() == 0 )
+				{ debug.say_indent--; return; }
 			debug.say(MessageKind.DEBUG, var.getName() + (var.getArraySize() == -1 ? "" : "["+ var.getArraySize() +"]") +
 					" of {"+ ct.getTypes().size() +"} ["+ ct.getBufferSize() +"]");
 			LTSminTypeI infoType = new LTSminTypeChanStruct(cv);

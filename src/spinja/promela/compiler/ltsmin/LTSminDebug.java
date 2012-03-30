@@ -1,6 +1,7 @@
 package spinja.promela.compiler.ltsmin;
 
 public class LTSminDebug {
+	static final String TAB = "   ";
 	
 	public static enum MessageKind {
 		DEBUG,
@@ -25,18 +26,18 @@ public class LTSminDebug {
 		case DEBUG:
 			if (!verbose) break;
 		case NORMAL:
-			for(int n=say_indent; n-->0;)
-				System.out.print("  ");
+			for(int n=say_indent; n > 0; n--)
+				System.out.print(TAB);
 			System.out.println(s);
 			break;
 		case ERROR:
-			for(int n=say_indent; n-->0;)
-				System.err.print("  ");
+			for(int n=say_indent; n > 0; n--)
+				System.err.print(TAB);
 			System.err.println(s);
 			break;
 		case FATAL:
-			for(int n=say_indent; n-->0;)
-				System.err.print("  ");
+			for(int n=say_indent; n > 0; n--)
+				System.err.print(TAB);
 			System.err.println(s);
 			System.exit(-100);
 		default: throw new AssertionError("Unimplemented debug message kind: "+ k);
