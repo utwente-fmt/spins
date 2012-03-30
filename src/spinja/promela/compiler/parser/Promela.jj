@@ -248,29 +248,33 @@ TOKEN : {	/* Operators */
 
 SKIP : {
    	"inline" : PREPROCESSOR_INLINE
-| 	"defined"
-	{
-		// parse defined
-	   	Token next2 = getNextToken();
-	   	boolean parenthesized = false;
-	    if (next2.kind == PromelaConstants.LPAREN) {
-	    	parenthesized = true;
-	    	next2 = getNextToken();
-	    }
-		if (next2.kind != PromelaConstants.IDENTIFIER) throw new AssertionError("Expected identifier after defined.");
-		String defined = next2.image;
-		if (parenthesized && getNextToken().kind != PromelaConstants.RPAREN)
-			throw new AssertionError("Missing closing parenthesis after defined.");
+| 	"defined" : PREPROCESSOR_DEFINED
+}
+
+<PREPROCESSOR_DEFINED> SKIP: // parse define name
+{
+    "("
+    {
+    	Preprocessor.level++;
+    	image.setLength(0);
+    } : PREPROCESSOR_DEFINED
+|   " " : PREPROCESSOR_DEFINED
+|   <DEFINED: ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+        String defined = image.toString().trim();
+		while (0 != Preprocessor.level) {
+			Preprocessor.level--;
+			if (PromelaConstants.RPAREN != getNextToken().kind)
+				throw new AssertionError("Missing closing parenthesis after defined.");
+		}
 		// reinitialize input_stream
 	    String newText = null != Preprocessor.defines(defined) ? "true" : "false";
 	    int line = input_stream.getEndLine();
 	    int column = input_stream.getEndColumn();
 	    ByteArrayInputStream is2 = new ByteArrayInputStream(newText.getBytes());
-	    System.out.println(defined +" --> "+ newText);
 	    Preprocessor.current.push(null);
 	    Preprocessor.preprocessing.push(input_stream);
 		ReInit(new SimpleCharStream(is2, line, column));
-	}
+    } : DEFAULT
 }
 
 TOKEN : { /* Identifiers and numbers OR preprocessor defines */
@@ -338,7 +342,20 @@ SKIP : { // Skip whitespace and comments
         } else if (true == b.booleanValue()) {
             SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // if was true, ignore else
         } else {
-            SwitchTo(PromelaConstants.DEFAULT); // if was false, parse else
+        	throw new AssertionError("Spurious false in DEFAULT else");
+            //SwitchTo(PromelaConstants.DEFAULT); // if was false, parse else
+        }
+    }
+|   "#elif"
+    {
+    	Preprocessor.ifs.peek();
+        Boolean b3 = Preprocessor.ifs.peek();
+        if (null == b3) {
+            throw new AssertionError("Spurious null in DEFAULT #elif");
+        } else if (true == b3.booleanValue()) {
+            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // if was true, ignore else
+        } else {
+        	throw new AssertionError("Unexpected false else in DEFAULT");
         }
     }
 |   "#endif"
@@ -373,7 +390,7 @@ SKIP : { // Skip whitespace and comments
                 SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore if until else/enfi
             }
         } catch (Exception e) {
-            throw new AssertionError("Failed to parse #if:"+ e);
+            throw new AssertionError("Failed to parse #if "+ image.toString() +": "+ e);
         }
     }
 }
@@ -408,18 +425,20 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_SKIP> SKIP:
 {
-    "#if" { Preprocessor.ifs.push(null); } : PREPROCESSOR_SKIP
-          // push if (null = ignore complete ITE) 
+	// push if (null = ignore complete ITE)
+    < "#ifdef"|"#if" > { Preprocessor.ifs.push(null); } : PREPROCESSOR_SKIP
 |   "#else"
     {
         Boolean b2 = Preprocessor.ifs.peek();
         if (null == b2) {
             SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore else
+        } else if (true == b2.booleanValue()) {
+        	SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // (elif was true) ignore else
         } else {
-            if (true == b2.booleanValue()) throw new AssertionError("Spurious #else.");
             SwitchTo(PromelaConstants.DEFAULT);
         }
     }
+|   "#elif" : PREPROCESSOR_ELIF_SKIP
 |   "#endif"
     {
         if (null == Preprocessor.ifs.pop()) { // pop last if
@@ -429,6 +448,44 @@ SKIP : { // Skip whitespace and comments
         }
     }
 |   < ~[] > : PREPROCESSOR_SKIP
+}
+
+/** Preprocessor if **/
+<PREPROCESSOR_ELIF_SKIP> SKIP:
+{
+    < "\n"|"\r"|"\r\n" > { // constant expression is read
+    	Boolean b1 = Preprocessor.ifs.peek();
+        if (null == b1) { // bogus if
+        	SwitchTo(PromelaConstants.PREPROCESSOR_SKIP);
+        } else if (true == b1.booleanValue()) { // another if condition was true already
+            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // parse if until endif
+        } else { // current if statement has thusfar not been true
+	        Preprocessor.preprocessing.push(null);
+        	InputStream is3 = new ByteArrayInputStream(image.toString().getBytes());
+	        Promela prom2 = new Promela(parser, is3); // start new parser for condition
+	        try {
+	            Expression expr = prom2.expr();
+	            int num = expr.getConstantValue(); // check condition
+            	if (0 != num) { // true
+        			Preprocessor.ifs.pop();
+            	   	Preprocessor.ifs.push(true);
+            	   	SwitchTo(PromelaConstants.DEFAULT); // parse elif until else/endif
+            	} else { //false
+            		SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // skip until elif/endif
+            	}
+	        } catch (Exception e) {
+	            throw new AssertionError("Failed to parse #elif:"+ e);
+	        }
+        }
+    }
+}
+
+<PREPROCESSOR_ELIF_SKIP> MORE:
+{
+    "\\\n" {image = image.deleteCharAt(image.length()-2); } |
+    "\\\r" {image = image.deleteCharAt(image.length()-2);} |
+    "\\\r\n" {image = image.deleteCharAt(image.length()-3);} |
+    < ~[] >
 }
 
 <PREPROCESSOR_FILE> SKIP:
@@ -461,7 +518,6 @@ SKIP : { // Skip whitespace and comments
     < ~[] >
 }
 
-
 /**
  * PREPROCESSOR IN-LEXER PARSING OF INLINE PARAMETERS
  * Could be moved to the parser with a new InlineAction class.
@@ -469,22 +525,22 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_INLINE> SKIP:
 {
-    " " : PREPROCESSOR_INLINE
-|   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+    " "|"\t" : PREPROCESSOR_INLINE
+|   < ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.define.name = image.toString();
     } : PREPROCESSOR_INLINE_PARAM
 }
 
 <PREPROCESSOR_INLINE_PARAM> SKIP: // parse parameters
 {
-    " " : PREPROCESSOR_INLINE_PARAM
+    " "|"\t" : PREPROCESSOR_INLINE_PARAM
 |   < "(" > : PREPROCESSOR_INLINE_PARAM0
 |   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.define.name);} }
 }
 
 <PREPROCESSOR_INLINE_PARAM0> SKIP: // parse parameters
 {
-    " " : PREPROCESSOR_INLINE_PARAM0
+    " "|"\t" : PREPROCESSOR_INLINE_PARAM0
 |   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.define.parameters.add(image.toString().trim());
     } : PREPROCESSOR_INLINE_PARAM2
@@ -494,7 +550,7 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_INLINE_PARAM1> SKIP: // parse parameters
 {
-    " " : PREPROCESSOR_INLINE_PARAM1
+    " "|"\t" : PREPROCESSOR_INLINE_PARAM1
 |   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.define.parameters.add(image.toString().trim());
     } : PREPROCESSOR_INLINE_PARAM2
@@ -503,7 +559,7 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_INLINE_PARAM2> SKIP: // parse parameters
 {
-    " " : PREPROCESSOR_INLINE_PARAM2
+    " "|"\t" : PREPROCESSOR_INLINE_PARAM2
 |   < "," > : PREPROCESSOR_INLINE_PARAM1
 |   < ")" > : PREPROCESSOR_INLINE_TEXT
 |   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.define.name);} }
@@ -515,8 +571,8 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_INLINE_TEXT> SKIP: // parse inline text
 {
-     < " "|"\n"|"\r"|"\r\n" > : PREPROCESSOR_INLINE_TEXT
-|    < "{" >
+    < " "|"\n"|"\r"|"\r\n" > : PREPROCESSOR_INLINE_TEXT
+|   < "{" >
 	{
 	    Preprocessor.define.line = input_stream.getEndLine();
 	    Preprocessor.define.column = input_stream.getEndColumn();
@@ -525,7 +581,8 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_INLINE_REST> SKIP: // end parse inline text
 {
-    < "}" > {
+    < "}" >
+	{
         image.setLength(image.length() - 1);
         // add inline to preprocessor defines
         Preprocessor.addDefine(image.toString(), true);
@@ -544,7 +601,7 @@ SKIP : { // Skip whitespace and comments
 <PREPROCESSOR_DEFINE> MORE: // parse define name
 {
     " " : PREPROCESSOR_DEFINE
-|   <DEFINE: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+|   <DEFINE: ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.define.name = image.toString().trim();
         Preprocessor.define.line = input_stream.getEndLine();
         Preprocessor.define.column = input_stream.getEndColumn();
@@ -571,7 +628,7 @@ SKIP : { // Skip whitespace and comments
 <PREPROCESSOR_DEFINE_PARAM1> MORE: // parse define parameters
 {
     " " : PREPROCESSOR_DEFINE_PARAM1
-|    <PARAM: ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+|    <PARAM: ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.define.parameters.add(image.toString().trim());
         Preprocessor.define.length += image.length();
         image.setLength(0);
