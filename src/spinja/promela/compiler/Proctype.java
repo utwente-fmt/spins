@@ -16,6 +16,7 @@ package spinja.promela.compiler;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import spinja.promela.compiler.automaton.Automaton;
 import spinja.promela.compiler.automaton.State;
@@ -39,45 +40,48 @@ public class Proctype implements VariableContainer {
 	/**
 	 * The specification to which this {@link Proctype} belongs
 	 */
-	private final Specification specification;
+	protected final Specification specification;
 
 	/**
 	 * The ID number of this {@link Proctype}.
 	 */
-	private final int id;
+	protected final int id;
 
 	/**
 	 * The number of active processes that are started when the model checking begins
 	 */
-	private final int nrActive;
+	protected int nrActive;
 
 	/**
 	 * The priority that is only used when ran randomly.
 	 */
-	@SuppressWarnings("unused")
-	private int priority;
+	protected int priority;
 
 	/**
 	 * The name of the process in the Model.
 	 */
-	private final String name;
+	protected final String name;
 
 	/**
 	 * The starting Node which points to the complete graph.
 	 */
-	private final Automaton automaton;
+	protected final Automaton automaton;
 
 	/**
 	 * The store where all the variables are stored.
 	 */
-	private final VariableStore varStore;
+	protected final VariableStore varStore;
     
-    public void addVariableMapping(String s, Variable v) {
+    public void addVariableMapping(String s, String v) {
     	varStore.addVariableMapping(s, v);
     }
 
-    public Variable getVariableMapping(String s) {
+    public String getVariableMapping(String s) {
     	return varStore.getVariableMapping(s);
+    }
+
+    public Map<String, String> getVariableMappings() {
+    	return varStore.getVariableMappings();
     }
 
 	/**
@@ -146,6 +150,10 @@ public class Proctype implements VariableContainer {
 	 *            The variable that is to be added.
 	 */
 	public void addVariable(final Variable var) {
+		addVariable(var, this.isArgument);
+	}
+
+	public void addVariable(final Variable var, boolean isArgument) {
 		varStore.addVariable(var);
 		if (isArgument) {
 			arguments.add(var);
@@ -345,7 +353,7 @@ public class Proctype implements VariableContainer {
 	/**
 	 * @return The name of this {@link Proctype}.
 	 */
-	public final String getName() {
+	public String getName() {
 		return name;
 	}
 
@@ -391,7 +399,7 @@ public class Proctype implements VariableContainer {
 	 * @see spinja.promela.compiler.variable.VariableContainer#hasVariable(java.lang.String)
 	 */
 	public boolean hasVariable(final String name) {
-		return name.equals("_pid") || varStore.hasVariable(name);
+		return varStore.hasVariable(name);
 	}
 
 	/* Exclusive send and read functions */
@@ -462,5 +470,19 @@ public class Proctype implements VariableContainer {
 
 	public List<Variable> getArguments() {
 		return arguments;
+	}
+
+	public void setNrActive(int nrActive) {
+		this.nrActive = nrActive;
+	}
+
+	List<ProcInstance> instances = new ArrayList<ProcInstance>();
+
+	public void addInstance(ProcInstance instance) {
+		instances.add(instance);
+	}
+
+	public List<ProcInstance> getInstances() {
+		return instances;
 	}
 }

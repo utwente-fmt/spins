@@ -66,7 +66,7 @@ public class Compile {
 			for (final GraphOptimizer opt : optimizers) {
 				if (opt == null) continue;
 				int reduction = 0;
-				for (final Proctype proc : spec) {
+				for (final Proctype proc : spec.getProcs()) {
 					if (verbose) {
 						System.out.println("Initial graph for process " + proc + ":");
 						System.out.println(proc.getAutomaton());

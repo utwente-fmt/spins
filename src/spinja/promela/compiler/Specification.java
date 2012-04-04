@@ -21,7 +21,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
@@ -30,7 +29,7 @@ import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableStore;
 import spinja.util.StringWriter;
 
-public class Specification implements Iterable<Proctype> {
+public class Specification implements Iterable<ProcInstance> {
 	private final String name;
 
 	private final List<Proctype> procs;
@@ -38,8 +37,6 @@ public class Specification implements Iterable<Proctype> {
 	private final List<ChannelType> channels;
 
 	private final Map<String, CustomVariableType> userTypes;
-	
-    private List<RunExpression> runs = new ArrayList<RunExpression>();
 
 	private Proctype never;
 
@@ -93,14 +90,6 @@ public class Specification implements Iterable<Proctype> {
 			}
 		}
 		return false;
-	}
-
-	public void addRun(RunExpression run) {
-		runs.add(run);
-	}
-	
-	public List<RunExpression> getRuns() {
-		return runs;
 	}
 
 	public void addMType(final String name) {
@@ -429,8 +418,14 @@ public class Specification implements Iterable<Proctype> {
 		return false;
 	}
 
-	public Iterator<Proctype> iterator() {
-		return procs.iterator();
+
+	private List<ProcInstance> instances = null;
+	
+	@Override
+	public Iterator<ProcInstance> iterator() {
+		if (null == instances)
+			throw new AssertionError("Processes were not instantiated");
+		return instances.iterator();
 	}
 
 	public void setNever(final Proctype never) throws ParseException {
@@ -438,5 +433,13 @@ public class Specification implements Iterable<Proctype> {
 			throw new ParseException("Duplicate never claim");
 		}
 		this.never = never;
+	}
+
+	public void setInstances(List<ProcInstance> instances) {
+		this.instances = instances;
+	}
+
+	public List<Proctype> getProcs() {
+		return procs;
 	}
 }

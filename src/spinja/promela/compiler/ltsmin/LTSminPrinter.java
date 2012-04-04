@@ -5,9 +5,9 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanRead;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelTop;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.exception;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printId;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPC;
@@ -38,7 +38,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.regex.Matcher;
 
+import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssertAction;
@@ -349,13 +351,9 @@ public class LTSminPrinter {
 			LTSminTransition t = (LTSminTransition)transition;
 			Iterator<Action> it = t.getActions().iterator();
 			String name = "tau";
-			if (it.hasNext()) {
-				Action action = it.next();
-				StringWriter w2 = new StringWriter();
-				generateAction(w2, action, model);
-				name = w2.toString().replace("\n", " ");
-			}
-			w.appendLine("// "+transition.getName() +" "+ name);
+			if (it.hasNext() && it != it.next() && it.hasNext())
+				name = it.next().toString();
+			w.appendLine("// "+ transition.getName() +"\t\t"+ name);
 			
 			w.appendPrefix().append("if (true");
 			for(LTSminGuardBase g: t.getGuards()) {
@@ -507,9 +505,7 @@ public class LTSminPrinter {
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
-			StringWriter w2 = new StringWriter();
-			generateExpression(w2, e, out(model));
-			String expression = w2.toString();
+			String expression = generateExpression(model, e);
 			int index = assertions.indexOf(expression);
 			if (-1 == index) {
 				assertions.add(expression);
@@ -538,53 +534,78 @@ public class LTSminPrinter {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
-			String sideEffect = null;
 			try {
-				sideEffect = expr.getSideEffect();
-				if (sideEffect != null) {
-					//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
-					assert (expr instanceof RunExpression);
-					RunExpression re = (RunExpression)expr;
-					Proctype target = re.getSpecification().getProcess(re.getId()); //TODO: anonymous processes (multiple runs on one proctype)
-
-					//only one dynamic process supported atm
-					w.appendLine("if (-1 != "+ printPC(target, out(model)) +") {");
-					w.appendLine("	printf (\"SpinJa only supports a maximum " +
-							"one dynamic process creation and only for " +
-							"nonactive proctypes.\\n\");");
-					w.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
-					w.appendLine("	exit (1);");
-					w.appendLine("}");
-					
-					//set pid
-					Action update_pid = assign(model.sv.getPID(target),
-												id(LTSminStateVector._NR_PR));
-					generateAction(w, update_pid, model);
-
-					//activate process
-					Action update_pc = assign(model.sv.getPC(target), 0);
-					generateAction(w, update_pc, model);
-					w.appendLine("++("+ printVar(_NR_PR, out(model)) +");");
-					
-					List<Variable> args = target.getArguments();
-					Iterator<Expression> eit = re.getExpressions().iterator();
-					if (args.size() != re.getExpressions().size())
-						throw exception("Run expression's parameters do not match the proc's arguments.", re.getToken());
-					//write to the arguments of the target process
-					for (Variable v : args) {
-						Expression e = eit.next();
-						//channels are passed by reference: TreeWalker.bindByReferenceCalls 
-						if (!(v.getType() instanceof ChannelType)) {
-							Action aa = assign(v, e);
-							generateAction(w, aa, model);
-						}
-					}
-				} else {
-					// Simple expressions are guards
-				}
+				String sideEffect = expr.getSideEffect();
+				if (sideEffect == null) return; // Simple expressions are guards
 			} catch (ParseException e) {
 				e.printStackTrace();
 			}
+			//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
+			assert (expr instanceof RunExpression);
+			RunExpression re = (RunExpression)expr;
+			ProcInstance instance = re.getInstances().get(0); // just take the first!
+
+			//if (re.getInstances().size() > 1) {
+				Proctype proc = re.getProctype();
+				Expression activeExpr = null;
+				for (ProcInstance inst : proc.getInstances()) {
+					Variable pc = model.sv.getPC(inst);
+					Expression e = compare(PromelaConstants.NEQ, id(pc), constant(-1));
+					if (activeExpr == null) {
+						activeExpr = e;
+					} else {
+						activeExpr = calc(PromelaConstants.PLUS, e, activeExpr);
+					}
+				}
+				String activeStr = generateExpression(model, activeExpr);
+				w.appendLine("int __active = "+ activeStr +";");
+
+				w.appendLine("if (__active >= "+ re.getProctype().getInstances().size() +") {");
+				w.appendLine("	printf (\"Error, too many instances for  "+ instance.getTypeName() +": %d.\\n\", __active);");
+				w.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
+				w.appendLine("	exit (1);");
+				w.appendLine("}");
+			//}
+
+			StringWriter w2 = new StringWriter();
+			//only one dynamic process supported atm
+			w2.appendLine("if (-1 != "+ printPC(instance, out(model)) +") {");
+			w2.appendLine("	printf (\"Instance %d of process "+ instance.getTypeName() +" was already started.\\n\", __active);");
+			w2.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
+			w2.appendLine("	exit (1);");
+			w2.appendLine("}");
+			
+			//set pid
+			Action update_pid = assign(model.sv.getPID(instance),
+										id(LTSminStateVector._NR_PR));
+			generateAction(w2, update_pid, model);
+
+			//activate process
+			Action update_pc = assign(model.sv.getPC(instance), 0);
+			generateAction(w2, update_pc, model);
+			w2.appendLine("++("+ printVar(_NR_PR, out(model)) +");");
+			
+			List<Variable> args = instance.getArguments();
+			Iterator<Expression> eit = re.getExpressions().iterator();
+			if (args.size() != re.getExpressions().size())
+				throw error("Run expression's parameters do not match the proc's arguments.", re.getToken());
+			//write to the arguments of the target process
+			for (Variable v : args) {
+				Expression e = eit.next();
+				//channels are passed by reference: TreeWalker.bindByReferenceCalls 
+				if (!(v.getType() instanceof ChannelType)) {
+					Action aa = assign(v, e);
+					generateAction(w2, aa, model);
+				}
+			}
+
+			String ccode = w2.toString();
+			if (re.getInstances().size() > 1) {
+				String struct = model.sv.getMember(instance.getName()).getType().toString();
+				ccode = ccode.replaceAll(Matcher.quoteReplacement(OUT_VAR +"->"+ instance.getName()), 
+					"(("+ struct +"*)&"+ OUT_VAR +"->"+ instance.getName() +")[__active]");
+			}
+			w.append(ccode);
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
 			OptionAction oa = (OptionAction)a;
 			if (oa.loops()) {
@@ -695,6 +716,13 @@ public class LTSminPrinter {
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
+	}
+
+	private static String generateExpression(LTSminModel model, Expression e) {
+		StringWriter w2 = new StringWriter();
+		generateExpression(w2, e, out(model));
+		String expression = w2.toString();
+		return expression;
 	}
 
 	public static class ExprPrinter {
@@ -871,8 +899,7 @@ public class LTSminPrinter {
 		} else if(e instanceof RunExpression) {
 			//we define the "instantiation number" as: next_pid+1 (http://spinroot.com/spin/Man/run.html)
 			//otherwise the first process can never be started if all proctypes are nonactive.
-			w.append("("+ printVar(_NR_PR, state) +" != "+ (PM_MAX_PROCS-1)
-					+" ? "+ printVar(_NR_PR, state) +"+1 : 0)");
+			w.append("("+ printVar(_NR_PR, state) +" != "+ (PM_MAX_PROCS-1) +")");
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof CompoundExpression) {

@@ -47,10 +47,14 @@ public class OptionAction extends Action implements Iterable<Sequence> {
 		return null;
 	}
 
-	public Sequence startNewOption() {
-		Sequence seq = new Sequence();
+	public Sequence startNewOption(Sequence seq) {
 		options.add(seq);
 		return seq;
+	}
+
+	public Sequence startNewOption() {
+		Sequence seq = new Sequence();
+		return startNewOption(seq);
 	}
 
 	@Override

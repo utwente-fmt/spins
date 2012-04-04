@@ -1,7 +1,7 @@
 package spinja.promela.compiler.ltsmin.state;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
-import static spinja.promela.compiler.parser.Promela.*;
+import static spinja.promela.compiler.parser.Promela.C_STATE_PID;
+import static spinja.promela.compiler.parser.Promela.C_STATE_PROC_COUNTER;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -15,7 +15,6 @@ import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.ltsmin.LTSminDebug;
 import spinja.promela.compiler.ltsmin.LTSminDebug.MessageKind;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
-import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.CustomVariableType;
@@ -137,14 +136,9 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 
 		// Processes:
 		debug.say(MessageKind.DEBUG, "== Processes");
-		int nr_active = 0;
 		for (Proctype p : spec) {
 			addProcess (state_t, p, debug);
-			nr_active += p.getNrActive();
 		}
-		// set number of processes to initial number of active processes.
-		try { _NR_PR.setInitExpr(constant(nr_active));
-		} catch (ParseException e) {assert (false);}
 	}
 
 	/**

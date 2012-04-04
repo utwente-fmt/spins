@@ -15,13 +15,13 @@
 package spinja.promela.compiler.expression;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
-import spinja.promela.compiler.Specification;
-import spinja.promela.compiler.parser.MyParseException;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.VariableAccess;
@@ -39,9 +39,11 @@ public class RunExpression extends Expression implements CompoundExpression {
 
 	private final String id;
 
-	private final Specification specification;
+	private final Proctype proc;
 
 	private final List<Expression> exprs;
+
+	private ProcInstance instance = null;
 
 	/**
 	 * Creates a new RunExpression using the identifier specified to run the proctype.
@@ -51,10 +53,17 @@ public class RunExpression extends Expression implements CompoundExpression {
 	 * @param id
 	 *            The name of the proctype that is to be started.
 	 */
-	public RunExpression(final Token token, final Specification spec, final String id) {
+	public RunExpression(final Token token, final String id) {
 		super(token);
-		specification = spec;
 		this.id = id;
+		this.proc = null;
+		exprs = new ArrayList<Expression>();
+	}
+
+	public RunExpression(final Token token, final Proctype proc) {
+		super(token);
+		this.id = proc.getName();
+		this.proc = proc;
 		exprs = new ArrayList<Expression>();
 	}
 
@@ -77,11 +86,7 @@ public class RunExpression extends Expression implements CompoundExpression {
 
 	@Override
 	public String getIntExpression() throws ParseException {
-		final Proctype proc = specification.getProcess(id);
-		if (proc == null) {
-			throw new MyParseException("Could not find proctype", getToken());
-		}
-		return "addProcess(new " + proc.getName() + "(" + getArgs() + "))";
+		return "addProcess(new " + getId() + "(" + getArgs() + "))";
 	}
 
 	@Override
@@ -112,15 +117,24 @@ public class RunExpression extends Expression implements CompoundExpression {
 		}
 	}
 
-	public Specification getSpecification() {
-		return specification;
-	}
-
 	public String getId() {
 		return id;
 	}
 
+	public Proctype getProctype() {
+		return proc;
+	}
+
 	public List<Expression> getExpressions() {
 		return exprs;
+	}
+
+	public void setInstance(ProcInstance pi) {
+		instance = pi;
+	}
+
+	public List<ProcInstance> getInstances() {
+		if (instance == null) return proc.getInstances();
+		return Arrays.asList(instance);
 	}
 }

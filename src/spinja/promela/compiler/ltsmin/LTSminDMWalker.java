@@ -209,13 +209,13 @@ public class LTSminDMWalker {
 			} catch (ParseException e) {
 				e.printStackTrace();
 			}
-			if (sideEffect != null) {
-				//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
-				assert (expr instanceof RunExpression);
-				DMIncWrite(params, _NR_PR);
-				DMIncRead(params, _NR_PR);
-				RunExpression re = (RunExpression)expr;
-				Proctype p = re.getSpecification().getProcess(re.getId());
+			if (sideEffect == null) return; // simple expressions are guards
+			//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
+			assert (expr instanceof RunExpression);
+			DMIncWrite(params, _NR_PR);
+			DMIncRead(params, _NR_PR);
+			RunExpression re = (RunExpression)expr;
+			for (Proctype p : re.getInstances()) {
 				DMIncWritePC(params, p);
 				DMIncReadPC(params, p); // we also read to check multiple instantiations
 				DMIncWritePID(params, p);
@@ -224,8 +224,6 @@ public class LTSminDMWalker {
 					if (v.getType() instanceof ChannelType) continue; //passed by reference
 					DMIncWrite(params, v);
 				}
-			} else {
-				// simple expressions are guards
 			}
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
 			OptionAction oa = (OptionAction)a;
@@ -417,7 +415,7 @@ public class LTSminDMWalker {
 			Identifier top = new Identifier(id, buf);
 			walkExpression(params, top, mark);
 		} else if(e instanceof RunExpression) {
-			DMIncRead(params, _NR_PR);
+			DMIncRead(params, _NR_PR); // only the guard!
 		} else if(e instanceof MTypeReference) {
 		} else if(e instanceof ConstantExpression) {
 		} else if(e instanceof TimeoutExpression) {
@@ -425,8 +423,6 @@ public class LTSminDMWalker {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
-		} else if(e instanceof RunExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented as expression: "+e.getClass().getName());
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}

@@ -12,6 +12,9 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.makeTranstionName;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -21,11 +24,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssertAction;
 import spinja.promela.compiler.actions.AssignAction;
+import spinja.promela.compiler.actions.BreakAction;
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.actions.ElseAction;
@@ -33,10 +38,21 @@ import spinja.promela.compiler.actions.ExprAction;
 import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.actions.PrintAction;
 import spinja.promela.compiler.actions.Sequence;
+import spinja.promela.compiler.automaton.ActionTransition;
 import spinja.promela.compiler.automaton.ElseTransition;
+import spinja.promela.compiler.automaton.EndTransition;
+import spinja.promela.compiler.automaton.GotoTransition;
+import spinja.promela.compiler.automaton.NeverEndTransition;
 import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
+import spinja.promela.compiler.automaton.UselessTransition;
+import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
+import spinja.promela.compiler.expression.ChannelLengthExpression;
+import spinja.promela.compiler.expression.ChannelOperation;
+import spinja.promela.compiler.expression.ChannelReadExpression;
+import spinja.promela.compiler.expression.CompareExpression;
+import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RunExpression;
@@ -45,6 +61,7 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
@@ -56,7 +73,11 @@ import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.model.SendAction;
 import spinja.promela.compiler.ltsmin.model.TimeoutTransition;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
+import spinja.promela.compiler.optimizer.RenumberAll;
 import spinja.promela.compiler.parser.ParseException;
+import spinja.promela.compiler.parser.Preprocessor;
+import spinja.promela.compiler.parser.Preprocessor.DefineMapping;
+import spinja.promela.compiler.parser.Promela;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
@@ -65,8 +86,7 @@ import spinja.promela.compiler.variable.VariableType;
 
 /**
  * Constructs the LTSminModel by walking over the SpinJa {@link Specification}.
- *
- * TODO: avoid atomic guards.
+ * First processes are instantiated by copying their CST.
  * 
  * @author Freark van der Berg, Alfons Laarman
  */
@@ -108,16 +128,298 @@ public class LTSminTreeWalker {
 	 */
 	public LTSminModel createLTSminModel(String name, boolean verbose) {
 		//long start_t = System.currentTimeMillis();
+		
 		this.debug = new LTSminDebug(verbose);
 		LTSminStateVector sv = new LTSminStateVector();
+		instantiate();
 		sv.createVectorStructs(spec, debug);
-		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
-		createTransitions();
+		model = new LTSminModel(name, sv, spec);
+		createModelTransitions();
 		LTSminDMWalker.walkModel(model, debug);
 		LTSminGMWalker.walkModel(model, debug);
+		
 		//long end_t = System.currentTimeMillis();
 		return model;
+	}
+
+    private List<RunExpression> runs = new ArrayList<RunExpression>();
+    private List<String> iCount = new ArrayList<String>();
+
+    private int getInstanceCount(Proctype p) {
+    	DefineMapping nrInstances = Preprocessor.defines("__instances_"+ p.getName());
+		if (null != nrInstances)
+			return Integer.parseInt(nrInstances.defineText.trim());
+		// query instantiation count from user
+		System.out.print("Provide instantiation number for proctype "+ p.getName() +": ");
+		InputStreamReader converter = new InputStreamReader(System.in);
+		BufferedReader in = new BufferedReader(converter);
+		String number;
+		try {
+			number = in.readLine();
+		} catch (IOException e) {throw new AssertionError(e);}
+		int num = Integer.parseInt(number);
+		iCount.add(p.getName() +" "+ num);
+		return num;
+    }
+    
+	/* Active processes can be differentiated from each other by the value of
+	 * their process instantiation number, which is available in the predefined
+	 * local variable _pid . Active processes are always instantiated in the
+	 * order in which they appear in the model, so that the first such process
+	 * (whether it is declared as an active process or as an init process) will
+	 * receive the lowest instantiation number, which is zero. */
+	private void instantiate() {
+		List<ProcInstance> instances = new ArrayList<ProcInstance>();
+		List<ProcInstance> active = new ArrayList<ProcInstance>();
+
+		int id = 0;
+		for (Proctype p : spec.getProcs()) { // add active processes (including init)
+			for (int i = 0; i < p.getNrActive(); i++) {
+				ProcInstance instance = instantiate(p, id, i);
+				p.addInstance(instance);
+				active.add(instance);
+				id++;
+			}
+		}
+
+		// set number of processes to initial number of active processes.
+		try {
+			LTSminStateVector._NR_PR.setInitExpr(constant(id));
+		} catch (ParseException e) { assert (false); }
+
+		for (Proctype p : spec.getProcs()) {
+			if (0 != p.getNrActive())
+				continue;
+			int instanceCount = getInstanceCount(p);
+			for (int i = 0; i < instanceCount; i++) {
+				ProcInstance instance = instantiate(p, id, i);
+				p.addInstance(instance);
+				instances.add(instance);
+				id++;
+			}
+		}
+		for (String binding : iCount)
+			debug.say(MessageKind.NORMAL, "#define __instances_"+ binding);
+		for (ProcInstance instance : active)
+			instances.add(instance);
+		spec.setInstances(instances);
+	}
+
+	private ProcInstance instantiate(Proctype p, int id, int index) {
+		ProcInstance instance = new ProcInstance(p, index, id);
+		for (Variable var : p.getVariables()) {
+			Variable newvar = instantiate(var, instance);
+			instance.addVariable(newvar, p.getArguments().contains(var));
+		}
+		instance.lastArgument();
+		for (String mapped : p.getVariableMappings().keySet()) {
+			String to = p.getVariableMapping(mapped);
+			instance.addVariableMapping(mapped, to);
+		}
+
+		HashMap<State, State> seen = new HashMap<State, State>();
+		instantiate(p.getStartState(), instance.getStartState(), seen, instance);
+		new RenumberAll().optimize(instance.getAutomaton());
+		return instance;
+	}
+	
+	/**
+	* Copy the automaton
+	*/
+	private void instantiate(State state, State newState,
+							 HashMap<State, State> seen, ProcInstance p) {
+		if (null == state || null != seen.put(state, newState))
+			return;
+		for (Transition trans : state.output) {
+			State next = trans.getTo();
+			State newNextState = null;
+			if (null != next) if (seen.containsKey(next))
+				newNextState = seen.get(next);
+			else
+				newNextState = new State(p.getAutomaton(), next.isInAtomic());
+			Transition newTrans =
+				(trans instanceof ActionTransition ? new ActionTransition(newState, newNextState) :
+				(trans instanceof ElseTransition ? new ElseTransition(newState, newNextState) :
+				(trans instanceof EndTransition ? new EndTransition(newState) :
+				(trans instanceof NeverEndTransition ? new NeverEndTransition(newState) :
+				(trans instanceof GotoTransition ? new GotoTransition(newState, newNextState, trans.getText().substring(5)) :
+				(trans instanceof UselessTransition ? new UselessTransition(newState, newNextState, trans.getText()) :
+				 null))))));
+			for (Action a : trans)
+				newTrans.addAction(instantiate(a, p, null));
+			instantiate(next, newNextState, seen, p);
+		}
+	}
+
+	private Variable instantiate(Variable var, ProcInstance p) {
+		if (null == var.getOwner()) // global var, no copy required
+			return var;
+		if (!p.getTypeName().equals(var.getOwner().getName()))
+			throw new AssertionError("Expected instance of type "+ var.getOwner().getName() +" not of "+ p.getTypeName());
+		Variable newvar = new Variable(var.getType(), var.getName(),
+		                               var.getArraySize(), p);
+		newvar.setRealName(var.getRealName());
+		try {
+			if (null != var.getInitExpr())
+				newvar.setInitExpr(instantiate(var.getInitExpr(), p));
+		} catch (ParseException e1) { throw new AssertionError("Identifier"); }
+		if (newvar.getName().equals(Promela.C_STATE_PID)) {
+			int initial_pid = (p.getNrActive() == 0 ? -1 : p.getID());
+			try { newvar.setInitExpr(constant(initial_pid));
+			} catch (ParseException e) { assert (false); }
+		}
+		return newvar;
+	}
+
+	/**
+	 * Copy actions
+	 */
+	private Action instantiate(Action a, ProcInstance p, OptionAction loop) {
+		if(a instanceof AssignAction) {
+			AssignAction as = (AssignAction)a;
+			Identifier id = (Identifier)instantiate(as.getIdentifier(), p);
+			Expression e = instantiate(as.getExpr(), p);
+			return new AssignAction(as.getToken(), id, e);
+		} else if(a instanceof ResetProcessAction) {
+			throw new AssertionError("Unexpected ResetProcessAction");
+		} else if(a instanceof AssertAction) {
+			AssertAction as = (AssertAction)a;
+			Expression e = instantiate(as.getExpr(), p);
+			return new AssertAction(as.getToken(), e);
+		} else if(a instanceof PrintAction) {
+			PrintAction pa = (PrintAction)a;
+			PrintAction newpa = new PrintAction(pa.getToken(), pa.getString());
+			for (final Expression expr : pa.getExprs())
+				newpa.addExpression(instantiate(expr, p));
+			return newpa;
+		} else if(a instanceof ExprAction) {
+			ExprAction ea = (ExprAction)a;
+			Expression e = instantiate(ea.getExpression(), p);
+			return new ExprAction(e);
+		} else if(a instanceof OptionAction) { // options in a d_step sequence
+			OptionAction oa = (OptionAction)a;
+			OptionAction newoa = new OptionAction(oa.getToken(), oa.loops());
+			newoa.hasSuccessor(oa.hasSuccessor());
+			loop = newoa.loops() ? newoa : null;
+			for (Sequence seq : oa)
+				newoa.startNewOption((Sequence)instantiate(seq, p, loop)); 
+			return newoa;
+		} else if(a instanceof Sequence) {
+			Sequence seq = (Sequence)a;
+			Sequence newseq = new Sequence(seq.getToken());
+			for (Action aa : seq) {
+				Action sub = instantiate(aa, p, loop);
+				newseq.addAction(sub);
+			}
+			return newseq;
+		} else if(a instanceof BreakAction) {
+			BreakAction ba = (BreakAction)a;
+			BreakAction newba = new BreakAction(ba.getToken(), loop);
+			return newba;
+		} else if(a instanceof ElseAction) {
+			return a; // readonly, hence can be shared
+		} else if(a instanceof ChannelSendAction) {
+			ChannelSendAction csa = (ChannelSendAction)a;
+			Identifier id = (Identifier)instantiate(csa.getIdentifier(), p);
+			ChannelSendAction newcsa = new ChannelSendAction(csa.getToken(), id);
+			for (Expression e : csa.getExprs())
+				newcsa.addExpression(instantiate(e, p));
+			return newcsa;
+		} else if(a instanceof ChannelReadAction) {
+			ChannelReadAction cra = (ChannelReadAction)a;
+			Identifier id = (Identifier)instantiate(cra.getIdentifier(), p);
+			ChannelReadAction newcra = new ChannelReadAction(cra.getToken(), id, cra.isPoll());
+			for (Expression e : cra.getExprs())
+				newcra.addExpression(instantiate(e, p));
+			return newcra;
+		} else { // Handle not yet implemented action
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
+		}
+	}	
+	
+	/**
+	 * Copy expressions with instantiated processes.
+	 */
+	private Expression instantiate(Expression e, ProcInstance p) {
+		if (null == e) return null;
+
+		if(e instanceof Identifier) { // also: LTSminIdentifier
+			Identifier id = (Identifier)e;
+			Variable var = id.getVariable();
+			if (null != var.getOwner()) {
+				if (!p.getTypeName().equals(var.getOwner().getName()))
+					throw new AssertionError("Expected instance of type "+ var.getOwner().getName() +" not of "+ p.getTypeName());
+				var = p.getVariable(var.getName()); // load copied variable
+			}
+			Expression arrayExpr = instantiate(id.getArrayExpr(), p);
+			Identifier sub = (Identifier)instantiate(id.getSub(), p);
+			return new Identifier(id.getToken(), var, arrayExpr, sub);
+		} else if(e instanceof AritmicExpression) {
+			AritmicExpression ae = (AritmicExpression)e;
+			Expression ex1 = instantiate(ae.getExpr1(), p);
+			Expression ex2 = instantiate(ae.getExpr2(), p);
+			Expression ex3 = instantiate(ae.getExpr3(), p);
+			return new AritmicExpression(ae.getToken(), ex1, ex2, ex3);
+		} else if(e instanceof BooleanExpression) {
+			BooleanExpression be = (BooleanExpression)e;
+			Expression ex1 = instantiate(be.getExpr1(), p);
+			Expression ex2 = instantiate(be.getExpr2(), p);
+			return new BooleanExpression(be.getToken(), ex1, ex2);
+		} else if(e instanceof CompareExpression) {
+			CompareExpression ce = (CompareExpression)e;
+			Expression ex1 = instantiate(ce.getExpr1(), p);
+			Expression ex2 = instantiate(ce.getExpr2(), p);
+			return new CompareExpression(ce.getToken(), ex1, ex2);
+		} else if (e instanceof ChannelSizeExpression) {
+			ChannelSizeExpression cse = (ChannelSizeExpression)e;
+			Identifier id = (Identifier)instantiate(cse.getIdentifier(), p);
+			Expression ex = instantiate(id, p);
+			return new ChannelSizeExpression((Identifier)ex);
+		} else if(e instanceof ChannelLengthExpression) {
+			ChannelLengthExpression cle = (ChannelLengthExpression)e;
+			Identifier id = (Identifier)cle.getExpression();
+			Identifier newid = (Identifier)instantiate(id, p);
+			return new ChannelSizeExpression(newid);
+		} else if(e instanceof ChannelReadExpression) {
+			ChannelReadExpression cre = (ChannelReadExpression)e;
+			Identifier id = (Identifier)instantiate(cre.getIdentifier(), p);
+			ChannelReadExpression res = new ChannelReadExpression(cre.getToken(), id);
+			for (Expression expr : cre.getExprs())
+				res.addExpression(instantiate(expr, p));
+			return res;
+		} else if(e instanceof ChannelOperation) {
+			ChannelOperation co = (ChannelOperation)e;
+			Identifier id = (Identifier)instantiate(co.getExpression(), p);
+			try {
+				return new ChannelOperation(co.getToken(), id);
+			} catch (ParseException e1) {
+				throw new AssertionError("ChanOp");
+			}
+		} else if(e instanceof ChannelTopExpression) {
+			ChannelTopExpression cte = (ChannelTopExpression)e;
+			ChannelReadAction cra = cte.getChannelReadAction();
+			Identifier id = (Identifier)instantiate(cra.getIdentifier(), p);
+			ChannelReadAction newcra = new ChannelReadAction(cra.getToken(), id, cra.isPoll());
+			for (Expression expr : cra.getExprs())
+				newcra.addExpression(instantiate(expr, p));
+			return new ChannelTopExpression(newcra, cte.getElem());
+		} else if(e instanceof RunExpression) {
+			RunExpression re = (RunExpression)e;
+			RunExpression newre = new RunExpression(e.getToken(), spec.getProcess(re.getId())); 
+			try {
+				for (Expression expr : re.getExpressions())
+					newre.addExpression(instantiate(expr, p));
+			} catch (ParseException e1) {
+				throw new AssertionError("RunExpression");
+			}
+			runs.add(newre); // add runexpression to a list
+			return newre;
+		} else if(e instanceof ConstantExpression) {
+			return e; // readonly, hence can be shared
+		} else {
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+		}
 	}
 
 	/**
@@ -125,13 +427,37 @@ public class LTSminTreeWalker {
 	 */
 	private void bindByReferenceCalls() {
 		debug.say(MessageKind.DEBUG, "");
-		for (RunExpression re : spec.getRuns()) {
-			bindArguments(re);
+		for (Proctype p : spec.getProcs()) {
+			if (p.getNrActive() > 0) continue;
+			List<RunExpression> rr = new ArrayList<RunExpression>();
+			for (RunExpression re : runs)
+				if (re.getProctype().equals(p)) rr.add(re);
+			if (rr.size() == 0) {
+				debug.say(MessageKind.WARNING, "Process "+ p.getName() +" is inactive.");
+				continue;
+			}
+			if (rr.size() == 1 && p.getInstances().size() > 0) {
+				for (ProcInstance target : p.getInstances()) {
+					bindArguments(rr.get(0), target, true);
+				}
+			} else if (rr.size() == p.getInstances().size()) {
+				Iterator<ProcInstance> it = p.getInstances().iterator();
+				for (RunExpression re : rr) {
+					ProcInstance target = it.next();
+					re.setInstance(target);
+					debug.say(MessageKind.NORMAL, "Statically binding chans of procinstance "+ target +" to run expression at l."+ re.getToken().beginLine);
+					bindArguments(re, target, false);
+				}
+			} else {
+				for (ProcInstance target : p.getInstances()) {
+					bindArguments(rr.get(0), target, true);
+				}
+			}
 		}
 	}
 
-	private void bindArguments(RunExpression re) {
-		Proctype target = spec.getProcess(re.getId());
+	private void bindArguments(RunExpression re, ProcInstance target,
+							   boolean dynamic) {
 		if (null == target) throw new AssertionError("Target of run expression is not found: "+ re.getId());
 		List<Variable> args = target.getArguments();
 		Iterator<Expression> eit = re.getExpressions().iterator();
@@ -151,14 +477,39 @@ public class LTSminTreeWalker {
 				if (!(t instanceof ChannelType))
 					throw error("Parameter "+ count +" of "+ re.getId() +" should be a channeltype.", re.getToken());
 				ChannelType ct = (ChannelType)t;
-				if (ct.getBufferSize() == -1) //TODO: implement more analysis on AST
+				if (ct.getBufferSize() == -1)
 					throw error("Could not deduce channel declaration for parameter "+ count +" of "+ re.getId() +".", re.getToken());
+				if (dynamic)
+					throw new AssertionError("Cannot dynamically bind "+ target.getTypeName() +" to the run expressions in presence of arguments of type channel.\n" +
+							"Change the proctype's arguments or unroll the loop with run expressions in the model.");
 				String name = v.getName();
 				debug.say(MessageKind.DEBUG, "Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
-				v.setRealName(v.getName());
+				v.setRealName(v.getName()); //TODO: this is also a variable mapping
 				v.setType(varParameter.getType());
 				v.setOwner(varParameter.getOwner());
 				v.setName(varParameter.getName());
+			}
+		}
+	}
+
+	/**
+	 * Run expressions usually pass constants to channel variables. If these
+	 * variables are never assigned to elsewhere, we can safely mark them
+	 * constant.
+	 */
+	private void createProcessConstantVars() {
+		for (RunExpression re : runs){
+			for (Proctype p : re.getInstances()) {
+				Iterator<Expression> rei = re.getExpressions().iterator();
+				for (Variable v : p.getArguments()) {
+					Expression next = rei.next();
+					if (v.getType() instanceof ChannelType) continue; //passed by reference
+					if (v.isNotAssignedTo()) {
+						try {
+							v.setConstantValue(next.getConstantValue());
+						} catch (ParseException e) {} // expected
+					}
+				}
 			}
 		}
 	}
@@ -178,14 +529,14 @@ public class LTSminTreeWalker {
 	/**
 	 * Creates the state transitions.
 	 */
-	private int createTransitions() {
+	private int createModelTransitions() {
 		int trans = 0;
 		debug.say(MessageKind.DEBUG, "");
 
 		// Create the normal transitions for all processes.
 		// This excludes: rendezvous, else, timeout and loss of atomicity
 		// Calculate cross product with the never claim when not in atomic state 
-		for (Proctype p : spec) {
+		for (ProcInstance p : spec) {
 			debug.say(MessageKind.DEBUG, "[Proc] " + p.getName());
 			for (State st : p.getAutomaton()) {
 				for (State ns : getNeverAutomatonOrNullSet(st.isInAtomic())) {
@@ -270,27 +621,6 @@ public class LTSminTreeWalker {
 	}
 
 	/**
-	 * Run expressions usually pass constants to channel variables. If these
-	 * variables are never assigned to elsewhere, we can safely mark them
-	 * constant.
-	 */
-	private void createProcessConstantVars() {
-		for (RunExpression re : spec.getRuns()){
-			Iterator<Expression> rei = re.getExpressions().iterator();
-			Proctype p = re.getSpecification().getProcess(re.getId());
-			for (Variable v : p.getArguments()) {
-				Expression next = rei.next();
-				if (v.getType() instanceof ChannelType) continue; //passed by reference
-				if (v.isNotAssignedTo()) {
-					try {
-						v.setConstantValue(next.getConstantValue());
-					} catch (ParseException e) {} // expected
-				}
-			}
-		}
-	}
-
-	/**
 	 * Creates all transitions from the given state. This state should be
 	 * in the specified process.
 	 * @param process The state should be in this process.
@@ -298,12 +628,12 @@ public class LTSminTreeWalker {
 	 * @param state The state of which all outgoing transitions will be created.
 	 * @return The next free transition ID (= old.trans + #new_transitions).
 	 */
-	private int createTransitionsFromState (Proctype process, int trans, State state, State never_state) {
+	private int createTransitionsFromState (ProcInstance process, int trans, State state, State never_state) {
 		++debug.say_indent;
 		debug.say(MessageKind.DEBUG, state.toString());
 
 		// Check if it is an ending state
-		if (state.sizeOut()==0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
+		if (state.sizeOut() == 0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
 			LTSminTransition lt = makeTransition(process, trans, state, process.getName() +"_end");
 			model.getTransitions().add(lt);
 
@@ -333,7 +663,7 @@ public class LTSminTreeWalker {
 		return trans;
 	}
 
-	private LTSminLocalGuard makeInAtomicGuard(Proctype process) {
+	private LTSminLocalGuard makeInAtomicGuard(ProcInstance process) {
 		Identifier id = new LTSminIdentifier(new Variable(VariableType.BOOL, "atomic", -1));
 		Variable pid = model.sv.getPID(process);
 		BooleanExpression boolExpr = bool(PromelaConstants.LOR,
@@ -359,7 +689,7 @@ public class LTSminTreeWalker {
 	 * @param trans
 	 * @return true = found either else transition or rendezvous enabled action 
 	 */
-	private boolean collectRendezVous(Proctype process, Transition t, int trans) {
+	private boolean collectRendezVous(ProcInstance process, Transition t, int trans) {
 		if (t.iterator().hasNext()) {
 			Action a = t.iterator().next();
 			if (a instanceof ChannelSendAction) {
@@ -392,7 +722,7 @@ public class LTSminTreeWalker {
 		return false;
 	}
 
-	private LTSminTransition createStateTransition(Proctype process, int trans,
+	private LTSminTransition createStateTransition(ProcInstance process, int trans,
 											Transition t, Transition never_t) {
 		String t_name = makeTranstionName(t, null, never_t);
 		++debug.say_indent;

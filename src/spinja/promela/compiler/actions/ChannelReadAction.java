@@ -32,7 +32,7 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 
 	private final List<Expression> exprs;
 
-	private boolean poll;
+	private final boolean poll;
 	
 	public ChannelReadAction(final Token token, final Identifier id, boolean poll) {
 		super(token);

@@ -60,29 +60,18 @@ public class Promela {
 
 	private Specification specification;
 	private Proctype currentProc;
-	private Automaton automaton;	
-
-	/* Active processes can be differentiated from each other by the value of
-	 * their process instantiation number, which is available in the predefined
-	 * local variable _pid . Active processes are always instantiated in the
-	 * order in which they appear in the model, so that the first such process
-	 * (whether it is declared as an active process or as an init process) will
-	 * receive the lowest instantiation number, which is zero. */
+	private Automaton automaton;
 	private int procNr = 0;
-	
-	public int getNextProcNr(int nrActive) {
-		if (0 == nrActive) return -1;
-		int p = procNr;
-		procNr += nrActive;
-		return p;
-	}
+	private VariableType type;
 
 	private Map<String, State> labels = new HashMap<String, State>();
-	
+
 	private Map<State, Token> gotos = new HashMap<State, Token>();
 	
-	VariableType type;
-	
+	public int getNextProcNr(int nrActive) {
+		return procNr++;
+	}
+
 	private void setGotos() throws ParseException {
 		for(State n : gotos.keySet()) {
 			Token t = gotos.get(n);
@@ -98,10 +87,7 @@ public class Promela {
 
 	public void addPID(Proctype p) {
 		Variable pid = new Variable(C_TYPE_PID, C_STATE_PID, -1, p);
-		int nr = p.getID();
-		try { pid.setInitExpr(new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+nr), nr));
-		} catch (ParseException e) { assert (false); }
-		p.addVariable(pid);
+		p.addVariable(pid, false);
 	}
 
 	public void addPC(Proctype p) {
@@ -109,7 +95,7 @@ public class Promela {
 		int initial_pc = (p.getNrActive() == 0 && !p.getName().equals("never") ? -1 : 0);
 		try { pc.setInitExpr(new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+initial_pc), initial_pc));
 		} catch (ParseException e) { assert (false); }
-		p.addVariable(pc);
+		p.addVariable(pc, false);
 	}
 
     Expression varref() throws ParseException { return varref(null); }
@@ -785,12 +771,12 @@ void proctype(): {
 		currentProc = new Proctype(specification, getNextProcNr(nrActive), nrActive, id.image);
 		automaton = currentProc.getAutomaton();
 		specification.addProc(currentProc);
+        addPC(currentProc);
+        addPID(currentProc);
 	}
 	<LPAREN> (decl_list(currentProc))? <RPAREN>
 	{
 		currentProc.lastArgument();
-		addPID(currentProc);
-		addPC(currentProc);
 	}
 	(priority())?
 	(enabler())?
@@ -828,8 +814,8 @@ void init(): {
 		automaton = currentProc.getAutomaton();
 		specification.addProc(currentProc);
 		currentProc.lastArgument();
+        addPC(currentProc);
 		addPID(currentProc);
-		addPC(currentProc);
 	}
 	(priority())?
 	<LCURLY> s=sequence(currentProc.getStartState(), null, false) <RCURLY>
@@ -948,8 +934,9 @@ void ch_init(Token as, VariableContainer store, ChannelVariable var): {
 }{
     id=<IDENTIFIER>
     {
+		store.addVariableMapping(var.getName(), id.image);
         Variable var2 = store.getVariable(id.image);
-		store.addVariableMapping(var.getName(), var2); var2.setRead(true);    }
+        var2.setRead(true);    }
   |
 	<LBRACK> size=constant() <RBRACK> <OF> 
 	{ 
@@ -1416,8 +1403,7 @@ Expression base_expr(): {
 |	t=<PC_VALUE> <LPAREN> lor_expr() <RPAREN>
 	{ throw new MyParseException("pc_value expressions are not yet supported!", t); }
 |	t=<RUN> id=<IDENTIFIER> 
-	{ RunExpression runExpr = new RunExpression(t, specification, id.image);
-	  specification.addRun(runExpr); }
+	{ RunExpression runExpr = new RunExpression(t, id.image); }
 	<LPAREN> arg_lst(runExpr) <RPAREN>
 	{ return runExpr; }
 |	t=chanop() <LPAREN> ex1=varref() <RPAREN>

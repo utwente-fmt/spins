@@ -49,7 +49,7 @@ public interface VariableContainer {
 	 */
 	public boolean hasVariable(String name);
 	
-    public void addVariableMapping(String s, Variable v);
+    public void addVariableMapping(String s, String v);
 
-    public Variable getVariableMapping(String s);
+    public String getVariableMapping(String s);
 }

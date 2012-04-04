@@ -7,7 +7,8 @@ public class LTSminDebug {
 		DEBUG,
 		NORMAL,
 		ERROR,
-		FATAL
+		FATAL,
+		WARNING
 	}
 
 	public int say_indent = 0;
@@ -30,6 +31,7 @@ public class LTSminDebug {
 				System.out.print(TAB);
 			System.out.println(s);
 			break;
+		case WARNING:
 		case ERROR:
 			for(int n=say_indent; n > 0; n--)
 				System.err.print(TAB);
