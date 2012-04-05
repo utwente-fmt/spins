@@ -235,6 +235,7 @@ TOKEN : {	/* Operators */
 SKIP : {
    	"inline" : PREPROCESSOR_INLINE
 | 	"defined" : PREPROCESSOR_DEFINED
+|   "ndef" : PREPROCESSOR_NDEFINED
 }
 
 <PREPROCESSOR_DEFINED> SKIP: // parse define name
@@ -245,7 +246,7 @@ SKIP : {
     	image.setLength(0);
     } : PREPROCESSOR_DEFINED
 |   " " : PREPROCESSOR_DEFINED
-|   <DEFINED: ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+|   < ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         String defined = image.toString().trim();
 		while (0 != Preprocessor.level) {
 			Preprocessor.level--;
@@ -260,6 +261,32 @@ SKIP : {
 	    Preprocessor.current.push(null);
 	    Preprocessor.preprocessing.push(input_stream);
 		ReInit(new SimpleCharStream(is2, line, column));
+    } : DEFAULT
+}
+
+<PREPROCESSOR_NDEFINED> SKIP: // parse define name
+{
+    "("
+    {
+        Preprocessor.level++;
+        image.setLength(0);
+    } : PREPROCESSOR_NDEFINED
+|   " " : PREPROCESSOR_NDEFINED
+|   < ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+        defined = image.toString().trim();
+        while (0 != Preprocessor.level) {
+            Preprocessor.level--;
+            if (PromelaConstants.RPAREN != getNextToken().kind)
+                throw new AssertionError("Missing closing parenthesis after defined.");
+        }
+        // reinitialize input_stream
+        newText = null != Preprocessor.defines(defined) ? "false" : "true";
+        line = input_stream.getEndLine();
+        column = input_stream.getEndColumn();
+        is2 = new ByteArrayInputStream(newText.getBytes());
+        Preprocessor.current.push(null);
+        Preprocessor.preprocessing.push(input_stream);
+        ReInit(new SimpleCharStream(is2, line, column));
     } : DEFAULT
 }
 
@@ -320,6 +347,7 @@ SKIP : { // Skip whitespace and comments
 |   "//" : IN_COMMENT2
 |   "#if" : PREPROCESSOR_IF
 |   "#ifdef" : PREPROCESSOR_IFDEF
+|   "#ifndef" : PREPROCESSOR_IFNDEF
 |   "#else"
     {
         Boolean b = Preprocessor.ifs.peek();
@@ -405,6 +433,26 @@ SKIP : { // Skip whitespace and comments
 }
 
 <PREPROCESSOR_IFDEF> MORE:
+{
+    < ~[] >
+}
+
+/** Preprocessor ifndef **/
+<PREPROCESSOR_IFNDEF> SKIP:
+{
+    < "\n"|"\r"|"\r\n" > { // define name is read
+        def = image.toString().trim();
+        if (null == Preprocessor.defines(def)) { // true
+            Preprocessor.ifs.push(true);
+            SwitchTo(PromelaConstants.DEFAULT); // parse if until else/endif
+        } else { // false
+            Preprocessor.ifs.push(false);
+            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore if until else/enfi
+        }
+    }
+}
+
+<PREPROCESSOR_IFNDEF> MORE:
 {
     < ~[] >
 }
