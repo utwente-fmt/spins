@@ -10,6 +10,7 @@ import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
+import spinja.promela.compiler.expression.ChannelLengthExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
@@ -102,14 +103,24 @@ public class LTSminUtil {
 	}
 
 	public static Expression chanEmptyGuard(Identifier id) {
-		Expression left = new ChannelSizeExpression(id);
+		Expression left;
+		try {
+			left = new ChannelLengthExpression(null, id);
+		} catch (ParseException e1) {
+			throw new AssertionError(e1);
+		}
 		Expression right = constant(((ChannelType)id.getVariable().getType()).getBufferSize());
 		Expression e = compare(PromelaConstants.LT, left, right);
 		return e;
 	}
 
 	public static Expression chanContentsGuard(Identifier id) {
-		Expression left = new ChannelSizeExpression(id);
+		Expression left;
+		try {
+			left = new ChannelLengthExpression(null, id);
+		} catch (ParseException e1) {
+			throw new AssertionError(e1);
+		}
 		Expression e = compare(PromelaConstants.GT, left, constant(0));
 		return e;
 	}

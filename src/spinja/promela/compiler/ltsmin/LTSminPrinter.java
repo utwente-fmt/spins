@@ -75,7 +75,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
-import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
@@ -808,10 +807,6 @@ public class LTSminPrinter {
 			w.append(" ").append(ce.getToken().image).append(" ");
 			generateExpression(w, ce.getExpr2(), state);
 			w.append(")");
-		} else if(e instanceof ChannelSizeExpression) {
-			ChannelSizeExpression cse = (ChannelSizeExpression)e;
-			Identifier id = (Identifier)cse.getIdentifier();
-			generateExpression(w, chanLength(id), state);
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
@@ -821,7 +816,7 @@ public class LTSminPrinter {
 			Identifier id = cre.getIdentifier();
 			if (((ChannelType)id.getVariable().getType()).getBufferSize() == 0)
 				throw new AssertionError("ChannelReadAction on rendez-vous channel.");
-			Expression size = new ChannelSizeExpression(id);
+			Expression size = chanLength(id);
 			w.append("((");
 			generateExpression(w, size, state);
 			w.append(" > 0)");

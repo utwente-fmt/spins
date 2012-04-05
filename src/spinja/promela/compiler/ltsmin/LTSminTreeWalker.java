@@ -1,16 +1,6 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.bool;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanEmptyGuard;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.dieGuard;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.makeTranstionName;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -61,7 +51,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
-import spinja.promela.compiler.ltsmin.model.ChannelSizeExpression;
 import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
@@ -371,16 +360,15 @@ public class LTSminTreeWalker {
 			Expression ex1 = instantiate(ce.getExpr1(), p);
 			Expression ex2 = instantiate(ce.getExpr2(), p);
 			return new CompareExpression(ce.getToken(), ex1, ex2);
-		} else if (e instanceof ChannelSizeExpression) {
-			ChannelSizeExpression cse = (ChannelSizeExpression)e;
-			Identifier id = (Identifier)instantiate(cse.getIdentifier(), p);
-			Expression ex = instantiate(id, p);
-			return new ChannelSizeExpression((Identifier)ex);
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
 			Identifier newid = (Identifier)instantiate(id, p);
-			return new ChannelSizeExpression(newid);
+			try {
+				return new ChannelLengthExpression(null, newid);
+			} catch (ParseException e1) {
+				throw new AssertionError(e1);
+			}
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = (Identifier)instantiate(cre.getIdentifier(), p);
@@ -398,11 +386,7 @@ public class LTSminTreeWalker {
 			}
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
-			ChannelReadAction cra = cte.getChannelReadAction();
-			Identifier id = (Identifier)instantiate(cra.getIdentifier(), p);
-			ChannelReadAction newcra = new ChannelReadAction(cra.getToken(), id, cra.isPoll());
-			for (Expression expr : cra.getExprs())
-				newcra.addExpression(instantiate(expr, p));
+			ChannelReadAction newcra = (ChannelReadAction)instantiate(cte.getChannelReadAction(), p, null);
 			return new ChannelTopExpression(newcra, cte.getElem());
 		} else if(e instanceof RunExpression) {
 			RunExpression re = (RunExpression)e;
