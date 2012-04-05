@@ -1,6 +1,16 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.bool;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanEmptyGuard;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.dieGuard;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.makeTranstionName;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -68,6 +78,7 @@ import spinja.promela.compiler.parser.Preprocessor;
 import spinja.promela.compiler.parser.Preprocessor.DefineMapping;
 import spinja.promela.compiler.parser.Promela;
 import spinja.promela.compiler.parser.PromelaConstants;
+import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
@@ -246,8 +257,11 @@ public class LTSminTreeWalker {
 			return var;
 		if (!p.getTypeName().equals(var.getOwner().getName()))
 			throw new AssertionError("Expected instance of type "+ var.getOwner().getName() +" not of "+ p.getTypeName());
-		Variable newvar = new Variable(var.getType(), var.getName(),
-		                               var.getArraySize(), p);
+		Variable newvar = var instanceof ChannelVariable ?
+				new ChannelVariable(var.getName(), var.getArraySize()) :
+				new Variable(var.getType(), var.getName(), var.getArraySize());
+		newvar.setOwner(p);
+		newvar.setType(var.getType());
 		newvar.setRealName(var.getRealName());
 		try {
 			if (null != var.getInitExpr())
@@ -420,7 +434,7 @@ public class LTSminTreeWalker {
 				debug.say(MessageKind.WARNING, "Process "+ p.getName() +" is inactive.");
 				continue;
 			}
-			if (rr.size() == 1 && p.getInstances().size() > 0) {
+			if (rr.size() == 1 && p.getInstances().size() > 1) {
 				for (ProcInstance target : p.getInstances()) {
 					bindArguments(rr.get(0), target, true);
 				}
@@ -454,7 +468,7 @@ public class LTSminTreeWalker {
 			Expression param = eit.next();
 			if (v.getType() instanceof ChannelType) {
 				if (!(param instanceof Identifier))
-					throw error("Run expression's parameters do not match the proc's arguments.", re.getToken());
+					throw error("Run expression's parameter for "+ v +" does not match the proc's argument type.", re.getToken());
 				Identifier id = (Identifier)param;
 				Variable varParameter = id.getVariable();
 				VariableType t = varParameter.getType();
@@ -463,7 +477,7 @@ public class LTSminTreeWalker {
 				ChannelType ct = (ChannelType)t;
 				if (ct.getBufferSize() == -1)
 					throw error("Could not deduce channel declaration for parameter "+ count +" of "+ re.getId() +".", re.getToken());
-				if (dynamic)
+				if (dynamic || varParameter.getArraySize() > -1)
 					throw new AssertionError("Cannot dynamically bind "+ target.getTypeName() +" to the run expressions in presence of arguments of type channel.\n" +
 							"Change the proctype's arguments or unroll the loop with run expressions in the model.");
 				String name = v.getName();
@@ -472,6 +486,19 @@ public class LTSminTreeWalker {
 				v.setType(varParameter.getType());
 				v.setOwner(varParameter.getOwner());
 				v.setName(varParameter.getName());
+			}
+		}
+		for (Variable v : target.getVariables()) {
+			if (null == v.getInitExpr()) continue;
+			try {
+				v.getInitExpr().getConstantValue();
+			} catch (ParseException e) {
+				if (dynamic)
+					throw new AssertionError("Cannot dynamically bind "+ target.getTypeName() +" to the run expressions in presence of arguments of init expressions that use the arguments.\n" +
+							"Change the proctype's arguments or unroll the loop with run expressions in the model.");
+				Expression init = v.getInitExpr();
+				v.unsetInitExpr();
+				re.addAction(new AssignAction(new Token(PromelaConstants.ASSIGN), id(v), init));
 			}
 		}
 	}

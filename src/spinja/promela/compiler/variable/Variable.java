@@ -112,6 +112,10 @@ public class Variable {
 		return isWritten;
 	}
 
+	public void unsetInitExpr() {
+		this.initExpr = null;
+	}
+	
 	public void setInitExpr(final Expression initExpr) throws ParseException {
 		if (!type.canConvert(initExpr.getResultType())) {
 			throw new ParseException("Can not convert initializing expression to desired type");

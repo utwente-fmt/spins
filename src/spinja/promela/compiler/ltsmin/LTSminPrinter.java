@@ -588,15 +588,17 @@ public class LTSminPrinter {
 			Iterator<Expression> eit = re.getExpressions().iterator();
 			if (args.size() != re.getExpressions().size())
 				throw error("Run expression's parameters do not match the proc's arguments.", re.getToken());
-			//write to the arguments of the target process
+			// write to the arguments of the target process
 			for (Variable v : args) {
 				Expression e = eit.next();
-				//channels are passed by reference: TreeWalker.bindByReferenceCalls 
+				// channels are passed by reference: TreeWalker.bindByReferenceCalls 
 				if (!(v.getType() instanceof ChannelType)) {
 					Action aa = assign(v, e);
 					generateAction(w2, aa, model);
 				}
 			}
+			for (Action action: re.getActions())
+				generateAction(w2, action, model);
 
 			String ccode = w2.toString();
 			if (re.getInstances().size() > 1) {

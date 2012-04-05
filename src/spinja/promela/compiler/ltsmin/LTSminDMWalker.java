@@ -224,6 +224,9 @@ public class LTSminDMWalker {
 					DMIncWrite(params, v);
 				}
 			}
+			for (Action rea : re.getActions()) {
+				walkAction(params, rea);
+			}
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
 			OptionAction oa = (OptionAction)a;
 			for (Sequence seq : oa) {

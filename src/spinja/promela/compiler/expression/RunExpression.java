@@ -22,6 +22,7 @@ import java.util.Set;
 
 import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
+import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.VariableAccess;
@@ -136,5 +137,15 @@ public class RunExpression extends Expression implements CompoundExpression {
 	public List<ProcInstance> getInstances() {
 		if (instance == null) return proc.getInstances();
 		return Arrays.asList(instance);
+	}
+
+	private List<Action> actions = new ArrayList<Action>();
+
+	public void addAction(Action action) {
+		actions.add(action);
+	}
+
+	public List<Action> getActions() {
+		return actions;
 	}
 }
