@@ -665,8 +665,6 @@ public class LTSminTreeWalker {
 					continue;
 				for (Transition never_t : getOutTransitionsOrNullSet(never_state)) {
 					LTSminTransition lt = createStateTransition(process,trans,t,never_t);
-					if (0 == state.getStateId() && null != process.getEnabler())
-						lt.addGuard(process.getEnabler());
 					model.getTransitions().add(lt);
 					trans++;
 				}
@@ -788,6 +786,9 @@ public class LTSminTreeWalker {
         } else {
             createEnabledGuard(t, lt);
         }
+
+		if (null != process.getEnabler())
+			lt.addGuard(process.getEnabler());
 
         // Guard: allowed to die
 		if (t.getTo()==null) {
