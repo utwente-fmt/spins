@@ -403,7 +403,7 @@ public class LTSminDMWalker {
 				walkExpression(params, chanLength(id), mark);
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
-			Identifier id = cte.getChannelReadAction().getIdentifier();
+			Identifier id = cte.getIdentifier();
 			ChannelVariable cv = (ChannelVariable)id.getVariable();
 			int size = cv.getType().getBufferSize();
 			Expression sum = calc(PromelaConstants.PLUS, chanLength(id), chanRead(id));

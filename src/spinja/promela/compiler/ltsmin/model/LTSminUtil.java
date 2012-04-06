@@ -5,7 +5,6 @@ import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_REA
 import static spinja.promela.compiler.parser.PromelaConstants.IDENTIFIER;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.AssignAction;
-import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.AritmicExpression;
@@ -28,13 +27,21 @@ public class LTSminUtil {
 
 	/** Expressions **/
 	public static ChannelTopExpression channelTop(Identifier id, int i) {
-		return new ChannelTopExpression(new ChannelReadAction(null, id), i);
+		return new ChannelTopExpression(id, i);
 	}
 
 	public static AssignAction assign(Variable v, Expression expr) {
 		return assign (id(v), expr);
 	}
-	
+
+	public static AssignAction incr(Identifier id) {
+		return new AssignAction(new Token(PromelaConstants.INCR,"++"), id, null);
+	}
+
+	public static AssignAction decr(Identifier id) {
+		return new AssignAction(new Token(PromelaConstants.DECR,"--"), id, null);
+	}
+
 	public static AssignAction assign(Identifier id, Expression expr) {
 		return new AssignAction(new Token(PromelaConstants.ASSIGN,"="), id, expr);
 	}

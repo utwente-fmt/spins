@@ -6,8 +6,8 @@ package spinja.promela.compiler.ltsmin.model;
 import java.util.HashSet;
 import java.util.Set;
 
-import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.expression.Expression;
+import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -18,12 +18,12 @@ public class ChannelTopExpression extends Expression {
 	/**
 	 * 
 	 */
-	private ChannelReadAction cra;
 	private int elem;
+	private Identifier id;
 
-	public ChannelTopExpression(ChannelReadAction cra, int elem) {
-		super(new Token(PromelaConstants.NUMBER,"[" + cra.getIdentifier().getVariable().getName() +".nextRead].m"+elem));
-		this.cra = cra;
+	public ChannelTopExpression(Identifier id, int elem) {
+		super(new Token(PromelaConstants.NUMBER,"[" + id.getVariable().getName() +".nextRead].m"+elem));
+		this.id = id;
 		this.elem = elem;
 	}
 
@@ -36,12 +36,18 @@ public class ChannelTopExpression extends Expression {
 		return null;
 	}
 
-	public ChannelReadAction getChannelReadAction() {
-		return cra;
-	}
-
 	public int getElem() {
 		return elem;
 	}
 
+	public boolean equals(Object o) {
+		if (o == null || !(o instanceof ChannelTopExpression))
+			return false;
+		ChannelTopExpression other = (ChannelTopExpression)o;
+		return elem == other.elem && id.equals(other.id);
+	}
+
+	public Identifier getIdentifier() {
+		return id;
+	}
 }

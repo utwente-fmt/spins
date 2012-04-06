@@ -836,8 +836,7 @@ public class LTSminPrinter {
 			w.append(")");
 		} else if(e instanceof ChannelTopExpression) {
 			ChannelTopExpression cte = (ChannelTopExpression)e;
-			ChannelReadAction cra = cte.getChannelReadAction();
-			Identifier id = cra.getIdentifier();
+			Identifier id = cte.getIdentifier();
 			ChannelVariable cv = (ChannelVariable)id.getVariable();
 			int size = cv.getType().getBufferSize();
 			Expression sum = calc(PromelaConstants.PLUS, chanLength(id), chanRead(id));

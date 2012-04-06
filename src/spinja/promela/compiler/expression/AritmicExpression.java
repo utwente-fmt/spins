@@ -97,33 +97,72 @@ public class AritmicExpression extends Expression {
 
 	@Override
 	public int getConstantValue() throws ParseException {
-		switch (getToken().kind) {
-			case PromelaConstants.BAND:
-				return ex1.getConstantValue() & ex2.getConstantValue();
-			case PromelaConstants.BOR:
-				return ex1.getConstantValue() | ex2.getConstantValue();
-			case PromelaConstants.BNOT:
-				return ~ex1.getConstantValue();
-			case PromelaConstants.MINUS:
-				if (ex2 == null) {
-					return -ex1.getConstantValue();
-				} else {
-					return ex1.getConstantValue() - ex2.getConstantValue();
-				}
-			case PromelaConstants.TIMES:
-				return ex1.getConstantValue() * ex2.getConstantValue();
-			case PromelaConstants.DIVIDE:
-				return ex1.getConstantValue() / ex2.getConstantValue();
-			case PromelaConstants.MODULO:
-				return ex1.getConstantValue() % ex2.getConstantValue();
-			case PromelaConstants.PLUS:
-				return ex1.getConstantValue() + ex2.getConstantValue();
-			case PromelaConstants.XOR:
-				return ex1.getConstantValue() ^ ex2.getConstantValue();
-			case PromelaConstants.LSHIFT:
-				return ex1.getConstantValue() << ex2.getConstantValue();
-			case PromelaConstants.RSHIFT:
-				return ex1.getConstantValue() >>> ex2.getConstantValue();
+		try {
+			int lhs = ex1.getConstantValue();
+			switch (getToken().kind) {
+				case PromelaConstants.BAND:
+					if (lhs == 0) return 0;
+					return lhs & ex2.getConstantValue();
+				case PromelaConstants.BOR:
+					return lhs | ex2.getConstantValue();
+				case PromelaConstants.BNOT:
+					return ~lhs;
+				case PromelaConstants.MINUS:
+					if (ex2 == null) {
+						return -lhs;
+					} else {
+						return lhs - ex2.getConstantValue();
+					}
+				case PromelaConstants.TIMES:
+					if (lhs == 0) return 0;
+					return lhs * ex2.getConstantValue();
+				case PromelaConstants.DIVIDE:
+					if (lhs == 0) return 0;
+					return lhs / ex2.getConstantValue();
+				case PromelaConstants.MODULO:
+					if (lhs == 0) return 0;
+					return lhs % ex2.getConstantValue();
+				case PromelaConstants.PLUS:
+					return lhs + ex2.getConstantValue();
+				case PromelaConstants.XOR:
+					return lhs ^ ex2.getConstantValue();
+				case PromelaConstants.LSHIFT:
+					if (lhs == 0) return 0;
+					return lhs << ex2.getConstantValue();
+				case PromelaConstants.RSHIFT:
+					if (lhs == 0) return 0;
+					return lhs >>> ex2.getConstantValue();
+			}
+		} catch (ParseException pe ) {
+			if (null == ex2) {
+				throw new ParseException();
+			}
+			int rhs = ex2.getConstantValue();
+			switch (getToken().kind) {
+				case PromelaConstants.BAND:
+					if (rhs == 0) return 0;
+					return ex1.getConstantValue() & rhs;
+				case PromelaConstants.BOR:
+					return ex1.getConstantValue() | rhs;
+				case PromelaConstants.MINUS:
+					return ex1.getConstantValue() - rhs;
+				case PromelaConstants.TIMES:
+					if (rhs == 0) return 0;
+					return ex1.getConstantValue() * rhs;
+				case PromelaConstants.DIVIDE:
+					return ex1.getConstantValue() / rhs;
+				case PromelaConstants.MODULO:
+					if (rhs <= 0) return 0;
+					return ex1.getConstantValue() % rhs;
+				case PromelaConstants.PLUS:
+					return ex1.getConstantValue() + rhs;
+				case PromelaConstants.XOR:
+					return ex1.getConstantValue() ^ rhs;
+				case PromelaConstants.LSHIFT:
+					return ex1.getConstantValue() << rhs;
+				case PromelaConstants.RSHIFT:
+					return ex1.getConstantValue() >>> rhs;
+			}
 		}
 		throw new MyParseException("Unimplemented aritmic type: " + getToken().image, getToken());
 	}
