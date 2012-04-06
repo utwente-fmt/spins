@@ -908,9 +908,9 @@ void decl_list(VariableContainer store): {
 
 void one_decl(VariableContainer store): {
 }{
-    <TYPEDEF> utype() (<COMMA> utype())*
-|   LOOKAHEAD(3) <MTYPE> mtype() (<COMMA> mtype())*
-|	type=typename()
+    LOOKAHEAD(2) (<SHOW>)? <TYPEDEF> utype() (<COMMA> utype())*
+|   LOOKAHEAD(3) (<SHOW>)? <MTYPE> mtype() (<COMMA> mtype())*
+|	LOOKAHEAD(2) (<SHOW>)? type=typename()
     (LOOKAHEAD( {type instanceof ChannelType} )
 	   ivar_chan(store) (<COMMA> ivar_chan(store))*
 	|  ivar(store, type) (<COMMA> ivar(store, type))*
