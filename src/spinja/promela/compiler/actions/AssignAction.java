@@ -138,7 +138,7 @@ public class AssignAction extends Action {
 	public String toString() {
 		switch (getToken().kind) {
 			case PromelaConstants.ASSIGN:
-				return id.toString() + "=" + expr.toString();
+				return id.toString() + " = " + expr.toString();
 			case PromelaConstants.INCR:
 				return id.toString() + "++";
 			case PromelaConstants.DECR:

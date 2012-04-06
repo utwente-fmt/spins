@@ -71,3 +71,44 @@ reach (void* model, transition_info_t *transition_info, state_t *in,
 	state_db_free (args.seen);
 	return args.outs;
 }
+
+static int to_get;
+static int choice;
+
+void
+sim_cb(void* arg, transition_info_t *ti, state_t *out)
+{
+	state_t *state = (state_t *)arg;
+	if (-1 == to_get) {
+		printf("\tchoice %d: %s\n", ++choice, spinja_get_group_name(ti->group));
+	} else {
+		if (++choice == to_get) {
+			memcpy(state, out, sizeof(state_t));
+		}
+	}
+}
+
+int
+main(int argc, char **argv)
+{
+	state_t state;
+	spinja_get_initial_state(&state);
+	while (true) {
+		printf("Select a statement\n");
+		to_get = -1;
+		choice = 0;
+		int count = spinja_get_successor_all (NULL, &state, sim_cb, NULL);
+		if (0 == count) {
+			printf("no executable choices\n");
+			exit(0);
+		} else {
+	        do {
+	        	printf("Select [1-%d]: ", choice);
+	        	if (scanf("%d", &to_get) != 1) exit(-1);
+	        } while (to_get < 1 || to_get > choice);
+	        printf("%d\n", to_get);
+			choice = 0;
+			int count = spinja_get_successor_all (NULL, &state, sim_cb, &state);
+		}
+	}
+}

@@ -243,7 +243,7 @@ state_db_free (state_db_t *dbs)
 }
 
 int
-main (int argc, char **args)
+test ()
 {
     state_db_t *dbs = state_db_create (10, 2, 10);
     int state[10];

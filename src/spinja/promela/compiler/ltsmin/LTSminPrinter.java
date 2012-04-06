@@ -87,6 +87,7 @@ import spinja.promela.compiler.ltsmin.state.LTSminTypeI;
 import spinja.promela.compiler.ltsmin.state.LTSminTypeStruct;
 import spinja.promela.compiler.ltsmin.state.LTSminVariable;
 import spinja.promela.compiler.parser.ParseException;
+import spinja.promela.compiler.parser.Preprocessor;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
@@ -141,6 +142,7 @@ public class LTSminPrinter {
 		generateAcceptingFunction(w, model);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
+		generateGroupDescriptors(w, model);
 		generateHashTable(w, model);
 		generateReach(w, model);
 	}
@@ -208,7 +210,7 @@ public class LTSminPrinter {
 	}
 	
 	private static void generateHashTable(StringWriter w, LTSminModel model) {
-		if (!model.hasAtomic()) return;
+		//if (!model.hasAtomic()) return;
 		try {
 			w.appendLine(readTextFile(new LTSminPrinter().getClass(), "hashtable.c"));
 		} catch (IOException e) {
@@ -217,7 +219,7 @@ public class LTSminPrinter {
 	}
 
 	private static void generateReach(StringWriter w, LTSminModel model) {
-		if (!model.hasAtomic()) return;
+		//if (!model.hasAtomic()) return;
 		try {
 			w.appendLine(readTextFile(new LTSminPrinter().getClass(), "reach.c"));
 		} catch (IOException e) {
@@ -1082,6 +1084,40 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
+	private static void generateGroupDescriptors(StringWriter w, LTSminModel model) {
+		// Generate static list of names
+		w.appendLine("static const char* group_names[] = {");
+		w.indent();
+		int i = 0;
+		for(LTSminTransition t : model.getTransitions()) {
+			if (0 != i)
+				w.append(",").appendPostfix();
+			Iterator<Action> it = t.getActions().iterator();
+			Action act = null;
+			if (it.hasNext() && it != it.next() && it.hasNext())
+				act = it.next();
+			String name = null == act ? "tau" : act.toString();
+			w.appendPrefix();
+			w.append("\"proc  ? ("+ t.getProcess().getName() +") "+ 
+					Preprocessor.getFileName() +":"+ act.getToken().beginLine +
+					" (state "+ t.getTransition().getTo().getStateId() +") <valid end state> ["+ name +"]\"");
+			i++;
+		}
+		w.outdent().appendPostfix();
+		w.appendLine("};");
+		w.appendLine("");
+
+		w.appendLine("extern const char* spinja_get_group_name(int type) {");
+		w.indent();
+		w.appendLine("assert(type < ",model.getTransitions().size()," && \"spinja_get_group_name: invalid type\");");
+		//String pid = printPID(transition.passesControlAtomically(), out(model));
+		//w.appendLine("snprintf(buf, 1024, group_names[type], "+ pid +");");
+		w.appendLine("return group_names[type];");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine("");
+	}
+	
 	private static void generateEdgeDescriptors(StringWriter w, LTSminModel model) {
 		if (assertions.size() == 1) return; // only the passed assertion is present
 		
@@ -1109,7 +1145,7 @@ public class LTSminPrinter {
 
 		w.appendLine("extern const char* spinja_get_edge_name(int type) {");
 		w.indent();
-		w.appendLine("assert(type < ",assertions.size()," && \"spinja_get_type_name: invalid type\");");
+		w.appendLine("assert(type < ",assertions.size()," && \"spinja_get_edge_name: invalid type\");");
 		w.appendLine("return edge_names[type];");
 		w.outdent();
 		w.appendLine("}");

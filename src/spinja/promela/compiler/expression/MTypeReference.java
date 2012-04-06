@@ -33,6 +33,11 @@ public class MTypeReference extends ConstantExpression {
 	}
 
 	@Override
+	public String toString() {
+		return getToken().image;
+	}
+
+	@Override
 	public VariableType getResultType() {
 		return VariableType.MTYPE;
 	}
