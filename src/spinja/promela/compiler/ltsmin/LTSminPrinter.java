@@ -664,55 +664,51 @@ public class LTSminPrinter {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			Identifier id = csa.getIdentifier();
 			ChannelVariable var = (ChannelVariable)id.getVariable();
-			if(var.getType().getBufferSize()>0) {
-				List<Expression> exprs = csa.getExprs();
-				for (int i = 0; i < exprs.size(); i++) {
-					final Expression expr = exprs.get(i);
-					w.appendPrefix();
-					generateExpression(w, channelTop(id,i), out(model));
-					w.append(" = ");
-					generateExpression(w, expr, out(model));
-					w.append(";");
-					w.appendPostfix();
-				}
-				w.appendLine("++("+ printId(chanLength(id), out(model)) +");");
-			} else {
+			if (0 == var.getType().getBufferSize())
 				throw new AssertionError("Trying to actionise rendezvous send!");
+			List<Expression> exprs = csa.getExprs();
+			for (int i = 0; i < exprs.size(); i++) {
+				final Expression expr = exprs.get(i);
+				w.appendPrefix();
+				generateExpression(w, channelTop(id,i), out(model));
+				w.append(" = ");
+				generateExpression(w, expr, out(model));
+				w.append(";");
+				w.appendPostfix();
 			}
-		} else if(a instanceof ChannelReadAction) {
+			w.appendLine("++("+ printId(chanLength(id), out(model)) +");");
+		} else if (a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			Identifier id = cra.getIdentifier();
 			ChannelVariable var = (ChannelVariable)id.getVariable();
 			int bufferSize = var.getType().getBufferSize();
-			if(bufferSize>0) {
-				List<Expression> exprs = cra.getExprs();
-				for (int i = 0; i < exprs.size(); i++) {
-					final Expression expr = exprs.get(i);
-					if (expr instanceof Identifier) {
-						w.appendPrefix();
-						generateExpression(w, expr, out(model));
-						w.append(" = ");
-						generateExpression(w, channelTop(id,i), out(model));
-						w.append(";");
-						w.appendPostfix();
-					}
-					if (!cra.isPoll()) {
-						w.appendPrefix();
-						generateExpression(w, channelTop(id,i), out(model));
-						w.append(" = ");
-						generateExpression(w, constant(0), out(model));
-						w.append(";");
-						w.appendPostfix();
-					}
+			if (0 == bufferSize)
+				throw new AssertionError("Trying to actionise rendezvous receive!");
+			List<Expression> exprs = cra.getExprs();
+			for (int i = 0; i < exprs.size(); i++) {
+				final Expression expr = exprs.get(i);
+				if (expr instanceof Identifier) {
+					w.appendPrefix();
+					generateExpression(w, expr, out(model));
+					w.append(" = ");
+					generateExpression(w, channelTop(id,i), out(model));
+					w.append(";");
+					w.appendPostfix();
 				}
 				if (!cra.isPoll()) {
-					String read = printId(chanRead(id), out(model));
-					w.appendLine(read," = (", read ,"+1)%"+bufferSize+";");
-					String len = printId(chanLength(id), out(model));
-					w.appendLine("--(", len, ");");
+					w.appendPrefix();
+					generateExpression(w, channelTop(id,i), out(model));
+					w.append(" = ");
+					generateExpression(w, constant(0), out(model));
+					w.append(";");
+					w.appendPostfix();
 				}
-			} else {
-				throw new AssertionError("Trying to actionise rendezvous receive!");
+			}
+			if (!cra.isPoll()) {
+				String read = printId(chanRead(id), out(model));
+				w.appendLine(read," = (", read ,"+1)%"+bufferSize+";");
+				String len = printId(chanLength(id), out(model));
+				w.appendLine("--(", len, ");");
 			}
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
