@@ -444,6 +444,10 @@ public class Proctype implements VariableContainer {
 		this.enabler = enabler;
 	}
 
+	public Expression getEnabler() {
+		return enabler;
+	}
+
 	/**
 	 * Changes the priority of the process.
 	 * 

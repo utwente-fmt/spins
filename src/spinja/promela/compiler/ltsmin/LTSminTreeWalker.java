@@ -4,6 +4,7 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.bool;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanEmptyGuard;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelTop;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.dieGuard;
@@ -208,6 +209,8 @@ public class LTSminTreeWalker {
 
 	private ProcInstance instantiate(Proctype p, int id, int index) {
 		ProcInstance instance = new ProcInstance(p, index, id);
+		Expression e = instantiate(p.getEnabler(), instance);
+		instance.setEnabler(e);
 		for (Variable var : p.getVariables()) {
 			Variable newvar = instantiate(var, instance);
 			instance.addVariable(newvar, p.getArguments().contains(var));
@@ -549,7 +552,7 @@ public class LTSminTreeWalker {
 			debug.say(MessageKind.DEBUG, "[Proc] " + p.getName());
 			for (State st : p.getAutomaton()) {
 				for (State ns : getNeverAutomatonOrNullSet(st.isInAtomic())) {
-					trans = createTransitionsFromState(p,trans,st, ns);
+					trans = createTransitionsFromState(p, trans, st, ns);
 				}
 			}
 		}
@@ -662,6 +665,8 @@ public class LTSminTreeWalker {
 					continue;
 				for (Transition never_t : getOutTransitionsOrNullSet(never_state)) {
 					LTSminTransition lt = createStateTransition(process,trans,t,never_t);
+					if (0 == state.getStateId() && null != process.getEnabler())
+						lt.addGuard(process.getEnabler());
 					model.getTransitions().add(lt);
 					trans++;
 				}
@@ -898,7 +903,7 @@ public class LTSminTreeWalker {
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
 					if (!(expr instanceof Identifier)) {
-						ChannelTopExpression cte = new ChannelTopExpression(cra, i);
+						ChannelTopExpression cte = channelTop(cra.getIdentifier(), i);
 						lt.addGuard(compare(PromelaConstants.EQ,cte,expr));
 					} else {
 						((Identifier)expr).getVariable().setAssignedTo();
