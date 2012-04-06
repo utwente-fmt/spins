@@ -1,7 +1,15 @@
 package spinja.promela.compiler.ltsmin;
 
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanRead;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelTop;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spinja.promela.compiler.parser.Promela.C_TYPE_PROC_COUNTER;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
@@ -18,6 +26,9 @@ import spinja.promela.compiler.actions.ElseAction;
 import spinja.promela.compiler.actions.ExprAction;
 import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.expression.BooleanExpression;
+import spinja.promela.compiler.expression.ChannelLengthExpression;
+import spinja.promela.compiler.expression.ChannelOperation;
+import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
@@ -30,6 +41,8 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
+import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
 import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
@@ -38,8 +51,10 @@ import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.PromelaTokenManager;
+import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
+import spinja.promela.compiler.variable.VariableType;
 
 /**
  *
@@ -210,7 +225,7 @@ public class LTSminGMWalker {
 	}
 	
 	private static boolean mayBeCoenabled(LTSminModel model, LTSminGuard g1, LTSminGuard g2) {
-		return mayBeCoenabled (model, g1.expr, g2.expr);
+		return mayBeCoenabledStronger (model, g1.expr, g2.expr);
 	}
 
 	/**
@@ -336,7 +351,7 @@ public class LTSminGMWalker {
 	private static void extract_predicates(List<SimplePredicate> sp, Expression e) {
 		int c;
 		Identifier var;
-    	if(e instanceof CompareExpression) {
+    	if (e instanceof CompareExpression) {
     		CompareExpression ce1 = (CompareExpression)e;
     		try {
     			var = getConstantVar(ce1.getExpr1());
@@ -349,28 +364,10 @@ public class LTSminGMWalker {
             		sp.add(new SimplePredicate(e.getToken().kind, var, c));
         		} catch (ParseException pe2) {}
     		}
-		}/* else if(e instanceof ChannelTopExpression) {
-			ChannelTopExpression cte = (ChannelTopExpression)e;
-			Identifier id = cte.getChannelReadAction().getIdentifier();
-			ChannelVariable cv = (ChannelVariable)id.getVariable();
-			int i = 0;
-			Identifier chan;
-			for (Expression read : cte.getChannelReadAction().getExprs()) {
-				try { // this is a conjunction of matchings
-					i += 1;
-					chan = getConstantVar(id);
-					Identifier elem = id(elemVar(i));
-					Identifier buf = id(bufferVar(cv), constant(0), elem); // top is equal to top on the same channel!
-					var = new Identifier(chan, buf);
-	    			c = read.getConstantValue();
-            		sp.add(new SimplePredicate(e.getToken().kind, var, c));
-	    		} catch (ParseException pe2) {}
-			}
-		} else if(e instanceof ChannelReadExpression) { //TODO: buffer isBufferVar
+		} else if (e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
-			extract_predicates(sp, compare(PromelaConstants.GT,
-									new ChannelSizeExpression(id), constant(0)));
+			extract_predicates(sp, chanContentsGuard(id));
 			List<Expression> exprs = cre.getExprs();
 			for (int i = 0; i < exprs.size(); i++) {
 				try { // this is a conjunction of matchings
@@ -379,13 +376,16 @@ public class LTSminGMWalker {
 							channelTop(id, i), constant(expr.getConstantValue())));
 		    	} catch (ParseException pe2) {}
 			}
-    	} else if(e instanceof ChannelOperation) {
+    	} else if (e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			String name = co.getToken().image;
 			Identifier id = (Identifier)co.getExpression();
 			VariableType type = id.getVariable().getType();
 			int buffer = ((ChannelType)type).getBufferSize();
-			Expression left = new ChannelSizeExpression(id);
+			Expression left;
+			try {
+				left = new ChannelLengthExpression(null, id);
+			} catch (ParseException e1) { throw new AssertionError(); }
 			Expression right = null;
 			int op = -1;
 			if (name.equals("empty")) {
@@ -402,7 +402,7 @@ public class LTSminGMWalker {
 				right = constant (buffer);
 			}
 			extract_predicates(sp, compare(op, left, right));
-		}*/ else if(e instanceof BooleanExpression) {
+		} else if (e instanceof BooleanExpression) {
     		BooleanExpression ce = (BooleanExpression)e;
     		if (ce.getToken().kind == PromelaTokenManager.BAND ||
     			ce.getToken().kind == PromelaTokenManager.LAND) {
@@ -417,39 +417,38 @@ public class LTSminGMWalker {
 	 * variable or a constant index in array variable (a cvarref).
 	 */
 	private static Identifier getConstantVar(Expression e) throws ParseException {
-		if (e instanceof Identifier) {
+		if (e instanceof LTSminIdentifier) {
+		} else if (e instanceof Identifier) {
 			Identifier id = (Identifier)e;
-			Variable var = id.getVariable();
-			if (var instanceof ChannelVariable)
-				throw new ParseException(); //TODO
-			
+			Variable var = id.getVariable();			
 			Expression ar = id.getArrayExpr();
 			if ((null == ar) != (-1 == var.getArraySize()))
 				throw new AssertionError("Invalid array semantics in expression: "+ id);
 			if (null != ar) { 
 				try {
 					ar = constant(ar.getConstantValue());
-				} catch (ParseException pe) {}
+				} catch (ParseException pe) {} // do nothing. See getRef().
 			}
 			Identifier sub = null;
 			if (null != id.getSub())
 				sub = getConstantVar(id.getSub());
 			return id(var, ar, sub);
-			/*if (var instanceof ChannelVariable) {
-				if (((ChannelVariable)var).getType().getBufferSize() > 1)
-					throw new ParseException();
-			}*/ // only needed for random channel reads; not for topExpr + readExpr \
-		}/* else if (e instanceof ChannelSizeExpression)  {
-			Identifier id = ((ChannelSizeExpression)e).getIdentifier();
-			Variable var = id.getVariable();
-			if (var.getArraySize() > 1)
-				id.getArrayExpr().getConstantValue(); // may throw exception
-			return chanLength(id(var));
 		} else if (e instanceof ChannelLengthExpression)  {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
-			return getConstantVar(new ChannelSizeExpression(id));
-		}*/
+			return getConstantVar(chanLength(id));
+		} else if (e instanceof ChannelTopExpression) {
+			ChannelTopExpression cte = (ChannelTopExpression)e;
+			Identifier id = cte.getChannelReadAction().getIdentifier();
+			ChannelVariable cv = (ChannelVariable)id.getVariable();
+			int size = cv.getType().getBufferSize();
+			Expression sum = calc(PromelaConstants.PLUS, chanLength(id), chanRead(id));
+			Expression mod = calc(PromelaConstants.MODULO, sum, constant(size));
+			Identifier elem = id(elemVar(cte.getElem()));
+			Identifier buf = id(bufferVar(cv), mod, elem);
+			Identifier top = new Identifier(id, buf);
+			return getConstantVar(top);
+		}
 		throw new ParseException();
 	}
 
@@ -459,12 +458,12 @@ public class LTSminGMWalker {
 	    // conflict only possible on same variable
 	    String ref1, ref2;
 	    try {
-		    ref1 = p1.getRef(model);
+		    ref1 = p1.getRef(model); // convert to c code string
 			ref2 = p2.getRef(model);
 	    } catch (AssertionError ae) {
 	    	throw new AssertionError("Serializing of expression "+ p1.id +" or "+ p2.id +" failed: "+ ae);
 	    }
-		if (ref1.equals(ref2)) {
+		if (ref1.equals(ref2)) { // syntactic matching
 	        switch(p1.comparison) {
 	            case PromelaConstants.LT:
 	                // no conflict if one of these cases
