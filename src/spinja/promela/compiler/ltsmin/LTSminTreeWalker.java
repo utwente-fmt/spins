@@ -399,9 +399,7 @@ public class LTSminTreeWalker {
 				throw new AssertionError("ChanOp");
 			}
 		} else if(e instanceof ChannelTopExpression) {
-			ChannelTopExpression cte = (ChannelTopExpression)e;
-			ChannelReadAction newcra = (ChannelReadAction)instantiate(cte.getChannelReadAction(), p, null);
-			return new ChannelTopExpression(newcra, cte.getElem());
+			throw new AssertionError("Unexpected ChannelTopExpression");
 		} else if(e instanceof RunExpression) {
 			RunExpression re = (RunExpression)e;
 			RunExpression newre = new RunExpression(e.getToken(), spec.getProcess(re.getId())); 
@@ -1020,26 +1018,20 @@ state_loop:	for (State st : p.getAutomaton()) {
 		}
 
 		/* Channel matches */
-		try {
-			for (int i = 0; i < cra_exprs.size(); i++) {
-				final Expression csa_expr = csa_exprs.get(i);
-				final Expression cra_expr = cra_exprs.get(i);
-				try { // we skip creating transitions for impotent matches:
-					if (csa_expr.getConstantValue() != cra_expr.getConstantValue())
-						return trans;
-				} catch (ParseException pe) {}
-				if (cra_expr instanceof Identifier) {
-					lt.addAction(assign((Identifier)cra_expr,csa_expr));
-				} else {
-					lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
-				}
+		for (int i = 0; i < cra_exprs.size(); i++) {
+			final Expression csa_expr = csa_exprs.get(i);
+			final Expression cra_expr = cra_exprs.get(i);
+			if (cra_expr instanceof Identifier) {
+				lt.addAction(assign((Identifier)cra_expr,csa_expr));
+			} else {
+				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
 			}
-		} catch (IndexOutOfBoundsException iobe) {} // skip missing arguments TODO: check semantics
+		}
 
 		// Change process counter of sender
-		lt.addAction(assign(model.sv.getPC(sa.p),sa.t.getTo().getStateId()));
+		lt.addAction(assign(model.sv.getPC(sa.p), sa.t.getTo().getStateId()));
 		// Change process counter of receiver
-		lt.addAction(assign(model.sv.getPC(ra.p),ra.t.getTo().getStateId()));
+		lt.addAction(assign(model.sv.getPC(ra.p), ra.t.getTo().getStateId()));
 
 		lt.addGuard(makeInAtomicGuard(sa.p));
 		if (sa.t.isAtomic() && ra.t.isAtomic()) // control passes from sender to receiver
