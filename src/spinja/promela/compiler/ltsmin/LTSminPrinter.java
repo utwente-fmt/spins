@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.regex.Matcher;
 
 import spinja.promela.compiler.ProcInstance;
@@ -1002,7 +1003,7 @@ public class LTSminPrinter {
 		List<String> types = new ArrayList<String>();
 		for (LTSminSlot slot : model.sv) {
 			LTSminVariable var = slot.getVariable();
-			String cType = var.getType().toString();
+			String cType = var.getVariable().getType().getName();
 			if (!types.contains(cType)) {
 				types.add(cType);
 			}
@@ -1011,7 +1012,7 @@ public class LTSminPrinter {
 		w.appendLine("");
 		w.appendLine("static const char* var_types[] = {");
 		w.indent();
-		for (String s: types) {
+		for (String s : types) {
 			w.appendLine("\"",s,"\",");
 		}
 		w.appendLine("\"\"");
@@ -1019,18 +1020,54 @@ public class LTSminPrinter {
 		w.appendLine("};");
 
 		w.appendLine("");
-		for (String s: types) {
-			w.appendLine("static const char* const var_type_",s,"[] = {");
-			w.indent();
-			w.appendLine("\"\"");
-			w.outdent();
-			w.appendLine("};");
+		w.appendLine("static const int var_type[] = {");
+		w.indent();
+		for (LTSminSlot slot : model.sv) {
+			LTSminVariable var = slot.getVariable();
+			String cType = var.getVariable().getType().getName();
+			int num = types.indexOf(cType);
+			w.appendLine(num,",");
 		}
+		w.appendLine("-1");
+		w.outdent();
+		w.appendLine("};");
+
 		w.appendLine("");
+		w.appendLine("static const int var_type_value_count[] = {");
+		w.indent();
+		List<String> mtypes = model.getMTypes();
+		for (String s : types) {
+			if (s.equals("mtype")) {
+				w.appendLine(mtypes.size(),",");				
+			} else {
+				w.appendLine("0,");
+			}
+		}
+		w.appendLine("-1");
+		w.outdent();
+		w.appendLine("};");
+	
+		w.appendLine("");
+		for (String s : types) {
+			w.appendLine("static const char* const var_type_",s,"[] = {");
+			if (s.equals("mtype")) {
+				w.indent();
+				w.appendLine("\"\",");
+				ListIterator<String> it = mtypes.listIterator(mtypes.size());
+				while (it.hasPrevious()) {
+					String mtype = it.previous();
+					w.appendLine("\"",mtype,"\",");
+				}
+				w.appendLine("\"\"");
+				w.outdent();
+			}
+			w.appendLine("};");
+			w.appendLine("");
+		}
+		
 		w.appendLine("static const char* const * const var_type_values[] = {");
 		w.indent();
-
-		for(String s: types)
+		for (String s : types)
 			w.appendLine("var_type_",s,",");
 		w.appendLine("NULL");
 		w.outdent();
@@ -1054,7 +1091,7 @@ public class LTSminPrinter {
 
 		w.appendLine("extern const char* spinja_get_type_name(int type) {");
 		w.indent();
-		w.appendLine("assert(type < ",types.size()," && \"spinja_get_type_name: invalid type\");");
+		w.appendLine("assert(type > -1 && type < ",types.size()," && \"spinja_get_type_name: invalid type\");");
 		w.appendLine("return var_types[type];");
 		w.outdent();
 		w.appendLine("}");
@@ -1062,14 +1099,16 @@ public class LTSminPrinter {
 
 		w.appendLine("extern int spinja_get_type_value_count(int type) {");
 		w.indent();
-		w.appendLine("assert(type < ",types.size()," && \"spinja_get_type_value_count: invalid type\");");
-		w.appendLine("return 0;"); /* FIXME */
+		w.appendLine("assert(type > -1 && type < ",types.size()," && \"spinja_get_type_value_count: invalid type\");");
+		w.appendLine("return var_type_value_count[type];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
 		w.appendLine("extern const char* spinja_get_type_value_name(int type, int value) {");
 		w.indent();
+		w.appendLine("assert(type > -1 && type < ",types.size()," && \"spinja_get_type_value_name: invalid type\");");
+		w.appendLine("assert(value <= var_type_value_count[type] && \"spinja_get_type_value_name: invalid type\");");
 		w.appendLine("return var_type_values[type][value];");
 		w.outdent();
 		w.appendLine("}");
@@ -1077,8 +1116,8 @@ public class LTSminPrinter {
 
 		w.appendLine("extern int spinja_get_state_variable_type(int var) {");
 		w.indent();
-		w.appendLine("assert(var < ",state_size," && \"spinja_get_state_variable_type: invalid variable\");");
-		w.appendLine("return 0;");
+		w.appendLine("assert(var > -1 && var < ",state_size," && \"spinja_get_state_variable_type: invalid variable\");");
+		w.appendLine("return var_type[var];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
@@ -1098,9 +1137,11 @@ public class LTSminPrinter {
 				act = it.next();
 			String name = null == act ? "tau" : act.toString();
 			w.appendPrefix();
-			w.append("\"proc  ? ("+ t.getProcess().getName() +") "+ 
-					Preprocessor.getFileName() +":"+ act.getToken().beginLine +
-					" (state "+ t.getTransition().getTo().getStateId() +") <valid end state> ["+ name +"]\"");
+			int line = null == act ? -1 : act.getToken().beginLine;
+			int id = null == t.getTransition().getTo() ? -1 : t.getTransition().getTo().getStateId();
+			w.append("\"proc  "+ i +" ("+ t.getProcess().getName() +") "+ 
+					Preprocessor.getFileName() +":"+ line +
+					" (state "+ id +") <valid end state> ["+ name +"]\"");
 			i++;
 		}
 		w.outdent().appendPostfix();

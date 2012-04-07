@@ -40,9 +40,11 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 	public LTSminStateVector sv;
 	private DepMatrix depMatrix;
 	private GuardInfo guardInfo;
+	private List<String> mtypes;
 
 	public LTSminModel(String name, LTSminStateVector sv, Specification spec) {
 		this.name = name;
+		mtypes = spec.getMTypes();
 		this.transitions = new ArrayList<LTSminTransition>();
 		this.sv = sv;
 		this.accepting_conditions = new LTSminGuardOr();
@@ -56,6 +58,10 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 		} else {
 			accepting_conditions.addGuard(constant(0));
 		}
+	}
+
+	public List<String> getMTypes() {
+		return mtypes;
 	}
 
 	public LTSminGuardOr getAcceptingConditions() {

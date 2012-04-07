@@ -53,6 +53,10 @@ public class Specification implements Iterable<ProcInstance> {
 		mtypes = new ArrayList<String>();
 	}
 
+	public List<String> getMTypes() {
+		return mtypes;
+	}
+
 	public String getName() {
 		return name;
 	}

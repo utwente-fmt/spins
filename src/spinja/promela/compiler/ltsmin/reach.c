@@ -88,6 +88,24 @@ sim_cb(void* arg, transition_info_t *ti, state_t *out)
 	}
 }
 
+void
+print_state(state_t *state)
+{
+	int *s = (int *)state;
+	int i;
+	for (i = 0; i < spinja_get_state_size(); i++) {
+		printf("%-30s", spinja_get_state_variable_name(i));
+		printf("= ");
+		int type = spinja_get_state_variable_type(i);
+		int c = spinja_get_type_value_count(type);
+		if (0 == c) {
+			printf("%3d\n", s[i]);
+		} else {
+			printf("%s\n", spinja_get_type_value_name(type, s[i]));
+		}
+	}
+}
+
 int
 main(int argc, char **argv)
 {
@@ -99,12 +117,15 @@ main(int argc, char **argv)
 		choice = 0;
 		int count = spinja_get_successor_all (NULL, &state, sim_cb, NULL);
 		if (0 == count) {
-			printf("no executable choices\n");
+			printf("no executable choices\n\n");
+    		print_state(&state);
 			exit(0);
 		} else {
 	        do {
 	        	printf("Select [1-%d]: ", choice);
 	        	if (scanf("%d", &to_get) != 1) exit(-1);
+	        	if (0 == to_get)
+	        		print_state(&state);
 	        } while (to_get < 1 || to_get > choice);
 	        printf("%d\n", to_get);
 			choice = 0;

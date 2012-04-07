@@ -139,7 +139,7 @@ public class ChannelType extends VariableType {
 
 	public void addType(final VariableType type) {
 		final Variable var = new Variable(type, "buffer[(i+first)%buffer.length][" + types.size()
-												+ "]", 1);
+												+ "]", -1);
 		var.setRead(true);
 		var.setWritten(true);
 		vars.addVariable(var);
