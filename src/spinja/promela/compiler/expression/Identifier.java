@@ -70,14 +70,14 @@ public class Identifier extends Expression {
 	 *            The token that is stored for debug reasons.
 	 * @param var
 	 *            The variable to which this identifier points.
-	 * @param expr
+	 * @param arrayExpr
 	 *            The expression that calculates the index in the array.
 	 */
-	public Identifier(final Token token, final Variable var, final Expression expr,
+	public Identifier(final Token token, final Variable var, final Expression arrayExpr,
 			Identifier sub) {
 		super(token);
 		this.var = var;
-		arrayExpr = expr;
+		this.arrayExpr = arrayExpr;
 		this.sub = sub;
 	}
 

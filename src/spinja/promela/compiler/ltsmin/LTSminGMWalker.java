@@ -1,18 +1,15 @@
 package spinja.promela.compiler.ltsmin;
 
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanRead;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelTop;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelBottom;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelNext;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.decr;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.incr;
-import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
-import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.INCR;
@@ -29,7 +26,6 @@ import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.actions.ExprAction;
 import spinja.promela.compiler.actions.OptionAction;
-import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
 import spinja.promela.compiler.expression.ChannelOperation;
@@ -47,7 +43,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
-import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
@@ -59,7 +54,6 @@ import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.PromelaTokenManager;
 import spinja.promela.compiler.variable.ChannelType;
-import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
 
@@ -192,7 +186,7 @@ public class LTSminGMWalker {
 												 	// conj, since to disable the guard, one conjunction needs to be disabled
 		for (SimplePredicate sp2 : sps) {
 			for (Action a : transition.getActions()) { // TODO: assumes that actions do not conflict
-				if (!is_nds_guard(model, sp2, a)) {
+				if (!is_nxs_guard(model, sp2, a, false)) {
 					return false;
 				}
 			}
@@ -200,8 +194,8 @@ public class LTSminGMWalker {
 		return true;
 	}
 
-	private static boolean is_nds_guard(LTSminModel model, SimplePredicate sp2,
-										Action a) {
+	private static boolean is_nxs_guard(LTSminModel model, SimplePredicate sp2,
+										Action a, boolean enabling) {
 		SimplePredicate sp1 = new SimplePredicate();
 		if (a instanceof AssignAction) {
 			AssignAction ae = (AssignAction)a;
@@ -217,20 +211,18 @@ public class LTSminGMWalker {
 					} catch (ParseException e) {
 						return true;
 					}
-					sp1.comparison = PromelaConstants.NEQ;
+					sp1.comparison = enabling ? PromelaConstants.EQ : PromelaConstants.NEQ;
 					if (is_conflict_predicate(model, sp1, sp2))
 						return false;
 					break;
 				case INCR:
 					if (sp1.getRef(model).equals(sp2.getRef(model)))
-						if (sp2.comparison == PromelaConstants.GT || 
-							sp2.comparison == PromelaConstants.GTE)
+						if (enabling ? lt(sp2) : gt(sp2))
 							return false;
 					break;
 				case DECR:
 					if (sp1.getRef(model).equals(sp2.getRef(model)))
-						if (sp2.comparison == PromelaConstants.LT || 
-							sp2.comparison == PromelaConstants.LTE)
+						if (enabling ? gt(sp2) : lt(sp2))
 							return false;
 					break;
 				default:
@@ -238,7 +230,7 @@ public class LTSminGMWalker {
 			}
 		} else if (a instanceof ResetProcessAction) {
 			// ResetProcessAction rpa = (ResetProcessAction)a; //TODO: reset process to init values
-			return is_nds_guard(model, sp2, decr(id(LTSminStateVector._NR_PR)));
+			return is_nxs_guard(model, sp2, decr(id(LTSminStateVector._NR_PR)), enabling);
 		} else if (a instanceof ExprAction) {
 			Expression expr = ((ExprAction)a).getExpression();
 			String sideEffect = null;
@@ -248,13 +240,13 @@ public class LTSminGMWalker {
 			if (sideEffect == null) return true; // simple expressions are guards
 			RunExpression re = (RunExpression)expr;
 			
-			if (!is_nds_guard(model, sp2, incr(id(LTSminStateVector._NR_PR))))
+			if (!is_nxs_guard(model, sp2, incr(id(LTSminStateVector._NR_PR)), enabling))
 				return false;
 
 			for (Proctype p : re.getInstances()) {
 				for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
 					Variable pc = model.sv.getPC(instance);
-					if (!is_nds_guard(model, sp2, assign(pc, 0))) {
+					if (!is_nxs_guard(model, sp2, assign(pc, 0), enabling)) {
 						return false;
 					}
 				}
@@ -263,47 +255,32 @@ public class LTSminGMWalker {
 				for (Variable v : p.getArguments()) {
 					Expression param = rei.next();
 					if (v.getType() instanceof ChannelType) continue; //passed by reference
-					int val;
 					try {
-						val = param.getConstantValue();
-					} catch (ParseException e) { continue; }
-					if (!is_nds_guard(model, sp2, assign(v, val))) {
-						return false;
-					}
+						int val = param.getConstantValue();
+						if (!is_nxs_guard(model, sp2, assign(v, val), enabling)) {
+							return false;
+						}
+					} catch (ParseException e) {}
 				}
 			}
 			for (Action rea : re.getActions()) {
-				if (!is_nds_guard(model, sp2,  rea)) {
+				if (!is_nxs_guard(model, sp2,  rea, enabling)) {
 					return false;
 				}
 			}
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			Identifier id = csa.getIdentifier();
-			ChannelVariable var = (ChannelVariable)id.getVariable();
-			if (0 == var.getType().getBufferSize())
-				throw new AssertionError("Trying to actionise rendezvous send!");
-			List<Expression> exprs = csa.getExprs();
-			for (int i = 0; i < exprs.size(); i++) {
-				final Expression expr = exprs.get(i);
-				int val;
+			for (int i = 0; i < csa.getExprs().size(); i++) {
 				try {
-					val = expr.getConstantValue();
-				} catch (ParseException e) { continue; }
-				
-				ChannelVariable cv = (ChannelVariable)id.getVariable();
-				int size = cv.getType().getBufferSize();
-				Expression sum = calc(PromelaConstants.PLUS, chanLength(id), chanRead(id));
-				Expression mod = calc(PromelaConstants.MODULO, sum, constant(size));
-				Identifier elem = id(elemVar(i));
-				Identifier buf = id(bufferVar(cv), mod, elem);
-				Identifier top = new Identifier(id, buf);
-				
-				if (!is_nds_guard(model, sp2, assign(top, constant(val)))) {
-					return false;
-				}
+					int val = csa.getExprs().get(i).getConstantValue();
+					Identifier next = channelNext(id, i);
+					if (!is_nxs_guard(model, sp2, assign(next, constant(val)), enabling)) {
+						return false;
+					}
+				} catch (ParseException e) {}
 			}
-			return is_nds_guard(model, sp2, incr(chanLength(id)));
+			return is_nxs_guard(model, sp2, incr(chanLength(id)), enabling);
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
 			//OptionAction oa = (OptionAction)a;
 			//for (Sequence seq : oa) {
@@ -313,20 +290,21 @@ public class LTSminGMWalker {
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			Identifier id = cra.getIdentifier();
-			ChannelVariable var = (ChannelVariable)id.getVariable();
-			int bufferSize = var.getType().getBufferSize();
-			if (0 == bufferSize)
-				throw new AssertionError("Trying to actionise rendezvous receive!");	
 			if (!cra.isPoll()) {
-				Identifier read = chanRead(id);
-				AritmicExpression one = calc(PromelaConstants.PLUS, read, constant(1));
-				Expression mod = calc(PromelaConstants.MODULO, one, constant(bufferSize));
-				if (!is_nds_guard(model, sp2, assign(read, mod)))
-					return false;		
-				return is_nds_guard(model, sp2, decr(chanLength(id)));
+				return is_nxs_guard(model, sp2, decr(chanLength(id)), enabling);
 			}
 		}
 		return true;
+	}
+
+	private static boolean lt(SimplePredicate sp2) {
+		return sp2.comparison == PromelaConstants.LT || 
+			sp2.comparison == PromelaConstants.LTE;
+	}
+
+	private static boolean gt(SimplePredicate sp2) {
+		return sp2.comparison == PromelaConstants.GT || 
+			sp2.comparison == PromelaConstants.GTE;
 	}
 
 	/**************
@@ -394,138 +372,9 @@ public class LTSminGMWalker {
 													 // disj, since to re-enable the guard, one disjunction needs to be re-enabled
 		for (SimplePredicate sp2 : sps) {
 			for (Action a : transition.getActions()) { // TODO: assumes that actions do not conflict
-				if (!is_nes_guard(model, sp2, a)) {
+				if (!is_nxs_guard(model, sp2, a, true)) {
 					return false;
 				}
-			}
-		}
-		return true;
-	}
-
-	private static boolean is_nes_guard(LTSminModel model, SimplePredicate sp2,
-										Action a) {
-		SimplePredicate sp1 = new SimplePredicate();
-		if (a instanceof AssignAction) {
-			AssignAction ae = (AssignAction)a;
-			try {
-				sp1.id = getConstantId(ae.getIdentifier(), true);
-			} catch (ParseException e1) {
-				return true;
-			}
-			switch (ae.getToken().kind) {
-				case ASSIGN:
-					try {
-						sp1.constant = ae.getExpr().getConstantValue();
-					} catch (ParseException e) {
-						return true;
-					}
-					sp1.comparison = PromelaConstants.EQ;
-					if (is_conflict_predicate(model, sp1, sp2))
-						return false;
-					break;
-				case INCR:
-					if (sp1.getRef(model).equals(sp2.getRef(model)))
-						if (sp2.comparison == PromelaConstants.LT || 
-							sp2.comparison == PromelaConstants.LTE)
-							return false;
-					break;
-				case DECR:
-					if (sp1.getRef(model).equals(sp2.getRef(model)))
-						if (sp2.comparison == PromelaConstants.GT || 
-							sp2.comparison == PromelaConstants.GTE)
-							return false;
-					break;
-				default:
-					throw new AssertionError("unknown assignment type");
-			}
-		} else if (a instanceof ResetProcessAction) {
-			// ResetProcessAction rpa = (ResetProcessAction)a; //TODO: reset process to init values
-			return is_nes_guard(model, sp2, decr(id(LTSminStateVector._NR_PR)));
-		} else if (a instanceof ExprAction) {
-			Expression expr = ((ExprAction)a).getExpression();
-			String sideEffect = null;
-			try {
-				sideEffect = expr.getSideEffect();
-			} catch (ParseException e) { e.printStackTrace(); }
-			if (sideEffect == null) return true; // simple expressions are guards
-			RunExpression re = (RunExpression)expr;
-			
-			if (!is_nes_guard(model, sp2, incr(id(LTSminStateVector._NR_PR))))
-				return false;
-
-			for (Proctype p : re.getInstances()) {
-				for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
-					Variable pc = model.sv.getPC(instance);
-					if (!is_nes_guard(model, sp2, assign(pc, 0))) {
-						return false;
-					}
-				}
-				//write to the arguments of the target process
-				Iterator<Expression> rei = re.getExpressions().iterator();
-				for (Variable v : p.getArguments()) {
-					Expression param = rei.next();
-					if (v.getType() instanceof ChannelType) continue; //passed by reference
-					int val;
-					try {
-						val = param.getConstantValue();
-					} catch (ParseException e) { continue; }
-					if (!is_nes_guard(model, sp2, assign(v, val))) {
-						return false;
-					}
-				}
-			}
-			for (Action rea : re.getActions()) {
-				if (!is_nes_guard(model, sp2,  rea)) {
-					return false;
-				}
-			}
-		} else if(a instanceof ChannelSendAction) {
-			ChannelSendAction csa = (ChannelSendAction)a;
-			Identifier id = csa.getIdentifier();
-			ChannelVariable var = (ChannelVariable)id.getVariable();
-			if (0 == var.getType().getBufferSize())
-				throw new AssertionError("Trying to actionise rendezvous send!");
-			List<Expression> exprs = csa.getExprs();
-			for (int i = 0; i < exprs.size(); i++) {
-				final Expression expr = exprs.get(i);
-				int val;
-				try {
-					val = expr.getConstantValue();
-				} catch (ParseException e) { continue; }
-				
-				ChannelVariable cv = (ChannelVariable)id.getVariable();
-				int size = cv.getType().getBufferSize();
-				Expression sum = calc(PromelaConstants.PLUS, chanLength(id), chanRead(id));
-				Expression mod = calc(PromelaConstants.MODULO, sum, constant(size));
-				Identifier elem = id(elemVar(i));
-				Identifier buf = id(bufferVar(cv), mod, elem);
-				Identifier top = new Identifier(id, buf);
-				
-				if (!is_nes_guard(model, sp2, assign(top, constant(val)))) {
-					return false;
-				}
-			}
-			return is_nes_guard(model, sp2, incr(chanLength(id)));
-		} else if(a instanceof OptionAction) { // options in a d_step sequence
-			//OptionAction oa = (OptionAction)a;
-			//for (Sequence seq : oa) {
-				//Action act = seq.iterator().next(); // guaranteed by parser
-				//if (act instanceof ElseAction)
-			//}
-		} else if(a instanceof ChannelReadAction) {
-			ChannelReadAction cra = (ChannelReadAction)a;
-			Identifier id = cra.getIdentifier();
-			ChannelVariable var = (ChannelVariable)id.getVariable();
-			int bufferSize = var.getType().getBufferSize();
-			if (0 == bufferSize)
-				throw new AssertionError("Trying to actionise rendezvous receive!");	
-			if (!cra.isPoll()) {
-				Identifier read = chanRead(id);
-				AritmicExpression one = calc(PromelaConstants.PLUS, read, constant(1));
-				Expression mod = calc(PromelaConstants.MODULO, one, constant(bufferSize));
-				if (!is_nes_guard(model, sp2, assign(read, mod)))
-					return false;		
-				return is_nes_guard(model, sp2, decr(chanLength(id)));
 			}
 		}
 		return true;
@@ -706,9 +555,10 @@ public class LTSminGMWalker {
 			List<Expression> exprs = cre.getExprs();
 			for (int i = 0; i < exprs.size(); i++) {
 				try { // this is a conjunction of matchings
-					final Expression expr = exprs.get(i);
+					int val = exprs.get(i).getConstantValue();
+					Identifier read = channelBottom(id, i);
 					CompareExpression compare = compare(PromelaConstants.EQ,
-							channelTop(id, i), constant(expr.getConstantValue()));
+														read, constant(val));
 					extract_predicates(sp, compare, strict, conj);
 		    	} catch (ParseException pe2) {}
 			}
@@ -718,10 +568,7 @@ public class LTSminGMWalker {
 			Identifier id = (Identifier)co.getExpression();
 			VariableType type = id.getVariable().getType();
 			int buffer = ((ChannelType)type).getBufferSize();
-			Expression left;
-			try {
-				left = new ChannelLengthExpression(null, id);
-			} catch (ParseException e1) { throw new AssertionError(); }
+			Expression left = chanLength(id);
 			Expression right = null;
 			int op = -1;
 			if (name.equals("empty")) {
@@ -783,17 +630,6 @@ public class LTSminGMWalker {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
 			return getConstantId(chanLength(id), strict);
-		} else if (e instanceof ChannelTopExpression) {
-			ChannelTopExpression cte = (ChannelTopExpression)e;
-			Identifier id = cte.getIdentifier();
-			ChannelVariable cv = (ChannelVariable)id.getVariable();
-			int size = cv.getType().getBufferSize();
-			Expression sum = calc(PromelaConstants.PLUS, chanLength(id), chanRead(id));
-			Expression mod = calc(PromelaConstants.MODULO, sum, constant(size));
-			Identifier elem = id(elemVar(cte.getElem()));
-			Identifier buf = id(bufferVar(cv), mod, elem);
-			Identifier top = new Identifier(id, buf);
-			return getConstantId(top, strict);
 		}
 		throw new ParseException();
 	}
@@ -816,14 +652,14 @@ public class LTSminGMWalker {
 	                no_conflict =
 	                (p2.constant < p1.constant - 1) ||
 	                (p2.constant == p1.constant - 1 && p2.comparison != PromelaConstants.GT) ||
-	                (p2.comparison == PromelaConstants.LT || p2.comparison == PromelaConstants.LTE || p2.comparison == PromelaConstants.NEQ);
+	                (lt(p2) || p2.comparison == PromelaConstants.NEQ);
 	                break;
 	            case PromelaConstants.LTE:
 	                // no conflict if one of these cases
 	                no_conflict =
 	                (p2.constant < p1.constant) ||
 	                (p2.constant == p1.constant && p2.comparison != PromelaConstants.GT) ||
-	                (p2.comparison == PromelaConstants.LT || p2.comparison == PromelaConstants.LTE || p2.comparison == PromelaConstants.NEQ);
+	                (lt(p2) || p2.comparison == PromelaConstants.NEQ);
 	                break;
 	            case PromelaConstants.EQ:
 	                // no conflict if one of these cases
@@ -831,7 +667,7 @@ public class LTSminGMWalker {
 	                (p2.constant == p1.constant && (p2.comparison == PromelaConstants.EQ || p2.comparison == PromelaConstants.LTE || p2.comparison == PromelaConstants.GTE)) ||
 	                (p2.constant != p1.constant && p2.comparison == PromelaConstants.NEQ) ||
 	                (p2.constant < p1.constant && p2.comparison == PromelaConstants.GT || p2.comparison == PromelaConstants.GTE) ||
-	                (p2.constant > p1.constant && (p2.comparison == PromelaConstants.LT || p2.comparison == PromelaConstants.LTE));
+	                (p2.constant > p1.constant && lt(p2));
 	                break;
 	            case PromelaConstants.NEQ:
 	                // no conflict if one of these cases
@@ -844,14 +680,14 @@ public class LTSminGMWalker {
 	                no_conflict =
 	                (p2.constant > p1.constant + 1) ||
 	                (p2.constant == p1.constant + 1 && p2.comparison != PromelaConstants.LT) ||
-	                (p2.comparison == PromelaConstants.GT || p2.comparison == PromelaConstants.GTE || p2.comparison == PromelaConstants.NEQ);
+	                (gt(p2) || p2.comparison == PromelaConstants.NEQ);
 	                break;
 	            case PromelaConstants.GTE:
 	                // no conflict if one of these cases
 	                no_conflict =
 	                (p2.constant > p1.constant) ||
 	                (p2.constant == p1.constant && p2.comparison != PromelaConstants.LT) ||
-	                (p2.comparison == PromelaConstants.GT || p2.comparison == PromelaConstants.GTE || p2.comparison == PromelaConstants.NEQ);
+	                (gt(p2) || p2.comparison == PromelaConstants.NEQ);
 	                break;
 	        }
 	    }

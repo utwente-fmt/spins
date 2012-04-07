@@ -4,7 +4,6 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.bool;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanEmptyGuard;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelTop;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.dieGuard;
@@ -12,6 +11,8 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.makeTranstionName;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -62,7 +63,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
-import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
@@ -401,8 +401,6 @@ public class LTSminTreeWalker {
 			} catch (ParseException e1) {
 				throw new AssertionError("ChanOp");
 			}
-		} else if(e instanceof ChannelTopExpression) {
-			throw new AssertionError("Unexpected ChannelTopExpression");
 		} else if(e instanceof RunExpression) {
 			RunExpression re = (RunExpression)e;
 			RunExpression newre = new RunExpression(e.getToken(), spec.getProcess(re.getId())); 
@@ -646,7 +644,9 @@ public class LTSminTreeWalker {
 
 		// Check if it is an ending state
 		if (state.sizeOut() == 0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
-			LTSminTransition lt = makeTransition(process, trans, state, process.getName() +"_end");
+			Transition t = state.newTransition(null);
+			LTSminTransition lt = makeTransition(process, trans, t, null, null);
+			lt.setName(lt.getName() +"_end");
 			model.getTransitions().add(lt);
 
 			lt.addGuard(pcGuard(model, state, process));
@@ -676,7 +676,7 @@ public class LTSminTreeWalker {
 	}
 
 	private LTSminLocalGuard makeInAtomicGuard(ProcInstance process) {
-		Identifier id = new LTSminIdentifier(new Variable(VariableType.BOOL, "atomic", -1));
+		Identifier id = new LTSminIdentifier(new Variable(VariableType.BOOL, "atomic", -1), true);
 		Variable pid = model.sv.getPID(process);
 		BooleanExpression boolExpr = bool(PromelaConstants.LOR,
 				compare(PromelaConstants.EQ, id, constant(-1)),
@@ -736,7 +736,6 @@ public class LTSminTreeWalker {
 
 	private LTSminTransition createStateTransition(ProcInstance process, int trans,
 											Transition t, Transition never_t) {
-		String t_name = makeTranstionName(t, null, never_t);
 		++debug.say_indent;
 		if(never_t!=null) {
 			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName() + " || " + never_t.getClass().getName());
@@ -745,7 +744,7 @@ public class LTSminTreeWalker {
 		}
 		--debug.say_indent;
 
-		LTSminTransition lt = makeTransition(process, trans, t, t_name);
+		LTSminTransition lt = makeTransition(process, trans, t, never_t, null);
 
         // never claim executes first
         if (never_t != null) {
@@ -813,19 +812,13 @@ public class LTSminTreeWalker {
 		return lt;
 	}
 
-    private LTSminTransition makeTransition(Proctype process, int trans,
-			State from, String t_name) {
-		Transition t = from.newTransition(null);
-		return makeTransition(process, trans, t, t_name);
-	}
-
 	private LTSminTransition makeTransition(Proctype process, int trans,
-											Transition t, String t_name) {
+							Transition t, Transition never_t, Transition sync_t) {
 		LTSminTransition lt;
 		if (t == null || !t.isAtomic()) {
-			lt = new LTSminTransition(t, trans, t_name, process);
+			lt = new LTSminTransition(trans, t, sync_t, never_t, process);
 		} else {
-			lt = new LTSminTransitionCombo(t, trans, t_name, process);
+			lt = new LTSminTransitionCombo(trans, t, sync_t, never_t, process);
 		}
 		Set <LTSminTransition> set = t2t.get(t);
 		if (null == set) {
@@ -896,18 +889,21 @@ public class LTSminTreeWalker {
 			throw new AssertionError("ElseAction outside OptionAction!");
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
-			ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
-			if(var.getType().getBufferSize()>0) {
+			Identifier id = cra.getIdentifier();
+			ChannelVariable cv = (ChannelVariable)id.getVariable();
+			if(cv.getType().getBufferSize()>0) {
 				List<Expression> exprs = cra.getExprs();
-				lt.addGuard(chanContentsGuard(cra.getIdentifier()));
+				lt.addGuard(chanContentsGuard(id));
 				// Compare constant arguments with channel content
 				for (int i = 0; i < exprs.size(); i++) {
 					final Expression expr = exprs.get(i);
 					if (!(expr instanceof Identifier)) {
-						ChannelTopExpression cte = channelTop(cra.getIdentifier(), i);
-						lt.addGuard(compare(PromelaConstants.EQ,cte,expr));
+						Identifier elem = id(elemVar(i));
+						Identifier buf = id(bufferVar(cv), constant(0), elem);
+						Identifier next = new Identifier(id, buf);
+						lt.addGuard(compare(PromelaConstants.EQ,next,expr));
 					} else {
-						((Identifier)expr).getVariable().setAssignedTo();
+						((Identifier)expr).getVariable().setAssignedTo(); // TODO: use setWritten and optimize for arguments that get assigned constants
 					}
 				}
 			} else {
@@ -950,7 +946,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 	 * @param tt The TimeoutTransition
 	 */
 	public int createTotalTimeout(State from, int trans, Proctype process) {
-		LTSminTransition lt = makeTransition(process, trans, from, "total timeout");
+		LTSminTransition lt = makeTransition(process, trans, from.newTransition(null), null, null);
+		lt.setName(lt.getName() +"_total_timeout");
 		LTSminGuardOr gor = new LTSminGuardOr();
 		lt.addGuard(gor);
 		model.getTransitions().add(lt);
@@ -995,7 +992,6 @@ state_loop:	for (State st : p.getAutomaton()) {
 	private int createRendezVousTransition(SendAction sa, ReadAction ra,
 										   int trans, Transition never_t) {
 		if (sa.p == ra.p) return trans; // skip impotent matches
-		String name = makeTranstionName(sa.t, ra.t, never_t);
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
 		List<Expression> csa_exprs = csa.getExprs();
@@ -1010,7 +1006,7 @@ state_loop:	for (State st : p.getAutomaton()) {
 				} catch (ParseException pe) {}
 			}
 		} catch (IndexOutOfBoundsException iobe) {} // skip missing arguments
-		LTSminTransition lt = makeTransition(ra.p, trans, ra.t, name);
+		LTSminTransition lt = makeTransition(ra.p, trans, ra.t, never_t, sa.t);
 
 		lt.addGuard(pcGuard(model, sa.t.getFrom(), sa.p));
 		lt.addGuard(pcGuard(model, ra.t.getFrom(), ra.p));

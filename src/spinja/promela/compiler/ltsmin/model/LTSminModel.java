@@ -1,6 +1,7 @@
 package spinja.promela.compiler.ltsmin.model;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -13,6 +14,8 @@ import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
+import spinja.promela.compiler.variable.Variable;
+import spinja.promela.compiler.variable.VariableType;
 
 /**
  * An LTSmin model consists is derived from a SpinJa Specification and
@@ -41,6 +44,8 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 	private DepMatrix depMatrix;
 	private GuardInfo guardInfo;
 	private List<String> mtypes;
+	public final Variable index = new Variable(VariableType.INT, "i", -1);
+	private List<Variable> locals = Arrays.asList(index);
 
 	public LTSminModel(String name, LTSminStateVector sv, Specification spec) {
 		this.name = name;
@@ -58,6 +63,10 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 		} else {
 			accepting_conditions.addGuard(constant(0));
 		}
+	}
+
+	public List<Variable> getLocals() {
+		return locals;
 	}
 
 	public List<String> getMTypes() {

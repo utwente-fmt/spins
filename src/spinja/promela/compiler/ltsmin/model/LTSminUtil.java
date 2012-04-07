@@ -1,7 +1,8 @@
 package spinja.promela.compiler.ltsmin.model;
 
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_FILL_VAR;
-import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_READ_VAR;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spinja.promela.compiler.parser.PromelaConstants.IDENTIFIER;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.AssignAction;
@@ -21,13 +22,27 @@ import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelType;
+import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 
 public class LTSminUtil {
 
 	/** Expressions **/
-	public static ChannelTopExpression channelTop(Identifier id, int i) {
-		return new ChannelTopExpression(id, i);
+	public static Identifier channelBottom(Identifier id, int elem) {
+		return channelIndex(id, constant(0), elem) ;
+	}
+
+	public static Identifier channelNext(Identifier id, int elem) {
+		return channelIndex(id, chanLength(id), elem) ;
+	}
+
+	public static Identifier channelIndex(Identifier id, Expression index, int elem) {
+		ChannelVariable cv = (ChannelVariable)id.getVariable();
+		int size = cv.getType().getBufferSize();
+		if (1 == size) index = constant(0);
+		Identifier m = id(elemVar(elem));
+		Identifier buf = id(bufferVar(cv), index, m);
+		return new Identifier(id, buf);
 	}
 
 	public static AssignAction assign(Variable v, Expression expr) {
@@ -58,8 +73,8 @@ public class LTSminUtil {
 		return new Identifier(new Token(IDENTIFIER,v.getName()), v, constant(c), null);
 	}
 
-	public static Identifier id(Variable v, Expression mod, Identifier sub) {
-		return new Identifier(new Token(IDENTIFIER,v.getName()), v, mod, sub);
+	public static Identifier id(Variable v, Expression arrayExpr, Identifier sub) {
+		return new Identifier(new Token(IDENTIFIER,v.getName()), v, arrayExpr, sub);
 	}
 
 	public static CompareExpression compare(int m, Expression e1, Expression e2) {
@@ -87,10 +102,6 @@ public class LTSminUtil {
 
 	public static Identifier chanLength(Identifier id) {
 		return new Identifier(id, CHAN_FILL_VAR);
-	}
-
-	public static Identifier chanRead(Identifier id) {
-		return new Identifier(id, CHAN_READ_VAR);
 	}
 	
 	/** Guards **/

@@ -1,14 +1,11 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanRead;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelTop;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelBottom;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelIndex;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelNext;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
-import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
-import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 
 import java.util.List;
 
@@ -45,7 +42,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
-import spinja.promela.compiler.ltsmin.model.ChannelTopExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
@@ -57,8 +53,8 @@ import spinja.promela.compiler.ltsmin.state.LTSminSubVector;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelType;
-import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
+import spinja.promela.compiler.variable.VariableType;
 
 /**
  * Traverses LTSminModel structure and records read/write dependencies of
@@ -75,6 +71,9 @@ import spinja.promela.compiler.variable.Variable;
  */
 public class LTSminDMWalker {
 
+	// An expression without constant value, to be used as unknow array index: 
+	static final Identifier STAR = new LTSminIdentifier(new Variable(VariableType.INT, "STAR", -1));
+	
 	static public class Params {
 		public final LTSminModel model;
 		public final LTSminStateVector sv;
@@ -251,7 +250,7 @@ public class LTSminDMWalker {
 			Identifier id = csa.getIdentifier();
 			int m = 0;
 			for (Expression e : csa.getExprs()) {
-				Expression top = channelTop(id, m++);
+				Expression top = channelNext(id, m++);
 				walkExpression(params, top, MarkAction.WRITE);
 				walkExpression(params, e, MarkAction.READ);
 			}
@@ -260,22 +259,22 @@ public class LTSminDMWalker {
 			ChannelReadAction cra = (ChannelReadAction)a;			
 			Identifier id = cra.getIdentifier();
 			int m = 0;
+			// the read action itself:
 			for (Expression e : cra.getExprs()) {
-				Expression top = channelTop(id, m++);
+				Expression read = channelBottom(id, m++);
 				if (e instanceof Identifier) { // otherwise it is a guard!
 					walkExpression(params, e, MarkAction.WRITE);
-					walkExpression(params, top, MarkAction.READ);
-				}
-				if (!cra.isPoll()) {
-					walkExpression(params, top, MarkAction.WRITE);
+					walkExpression(params, read, MarkAction.READ);
 				}
 			}
-			if (cra.isPoll()) {
-				walkExpression(params, chanLength(id), MarkAction.READ);
-				walkExpression(params, chanRead(id), MarkAction.READ);
-			} else {
+			if (!cra.isPoll()) {
 				walkExpression(params, chanLength(id), MarkAction.BOTH);
-				walkExpression(params, chanRead(id), MarkAction.BOTH);
+				// the replacement action:
+				m = 0;
+				for (@SuppressWarnings("unused") Expression e : cra.getExprs()) {
+					Expression buf = channelIndex(id, STAR, m++);
+					walkExpression(params, buf, MarkAction.BOTH);
+				}
 			}
 		} else { // Handle not yet implemented action
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
@@ -302,7 +301,8 @@ public class LTSminDMWalker {
 
 		public void mark(Expression e) {
 			if (null == e) return;
-			if (e instanceof Identifier) {
+			if (e instanceof LTSminIdentifier) {
+			} else if (e instanceof Identifier) {
 				Identifier id = (Identifier)e;
 				LTSminSubVector sub = params.sv.sub(id.getVariable());
 				try {
@@ -338,7 +338,7 @@ public class LTSminDMWalker {
 	}
 
 	static void walkExpression(Params params, Expression e, MarkAction mark) {
-		if (mark == MarkAction.WRITE && !(e instanceof Identifier || e instanceof ChannelTopExpression))
+		if (mark == MarkAction.WRITE && !(e instanceof Identifier))
 			throw new AssertionError("Only identifiers and TopExpressions can be written to!");
 		if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {
@@ -389,29 +389,16 @@ public class LTSminDMWalker {
 			// mark variables as read
 			int m = 0;
 			for (Expression expr : cre.getExprs()) {
-				Expression top = channelTop(id, m++);
-				walkExpression(params, top, mark);
+				Expression read = channelBottom(id, m++);
+				walkExpression(params, read, mark);
 				walkExpression(params, expr, mark);
 			}
-			walkExpression(params, chanRead(id), mark);
-			walkExpression(params, chanLength(id), mark);
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			Identifier id = (Identifier)co.getExpression();
 			ChannelType ct = (ChannelType)id.getVariable().getType();
 			if (0 != ct.getBufferSize()) // chanops on rendez-vous return true
 				walkExpression(params, chanLength(id), mark);
-		} else if(e instanceof ChannelTopExpression) {
-			ChannelTopExpression cte = (ChannelTopExpression)e;
-			Identifier id = cte.getIdentifier();
-			ChannelVariable cv = (ChannelVariable)id.getVariable();
-			int size = cv.getType().getBufferSize();
-			Expression sum = calc(PromelaConstants.PLUS, chanLength(id), chanRead(id));
-			Expression mod = calc(PromelaConstants.MODULO, sum, constant(size));
-			Identifier elem = id(elemVar(cte.getElem()));
-			Identifier buf = id(bufferVar(cv), mod, elem);
-			Identifier top = new Identifier(id, buf);
-			walkExpression(params, top, mark);
 		} else if(e instanceof RunExpression) {
 			DMIncRead(params, _NR_PR); // only the guard!
 		} else if(e instanceof MTypeReference) {

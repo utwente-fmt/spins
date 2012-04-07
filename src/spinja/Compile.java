@@ -78,7 +78,7 @@ public class Compile {
 					}
 					if (verbose) System.out.println(proc.getAutomaton());
 				}
-				System.out.println("  "+ opt.getClass().getSimpleName() +" changed "+ reduction +" states/transitions.");
+				System.out.println("   "+ opt.getClass().getSimpleName() +" changed "+ reduction +" states/transitions.");
 			}
 
 			final Proctype never = spec.getNever();
@@ -90,7 +90,7 @@ public class Compile {
 				for (final GraphOptimizer opt : optimizers) {
 					if (opt == null) continue;
 					int reduction = opt.optimize(never.getAutomaton());
-					System.out.println("  "+ opt.getClass().getSimpleName() +" reduces "+ reduction +" states");
+					System.out.println("   "+ opt.getClass().getSimpleName() +" reduces "+ reduction +" states");
 					if (verbose) {
 						System.out.println("After " + opt.getClass().getSimpleName() + ":");
 						System.out.println(never.getAutomaton());

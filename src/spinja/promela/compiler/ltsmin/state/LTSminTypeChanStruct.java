@@ -11,7 +11,6 @@ import spinja.promela.compiler.variable.VariableType;
  */
 public class LTSminTypeChanStruct extends LTSminTypeStruct {
 
-	public static final Variable CHAN_READ_VAR = new Variable(VariableType.SHORT, "nextRead", -1);
 	public static final Variable CHAN_FILL_VAR = new Variable(VariableType.SHORT, "filled", -1);
 	public static final String CHAN_BUF = "buffer";
 
@@ -30,7 +29,6 @@ public class LTSminTypeChanStruct extends LTSminTypeStruct {
 	
 	public LTSminTypeChanStruct(ChannelVariable cv) {
 		super(wrapName(cv.getName()));
-		addMember(new LTSminVariable(CHAN_READ_VAR, this));
 		addMember(new LTSminVariable(CHAN_FILL_VAR, this));
 		LTSminTypeStruct buf = new LTSminTypeStruct(CHAN_BUF_PREFIX + cv.getName());
 		for (Variable var : cv.getType().getVariableStore().getVariables())
