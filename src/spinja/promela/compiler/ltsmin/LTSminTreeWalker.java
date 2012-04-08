@@ -875,7 +875,7 @@ public class LTSminTreeWalker {
 	 * @param trans The transition group ID to use for generation.
 	 * @throws ParseException
 	 */
-	public void createEnabledGuard(Action a, LTSminGuardContainer lt) throws ParseException {
+	public static void createEnabledGuard(Action a, LTSminGuardContainer lt) throws ParseException {
 		if (a instanceof AssignAction) {
 			AssignAction ae = (AssignAction)a;
 			ae.getIdentifier().getVariable().setAssignedTo();
@@ -903,7 +903,6 @@ public class LTSminTreeWalker {
 			}
 			lt.addGuard(orc);
 		} else if(a instanceof ElseAction) {
-			throw new AssertionError("ElseAction outside OptionAction!");
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			Identifier id = cra.getIdentifier();

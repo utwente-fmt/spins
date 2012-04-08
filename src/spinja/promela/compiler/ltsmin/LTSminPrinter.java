@@ -625,16 +625,12 @@ public class LTSminPrinter {
 				else
 					w.appendPrefix().append("if (");
 				Action guardAction = seq.iterator().next();
-				if (guardAction instanceof ElseAction) {
-					w.append("true");
-				} else if (guardAction instanceof AssignAction) {
-					w.append("true");
-				} else if (guardAction instanceof ExprAction) {
-					ExprAction ea = (ExprAction)guardAction;
-					generateExpression(w, ea.getExpression(), out(model));
-				} else {
-					throw new AssertionError("Guard action not implemented for d_step option: "+ guardAction);
-				}
+				LTSminGuardAnd ag = new LTSminGuardAnd();
+				try {
+					LTSminTreeWalker.createEnabledGuard(guardAction, ag);
+				} catch (ParseException e) { throw new AssertionError(e); }
+				generateGuard(w, model, ag);
+			
 				w.append(") {").appendPostfix();
 				w.indent();
 				for (Action act : seq) {

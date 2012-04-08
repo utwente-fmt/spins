@@ -38,8 +38,8 @@ public class LTSminUtil {
 
 	public static Identifier channelIndex(Identifier id, Expression index, int elem) {
 		ChannelVariable cv = (ChannelVariable)id.getVariable();
-		int size = cv.getType().getBufferSize();
-		if (1 == size) index = constant(0);
+		//int size = cv.getType().getBufferSize();
+		//if (1 == size) index = constant(0);
 		Identifier m = id(elemVar(elem));
 		Identifier buf = id(bufferVar(cv), index, m);
 		return new Identifier(id, buf);

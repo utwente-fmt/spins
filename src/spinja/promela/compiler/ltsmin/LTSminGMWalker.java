@@ -567,6 +567,8 @@ public class LTSminGMWalker {
 			ChannelOperation co = (ChannelOperation)e;
 			String name = co.getToken().image;
 			Identifier id = (Identifier)co.getExpression();
+			if (0 == ((ChannelType)id.getVariable().getType()).getBufferSize())
+				return; // Spin returns true in this case (see garp model)
 			VariableType type = id.getVariable().getType();
 			int buffer = ((ChannelType)type).getBufferSize();
 			Expression left = chanLength(id);

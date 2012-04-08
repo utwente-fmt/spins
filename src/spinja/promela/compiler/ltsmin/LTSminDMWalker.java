@@ -4,6 +4,8 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelBottom;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelIndex;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelNext;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 
@@ -228,19 +230,17 @@ public class LTSminDMWalker {
 			}
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
 			OptionAction oa = (OptionAction)a;
+			LTSminGuardAnd orc = new LTSminGuardAnd();
 			for (Sequence seq : oa) {
-				Action ea = seq.iterator().next();
+				Action act = seq.iterator().next();
 				try {
-					walkExpression(params, ((ExprAction)ea).getExpression(), MarkAction.READ);
-				} catch (ClassCastException e) {
-					assert (ea instanceof ElseAction);
-				}
-				for (Action act : seq) {
-					if (act != ea) {
-						walkAction(params, act);
-					}
+					LTSminTreeWalker.createEnabledGuard(act, orc);
+				} catch (ParseException e) { throw new AssertionError(e); }
+				for (Action sa : seq) {
+					walkAction(params, sa);
 				}
 			}
+			walkGuard(params, orc);
 		} else if(a instanceof BreakAction) {
 			// noop
 		} else if(a instanceof ElseAction) {
