@@ -17,8 +17,9 @@ public class LTSminTransitionCombo extends LTSminTransition {
 	
 	private String name;
 
-	public LTSminTransitionCombo(Transition t, int group, String name,Proctype p) {
-		super(t, group, name, p);
+	public LTSminTransitionCombo(int group, Transition t, Transition sync_t,
+								 Transition never_t, Proctype p) {
+		super(group, t, sync_t, never_t, p);
 		transitions = new HashSet<LTSminTransition>();
 	}
 

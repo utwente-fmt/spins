@@ -38,16 +38,20 @@ public class LTSminTransition implements LTSminGuardContainer {
 	private Proctype process;
 	private	List<LTSminGuardBase> guards;
 	private List<Action> actions;
-	private Transition t;
+	private Transition original;
+	private Transition never;
+	private Transition sync;
 	private Proctype passControl = null;
 	
 
-	public LTSminTransition(Transition t, int group, String name, Proctype process) {
+	public LTSminTransition(int group, Transition t, Transition sync,
+							Transition never, Proctype process) {
 		this(group);
 		assert (t != null);
-		this.t = t;
+		this.original = t;
 		this.process = process;
-		this.name = name;
+		this.sync = sync;
+		this.setNever(never);
 		this.guards = new LinkedList<LTSminGuardBase>();
 		this.actions = new ArrayList<Action>();
 	}
@@ -65,14 +69,6 @@ public class LTSminTransition implements LTSminGuardContainer {
 */
 	public String toString() {
 		return name;
-	}
-	
-	public String getName() {
-		return name;
-	}
-
-	public void setName(String name) {
-		this.name = name;
 	}
 
 	public Proctype getProcess() {
@@ -143,15 +139,15 @@ public class LTSminTransition implements LTSminGuardContainer {
 	}
 
 	public boolean entersAtomic() {
-		return !t.getFrom().isInAtomic() && t.getTo() != null && t.getTo().isInAtomic();
+		return !original.getFrom().isInAtomic() && original.getTo() != null && original.getTo().isInAtomic();
 	}
 
 	public boolean leavesAtomic() {
-		return t.getFrom().isInAtomic() && (t.getTo() == null || !t.getTo().isInAtomic());
+		return original.getFrom().isInAtomic() && (original.getTo() == null || !original.getTo().isInAtomic());
 	}
 	
 	public boolean isAtomic() {
-		return t.getFrom().isInAtomic() || (t.getTo() != null && t.getTo().isInAtomic());
+		return original.getFrom().isInAtomic() || (original.getTo() != null && original.getTo().isInAtomic());
 	}
 
 	public Proctype passesControlAtomically() {
@@ -163,6 +159,65 @@ public class LTSminTransition implements LTSminGuardContainer {
 	}
 
 	public Transition getTransition() {
-		return t;
+		return original;
+	}
+
+	public Transition getNever() {
+		return never;
+	}
+
+	public void setNever(Transition never) {
+		this.never = never;
+	}
+
+	public Transition getSync() {
+		return sync;
+	}
+
+	public void setSync(Transition sync) {
+		this.sync = sync;
+	}
+	
+	public String makeTranstionName(Transition t) {
+		String t_name = t.getFrom().getAutomaton().getProctype().getName();
+		t_name += "("+ t.getFrom().getStateId() +"-->";
+		return t_name + (t.getTo()== null ? "end" : t.getTo().getStateId()) +")";
+	}
+
+	public String getName() {
+		if (null != name)
+			return name;
+		String name = makeTranstionName(original);
+		if (sync != null)
+			name += " X "+ makeTranstionName(sync);
+		if (never != null)
+			name += " X "+ makeTranstionName(never);
+		try {
+			name += "\t["+ original.getAction(0);
+		} catch (IndexOutOfBoundsException iobe) {
+			name += "\t[tau";
+		}
+		if (sync != null) {
+			try {
+				name += " X "+ sync.getAction(0) +"";
+			} catch (IndexOutOfBoundsException iobe) {
+				name += " X tau";
+			}
+		}
+		if (never != null) {
+			try {
+				name += " X "+ never.getAction(0) +"";
+			} catch (IndexOutOfBoundsException iobe) {
+				name += " X tau";
+			}
+		}
+		name += "]";
+		return this.name = name;
+	}
+
+	public String setName(String name) {
+		String old = this.name;
+		this.name = name;
+		return old;
 	}
 }

@@ -7,7 +7,6 @@ import static spinja.promela.compiler.parser.PromelaConstants.IDENTIFIER;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.AssignAction;
 import spinja.promela.compiler.automaton.State;
-import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
@@ -144,22 +143,6 @@ public class LTSminUtil {
 	}
 
 	/** Strings **/
-	public static String makeTranstionName(Transition t) {
-		String t_name = t.getFrom().getAutomaton().getProctype().getName();
-		t_name += "("+ t.getFrom().getStateId() +"-->";
-		return t_name + (t.getTo()== null ? "end" : t.getTo().getStateId()) +")";
-	}
-
-	public static String makeTranstionName(Transition t, Transition sync_t,
-									 Transition never_t) {
-		String name = makeTranstionName(t);
-		if (sync_t != null)
-			name += " X "+ makeTranstionName(sync_t);
-		if (never_t != null)
-			name += " X "+ makeTranstionName(never_t);
-		return name;
-	}
-	
 	public static String printPC(Proctype process, LTSminPointer out) {
 		Variable var = out.getPC(process);
 		return printVar(var, out);

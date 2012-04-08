@@ -9,7 +9,6 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.dieGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.makeTranstionName;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;

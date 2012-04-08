@@ -74,6 +74,8 @@ reach (void* model, transition_info_t *transition_info, state_t *in,
 
 static int to_get;
 static int choice;
+static int pilot = false;
+static int match_tid = false;
 
 void
 sim_cb(void* arg, transition_info_t *ti, state_t *out)
@@ -82,7 +84,8 @@ sim_cb(void* arg, transition_info_t *ti, state_t *out)
 	if (-1 == to_get) {
 		printf("\tchoice %d: %s\n", ++choice, spinja_get_group_name(ti->group));
 	} else {
-		if (++choice == to_get) {
+		++choice;
+		if (match_tid ? ti->group == to_get : choice == to_get) {
 			memcpy(state, out, sizeof(state_t));
 		}
 	}
@@ -109,9 +112,26 @@ print_state(state_t *state)
 int
 main(int argc, char **argv)
 {
+	if (argc > 1) {
+		printf("Use %s without arguments to simulate the model behavior.\n", argv[0]);
+		return 0;
+	}
+	printf("Enter on of the following numbers:\n");
+	printf("\t[0-X] to execute a transition.\n");
+	printf("\t-1 to print the state.\n");
+	printf("\t-2 to change input to group number instead of choice number and back.\n");
+	printf("\t-3 to turn on/off the auto pilot (it detects loops).\n");
+	printf("\n");
+	state_db_t *seen = state_db_create (spinja_get_state_size(), DB_MAX_SIZE-1, DB_MAX_SIZE);
 	state_t state;
 	spinja_get_initial_state(&state);
+	int k = spinja_get_transition_groups();
 	while (true) {
+		int result = state_db_lookup (seen, (const int*)&state);
+		if (STATE_DB_FULL == result) {
+			printf ("ERROR: state database is filled (max size = 2^%zu). Increase DB_MAX_SIZE.", DB_MAX_SIZE);
+			exit(-10);
+		}
 		printf("Select a statement\n");
 		to_get = -1;
 		choice = 0;
@@ -120,16 +140,33 @@ main(int argc, char **argv)
 			printf("no executable choices\n\n");
     		print_state(&state);
 			exit(0);
-		} else {
-	        do {
-	        	printf("Select [1-%d]: ", choice);
-	        	if (scanf("%d", &to_get) != 1) exit(-1);
-	        	if (0 == to_get)
-	        		print_state(&state);
-	        } while (to_get < 1 || to_get > choice);
-	        printf("%d\n", to_get);
+		} if (1 == count && pilot && false == result) {
+        	printf ("Select [%d-%d]: 1\n", match_tid ? 0 : 1,
+        									match_tid ? k : choice);
+			int match_tid_old = match_tid;
+			match_tid = false;
+			to_get = 1;
 			choice = 0;
-			int count = spinja_get_successor_all (NULL, &state, sim_cb, &state);
+			spinja_get_successor_all (NULL, &state, sim_cb, &state);
+			match_tid = match_tid_old;
+		} else {
+        	do {
+	        	printf("Select [%d-%d]: ", match_tid ? 0 : 1,
+	        								match_tid ? k : choice);
+	        	if (scanf("%d", &to_get) != 1) exit(-1);
+	        	if (-1 == to_get)
+	        		print_state(&state);
+	        	if (-2 == to_get) {
+	        		match_tid = !match_tid;
+	        		printf ("Turned %s matching of transition ids.\n", match_tid?"on":"off");
+	        	}
+	        	if (-3 == to_get) {
+	        		pilot = !pilot;
+	        		printf ("Turned %s autopilot.\n", pilot?"on":"off");
+	        	}
+	        } while (to_get < (match_tid?0:1) ||(match_tid ? to_get > k : to_get > choice));
+			choice = 0;
+			spinja_get_successor_all (NULL, &state, sim_cb, &state);
 		}
 	}
 }
