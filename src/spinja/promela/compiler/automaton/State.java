@@ -51,7 +51,7 @@ public class State {
 
 	private final List<Transition> out, in;
 
-	private final List<String> labels;
+	private List<String> labels;
 
 	/**
 	 * Returns an {@link Iterable} that makes it possible to use the enhanced for-loop over all
@@ -249,6 +249,15 @@ public class State {
 		return false;
 	}
 
+	public boolean hasLabel(final String prefix) {
+		for (final String label : labels) {
+			if (label.equals(prefix)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * @return True when this state is in an atomic sequence, false otherwise.
 	 */
@@ -353,5 +362,13 @@ public class State {
 		Transition t = new ActionTransition(this, end);
 		t.addAction(action);
 		return t;
+	}
+
+	public void setLabels(List<String> labels) {
+		this.labels = labels;
+	}
+	
+	public List<String> getLabels() {
+		return labels;
 	}
 }

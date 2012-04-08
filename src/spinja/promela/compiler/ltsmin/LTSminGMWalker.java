@@ -33,6 +33,7 @@ import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
@@ -585,7 +586,13 @@ public class LTSminGMWalker {
 				right = constant (buffer);
 			}
 			extract_predicates(sp, compare(op, left, right), strict, conj);
-		} else if (e instanceof BooleanExpression) {
+		} else if (e instanceof RemoteRef) {
+			RemoteRef rr = (RemoteRef)e;
+			Variable pc = rr.getPC(null);
+			int num = rr.getLabelId();
+			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
+			extract_predicates(sp, comp, strict, conj);
+    	} else if (e instanceof BooleanExpression) {
     		BooleanExpression ce = (BooleanExpression)e;
     		if (conj) {
 	    		if (ce.getToken().kind == PromelaTokenManager.BAND ||

@@ -57,6 +57,7 @@ import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
+import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.ltsmin.LTSminDebug.MessageKind;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
@@ -200,6 +201,15 @@ public class LTSminTreeWalker {
 				id++;
 			}
 		}
+		if (null != spec.getNever()) {
+			Proctype never = spec.getNever();
+			ProcInstance n = instantiate(never, id, -1);
+			try {
+				spec.setNever(n);
+			} catch (ParseException e) {
+				e.printStackTrace();
+			}
+		}
 		for (String binding : iCount)
 			debug.say(MessageKind.NORMAL, "#define __instances_"+ binding);
 		for (ProcInstance instance : active)
@@ -234,6 +244,7 @@ public class LTSminTreeWalker {
 							 HashMap<State, State> seen, ProcInstance p) {
 		if (null == state || null != seen.put(state, newState))
 			return;
+		newState.setLabels(state.getLabels());
 		for (Transition trans : state.output) {
 			State next = trans.getTo();
 			State newNextState = null;
@@ -350,7 +361,7 @@ public class LTSminTreeWalker {
 	private Expression instantiate(Expression e, ProcInstance p) {
 		if (null == e) return null;
 
-		if(e instanceof Identifier) { // also: LTSminIdentifier
+		if (e instanceof Identifier) { // also: LTSminIdentifier
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
 			if (null != var.getOwner()) {
@@ -361,23 +372,23 @@ public class LTSminTreeWalker {
 			Expression arrayExpr = instantiate(id.getArrayExpr(), p);
 			Identifier sub = (Identifier)instantiate(id.getSub(), p);
 			return new Identifier(id.getToken(), var, arrayExpr, sub);
-		} else if(e instanceof AritmicExpression) {
+		} else if (e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
 			Expression ex1 = instantiate(ae.getExpr1(), p);
 			Expression ex2 = instantiate(ae.getExpr2(), p);
 			Expression ex3 = instantiate(ae.getExpr3(), p);
 			return new AritmicExpression(ae.getToken(), ex1, ex2, ex3);
-		} else if(e instanceof BooleanExpression) {
+		} else if (e instanceof BooleanExpression) {
 			BooleanExpression be = (BooleanExpression)e;
 			Expression ex1 = instantiate(be.getExpr1(), p);
 			Expression ex2 = instantiate(be.getExpr2(), p);
 			return new BooleanExpression(be.getToken(), ex1, ex2);
-		} else if(e instanceof CompareExpression) {
+		} else if (e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
 			Expression ex1 = instantiate(ce.getExpr1(), p);
 			Expression ex2 = instantiate(ce.getExpr2(), p);
 			return new CompareExpression(ce.getToken(), ex1, ex2);
-		} else if(e instanceof ChannelLengthExpression) {
+		} else if (e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
 			Identifier newid = (Identifier)instantiate(id, p);
@@ -386,14 +397,14 @@ public class LTSminTreeWalker {
 			} catch (ParseException e1) {
 				throw new AssertionError(e1);
 			}
-		} else if(e instanceof ChannelReadExpression) {
+		} else if (e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = (Identifier)instantiate(cre.getIdentifier(), p);
 			ChannelReadExpression res = new ChannelReadExpression(cre.getToken(), id);
 			for (Expression expr : cre.getExprs())
 				res.addExpression(instantiate(expr, p));
 			return res;
-		} else if(e instanceof ChannelOperation) {
+		} else if (e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			Identifier id = (Identifier)instantiate(co.getExpression(), p);
 			try {
@@ -401,7 +412,7 @@ public class LTSminTreeWalker {
 			} catch (ParseException e1) {
 				throw new AssertionError("ChanOp");
 			}
-		} else if(e instanceof RunExpression) {
+		} else if (e instanceof RunExpression) {
 			RunExpression re = (RunExpression)e;
 			RunExpression newre = new RunExpression(e.getToken(), spec.getProcess(re.getId())); 
 			try {
@@ -412,8 +423,14 @@ public class LTSminTreeWalker {
 			}
 			runs.add(newre); // add runexpression to a list
 			return newre;
-		} else if(e instanceof ConstantExpression) {
+		} else if (e instanceof ConstantExpression) {
 			return e; // readonly, hence can be shared
+		} else if (e instanceof RemoteRef) {
+			RemoteRef rr = (RemoteRef)e;
+			Expression ex = instantiate(rr.getExpr(), p);
+			Proctype proc = spec.getProcess(rr.getProcessName());
+			if (null == proc) throw new AssertionError("Wrong process: "+ rr);
+			return new RemoteRef(rr.getToken(), proc, rr.getLabel(), ex);
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}

@@ -1418,8 +1418,8 @@ Expression varref(Identifier context): {
 }
 
 Expression base_expr(): {
-	Expression ex1, ex2, ex3;
-	Token t, id;
+	Expression ex1 = null, ex2, ex3;
+	Token t, id, id2;
 }{
 	LOOKAHEAD(<LPAREN> lor_expr() <RARROW>) 
 	<LPAREN> ex1=lor_expr() t=<RARROW> ex2=lor_expr() <COLON> ex3=lor_expr() <RPAREN>
@@ -1428,9 +1428,9 @@ Expression base_expr(): {
 	{ return ex1; }
 |	t=<LEN> <LPAREN> ex1=varref() <RPAREN>
 	{ return new ChannelLengthExpression(t, ex1); }
-|	LOOKAHEAD(<IDENTIFIER> <LBRACK> lor_expr() <RBRACK> <AT> <IDENTIFIER>)
-	t=<IDENTIFIER> <LBRACK> lor_expr() <RBRACK> <AT> <IDENTIFIER>
-	{ throw new MyParseException("At expressions are not yet supported!", t); }
+|	LOOKAHEAD(<IDENTIFIER> (<LBRACK> lor_expr() <RBRACK>)? <AT> <IDENTIFIER>)
+	id=<IDENTIFIER> (<LBRACK> ex1=lor_expr() <RBRACK>)? <AT> id2=<IDENTIFIER>
+	{ return new RemoteRef(id, id2, ex1); }
 |	ex1=varref()
 	  ( t=<CH_READ>
            { ChannelReadExpression read = new ChannelReadExpression(t, (Identifier)ex1); }

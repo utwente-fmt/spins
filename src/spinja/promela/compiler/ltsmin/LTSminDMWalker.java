@@ -27,12 +27,12 @@ import spinja.promela.compiler.expression.ChannelLengthExpression;
 import spinja.promela.compiler.expression.ChannelOperation;
 import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
-import spinja.promela.compiler.expression.CompoundExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.EvalExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.MTypeReference;
+import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
@@ -403,8 +403,13 @@ public class LTSminDMWalker {
 			DMIncRead(params, _NR_PR); // only the guard!
 		} else if(e instanceof MTypeReference) {
 		} else if(e instanceof ConstantExpression) {
+		} else if (e instanceof RemoteRef) {
+			RemoteRef rr = (RemoteRef)e;
+			Variable pc = rr.getPC(params.model);
+			int num = rr.getLabelId();
+			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
+			walkExpression(params, comp, mark);
 		} else if(e instanceof TimeoutExpression) {
-		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());

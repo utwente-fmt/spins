@@ -67,6 +67,7 @@ import spinja.promela.compiler.expression.EvalExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.MTypeReference;
+import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
@@ -891,6 +892,12 @@ public class LTSminPrinter {
 			//we define the "instantiation number" as: next_pid+1 (http://spinroot.com/spin/Man/run.html)
 			//otherwise the first process can never be started if all proctypes are nonactive.
 			w.append("("+ printVar(_NR_PR, state) +" != "+ (PM_MAX_PROCS-1) +")");
+		} else if (e instanceof RemoteRef) {
+			RemoteRef rr = (RemoteRef)e;
+			Variable pc = rr.getPC(null);
+			int num = rr.getLabelId();
+			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
+			generateExpression(w, comp, state);
 		} else if(e instanceof EvalExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof CompoundExpression) {

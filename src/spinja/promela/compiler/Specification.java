@@ -433,9 +433,9 @@ public class Specification implements Iterable<ProcInstance> {
 	}
 
 	public void setNever(final Proctype never) throws ParseException {
-		if (this.never != null) {
-			throw new ParseException("Duplicate never claim");
-		}
+		//if (this.never != null) {
+		//	throw new ParseException("Duplicate never claim");
+		//}
 		this.never = never;
 	}
 

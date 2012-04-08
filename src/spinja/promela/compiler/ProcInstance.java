@@ -30,6 +30,7 @@ public class ProcInstance extends Proctype {
 	}
 
 	public String getName() {
+		if (-1 == instance) return super.getName(); 
 		return super.getName() +"_"+ instance;
 	}
 
