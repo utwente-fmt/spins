@@ -1,6 +1,9 @@
+#include <pthread.h>
 
 static const size_t 	DB_INIT_SIZE = 4;
-static const size_t 	DB_MAX_SIZE = 10;
+static const size_t 	DB_MAX_SIZE = 15;
+
+#define cas(a, b, c) __sync_bool_compare_and_swap(a,b,c)
 
 typedef struct spinja_args_s {
 	void			   *model;
@@ -10,6 +13,7 @@ typedef struct spinja_args_s {
 	state_db_t 		   *seen;
 	int 				pid;
 	int 				real_group;
+	pthread_key_t 	   *key;
 } spinja_args_t;
 
 extern void dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state);
@@ -30,17 +34,12 @@ dfs_cb(void* arg, transition_info_t *transition_info, state_t *out)
 void
 dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state)
 {
-	int result = state_db_lookup(args->seen, (const int*)state);
+	int result = state_db_lookup (args->seen, (const int*)state);
 	switch ( result ) {
 	case false: { // new state
 		state_t out;
 		int count = spinja_get_successor_all_real (args->model, state, dfs_cb, args, &out, &args->pid);
 		if (count == 0) {
-			/*printf ("Loss of atomicity!\n");	// loss of atomicity
-			int a;
-			for (a = 0; a < spinja_get_state_size(); a++)
-				printf("%d, ", ((int*)&state)[a]);
-			printf ("\n");*/
 		    transition_info->group = args->real_group;
 			args->callback (args->arg, transition_info, state);
 			args->outs++;
@@ -55,21 +54,56 @@ dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state)
 	}
 }
 
+static pthread_key_t *local_key = NULL;
+
+void
+free_args (void *a)
+{
+	spinja_args_t *args = a;
+	if (NULL != args->key) {
+		pthread_key_delete (*args->key);
+		free (args->key);
+	}
+	state_db_free (args->seen);
+	free (args);
+}
+
+spinja_args_t *
+get_tls ()
+{
+	pthread_key_t *key = NULL;
+	if (NULL == local_key) {
+		key = align (CACHE_LINE_SIZE, sizeof(pthread_key_t));
+		pthread_key_create (key, free_args);
+		if (!cas(&local_key, NULL, key)) {
+			pthread_key_delete (*key);
+			free (key);
+		}
+	}
+	spinja_args_t      *args = pthread_getspecific (*local_key);
+    if (args == NULL) {
+        args = align (CACHE_LINE_SIZE, sizeof(spinja_args_t));
+        args->key = key;
+    	args->seen = state_db_create (spinja_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
+        pthread_setspecific (*local_key, args);
+    }
+    return args;
+}
+
 inline int
 reach (void* model, transition_info_t *transition_info, state_t *in,
 	   void (*callback)(void* arg, transition_info_t *transition_info, state_t *out),
 	   void *arg, int pid) {
-	spinja_args_t args;
-	args.model = model;
-	args.callback = callback;
-	args.arg = arg;
-	args.outs = 0;
-	args.pid = pid;
-	args.real_group = transition_info->group;
-	args.seen = state_db_create (spinja_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
-	dfs (&args, transition_info, in);
-	state_db_free (args.seen);
-	return args.outs;
+	spinja_args_t *args = get_tls ();
+	args->model = model;
+	args->callback = callback;
+	args->arg = arg;
+	args->outs = 0;
+	args->pid = pid;
+	args->real_group = transition_info->group;
+	state_db_clear (args->seen);
+	dfs (args, transition_info, in);
+	return args->outs;
 }
 
 static int to_get;
@@ -116,13 +150,14 @@ main(int argc, char **argv)
 		printf("Use %s without arguments to simulate the model behavior.\n", argv[0]);
 		return 0;
 	}
+	int trans = 0;
 	printf("Enter on of the following numbers:\n");
 	printf("\t[0-X] to execute a transition.\n");
 	printf("\t-1 to print the state.\n");
 	printf("\t-2 to change input to group number instead of choice number and back.\n");
 	printf("\t-3 to turn on/off the auto pilot (it detects loops).\n");
 	printf("\n");
-	state_db_t *seen = state_db_create (spinja_get_state_size(), DB_MAX_SIZE-1, DB_MAX_SIZE);
+	state_db_t *seen = state_db_create (spinja_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
 	state_t state;
 	spinja_get_initial_state(&state);
 	int k = spinja_get_transition_groups();
@@ -132,7 +167,7 @@ main(int argc, char **argv)
 			printf ("ERROR: state database is filled (max size = 2^%zu). Increase DB_MAX_SIZE.", DB_MAX_SIZE);
 			exit(-10);
 		}
-		printf("Select a statement\n");
+		printf("Select a statement(%d)\n", trans++);
 		to_get = -1;
 		choice = 0;
 		int count = spinja_get_successor_all (NULL, &state, sim_cb, NULL);
@@ -148,6 +183,7 @@ main(int argc, char **argv)
 			to_get = 1;
 			choice = 0;
 			spinja_get_successor_all (NULL, &state, sim_cb, &state);
+			//print_state(&state);
 			match_tid = match_tid_old;
 		} else {
         	do {
