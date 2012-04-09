@@ -41,6 +41,10 @@ import spinja.promela.compiler.optimizer.StateMerging;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Preprocessor;
 import spinja.promela.compiler.parser.Promela;
+import spinja.promela.compiler.parser.PromelaTokenManager;
+import spinja.promela.compiler.parser.SimpleCharStream;
+import spinja.promela.compiler.parser.Token;
+import spinja.promela.compiler.parser.TokenMgrError;
 
 public class Compile {
 	private static Specification compile(final File promFile, 
@@ -234,6 +238,10 @@ public class Compile {
 		final StringOption ltsmin = new StringOption('l',
 			"sets output to ltsmin \n");
 		parser.addOption(ltsmin);
+		
+		final StringOption preprocessor = new StringOption('I',
+			"prints output of preprocessor\n");
+		parser.addOption(preprocessor);
 
 		// [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
 //		final BooleanOption createjar = new BooleanOption('j',
@@ -280,6 +288,27 @@ public class Compile {
 			//   The default name is now "Pan". The original version of SpinJa ..
 			//   .. used getName(file) to construct the name for the model.
 			// name = Compile.getName(file);
+		}
+
+		if (preprocessor.isSet()) {
+			Preprocessor.setFilename(file.getName());
+			String path = file.getAbsolutePath();
+			Preprocessor.setDirname(path.substring(0, path.lastIndexOf("/")));
+			PromelaTokenManager tm;
+			try {
+				tm = new PromelaTokenManager(null, new SimpleCharStream(new FileInputStream(file)));
+			} catch (FileNotFoundException e) {
+				throw new AssertionError(e);
+			}
+			while (true) {
+				try {
+					Token t = tm.getNextToken();
+					System.out.print(t.image);
+				} catch (TokenMgrError e) {
+					break;
+				}
+			}
+			System.exit(0);
 		}
 
 		final Specification spec = 
