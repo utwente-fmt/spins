@@ -129,7 +129,7 @@ state (const state_db_t *dbs, size_t ref)
 int
 resize (state_db_t *dbs)
 {
-    if (dbs->size == dbs->max)
+    if (dbs->size == (dbs->max >> 1))
         return false;
     size_t i;
     size_t size = dbs->size;
