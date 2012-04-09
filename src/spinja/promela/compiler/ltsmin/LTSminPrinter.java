@@ -359,7 +359,7 @@ public class LTSminPrinter {
 			w.appendPrefix().append("if (true");
 			for(LTSminGuardBase g: t.getGuards()) {
 				w.appendPostfix().appendPrefix().append("&&");
-				generateGuard(w, model, g);
+				generateGuard(w, model, g, in(model));
 			}
 			w.append(") {").appendPostfix();
 			w.indent();
@@ -427,16 +427,16 @@ public class LTSminPrinter {
 	}
 
 	private static void generateGuard(StringWriter w, LTSminModel model,
-								      LTSminGuardBase guard) {
+								      LTSminGuardBase guard, LTSminPointer state) {
 		if(guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
-			generateExpression(w, g.expr, in(model));
+			generateExpression(w, g.expr, state);
 		} else if(guard instanceof LTSminGuardNand) {
 			LTSminGuardNand g = (LTSminGuardNand)guard;
 			w.append("!( true");
 			for(LTSminGuardBase gb: g.guards) {
 				w.append(" && ");
-				generateGuard(w,model, gb);
+				generateGuard(w, model, gb, state);
 			}
 			w.append(")");
 		} else if(guard instanceof LTSminGuardAnd) {
@@ -444,7 +444,7 @@ public class LTSminPrinter {
 			w.append("( true");
 			for(LTSminGuardBase gb: g.guards) {
 				w.append(" && ");
-				generateGuard(w,model, gb);
+				generateGuard(w, model, gb, state);
 			}
 			w.append(")");
 		} else if(guard instanceof LTSminGuardOr) {
@@ -452,7 +452,7 @@ public class LTSminPrinter {
 			w.append("( false");
 			for(LTSminGuardBase gb: g.guards) {
 				w.append(" || ");
-				generateGuard(w,model, gb);
+				generateGuard(w, model, gb, state);
 			}
 			w.append(")");
 		} else {
@@ -615,7 +615,10 @@ public class LTSminPrinter {
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
 			OptionAction oa = (OptionAction)a;
 			if (oa.loops()) {
-				w.appendLine("while (true) {");
+				String var = oa.getLabel() +"_var";
+				w.appendLine("int "+ var +" = true;");
+				w.append(oa.getLabel() +":\t");
+				w.append("while ("+ var +") {").appendPostfix();
 				w.indent();
 			}
 			boolean first = true;
@@ -629,15 +632,16 @@ public class LTSminPrinter {
 				try {
 					LTSminTreeWalker.createEnabledGuard(guardAction, ag);
 				} catch (ParseException e) { throw new AssertionError(e); }
-				generateGuard(w, model, ag);
+				generateGuard(w, model, ag, out(model));
 			
 				w.append(") {").appendPostfix();
 				w.indent();
 				for (Action act : seq) {
 					if (act instanceof BreakAction) {
 						OptionAction loop = ((BreakAction)act).getLoop();
-						String label = loop.newLabel();
-						w.appendLine("goto "+ label +";");
+						String var = loop.getLabel() +"_var";
+						w.appendLine(var +" = false;");
+						w.appendLine("goto "+ loop.getLabel() +";");
 					}
 					generateAction(w, act, model);
 				}
@@ -648,12 +652,6 @@ public class LTSminPrinter {
 				w.appendLine("} else { printf(\"Blocking loop in d_step\"); exit(1); }");
 				w.outdent();
 				w.appendLine("}");
-				String label = oa.getLabel();
-				if (null != label) {
-					if (!oa.hasSuccessor())
-						System.err.println("Warning place skip after loop in d_step for clean break in SPIN.");
-					w.append(label +":");
-				}
 			} else {
 				w.appendLine("}");
 			}
@@ -690,6 +688,7 @@ public class LTSminPrinter {
 				}
 			}
 			if (!cra.isPoll()) {
+				generateAction(w, decr(chanLength(id)), model);
 				String len = printId(chanLength(id), out(model));
 				Identifier index = new LTSminIdentifier(model.index);
 				Expression pp = calc(PromelaConstants.PLUS, index, constant(1));
@@ -704,7 +703,6 @@ public class LTSminPrinter {
 					w.outdent();
 					w.appendLine("}");
 				}
-				generateAction(w, decr(chanLength(id)), model);
 				for (int e = 0; e < exprs.size(); e++) {
 					generateAction(w, assign(channelNext(id,e), constant(0)), model);
 				}
@@ -972,7 +970,9 @@ public class LTSminPrinter {
 		w.appendLine("{");
 		w.appendPrefix();
 		w.append("	return ");
-		generateGuard(w, model, model.getAcceptingConditions());
+		if (0 == model.getAcceptingConditions().guards.size())
+			throw new AssertionError("Expected at least one accepting state condition (i.e., overloaded valid end state semantics).");
+		generateGuard(w, model, model.getAcceptingConditions(), in(model));
 		w.append(";");
 		w.appendPostfix();
 		w.appendLine("}");
@@ -1234,7 +1234,7 @@ public class LTSminPrinter {
 			w.append("  - ");
 			w.append(g);
 			w.append(" - ");
-			generateGuard(w, model, guards.get(g));
+			generateGuard(w, model, guards.get(g), in(model));
 			w.appendPostfix();
 		}
 		w.setPrePrefix(old_preprefix);
@@ -1332,7 +1332,7 @@ public class LTSminPrinter {
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("case ").append(g).append(": return ");
-			generateGuard(w, model, guards.get(g));
+			generateGuard(w, model, guards.get(g), in(model));
 			w.append(";");
 			w.appendPostfix();
 		}
@@ -1349,7 +1349,7 @@ public class LTSminPrinter {
 		for(int g=0; g<guards.size(); ++g) {
 			w.appendPrefix();
 			w.append("guard[").append(g).append("] = ");
-			generateGuard(w, model, guards.get(g));
+			generateGuard(w, model, guards.get(g), in(model));
 			w.append(";");
 			w.appendPostfix();
 		}

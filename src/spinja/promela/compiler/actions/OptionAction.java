@@ -35,10 +35,14 @@ public class OptionAction extends Action implements Iterable<Sequence> {
 	private final List<Sequence> options;
 
 	private boolean hasSuccessor = false;
+	static int number = 0;
 
 	public OptionAction(Token token, boolean loops) {
 		super(token);
 		this.loops = loops;
+		if (loops) {
+			label = "do_label_"+ number++;
+		}
 		options = new ArrayList<Sequence>();
 	}
 
@@ -148,13 +152,6 @@ public class OptionAction extends Action implements Iterable<Sequence> {
 	@Override
 	public Iterator<Sequence> iterator() {
 		return options.iterator();
-	}
-
-	static int number = 0; // TODO
-	public String newLabel() {
-		if (label == null)
-			label = "do_label_"+ number++;
-		return label;
 	}
 	
 	public String getLabel() {

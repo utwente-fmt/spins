@@ -384,6 +384,7 @@ SKIP : { // Skip whitespace and comments
 |   "#file" : PREPROCESSOR_LINE
 |	"#define" : PREPROCESSOR_DEFINE
 |   "#include" : PREPROCESSOR_INCLUDE
+|   "#"
 }
 
 /** Preprocessor if **/
@@ -1281,25 +1282,36 @@ void dstep_option(OptionAction opt, OptionAction loop): {
 
 void dstep_channel_statement(ActionContainer cont): {
 	Token t;
+    Expression expr;
 }{
-	varref()
-	( t=<LNOT>
-	  { throw new MyParseException("d_step: channel send is not yet supported!", t); } 
-	  send_args(null)
-	| t=<CH_SEND_SORTED> 
-	  { throw new MyParseException("d_step: sorted send is not yet supported!", t); }
-	  send_args(null)
-	| t=<CH_READ>
-	  { throw new MyParseException("d_step: channel receive is not yet supported!", t); }
-	  ( recv_args(null)
-	  | <LT> recv_args(null) <GT>
-	  )
-	| t=<CH_READ_RAND>
-	  { throw new MyParseException("d_step: random receive from channels is not yet supported!", t); }
-	  ( recv_args(null)
-	  | <LT> recv_args(null) <GT>
-	  )
-	)
+    expr=varref()
+    ( t=<LNOT> 
+      {
+        ChannelSendAction send = new ChannelSendAction(t, (Identifier)expr);
+        cont.addAction(send);
+      }
+      send_args(send)
+    | t=<CH_SEND_SORTED> 
+      { throw new MyParseException("Sorted send is not yet supported!", t); }
+      send_args(null)
+    | t=<CH_READ>
+      ( {
+          ChannelReadAction read = new ChannelReadAction(t, (Identifier)expr);
+          cont.addAction(read);
+        }
+        recv_args(read)
+      | {
+          ChannelReadAction read2 = new ChannelReadAction(t, (Identifier)expr, true);
+          cont.addAction(read2);
+        }
+        <LT> recv_args(read2) <GT>
+      )
+    | t=<CH_READ_RAND>
+      { throw new MyParseException("Random receive from channels is not yet supported!", t); }
+      ( recv_args(null)
+      | <LT> recv_args(null) <GT>
+      )
+    )
 }
 
 void dstep_assign(ActionContainer cont): {
