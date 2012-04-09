@@ -12,6 +12,7 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
+import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -136,6 +137,7 @@ public class LTSminTreeWalker {
 		sv.createVectorStructs(spec, debug);
 		bindByReferenceCalls();
 		model = new LTSminModel(name, sv, spec);
+		addAcceptingConditions();
 		createModelTransitions();
 		LTSminDMWalker.walkModel(model, debug);
 		LTSminGMWalker.walkModel(model, debug);
@@ -144,13 +146,52 @@ public class LTSminTreeWalker {
 		return model;
 	}
 
-    private List<RunExpression> runs = new ArrayList<RunExpression>();
+	/**
+	 * Set accepting state conditions for this model. 
+	 * Accepting condition semantics are overloaded with valid end state semantics.
+	 */
+    private void addAcceptingConditions() {
+		if (null != spec.getNever()) {
+			Proctype never = spec.getNever();
+			for (State s : never.getAutomaton()) {
+				if (s.isAcceptState()) {
+					Expression g = pcGuard(model, s, never);
+					model.getAcceptingConditions().addGuard(g);
+				}
+			}
+		} else {
+	    	for (ProcInstance instance : spec) {
+		    	if (0 == instance.getID()) {
+					Expression e = compare(PromelaConstants.EQ, id(_NR_PR), constant(0));
+					model.getAcceptingConditions().addGuard(e);
+				}
+		    	for (State s : instance.getAutomaton()) {
+			    	if (s.isEndingState()) {
+			    		Expression e = pcGuard(model, s, instance);
+						model.getAcceptingConditions().addGuard(e);
+			    	}
+		    	}
+	    	}
+		}
+	}
+
+	private List<RunExpression> runs = new ArrayList<RunExpression>();
     private List<String> iCount = new ArrayList<String>();
 
     private int getInstanceCount(Proctype p) {
-    	DefineMapping nrInstances = Preprocessor.defines("__instances_"+ p.getName());
-		if (null != nrInstances)
-			return Integer.parseInt(nrInstances.defineText.trim());
+    	DefineMapping nrInstances, original;
+    	nrInstances = original = Preprocessor.defines("__instances_"+ p.getName());
+		if (null != nrInstances) {
+			int count = -1;
+			while (-1 == count) try {
+				count = Integer.parseInt(nrInstances.defineText.trim());
+			} catch (NumberFormatException nf) {
+				nrInstances = Preprocessor.defines("__instances_"+ p.getName());
+				if (null != nrInstances) break; 
+			}
+			if (-1 == count) throw new AssertionError("Cannot parse "+ original);
+			return count;
+		}
 		// query instantiation count from user
 		System.out.print("Provide instantiation number for proctype "+ p.getName() +": ");
 		InputStreamReader converter = new InputStreamReader(System.in);
@@ -202,7 +243,7 @@ public class LTSminTreeWalker {
 		}
 		if (null != spec.getNever()) {
 			Proctype never = spec.getNever();
-			ProcInstance n = instantiate(never, id, -1);
+			ProcInstance n = instantiate(never, -1, -1);
 			try {
 				spec.setNever(n);
 			} catch (ParseException e) {
@@ -216,6 +257,9 @@ public class LTSminTreeWalker {
 		spec.setInstances(instances);
 	}
 
+	/**
+	 * Copies proctype to an instance.
+	 */
 	private ProcInstance instantiate(Proctype p, int id, int index) {
 		ProcInstance instance = new ProcInstance(p, index, id);
 		Expression e = instantiate(p.getEnabler(), instance);
@@ -229,7 +273,6 @@ public class LTSminTreeWalker {
 			String to = p.getVariableMapping(mapped);
 			instance.addVariableMapping(mapped, to);
 		}
-
 		HashMap<State, State> seen = new HashMap<State, State>();
 		instantiate(p.getStartState(), instance.getStartState(), seen, instance);
 		new RenumberAll().optimize(instance.getAutomaton());
@@ -392,7 +435,7 @@ public class LTSminTreeWalker {
 			Identifier id = (Identifier)cle.getExpression();
 			Identifier newid = (Identifier)instantiate(id, p);
 			try {
-				return new ChannelLengthExpression(null, newid);
+				return new ChannelLengthExpression(cle.getToken(), newid);
 			} catch (ParseException e1) {
 				throw new AssertionError(e1);
 			}

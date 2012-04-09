@@ -5,11 +5,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
-
-import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
-import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
@@ -53,16 +49,6 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 		this.transitions = new ArrayList<LTSminTransition>();
 		this.sv = sv;
 		this.accepting_conditions = new LTSminGuardOr();
-		Proctype never = spec.getNever();
-		if (null != never) {
-			 for (State s : never.getAutomaton()) {
-				 if (s.isAcceptState()) {
-					 accepting_conditions.addGuard(pcGuard(this, s, never));
-				 }
-			 }
-		} else {
-			accepting_conditions.addGuard(constant(0));
-		}
 	}
 
 	public List<Variable> getLocals() {
