@@ -34,6 +34,20 @@ public class Preprocessor {
 		public int size() {
 			return parameters.size();
 		}
+		public String toString() {
+			String str = "#define "+ name;
+			if (inline || size() > 0) {
+				str += "(";
+				int i = 0;
+				for (String param : parameters) {
+					if (i++ > 0) str += ",";
+					str += param;
+				}
+				str += ")";
+			}
+			str += "\t"+ defineText;
+			return str;
+		}
 	}
 
 	public static int level = 0; // inside comment counters
@@ -59,10 +73,16 @@ public class Preprocessor {
 
 	public static DefineMapping defines(String s) {
 		DefineMapping map = defines.get(s);
-		if (map != null) return map;
+		if (map != null) {
+			//System.out.println("> "+ map.toString());
+			return map;
+		}
 		for (Map<String, DefineMapping> defines : defs) {
 			map = defines.get(s);
-			if (map != null) return map;
+			if (map != null) {
+				//System.out.println("> "+ map.toString());
+				return map;
+			}
 		}
 		return null;
 	}
@@ -78,6 +98,7 @@ public class Preprocessor {
 			DefineMapping put = defines.put(define.name, define);
 			if (null != put)
 				System.err.println("Redefining preprocessor define "+ define.name +" --> '"+ put.defineText +"' with '"+ text +"'");
+			//System.out.println("< "+ define.toString());
 			define = new DefineMapping();
 		} catch(NoSuchElementException e) {
 			System.out.println("error parsing '"+ text +"'\n"+e);
