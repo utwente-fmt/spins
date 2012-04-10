@@ -177,7 +177,9 @@ public class State {
 	 */
 	public boolean isEndingState() {
 		for (Transition trans : out) {
-			if (trans instanceof EndTransition || trans instanceof NeverEndTransition)
+			if (trans instanceof EndTransition ||
+				trans instanceof NeverEndTransition ||
+				null == trans.getTo())
 				return true;
 		}
 		return hasLabelPrefix("end");
