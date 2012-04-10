@@ -211,7 +211,7 @@ public class LTSminTreeWalker {
 		return num;
     }
     
-	/* Active processes can be differentiated from each other by the value of
+	/** Active processes can be differentiated from each other by the value of
 	 * their process instantiation number, which is available in the predefined
 	 * local variable _pid . Active processes are always instantiated in the
 	 * order in which they appear in the model, so that the first such process
@@ -931,29 +931,40 @@ public class LTSminTreeWalker {
 		ChannelReadAction cra = ra.cra;
 		List<Expression> csa_exprs = csa.getExprs();
 		List<Expression> cra_exprs = cra.getExprs();
-		try {
-			for (int i = 0; i < cra_exprs.size(); i++) {
-				final Expression csa_expr = csa_exprs.get(i);
-				final Expression cra_expr = cra_exprs.get(i);
-				try { // we skip creating transitions for impotent matches:
-					if (csa_expr.getConstantValue() != cra_expr.getConstantValue())
-						return trans;
-				} catch (ParseException pe) {}
-			}
-		} catch (IndexOutOfBoundsException iobe) {} // skip missing arguments
+		Identifier sendId = sa.csa.getIdentifier();
+		Identifier recvId = ra.cra.getIdentifier();
+		Expression array1 = null, array2 = null;
+		if (sendId.getVariable().getArraySize() > -1) { // array of channels
+			assert (recvId.getVariable().getArraySize() > -1);
+			array1 = recvId.getArrayExpr();
+			array2 = sendId.getArrayExpr();
+			if (array1 == null) array1 = constant(0);
+			if (array2 == null) array2 = constant(0);
+			try { array1 = constant(array1.getConstantValue());
+			} catch (ParseException e) {}
+			try { array2 = constant(array2.getConstantValue());
+			} catch (ParseException e) {}
+			try { // we skip creating transitions for impotent matches:
+				if (array1.getConstantValue() != array2.getConstantValue())
+					return trans;
+			} catch (ParseException e) {}
+		}
+		for (int i = 0; i < cra_exprs.size(); i++) {
+			final Expression csa_expr = csa_exprs.get(i);
+			final Expression cra_expr = cra_exprs.get(i);
+			try { // we skip creating transitions for impotent matches:
+				if (csa_expr.getConstantValue() != cra_expr.getConstantValue())
+					return trans;
+			} catch (ParseException pe) {}
+		}
 		LTSminTransition lt = makeTransition(ra.p, trans, ra.t, never_t, sa.t);
 
         addNever(lt, never_t);
 
 		lt.addGuard(pcGuard(model, sa.t.getFrom(), sa.p));
 		lt.addGuard(pcGuard(model, ra.t.getFrom(), ra.p));
-		Identifier sendId = sa.csa.getIdentifier();
 		if (sendId.getVariable().getArraySize() > -1) { // array of channels
-			Expression e1 = ra.cra.getIdentifier().getArrayExpr();
-			Expression e2 = sa.csa.getIdentifier().getArrayExpr();
-			if (e1 == null) e1 = constant(0);
-			if (e2 == null) e2 = constant(0);
-			lt.addGuard(compare(PromelaConstants.EQ, e2, e2));
+			lt.addGuard(compare(PromelaConstants.EQ, array1, array2));
 		}
 
 		/* Channel matches */
