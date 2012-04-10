@@ -41,8 +41,7 @@ import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
-import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
-import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
@@ -148,19 +147,9 @@ public class LTSminDMWalker {
 		} else if(guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
 			walkExpression(params, g.expr, MarkAction.READ);
-		} else if(guard instanceof LTSminGuardNand) {
-			LTSminGuardNand g = (LTSminGuardNand)guard;
-			for(LTSminGuardBase gb: g.guards) {
-				walkGuard(params,gb);
-			}
-		} else if(guard instanceof LTSminGuardAnd) {
-			LTSminGuardAnd g = (LTSminGuardAnd)guard;
-			for(LTSminGuardBase gb: g.guards) {
-				walkGuard(params,gb);
-			}
-		} else if(guard instanceof LTSminGuardOr) {
-			LTSminGuardOr g = (LTSminGuardOr)guard;
-			for(LTSminGuardBase gb: g.guards) {
+		} else if(guard instanceof LTSminGuardContainer) {
+			LTSminGuardContainer g = (LTSminGuardContainer)guard;
+			for(LTSminGuardBase gb : g) {
 				walkGuard(params,gb);
 			}
 		} else {
@@ -233,9 +222,7 @@ public class LTSminDMWalker {
 			LTSminGuardAnd orc = new LTSminGuardAnd();
 			for (Sequence seq : oa) {
 				Action act = seq.iterator().next();
-				try {
-					LTSminTreeWalker.createEnabledGuard(act, orc);
-				} catch (ParseException e) { throw new AssertionError(e); }
+				LTSminTreeWalker.createEnabledGuard(act, orc);
 				for (Action sa : seq) {
 					walkAction(params, sa);
 				}

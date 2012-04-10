@@ -11,10 +11,10 @@ import spinja.util.StringWriter;
  *
  * @author FIB
  */
-public class LTSminGuardOr implements LTSminGuardBase, LTSminGuardContainer {
+public class LTSminGuardNor implements LTSminGuardBase, LTSminGuardContainer {
 	public List<LTSminGuardBase> guards;
 
-	public LTSminGuardOr() {
+	public LTSminGuardNor() {
 		guards = new ArrayList<LTSminGuardBase>();
 	}
 
@@ -31,7 +31,7 @@ public class LTSminGuardOr implements LTSminGuardBase, LTSminGuardContainer {
 	public void prettyPrint(StringWriter w) {
 		if(guards.size()>0) {
 			boolean first = true;
-			w.appendLine("(");
+			w.appendLine("!(");
 			w.indent();
 			for(LTSminGuardBase g: guards) {
 				if(!first) w.append(" || ");
@@ -41,26 +41,26 @@ public class LTSminGuardOr implements LTSminGuardBase, LTSminGuardContainer {
 			w.outdent();
 			w.appendLine(")");
 		} else {
-			w.appendLine("false _GOR_ ");
+			w.appendLine("false _GNOR_ ");
 		}
 	}
 
 	public boolean isDefinitelyTrue() {
-		for(LTSminGuardBase g: guards) {
-			if(g.isDefinitelyTrue()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	public boolean isDefinitelyFalse() {
 		for(LTSminGuardBase g: guards) {
 			if(!g.isDefinitelyFalse()) {
 				return false;
 			}
 		}
 		return true;
+	}
+
+	public boolean isDefinitelyFalse() {
+		for(LTSminGuardBase g: guards) {
+			if(g.isDefinitelyTrue()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Override

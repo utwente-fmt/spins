@@ -4,6 +4,7 @@ import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_FIL
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spinja.promela.compiler.parser.PromelaConstants.IDENTIFIER;
+import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.AssignAction;
 import spinja.promela.compiler.automaton.State;
@@ -15,6 +16,7 @@ import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
+import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.parser.ParseException;
@@ -23,6 +25,7 @@ import spinja.promela.compiler.parser.Token;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
+import spinja.promela.compiler.variable.VariableType;
 
 public class LTSminUtil {
 
@@ -112,11 +115,20 @@ public class LTSminUtil {
 		return e;
 	}
 
-	/* TODO: die sequence of dynamically started processes ala http://spinroot.com/spin/Man/init.html */
 	public static Expression dieGuard(LTSminModel model, Proctype p) {
 		Variable pid = model.sv.getPID(p);
 		Expression left = calc(PromelaConstants.PLUS, id(pid), constant(1)); 
 		return compare (PromelaConstants.EQ, left, id(LTSminStateVector._NR_PR));
+	}
+
+	public static LTSminLocalGuard inAtomicGuard(LTSminModel model, ProcInstance process) {
+		Identifier id = new LTSminIdentifier(new Variable(VariableType.BOOL, "atomic", -1), true);
+		Variable pid = model.sv.getPID(process);
+		BooleanExpression boolExpr = bool(PromelaConstants.LOR,
+				compare(PromelaConstants.EQ, id, constant(-1)),
+				compare(PromelaConstants.EQ, id, id(pid)));
+		LTSminLocalGuard guard = new LTSminLocalGuard(boolExpr);
+		return guard;
 	}
 
 	public static Expression chanEmptyGuard(Identifier id) {

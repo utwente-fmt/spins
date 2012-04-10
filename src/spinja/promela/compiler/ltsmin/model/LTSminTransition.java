@@ -1,6 +1,7 @@
 package spinja.promela.compiler.ltsmin.model;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -219,5 +220,15 @@ public class LTSminTransition implements LTSminGuardContainer {
 		String old = this.name;
 		this.name = name;
 		return old;
+	}
+
+	@Override
+	public Iterator<LTSminGuardBase> iterator() {
+		return guards.iterator();
+	}
+
+	@Override
+	public int size() {
+		return guards.size();
 	}
 }

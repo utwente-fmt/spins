@@ -76,7 +76,9 @@ import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
@@ -431,32 +433,38 @@ public class LTSminPrinter {
 		if(guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
 			generateExpression(w, g.expr, state);
-		} else if(guard instanceof LTSminGuardNand) {
-			LTSminGuardNand g = (LTSminGuardNand)guard;
-			w.append("!( true");
-			for(LTSminGuardBase gb: g.guards) {
-				w.append(" && ");
-				generateGuard(w, model, gb, state);
+		} else if(guard instanceof LTSminGuardContainer) {
+			LTSminGuardContainer g = (LTSminGuardContainer)guard;
+			if (0 == g.size()){
+				w.append("true"); // vacuously true
+				return;
 			}
-			w.append(")");
-		} else if(guard instanceof LTSminGuardAnd) {
-			LTSminGuardAnd g = (LTSminGuardAnd)guard;
-			w.append("( true");
-			for(LTSminGuardBase gb: g.guards) {
-				w.append(" && ");
-				generateGuard(w, model, gb, state);
+			String negation;
+			String junction;
+			if(guard instanceof LTSminGuardNand) {
+				negation = "!";
+				junction = " && ";
+			} else if(guard instanceof LTSminGuardNor) {
+				negation = "!";
+				junction = " || ";
+			} else if(guard instanceof LTSminGuardAnd) {
+				negation = "";
+				junction = " && ";
+			} else if(guard instanceof LTSminGuardOr) {
+				negation = "";
+				junction = " || ";
+			} else {
+				throw new AssertionError("Unimplemented: "+guard.getClass().getSimpleName());
 			}
-			w.append(")");
-		} else if(guard instanceof LTSminGuardOr) {
-			LTSminGuardOr g = (LTSminGuardOr)guard;
-			w.append("( false");
-			for(LTSminGuardBase gb: g.guards) {
-				w.append(" || ");
+			w.append(negation +"(");
+			int i = 0;
+			for(LTSminGuardBase gb : g) {
+				if (0 != i++) w.append(junction);
 				generateGuard(w, model, gb, state);
 			}
 			w.append(")");
 		} else {
-			w.appendLine("/** UNSUPPORTED: ",guard.getClass().getSimpleName()," **/");
+			throw new AssertionError("Unimplemented: "+guard.getClass().getSimpleName());
 		}
 	}
 
@@ -629,11 +637,8 @@ public class LTSminPrinter {
 					w.appendPrefix().append("if (");
 				Action guardAction = seq.iterator().next();
 				LTSminGuardAnd ag = new LTSminGuardAnd();
-				try {
-					LTSminTreeWalker.createEnabledGuard(guardAction, ag);
-				} catch (ParseException e) { throw new AssertionError(e); }
+				LTSminTreeWalker.createEnabledGuard(guardAction, ag);
 				generateGuard(w, model, ag, out(model));
-			
 				w.append(") {").appendPostfix();
 				w.indent();
 				for (Action act : seq) {

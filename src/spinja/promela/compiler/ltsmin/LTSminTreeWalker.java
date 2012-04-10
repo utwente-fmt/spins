@@ -1,7 +1,6 @@
 package spinja.promela.compiler.ltsmin;
 
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.bool;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanEmptyGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
@@ -9,10 +8,11 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.dieGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.inAtomicGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
+import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
-import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -61,10 +61,8 @@ import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.ltsmin.LTSminDebug.MessageKind;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
-import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
-import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
-import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
 import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
@@ -153,9 +151,12 @@ public class LTSminTreeWalker {
     private void addAcceptingConditions() {
 		if (null != spec.getNever()) {
 			Proctype never = spec.getNever();
+			Variable pc = model.sv.getPC(never);
+			Expression g = compare(PromelaConstants.EQ, id(pc), constant(-1));
+			model.getAcceptingConditions().addGuard(g);
 			for (State s : never.getAutomaton()) {
 				if (s.isAcceptState()) {
-					Expression g = pcGuard(model, s, never);
+					g = pcGuard(model, s, never);
 					model.getAcceptingConditions().addGuard(g);
 				}
 			}
@@ -186,8 +187,8 @@ public class LTSminTreeWalker {
 			while (-1 == count) try {
 				count = Integer.parseInt(nrInstances.defineText.trim());
 			} catch (NumberFormatException nf) {
-				nrInstances = Preprocessor.defines("__instances_"+ p.getName());
-				if (null != nrInstances) break; 
+				nrInstances = Preprocessor.defines(nrInstances.defineText.trim());
+				if (null == nrInstances) break; 
 			}
 			if (-1 == count) throw new AssertionError("Cannot parse "+ original);
 			return count;
@@ -607,9 +608,12 @@ public class LTSminTreeWalker {
 		// Calculate cross product with the never claim when not in atomic state 
 		for (ProcInstance p : spec) {
 			debug.say(MessageKind.DEBUG, "[Proc] " + p.getName());
-			for (State st : p.getAutomaton()) {
-				for (State ns : getNeverAutomatonOrNullSet(st.isInAtomic())) {
-					trans = createTransitionsFromState(p, trans, st, ns);
+			for (State state : p.getAutomaton()) {
+				if (0 == state.sizeOut())
+					state.newTransition(null);
+				for (Transition t : state.output) {
+					if (collectRendezVous(p, t, trans)) continue;
+					trans = createCrossProduct(p, trans, t);
 				}
 			}
 		}
@@ -628,7 +632,8 @@ public class LTSminTreeWalker {
 				}
 			}
 		}
-		
+
+		// detect atomic sub blocks
 		for (LTSminTransition t : model.getTransitions()) {
 			if (!(t instanceof LTSminTransitionCombo))
 				continue;
@@ -639,24 +644,19 @@ public class LTSminTreeWalker {
 			//System.out.println(tc +" --> "+ tc.transitions);
 		}
 
-		/*
-		// Add total timeout transition in case of a never claim.
-		// This is because otherwise accepting cycles might not be found,
-		// although the never claim is violated.
-		if (spec.getNever()!=null) {
-            trans = createTotalTimeout(trans);
-			LTSminTransition lt_cycle = new LTSminTransition("cycle");
-			LTSminGuardOr gor = new LTSminGuardOr();
-			lt_cycle.addGuard(gor);
-			model.getTransitions().add(lt_cycle);
-			for (State s : spec.getNever().getAutomaton()) {
-				if (s.isEndingState()) {
-					gor.addGuard(trans,makePCGuard(s, spec.getNever()));
+		// let never automata continue on deadlock
+		if (null != spec.getNever()) {
+			for (State ns : spec.getNever().getAutomaton()) {
+				for (Transition nt : ns.output) {
+					LTSminTransition lt = makeTransition(spec.getNever(), trans, nt, null, null);
+					addNever(lt, nt);
+					lt.addGuard(compare(PromelaConstants.EQ, id(_NR_PR), 0));
+					model.getTransitions().add(lt);
+					trans++;
 				}
 			}
-			++trans;
 		}
-		*/
+
 		if (model.getTransitions().size() != trans)
 			throw new AssertionError("Transition not set at correct location in the transition array");
 
@@ -692,105 +692,23 @@ public class LTSminTreeWalker {
 	/**
 	 * Creates all transitions from the given state. This state should be
 	 * in the specified process.
-	 * @param process The state should be in this process.
-	 * @param trans Starts generating transitions from this transition ID.
-	 * @param state The state of which all outgoing transitions will be created.
-	 * @return The next free transition ID (= old.trans + #new_transitions).
 	 */
-	private int createTransitionsFromState (ProcInstance process, int trans, State state, State never_state) {
+	private int createCrossProduct (ProcInstance process, int trans, Transition t) {
 		++debug.say_indent;
-		debug.say(MessageKind.DEBUG, state.toString());
+		debug.say(MessageKind.DEBUG, t.toString());
 
-		// Check if it is an ending state
-		if (state.sizeOut() == 0) { // FIXME: Is this the correct prerequisite for THE end state of a process?
-			Transition t = state.newTransition(null);
-			LTSminTransition lt = makeTransition(process, trans, t, null, null);
-			lt.setName(lt.getName() +"_end");
-			model.getTransitions().add(lt);
-
-			lt.addGuard(pcGuard(model, state, process));
-			lt.addGuard(dieGuard(model, process));
-			lt.addGuard(makeInAtomicGuard(process));
-
-			lt.addAction(new ResetProcessAction(process));
-
-			// Keep track of the current transition ID
-			++trans;
-		} else {
-			// In the normal case, create a transition changing the process
-			// counter to the next state and any actions the transition does.
-			for (Transition t : state.output) {
-				if (collectRendezVous(process, t, trans))
-					continue;
-				for (Transition never_t : getOutTransitionsOrNullSet(never_state)) {
-					LTSminTransition lt = createStateTransition(process,trans,t,never_t);
-					model.getTransitions().add(lt);
-					trans++;
-				}
+		for (State ns : getNeverAutomatonOrNullSet(t.getFrom().isInAtomic())) {
+			if (null != ns && 0 == ns.sizeOut())
+				ns.newTransition(null);
+			for (Transition never_t : getOutTransitionsOrNullSet(ns)) {
+				LTSminTransition lt = createStateTransition(process,trans,t,never_t);
+				model.getTransitions().add(lt);
+				trans++;
 			}
 		}
-		// Return the next free transition ID
+		
 		--debug.say_indent;
-		return trans;
-	}
-
-	private LTSminLocalGuard makeInAtomicGuard(ProcInstance process) {
-		Identifier id = new LTSminIdentifier(new Variable(VariableType.BOOL, "atomic", -1), true);
-		Variable pid = model.sv.getPID(process);
-		BooleanExpression boolExpr = bool(PromelaConstants.LOR,
-				compare(PromelaConstants.EQ, id, constant(-1)),
-				compare(PromelaConstants.EQ, id, id(pid)));
-		LTSminLocalGuard guard = new LTSminLocalGuard(boolExpr);
-		return guard;
-	}
-
-	/**
- 	 * Collects else transition or rendezvous enabled action for later processing 
-	 * Check only for the normal process, not for the never claim
-	 * 
-	 * For rendezvous actions we first need to calculate a cross product to
-	 * determine enabledness, therefore else transitions have to be processed even later.   
-	 * 
-	 * The never claim process is not allowed to contain message passing
-	 * statements.
-	 * "This means that a never claim may not contain assignment or message
-	 * passing statements." @ http://spinroot.com/spin/Man/never.html)
-	 * @param process
-	 * @param t
-	 * @param trans
-	 * @return true = found either else transition or rendezvous enabled action 
-	 */
-	private boolean collectRendezVous(ProcInstance process, Transition t, int trans) {
-		if (t.iterator().hasNext()) {
-			Action a = t.iterator().next();
-			if (a instanceof ChannelSendAction) {
-				ChannelSendAction csa = (ChannelSendAction)a;
-				ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
-				if(var.getType().getBufferSize()==0) {
-					ReadersAndWriters raw = channels.get(var);
-					if (raw == null) {
-						raw = new ReadersAndWriters();
-						channels.put(var, raw);
-					}
-					raw.sendActions.add(new SendAction(csa,t,process));
-					return true;
-				}
-			} else if (a instanceof ChannelReadAction) {
-				ChannelReadAction cra = (ChannelReadAction)a;
-				ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
-				if (var.getType().getBufferSize()==0) {
-					if (!cra.isNormal()) debug.say(MessageKind.ERROR, "Abnormal receive on rendez-vous channel.");
-					ReadersAndWriters raw = channels.get(var);
-					if (raw == null) {
-						raw = new ReadersAndWriters();
-						channels.put(var, raw);
-					}
-					raw.readActions.add(new ReadAction(cra,t,process));
-					return true;
-				}
-			}
-		}
-		return false;
+		return trans; // Return the next free transition ID
 	}
 
 	private LTSminTransition createStateTransition(ProcInstance process, int trans,
@@ -805,58 +723,18 @@ public class LTSminTreeWalker {
 
 		LTSminTransition lt = makeTransition(process, trans, t, never_t, null);
 
-        // never claim executes first
-        if (never_t != null) {
-        	if ((null != never_t.getTo() && never_t.getTo().isInAtomic()) || never_t.getFrom().isInAtomic())
-        		throw new AssertionError("Atomic in never claim not implemented");
-    		// Guard: never enabled action or else transition
-			lt.addGuard(pcGuard(model, never_t.getFrom(), spec.getNever()));
-	        if (never_t instanceof ElseTransition) {
-	            ElseTransition et = (ElseTransition)never_t;
-	            for (Transition ot : t.getFrom().output) {
-	                if (ot!=et) {
-	                	LTSminGuardNand nand = new LTSminGuardNand();
-	                    createEnabledGuard(ot, nand);
-	                    lt.addGuard(nand);
-	                }
-	            }
-	        } else {
-	        	createEnabledGuard(never_t, lt);
-	        }
+        addNever(lt, never_t); // sync with never transition
 
-	        lt.addAction(assign(model.sv.getPC(spec.getNever()),
-								never_t.getTo()==null?-1:never_t.getTo().getStateId()));
-		}
-		
-		// Guard: process counter
-		lt.addGuard(pcGuard(model, t.getFrom(), process));
-
-        // Guard: enabled action or else transition
-        if (t instanceof ElseTransition) {
-            ElseTransition et = (ElseTransition)t;
-            for (Transition ot : t.getFrom().output) {
-                if (ot!=et) {
-                	LTSminGuardNand nand = new LTSminGuardNand();
-                    createEnabledGuard(ot,nand);
-                    lt.addGuard(nand);
-                }
-            }
-        } else {
-            createEnabledGuard(t, lt);
-        }
-
+		lt.addGuard(pcGuard(model, t.getFrom(), process)); // process counter
+        createEnabledGuard(t, lt); // enabled action or else transition 
 		if (null != process.getEnabler())
-			lt.addGuard(process.getEnabler());
-
-        // Guard: allowed to die
-		if (t.getTo()==null) {
-			lt.addGuard(dieGuard(model, process));
-		}
-        
-		lt.addGuard(makeInAtomicGuard(process));
+			lt.addGuard(process.getEnabler()); // process enabler (provided keyword)
+		if (t.getTo() == null)
+			lt.addGuard(dieGuard(model, process)); // allowed to die (stack order)
+		lt.addGuard(inAtomicGuard(model, process)); // atomic
 
 		// Create actions of the transition, iff never is absent, dying or not atomic
-		if  (never_t == null || never_t.getTo()==null || !never_t.getTo().isInAtomic()) {
+		if  (never_t == null || null == never_t.getTo() || !never_t.getTo().isInAtomic()) {
 			if (t.getTo()==null) {
 				lt.addAction(new ResetProcessAction(process));
 			} else { // Action: PC counter update
@@ -869,6 +747,19 @@ public class LTSminTreeWalker {
 		}
 
 		return lt;
+	}
+
+	private void addNever(LTSminTransition lt, Transition never_t)
+			throws AssertionError {
+        if (never_t != null) {
+        	if (null != never_t.getTo() && (never_t.getTo().isInAtomic()) ||
+        									never_t.getFrom().isInAtomic())
+        		throw new AssertionError("Atomic in never claim not implemented");
+			lt.addGuard(pcGuard(model, never_t.getFrom(), spec.getNever()));
+	        createEnabledGuard(never_t, lt);
+	        lt.addAction(assign(model.sv.getPC(spec.getNever()),
+						never_t.getTo()==null?-1:never_t.getTo().getStateId()));
+		}
 	}
 
 	private LTSminTransition makeTransition(Proctype process, int trans,
@@ -894,14 +785,18 @@ public class LTSminTreeWalker {
 	 * @param trans The transition group ID to use for generation.
 	 */
 	private void createEnabledGuard(Transition t, LTSminGuardContainer lt) {
-		try {
-			if (t.iterator().hasNext()) {
-				Action a = t.iterator().next();
-				createEnabledGuard(a, lt);
-			}
-		} catch (ParseException e) { // removed if (a.getEnabledExpression()!=null)
-			e.printStackTrace();
-		}
+        if (t instanceof ElseTransition) {
+            ElseTransition et = (ElseTransition)t;
+        	LTSminGuardNor nor = new LTSminGuardNor();
+            for (Transition ot : t.getFrom().output) {
+                if (ot != et) {
+                    createEnabledGuard(ot, nor);
+                }
+            }
+            lt.addGuard(nor);
+        } else if (t.getActionCount() > 0 ) {
+			createEnabledGuard(t.getAction(0), lt);
+        }
 	}
 
 	/**
@@ -917,7 +812,7 @@ public class LTSminTreeWalker {
 	 * @param trans The transition group ID to use for generation.
 	 * @throws ParseException
 	 */
-	public static void createEnabledGuard(Action a, LTSminGuardContainer lt) throws ParseException {
+	public static void createEnabledGuard(Action a, LTSminGuardContainer lt) {
 		if (a instanceof AssignAction) {
 			AssignAction ae = (AssignAction)a;
 			ae.getIdentifier().getVariable().setAssignedTo();
@@ -961,79 +856,60 @@ public class LTSminTreeWalker {
 						Identifier next = new Identifier(id, buf);
 						lt.addGuard(compare(PromelaConstants.EQ,next,expr));
 					} else {
-						((Identifier)expr).getVariable().setAssignedTo(); // TODO: use setWritten and optimize for arguments that get assigned constants
+						((Identifier)expr).getVariable().setAssignedTo(); // FIXME: WRONG, only done for first action! use setWritten (avoid arguments)
 					}
 				}
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous receive before all others!");
 			}
 		} else { //unsupported action
-			throw new ParseException("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
 	}
 
 	/**
-	 * Creates the timeout expression for the specified TimeoutTransition.
-	 * This will create the expression that NO transition is enabled. The
-	 * dependency matrix is fixed accordingly. If tt is null,
-	 * @param tt The timeoutTransition.
+ 	 * Collects else transition or rendezvous enabled action for later processing 
+	 * Check only for the normal process, not for the never claim
+	 * 
+	 * For rendezvous actions we first need to calculate a cross product to
+	 * determine enabledness, therefore else transitions have to be processed even later.   
+	 * 
+	 * The never claim process is not allowed to contain message passing
+	 * statements.
+	 * "This means that a never claim may not contain assignment or message
+	 * passing statements." @ http://spinroot.com/spin/Man/never.html)
 	 */
-	public void createTimeoutExpression(TimeoutTransition tt) {
-		for (Proctype p : spec) {
-state_loop:	for (State st : p.getAutomaton()) {
-				// Check if this state has an ElseTransition
-				// If so, skip the transition, because this state
-				// always has an active outgoing transition
-				for (Transition trans : st.output) {
-					if (trans instanceof ElseTransition) continue state_loop;
+	private boolean collectRendezVous(ProcInstance process, Transition t, int trans) {
+		if (t.iterator().hasNext()) {
+			Action a = t.iterator().next();
+			if (a instanceof ChannelSendAction) {
+				ChannelSendAction csa = (ChannelSendAction)a;
+				ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
+				if(var.getType().getBufferSize()==0) {
+					ReadersAndWriters raw = channels.get(var);
+					if (raw == null) {
+						raw = new ReadersAndWriters();
+						channels.put(var, raw);
+					}
+					raw.sendActions.add(new SendAction(csa,t,process));
+					return true;
 				}
-				// Loop over all transitions of the state
-				for (Transition trans : st.output) {
-					tt.lt.addGuard(dieGuard(model, p));
-					//tt.lt.addGuard(tt.trans,makeAtomicGuard(p));
-                    createEnabledGuard(trans,tt.lt);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Creates the total timeout expression. This expression is true iff
-	 * no transition is enabled, including 'normal' time out transitions.
-	 * The dependency matrix is fixed accordingly.
-	 * @param tt The TimeoutTransition
-	 */
-	public int createTotalTimeout(State from, int trans, Proctype process) {
-		LTSminTransition lt = makeTransition(process, trans, from.newTransition(null), null, null);
-		lt.setName(lt.getName() +"_total_timeout");
-		LTSminGuardOr gor = new LTSminGuardOr();
-		lt.addGuard(gor);
-		model.getTransitions().add(lt);
-		for (State s : spec.getNever().getAutomaton()) {
-			if (s.isAcceptState()) {
-				gor.addGuard(pcGuard(model, s, spec.getNever()));
-			}
-		}
-		for (Proctype p: spec) {
-state_loop:	for (State st : p.getAutomaton()) {				
-				// Check if this state has an ElseTransition
-				// If so, skip the transition, because this state
-				// always has an active outgoing transition
-				for(Transition t : st.output) {
-					if (t instanceof ElseTransition) continue state_loop;
-				}
-				for (Transition t : st.output) {
-					// Add the expression that the current transition from the
-					// current state in the current process is not enabled.
-					LTSminGuardNand gnand = new LTSminGuardNand();
-					lt.addGuard(gnand);
-					gnand.addGuard(pcGuard(model, st, p));
-					//gnand.addGuard(trans, makeAtomicGuard(p));
-					createEnabledGuard(t,gnand);
+			} else if (a instanceof ChannelReadAction) {
+				ChannelReadAction cra = (ChannelReadAction)a;
+				ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
+				if (var.getType().getBufferSize()==0) {
+					if (!cra.isNormal()) debug.say(MessageKind.ERROR, "Abnormal receive on rendez-vous channel.");
+					ReadersAndWriters raw = channels.get(var);
+					if (raw == null) {
+						raw = new ReadersAndWriters();
+						channels.put(var, raw);
+					}
+					raw.readActions.add(new ReadAction(cra,t,process));
+					return true;
 				}
 			}
 		}
-		return trans + 1;
+		return false;
 	}
 
 	/**
@@ -1042,10 +918,6 @@ state_loop:	for (State st : p.getAutomaton()) {
 	 * 
 	 * "If an atomic sequence contains a rendezvous send statement, control
 	 * passes from sender to receiver when the rendezvous handshake completes."
-	 * 
-	 * @param sa The SendAction component.
-	 * @param ra The ReadAction component.
-	 * @param trans The transition ID to use for the created transition.
 	 */
 	private int createRendezVousTransition(SendAction sa, ReadAction ra,
 										   int trans, Transition never_t) {
@@ -1065,6 +937,8 @@ state_loop:	for (State st : p.getAutomaton()) {
 			}
 		} catch (IndexOutOfBoundsException iobe) {} // skip missing arguments
 		LTSminTransition lt = makeTransition(ra.p, trans, ra.t, never_t, sa.t);
+
+        addNever(lt, never_t);
 
 		lt.addGuard(pcGuard(model, sa.t.getFrom(), sa.p));
 		lt.addGuard(pcGuard(model, ra.t.getFrom(), ra.p));
@@ -1093,10 +967,10 @@ state_loop:	for (State st : p.getAutomaton()) {
 		// Change process counter of receiver
 		lt.addAction(assign(model.sv.getPC(ra.p), ra.t.getTo().getStateId()));
 
-		lt.addGuard(makeInAtomicGuard(sa.p));
-		if (sa.t.isAtomic() && ra.t.isAtomic()) // control passes from sender to receiver
-			lt.passesControlAtomically(ra.p);
-
+		lt.addGuard(inAtomicGuard(model, sa.p));
+		if (sa.t.isAtomic() && ra.t.isAtomic()) {
+			lt.passesControlAtomically(ra.p); // control passes from sender to receiver
+		}
 		model.getTransitions().add(lt);
 		return trans + 1;
 	}

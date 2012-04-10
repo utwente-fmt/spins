@@ -1,6 +1,7 @@
 package spinja.promela.compiler.ltsmin.matrix;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import spinja.promela.compiler.expression.Expression;
@@ -30,7 +31,7 @@ public class LTSminGuardAnd implements LTSminGuardBase, LTSminGuardContainer {
 	public void prettyPrint(StringWriter w) {
 		if(guards.size()>0) {
 			boolean first = true;
-			w.appendLine("!(");
+			w.appendLine("(");
 			w.indent();
 			for(LTSminGuardBase g: guards) {
 				if(!first) w.append(" && ");
@@ -62,6 +63,13 @@ public class LTSminGuardAnd implements LTSminGuardBase, LTSminGuardContainer {
 		return false;
 	}
 
+	@Override
+	public Iterator<LTSminGuardBase> iterator() {
+		return guards.iterator();
+	}
 
-
+	@Override
+	public int size() {
+		return guards.size();
+	}
 }
