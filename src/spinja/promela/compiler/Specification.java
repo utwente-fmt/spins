@@ -27,6 +27,7 @@ import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.CustomVariableType;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableStore;
+import spinja.promela.compiler.variable.VariableType;
 import spinja.util.StringWriter;
 
 public class Specification implements Iterable<ProcInstance> {
@@ -50,6 +51,9 @@ public class Specification implements Iterable<ProcInstance> {
 		channels = new ArrayList<ChannelType>();
 		userTypes = new HashMap<String, CustomVariableType>();
 		varStore = new VariableStore();
+		Variable hidden = new Variable(VariableType.INT, "_", -1);
+		hidden.setHidden(true);
+		varStore.addVariable(hidden);
 		mtypes = new ArrayList<String>();
 	}
 

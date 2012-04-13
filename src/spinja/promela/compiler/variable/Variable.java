@@ -37,6 +37,8 @@ public class Variable {
 
 	private boolean assignedTo = false;
 
+	private boolean hidden = false;
+
 	private Integer constant = null;
 
 	public Variable(final VariableType type, final String name, final int arraySize) {
@@ -118,7 +120,7 @@ public class Variable {
 	
 	public void setInitExpr(final Expression initExpr) throws ParseException {
 		if (!type.canConvert(initExpr.getResultType())) {
-			throw new ParseException("Can not convert initializing expression to desired type");
+			throw new ParseException("Can not convert initializing expression to desired type for "+ this);
 		}
 		this.initExpr = initExpr;
 	}
@@ -167,5 +169,13 @@ public class Variable {
 		if (constant == null)
 			throw new ParseException("Variable "+ this +" is not a constant in process "+ owner);
 		return constant;
+	}
+
+	public boolean isHidden() {
+		return hidden;
+	}
+
+	public void setHidden(boolean hidden) {
+		this.hidden = hidden;
 	}
 }

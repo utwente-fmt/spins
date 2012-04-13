@@ -618,7 +618,9 @@ public class LTSminGMWalker {
 		if (e instanceof LTSminIdentifier) {
 		} else if (e instanceof Identifier) {
 			Identifier id = (Identifier)e;
-			Variable var = id.getVariable();			
+			Variable var = id.getVariable();
+			if (var.isHidden())
+					throw new ParseException();
 			Expression ar = id.getArrayExpr();
 			if ((null == ar) != (-1 == var.getArraySize()))
 				throw new AssertionError("Invalid array semantics in expression: "+ id);

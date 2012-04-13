@@ -165,6 +165,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	 * Add a variable declaration to struct
 	 */
 	private void addVariable(LTSminTypeStruct struct, Variable var, LTSminDebug debug) {
+		if (var.isHidden()) return;
 		String name = var.getName();
 		LTSminVariable lvar = null;
 		debug.say_indent++;

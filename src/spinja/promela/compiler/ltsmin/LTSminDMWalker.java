@@ -296,6 +296,10 @@ public class LTSminDMWalker {
 			if (e instanceof LTSminIdentifier) {
 			} else if (e instanceof Identifier) {
 				Identifier id = (Identifier)e;
+				if (id.getVariable().isHidden()) {
+					if (MarkAction.WRITE != mark) throw new AssertionError("Error reading from a hidden variable.");
+					return;
+				}
 				LTSminSubVector sub = params.sv.sub(id.getVariable());
 				try {
 					sub.mark(this, id);

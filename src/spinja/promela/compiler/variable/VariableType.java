@@ -35,8 +35,8 @@ public class VariableType {
 	public static VariableType MTYPE = new VariableType("mtype", "uint", 8) {
 		@Override
 		public boolean canConvert(VariableType type) {
-			return type == VariableType.MTYPE;
-		}
+			return type == VariableType.MTYPE || super.canConvert(type);
+		} // we want to be able to assign integers to mtype variables.
 	};
 
 	private final String name, javaName;

@@ -291,7 +291,7 @@ SKIP : {
 }
 
 TOKEN : { /* Identifiers and numbers OR preprocessor defines */
-	<IDENTIFIER: ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
+	<IDENTIFIER: ("_")* ["a"-"z","A"-"Z","_"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
 	{
         Preprocessor.DefineMapping current = Preprocessor.defines(image.toString());
         if (null != current) { // Identifier is defined in preprocessor
@@ -908,37 +908,41 @@ void decl_list(VariableContainer store): {
 
 
 void one_decl(VariableContainer store): {
+    boolean hidden = false;
 }{
-    LOOKAHEAD(2) (<SHOW>)? <TYPEDEF> utype() (<COMMA> utype())*
-|   LOOKAHEAD(3) (<SHOW>)? <MTYPE> mtype() (<COMMA> mtype())*
+(<HIDDEN> { hidden = true; })?
+(
+    LOOKAHEAD(2) (<SHOW>)? <TYPEDEF> utype(hidden) (<COMMA> utype(hidden))*
+|   LOOKAHEAD(3) (<SHOW>)? <MTYPE> mtype(hidden) (<COMMA> mtype(hidden))*
 |	LOOKAHEAD(2) (<SHOW>)? type=typename()
     (LOOKAHEAD( {type instanceof ChannelType} )
-	   ivar_chan(store) (<COMMA> ivar_chan(store))*
-	|  ivar(store, type) (<COMMA> ivar(store, type))*
+	   ivar_chan(store, hidden) (<COMMA> ivar_chan(store, hidden))*
+	|  ivar(store, type, hidden) (<COMMA> ivar(store, type, hidden))*
 	)
+)
 }
 
-void utype(): {
+void utype(boolean hidden): {
     Token id;
 }{
     id=<IDENTIFIER> 
-    { CustomVariableType custom = specification.newCustomType(id.image); }
+    { CustomVariableType custom = specification.newCustomType(id.image); if (hidden) throw new MyParseException("Cannot declare a custom variable type as hidden ", id); }
     <LCURLY>
        decl_list(custom.getVariableStore()) (<SEMICOLON>)?
     <RCURLY>
 }
 
-void mtype(): {
+void mtype(boolean hidden): {
     Token id, ref = null;
 }{
     (<ASSIGN>)? <LCURLY> id=<IDENTIFIER>
-       { specification.addMType(id.image); }
+       { specification.addMType(id.image); if (hidden) throw new MyParseException("Cannot declare an mtype as hidden ", id); }
     (LOOKAHEAD(2) <COMMA> id=<IDENTIFIER>
        { specification.addMType(id.image); }
     )* (<COMMA>)? <RCURLY>
 }
 
-void ivar(VariableContainer store, VariableType type): {
+void ivar(VariableContainer store, VariableType type, boolean hidden): {
 	Token id;
 	int arraySize = -1;
 	Expression expr = null;
@@ -946,7 +950,7 @@ void ivar(VariableContainer store, VariableType type): {
 }{
 	id=<IDENTIFIER> 
 	(<LBRACK> c=constant() <RBRACK> { arraySize = c.getNumber(); })? 
-	{ Variable var = new Variable(type, id.image, arraySize,currentProc);}
+	{ Variable var = new Variable(type, id.image, arraySize,currentProc); var.setHidden(hidden); }
 	(<ASSIGN> 
 	  expr=lor_expr()
 	  {	var.setInitExpr(expr); }
@@ -954,7 +958,7 @@ void ivar(VariableContainer store, VariableType type): {
 	{ store.addVariable(var); }
 }
 
-void ivar_chan(VariableContainer store): {
+void ivar_chan(VariableContainer store, boolean hidden): {
 	Token id, as;	
 	int arraySize = -1;
 	ConstantExpression c = null;
@@ -964,6 +968,7 @@ void ivar_chan(VariableContainer store): {
 	(<LBRACK> c=constant() <RBRACK> { arraySize = c.getNumber(); })? 
 	{
 		var = new ChannelVariable(id.image, arraySize);
+		var.setHidden(hidden);
 		var.setOwner(currentProc);
 		if (null != currentProc && currentProc.isArgument()) {
 			store.addVariable(var); // proc arguments can be uninitialized channels
@@ -1074,7 +1079,7 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 		//start.newTransition(new ElseAction(t), end);
 		new ElseTransition(start, end);
 	}
-	(delim() (end=sequence(end, breakNode, inAtomic))?)?
+	(end=sequence(end, breakNode, inAtomic))?
 |	t=<GOTO> id=<IDENTIFIER>
 	{
 		gotos.put(start, id);
@@ -1243,7 +1248,7 @@ void dstep_sequence(ActionContainer cont, OptionAction loop): {
 	(delim() (dstep_sequence(cont, loop))?)?
 |	t=<ELSE>
 	{ cont.addAction(new ElseAction(t)); }
-	(delim() (dstep_sequence(cont, loop))?)?
+	(dstep_sequence(cont, loop))?
 |	t=<GOTO> <IDENTIFIER>
 	{ throw new MyParseException("Goto-statements are not supported in a d_step", t); }
 	(delim() (dstep_sequence(cont, loop))?)?
