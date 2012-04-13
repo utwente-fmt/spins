@@ -83,6 +83,7 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
+import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminSlot;
@@ -197,6 +198,8 @@ public class LTSminPrinter {
 		w.indent();
 		w.appendLine("int* label;");
 		w.appendLine("int  group;");
+		w.appendLine("int  dummy;"); // just to make sure we don't overwrite POR info
+		w.appendLine("int  next_atomic;");
 		w.outdent();
 		w.appendLine("} transition_info_t;");
 		w.appendLine("");
@@ -313,7 +316,7 @@ public class LTSminPrinter {
 		if (ts.size() > 0) {
 			int i = 0;
 			for (LTSminTransition tb : ts) {
-				if (0 != i) w.append(",\t// "+ i).appendPostfix();
+				if (0 != i) w.append(",\t// "+ (i-1)).appendPostfix();
 				LTSminTransition t = (LTSminTransition)tb;
 				w.appendPrefix();
 				w.append("" + t.leavesAtomic());
@@ -353,47 +356,45 @@ public class LTSminPrinter {
 		w.appendLine();
 	}
 
-	public static void generateATransition(StringWriter w, LTSminTransition transition,
+	public static void generateATransition(StringWriter w, LTSminTransition t,
 										   LTSminModel model) {
-		if(transition instanceof LTSminTransition) {
-			LTSminTransition t = (LTSminTransition)transition;
-			w.appendLine("// "+ transition.getName());
-			w.appendPrefix().append("if (true");
-			for(LTSminGuardBase g: t.getGuards()) {
-				w.appendPostfix().appendPrefix().append("&&");
-				generateGuard(w, model, g, in(model));
-			}
-			w.append(") {").appendPostfix();
-			w.indent();
-			w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
-			List<Action> actions = t.getActions();
-			for(Action a: actions)
-				generateAction(w,a,model);
-			if (t.isAtomic()) {
-				w.appendLine("if (-1 != *atomic) {");
-				w.indent();
-				if (null != transition.passesControlAtomically()) {
-					String pid = printPID(transition.passesControlAtomically(), out(model));
-					w.appendLine("*atomic = "+ pid +";");
-				}
-				generateACallback(w,transition.getGroup());
-				w.outdent();
-				w.appendLine("} else {");
-				w.indent();
-				String pid = printPID(transition.getProcess(), out(model));
-				w.appendLine("transition_info.group = "+ transition.getGroup() +";");
-				w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ pid +");");
-				w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
-				w.outdent();
-				w.appendLine("}");
+		w.appendLine("// "+ t.getName());
+		w.appendPrefix().append("if (true");
+		for(LTSminGuardBase g: t.getGuards()) {
+			w.appendPostfix().appendPrefix().append("&&");
+			generateGuard(w, model, g, in(model));
+		}
+		w.append(") {").appendPostfix();
+		w.indent();
+		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
+		List<Action> actions = t.getActions();
+		for(Action a: actions)
+			generateAction(w,a,model);
+		if (t.isAtomic()) {
+			String atomic_pid;
+			if (null != t.passesControlAtomically()) {
+				atomic_pid = printPID(t.passesControlAtomically().getProc(), out(model));
 			} else {
-				generateACallback(w,transition.getGroup());
+				atomic_pid = printPID(t.getProcess(), out(model));
 			}
+			w.appendLine("if (-1 != *atomic) {");
+			w.indent();
+			assert (t instanceof LTSminTransitionCombo);
+			w.appendLine("transition_info.next_atomic = "+ atomic_pid +";");
+			generateACallback(w,t.getGroup());
+			w.outdent();
+			w.appendLine("} else {");
+			w.indent();
+			w.appendLine("transition_info.group = "+ t.getGroup() +";");
+			w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ atomic_pid +");");
+			w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
 			w.outdent();
 			w.appendLine("}");
 		} else {
-			w.appendLine("/** UNSUPPORTED: ",transition.getClass().getSimpleName()," **/");
+			generateACallback(w,t.getGroup());
 		}
+		w.outdent();
+		w.appendLine("}");
 	}
 
 	private static void generateGetNext(StringWriter w, LTSminModel model) {

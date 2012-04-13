@@ -45,7 +45,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
@@ -62,17 +61,18 @@ import spinja.promela.compiler.variable.VariableType;
  */
 public class LTSminGMWalker {
 
+	static final boolean NO_NES = false;
+	static final boolean NO_NDS = false;
+
 	static public class Params {
 		public final LTSminModel model;
 		public final GuardInfo guardMatrix;
-		public int trans;
 		public int guards;
 		public LTSminDebug debug;
 
 		public Params(LTSminModel model, GuardInfo guardMatrix, LTSminDebug debug) {
 			this.model = model;
 			this.guardMatrix = guardMatrix;
-			this.trans = 0;
 			this.guards = 0;
 			this.debug = debug;
 		}
@@ -130,7 +130,7 @@ public class LTSminGMWalker {
 		for (int i = 0; i <  nds.getRows(); i++) {
 			for (int j = 0; j < nds.getRowLength(); j++) {
 				LTSminTransition trans = model.getTransitions().get(j);
-				if (is_nds_guard(model, guardInfo.get(i), trans)) {
+				if (NO_NDS || is_nds_guard(model, guardInfo.get(i), trans)) {
 					nds.incRead(i, j);
 				} else {
 					notNDS++;
@@ -317,7 +317,7 @@ public class LTSminGMWalker {
 		for (int i = 0; i <  nes.getRows(); i++) {
 			for (int j = 0; j < nes.getRowLength(); j++) {
 				LTSminTransition trans = model.getTransitions().get(j);
-				if (is_nes_guard(model, guardInfo.get(i), trans)) {
+				if (NO_NES || is_nes_guard(model, guardInfo.get(i), trans)) {
 					nes.incRead(i, j);
 				} else {
 					notNES++;
@@ -703,35 +703,35 @@ public class LTSminGMWalker {
 
 	static void walkTransitions(Params params) {
 		for(LTSminTransition t : params.model.getTransitions()) {
-			walkTransition(params,t);
-			params.trans++;
+			walkTransition(params, t);
 		}
 	}
 
-	static void walkTransition(	Params params, LTSminTransition transition) {
-		if(transition instanceof LTSminTransition) {
-			LTSminTransition t = (LTSminTransition)transition;
-			List<LTSminGuardBase> guards = t.getGuards();
-			for(LTSminGuardBase g: guards)
-				walkGuard(params, g);
-		} else if (transition instanceof LTSminTransitionCombo) {
+	static void walkTransition(Params params, LTSminTransition transition) {
+		/*if (transition instanceof LTSminTransitionCombo) {
 			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
 			for(LTSminTransition tb : t.transitions)
-				walkTransition(params,tb);
+				for(LTSminGuardBase g : tb.getGuards())
+					walkGuard(params, tb, g);
+		} else*/
+		if(transition instanceof LTSminTransition) {
+			LTSminTransition t = (LTSminTransition)transition;
+			for(LTSminGuardBase g : t.getGuards())
+				walkGuard(params, t, g);
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + transition.getClass().getSimpleName());
 		}
 	}
 
-	static void walkGuard(Params params, LTSminGuardBase guard) {
+	static void walkGuard(Params params, LTSminTransition t, LTSminGuardBase guard) {
 		if(guard instanceof LTSminLocalGuard) { //Nothing
 		} else if(guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
-			params.guardMatrix.addGuard(params.trans, g);
+			params.guardMatrix.addGuard(t.getGroup(), g);
 		} else if(guard instanceof LTSminGuardContainer) {
 			LTSminGuardContainer g = (LTSminGuardContainer)guard;
 			for(LTSminGuardBase gb : g) {
-				walkGuard(params, gb);
+				walkGuard(params, t, gb);
 			}
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());

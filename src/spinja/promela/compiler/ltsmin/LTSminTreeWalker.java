@@ -89,6 +89,9 @@ import spinja.promela.compiler.variable.VariableType;
  * Constructs the LTSminModel by walking over the SpinJa {@link Specification}.
  * First processes are instantiated by copying their CST.
  * 
+ * TODO: introduce LTSminState and precisely calculate the crossproduct
+ * TODO: get rid of LTSminTransitionCombo
+ * 
  * @author Freark van der Berg, Alfons Laarman
  */
 public class LTSminTreeWalker {
@@ -644,18 +647,21 @@ public class LTSminTreeWalker {
 				continue;
 			LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
 			HashSet<State> seen = new HashSet<State>();
-			reachability(tc.getTransition().getTo(), seen, tc);
+			State state = tc.getTransition().getTo();
+			Transition other = tc.passesControlAtomically();
+			if (null != other) state = other.getTo();
+			reachability(state, seen, tc);
 			tc.addTransition(tc);
 			//System.out.println(tc +" --> "+ tc.transitions);
 		}
 
-		// let never automata continue on deadlock
+		// let never automata continue on deadlock FIXME
 		if (null != spec.getNever()) {
 			for (State ns : spec.getNever().getAutomaton()) {
 				for (Transition nt : ns.output) {
 					LTSminTransition lt = makeTransition(spec.getNever(), trans, nt, null, null);
-					addNever(lt, nt);
 					lt.addGuard(compare(PromelaConstants.EQ, id(_NR_PR), 0));
+					addNever(lt, nt);
 					model.getTransitions().add(lt);
 					trans++;
 				}
@@ -677,18 +683,21 @@ public class LTSminTreeWalker {
 		if (!seen.add(state)) return;
 		for (Transition t : state.output) {
 			Set<LTSminTransition> set = t2t.get(t);
-			if (null == set) {
+			if (null == set) { // should be a rendez-vous read transition (loss of atomicity)
 				Action a = t.iterator().next();
-				if (a instanceof ChannelSendAction) {
-					ChannelSendAction send = (ChannelSendAction)a;
+				if (a instanceof ChannelReadAction) {
+					ChannelReadAction send = (ChannelReadAction)a;
 					ChannelType ct = (ChannelType)send.getIdentifier().getVariable().getType();
-					if (0 == ct.getBufferSize()) continue; // rendez-vous send
+					if (0 == ct.getBufferSize()) continue; // rendez-vous read
 				}
 				throw new AssertionError("No transition created for "+ t);
 			}
 			for (LTSminTransition lt : set) {
-				assert (lt.isAtomic());
 				tc.addTransition(lt);
+				Transition other = lt.passesControlAtomically();
+				if (null != other) {
+					reachability(other.getTo(), seen, tc);
+				}
 			}
 			reachability(t.getTo(), seen, tc);
 		}
@@ -770,10 +779,23 @@ public class LTSminTreeWalker {
 	private LTSminTransition makeTransition(Proctype process, int trans,
 							Transition t, Transition never_t, Transition sync_t) {
 		LTSminTransition lt;
-		if (t == null || !t.isAtomic()) {
-			lt = new LTSminTransition(trans, t, sync_t, never_t, process);
-		} else {
+		boolean atomic = t.isAtomic();
+		if (null != sync_t) {
+			Action a = sync_t.iterator().next();
+			if (a instanceof ChannelReadAction) {
+				ChannelReadAction csa = (ChannelReadAction)a;
+				if (csa.isRendezVous()) {
+					if (sync_t.getTo().isInAtomic())
+						atomic = true;
+					else
+						atomic = false;
+				}
+			}
+		}
+		if (atomic) {
 			lt = new LTSminTransitionCombo(trans, t, sync_t, never_t, process);
+		} else {
+			lt = new LTSminTransition(trans, t, sync_t, never_t, process);
 		}
 		Set <LTSminTransition> set = t2t.get(t);
 		if (null == set) {
@@ -957,7 +979,7 @@ public class LTSminTreeWalker {
 					return trans;
 			} catch (ParseException pe) {}
 		}
-		LTSminTransition lt = makeTransition(ra.p, trans, ra.t, never_t, sa.t);
+		LTSminTransition lt = makeTransition(ra.p, trans, sa.t, never_t, ra.t);
 
         addNever(lt, never_t);
 
@@ -984,8 +1006,8 @@ public class LTSminTreeWalker {
 		lt.addAction(assign(model.sv.getPC(ra.p), ra.t.getTo().getStateId()));
 
 		lt.addGuard(inAtomicGuard(model, sa.p));
-		if (sa.t.isAtomic() && ra.t.isAtomic()) {
-			lt.passesControlAtomically(ra.p); // control passes from sender to receiver
+		if (ra.t.getTo().isInAtomic()) {
+			lt.passesControlAtomically(ra.t); // control passes from sender to receiver
 		}
 		model.getTransitions().add(lt);
 		return trans + 1;

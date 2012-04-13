@@ -17,6 +17,7 @@ package spinja.promela.compiler.automaton;
 import java.util.Collections;
 import java.util.Iterator;
 
+import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.ActionContainer;
 import spinja.promela.compiler.actions.ChannelSendAction;
@@ -332,7 +333,7 @@ public abstract class Transition implements ActionContainer {
 	}
 
 	public boolean isAtomic() {
-		return getFrom().isInAtomic() || (getTo() != null && getTo().isInAtomic());
+		return (getTo() != null && getTo().isInAtomic());
 	}
 
 	public boolean isSkip() {
@@ -348,5 +349,9 @@ public abstract class Transition implements ActionContainer {
 			return e.getToken().image.equals("skip");
 		}
 		return false;
+	}
+
+	public Proctype getProc() {
+		return getFrom().getAutomaton().getProctype();
 	}
 }

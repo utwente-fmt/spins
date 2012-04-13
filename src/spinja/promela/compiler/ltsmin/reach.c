@@ -16,7 +16,7 @@ typedef struct spinja_args_s {
 	pthread_key_t 	   *key;
 } spinja_args_t;
 
-extern void dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state);
+extern void dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state, int atomic);
 
 void
 dfs_cb(void* arg, transition_info_t *transition_info, state_t *out)
@@ -27,18 +27,18 @@ dfs_cb(void* arg, transition_info_t *transition_info, state_t *out)
 		args->callback (args->arg, transition_info, out);
 		args->outs++;
 	} else {
-		dfs (args, transition_info, out);
+		dfs (args, transition_info, out, transition_info->next_atomic);
 	}
 }
 
 void
-dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state)
+dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state, int atomic)
 {
 	int result = state_db_lookup (args->seen, (const int*)state);
 	switch ( result ) {
 	case false: { // new state
 		state_t out;
-		int count = spinja_get_successor_all_real (args->model, state, dfs_cb, args, &out, &args->pid);
+		int count = spinja_get_successor_all_real (args->model, state, dfs_cb, args, &out, &atomic);
 		if (count == 0) {
 		    transition_info->group = args->real_group;
 			args->callback (args->arg, transition_info, state);
@@ -102,7 +102,7 @@ reach (void* model, transition_info_t *transition_info, state_t *in,
 	args->pid = pid;
 	args->real_group = transition_info->group;
 	state_db_clear (args->seen);
-	dfs (args, transition_info, in);
+	dfs (args, transition_info, in, pid);
 	return args->outs;
 }
 

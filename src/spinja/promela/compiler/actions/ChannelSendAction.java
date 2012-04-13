@@ -24,6 +24,8 @@ import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Token;
+import spinja.promela.compiler.variable.ChannelVariable;
+import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableAccess;
 import spinja.util.StringWriter;
 
@@ -43,6 +45,13 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 		for (final VariableAccess va : expr.readVariables()) {
 			va.getVar().setRead(true);
 		}
+	}
+
+	public boolean isRendezVous() {
+		Variable v = id.getVariable();
+		if (!(v instanceof ChannelVariable)) throw new AssertionError("Channel operation on non-channel "+ id);
+		ChannelVariable cv = (ChannelVariable)v;
+		return 0 == cv.getType().getBufferSize();
 	}
 
 	@Override

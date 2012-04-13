@@ -7,6 +7,7 @@ import java.util.List;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
+import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
@@ -42,7 +43,7 @@ public class LTSminTransition implements LTSminGuardContainer {
 	private Transition original;
 	private Transition never;
 	private Transition sync;
-	private Proctype passControl = null;
+	private Transition passControl = null;
 	
 
 	public LTSminTransition(int group, Transition t, Transition sync,
@@ -69,7 +70,7 @@ public class LTSminTransition implements LTSminGuardContainer {
 	}
 */
 	public String toString() {
-		return name;
+		return trans +"";
 	}
 
 	public Proctype getProcess() {
@@ -139,24 +140,38 @@ public class LTSminTransition implements LTSminGuardContainer {
 
 	}
 
-	public boolean entersAtomic() {
-		return !original.getFrom().isInAtomic() && original.getTo() != null && original.getTo().isInAtomic();
-	}
-
 	public boolean leavesAtomic() {
+		if (null != sync) {
+			Action a = sync.iterator().next();
+			if (a instanceof ChannelReadAction) {
+				ChannelReadAction csa = (ChannelReadAction)a;
+				if (csa.isRendezVous()) {
+					return original.getFrom().isInAtomic() && !sync.getTo().isInAtomic(); 
+				}
+			}
+		}
 		return original.getFrom().isInAtomic() && (original.getTo() == null || !original.getTo().isInAtomic());
 	}
 	
 	public boolean isAtomic() {
-		return original.getFrom().isInAtomic() || (original.getTo() != null && original.getTo().isInAtomic());
+		if (null != sync) {
+			Action a = sync.iterator().next();
+			if (a instanceof ChannelReadAction) {
+				ChannelReadAction csa = (ChannelReadAction)a;
+				if (csa.isRendezVous()) {
+					return sync.getTo().isInAtomic(); 
+				}
+			}
+		}
+		return original.getTo() != null && original.getTo().isInAtomic();
 	}
 
-	public Proctype passesControlAtomically() {
+	public Transition passesControlAtomically() {
 		return passControl;
 	}
 
-	public void passesControlAtomically(Proctype to) {
-		passControl = to;
+	public void passesControlAtomically(Transition t) {
+		passControl = t;
 	}
 
 	public Transition getTransition() {
