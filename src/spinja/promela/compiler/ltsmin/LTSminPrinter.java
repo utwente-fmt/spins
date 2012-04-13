@@ -903,7 +903,8 @@ public class LTSminPrinter {
 			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
 			generateExpression(w, comp, state);
 		} else if(e instanceof EvalExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			EvalExpression eval = (EvalExpression)e;
+			generateExpression(w, eval.getExpression(), state);
 		} else if(e instanceof CompoundExpression) {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}  else if(e instanceof TimeoutExpression) {

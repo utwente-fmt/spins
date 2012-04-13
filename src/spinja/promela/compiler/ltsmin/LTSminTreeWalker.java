@@ -55,6 +55,7 @@ import spinja.promela.compiler.expression.ChannelOperation;
 import spinja.promela.compiler.expression.ChannelReadExpression;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.ConstantExpression;
+import spinja.promela.compiler.expression.EvalExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RemoteRef;
@@ -474,6 +475,10 @@ public class LTSminTreeWalker {
 			}
 			runs.add(newre); // add runexpression to a list
 			return newre;
+		} else if (e instanceof EvalExpression) {
+			EvalExpression eval = (EvalExpression)e;
+			Expression ex = instantiate(eval.getExpression(), p);
+			return new EvalExpression(e.getToken(), ex);
 		} else if (e instanceof ConstantExpression) {
 			return e; // readonly, hence can be shared
 		} else if (e instanceof RemoteRef) {

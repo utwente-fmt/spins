@@ -113,8 +113,8 @@ public class LTSminDMWalker {
 
 	static void walkTransitions(Params params) {
 		for(LTSminTransition t: params.model.getTransitions()) {
+			params.trans = t.getGroup();
 			walkTransition(params,t);
-			params.trans++;
 		}
 	}
 
@@ -405,12 +405,13 @@ public class LTSminDMWalker {
 			int num = rr.getLabelId();
 			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
 			walkExpression(params, comp, mark);
-		} else if(e instanceof TimeoutExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else if(e instanceof EvalExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			EvalExpression eval = (EvalExpression)e;
+			walkExpression(params, eval.getExpression(), mark);
+		} else if(e instanceof TimeoutExpression) {
+			throw new AssertionError("LTSminDMWalker: Not yet implemented: "+e.getClass().getName());
 		} else {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			throw new AssertionError("LTSminDMWalker: Not yet implemented: "+e.getClass().getName());
 		}
 	}
 

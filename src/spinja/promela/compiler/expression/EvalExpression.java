@@ -29,6 +29,10 @@ public class EvalExpression extends Expression {
 		this.expr = expr;
 	}
 
+	public Expression getExpression() {
+		return expr;
+	}
+
 	@Override
 	public String getBoolExpression() throws ParseException {
 		return expr.getBoolExpression();
