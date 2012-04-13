@@ -206,6 +206,6 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 		Variable v = id.getVariable();
 		if (!(v instanceof ChannelVariable)) throw new AssertionError("Channel operation on non-channel "+ id);
 		ChannelVariable cv = (ChannelVariable)v;
-		return 0 == cv.getType().getBufferSize();
+		return cv.getType().isRendezVous();
 	}
 }

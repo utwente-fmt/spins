@@ -4,10 +4,17 @@ import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_FIL
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spinja.promela.compiler.parser.PromelaConstants.IDENTIFIER;
-import spinja.promela.compiler.ProcInstance;
+
+import java.util.Arrays;
+import java.util.HashSet;
+
 import spinja.promela.compiler.Proctype;
+import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssignAction;
+import spinja.promela.compiler.actions.ChannelReadAction;
+import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.automaton.State;
+import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.BooleanExpression;
 import spinja.promela.compiler.expression.ChannelLengthExpression;
@@ -121,7 +128,7 @@ public class LTSminUtil {
 		return compare (PromelaConstants.EQ, left, id(LTSminStateVector._NR_PR));
 	}
 
-	public static LTSminLocalGuard inAtomicGuard(LTSminModel model, ProcInstance process) {
+	public static LTSminLocalGuard inAtomicGuard(LTSminModel model, Proctype process) {
 		Identifier id = new LTSminIdentifier(new Variable(VariableType.BOOL, "atomic", -1), true);
 		Variable pid = model.sv.getPID(process);
 		BooleanExpression boolExpr = bool(PromelaConstants.LOR,
@@ -174,6 +181,23 @@ public class LTSminUtil {
 		return printer.print(id);
 	}
 
+	/** others **/
+	public static Iterable<Transition> getOutTransitionsOrNullSet(State s) {
+		if (s == null)
+			return new HashSet<Transition>(Arrays.asList((Transition)null));
+		return s.output;
+	}
+
+	public static boolean isRendezVousReadAction(Action a) {
+		return a instanceof ChannelReadAction && 
+				((ChannelReadAction)a).isRendezVous();
+	}
+
+	public static boolean isRendezVousSendAction(Action a) {
+		return a instanceof ChannelSendAction &&
+				((ChannelSendAction)a).isRendezVous();
+	}
+	
 	/** Errors **/
 	public static ParseException exception(String string, Token token) {
 		return new ParseException(string + " At line "+token.beginLine +"column "+ token.beginColumn +".");

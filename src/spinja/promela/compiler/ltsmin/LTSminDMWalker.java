@@ -117,27 +117,22 @@ public class LTSminDMWalker {
 		}
 	}
 
-	static void walkTransition(Params params, LTSminTransition transition) {
-		if(transition instanceof LTSminTransition) {
-			LTSminTransition t = (LTSminTransition)transition;
-			for(LTSminGuardBase g : t.getGuards())
+	static void walkTransition(Params params, LTSminTransition t) {
+		for(LTSminGuardBase g : t.getGuards())
+			walkGuard(params,g);
+		for(Action a : t.getActions())
+			walkAction(params,a);
+		for(LTSminTransition atomic : t.getTransitions()) {
+			for(LTSminGuardBase g : atomic.getGuards())
 				walkGuard(params,g);
-			for(Action a : t.getActions())
+			for(Action a : atomic.getActions()) {
 				walkAction(params,a);
-			for(LTSminTransition atomic : t.getTransitions()) {
-				for(LTSminGuardBase g : atomic.getGuards())
-					walkGuard(params,g);
-				for(Action a : atomic.getActions()) {
-					walkAction(params,a);
-				}
 			}
-			if (t.isAtomic())
-			for (ProcInstance instance : transition.getProcess().getSpecification()) {
-				Variable pid = params.sv.getPID(instance);
-				walkExpression(params, id(pid), MarkAction.READ); //the PID is READ!
-			}
-		} else {
-			throw new AssertionError("UNSUPPORTED: " + transition.getClass().getSimpleName());
+		}
+		if (t.isAtomic())
+		for (ProcInstance instance : t.getSpecification()) {
+			Variable pid = params.sv.getPID(instance);
+			walkExpression(params, id(pid), MarkAction.READ); //the PID is READ! TODO: separate atomic getAll function
 		}
 	}
 
@@ -387,7 +382,7 @@ public class LTSminDMWalker {
 			ChannelOperation co = (ChannelOperation)e;
 			Identifier id = (Identifier)co.getExpression();
 			ChannelType ct = (ChannelType)id.getVariable().getType();
-			if (0 != ct.getBufferSize()) // chanops on rendez-vous return true
+			if (!ct.isRendezVous()) // chanops on rendez-vous return true
 				walkExpression(params, chanLength(id), mark);
 		} else if(e instanceof RunExpression) {
 			DMIncRead(params, _NR_PR); // only the guard!

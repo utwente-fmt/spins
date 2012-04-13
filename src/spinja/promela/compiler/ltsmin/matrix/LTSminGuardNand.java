@@ -69,7 +69,7 @@ public class LTSminGuardNand implements LTSminGuardBase, LTSminGuardContainer {
 	}
 
 	@Override
-	public int size() {
+	public int guardCount() {
 		return guards.size();
 	}
 }

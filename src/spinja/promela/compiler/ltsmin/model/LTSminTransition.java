@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Set;
 
 import spinja.promela.compiler.Proctype;
+import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.actions.Action;
-import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
@@ -24,71 +24,50 @@ import spinja.util.StringWriter;
  */
 public class LTSminTransition implements LTSminGuardContainer {
 
-	private int trans;
+	static int next_num = 0;
+	private int group;
 	
-	public LTSminTransition(int group) {
-		trans = group;
+	public LTSminTransition() {
+		group = next_num++;
 	}
 
 	public int getGroup() {
-		return trans;
+		return group;
 	}
 
 	public void setGroup(int trans) {
-		this.trans = trans;
+		this.group = trans;
 	}
 	
 	private String name;
-	private Proctype process;
 	private	List<LTSminGuardBase> guards;
 	private List<Action> actions;
 	private Transition original;
 	private Transition never;
 	private Transition sync;
-	private Transition passControl = null;
-	private Set<LTSminTransition> transitions = new HashSet<LTSminTransition>();
+	private LTSminState begin;
+	private LTSminState end;
 	
-	public void addTransition(LTSminTransition t) {
-		transitions.add(t);
-	}
-
 	public Set<LTSminTransition> getTransitions() {
-		return transitions;
+		return null == end ? new HashSet<LTSminTransition>() : end.getTransitions();
 	}
 
-	public LTSminTransition(int group, Transition t, Transition sync,
-							Transition never, Proctype process) {
-		this(group);
+	public LTSminTransition(Transition t, Transition never) {
+		this();
 		assert (t != null);
 		this.original = t;
-		this.process = process;
-		this.sync = sync;
+		this.sync = null;
 		this.setNever(never);
 		this.guards = new LinkedList<LTSminGuardBase>();
 		this.actions = new ArrayList<Action>();
 	}
-/*
-	public LTSminTransition(int group, Proctype process) {
-		this(group, process.getName(), process);
-	}
 
-	public LTSminTransition(int group, Proctype process, List<LTSminGuardBase> guards, List<Action> actions) {
-		this(group, process.getName(), process);
-		this.process = process;
-		this.guards = guards;
-		this.actions = actions;
-	}
-*/
 	public String toString() {
-		return trans +"";
+		return group +"";
 	}
 
-	public Proctype getProcess() {
-		return process;
-	}
-
-	public void setProcess(Proctype process) {
-		this.process = process;
+	public Specification getSpecification() {
+		return original.getProc().getSpecification();
 	}
 
 	public List<Action> getActions() {
@@ -151,37 +130,11 @@ public class LTSminTransition implements LTSminGuardContainer {
 	}
 
 	public boolean leavesAtomic() {
-		if (null != sync) {
-			Action a = sync.iterator().next();
-			if (a instanceof ChannelReadAction) {
-				ChannelReadAction csa = (ChannelReadAction)a;
-				if (csa.isRendezVous()) {
-					return original.getFrom().isInAtomic() && !sync.getTo().isInAtomic(); 
-				}
-			}
-		}
-		return original.getFrom().isInAtomic() && (original.getTo() == null || !original.getTo().isInAtomic());
+		return begin.isAtomic() && !isAtomic();
 	}
 	
 	public boolean isAtomic() {
-		if (null != sync) {
-			Action a = sync.iterator().next();
-			if (a instanceof ChannelReadAction) {
-				ChannelReadAction csa = (ChannelReadAction)a;
-				if (csa.isRendezVous()) {
-					return sync.getTo().isInAtomic(); 
-				}
-			}
-		}
-		return original.getTo() != null && original.getTo().isInAtomic();
-	}
-
-	public Transition passesControlAtomically() {
-		return passControl;
-	}
-
-	public void passesControlAtomically(Transition t) {
-		passControl = t;
+		return null != end && end.isAtomic();
 	}
 
 	public Transition getTransition() {
@@ -253,7 +206,29 @@ public class LTSminTransition implements LTSminGuardContainer {
 	}
 
 	@Override
-	public int size() {
+	public int guardCount() {
 		return guards.size();
+	}
+
+	public Proctype getProcess() {
+		return original.getProc();
+	}
+
+	public LTSminState getEnd() {
+		return end;
+	}
+
+	public LTSminState getBegin() {
+		return begin;
+	}
+
+	public void setEnd(LTSminState end) {
+		this.end = end;
+		end.addIn(this);
+	}
+
+	public void setBegin(LTSminState s) {
+		this.begin = s;
+		begin.addOut(this);
 	}
 }

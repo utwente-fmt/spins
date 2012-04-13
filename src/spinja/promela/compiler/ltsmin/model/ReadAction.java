@@ -1,6 +1,6 @@
 package spinja.promela.compiler.ltsmin.model;
 
-import spinja.promela.compiler.ProcInstance;
+import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.automaton.Transition;
 
@@ -16,12 +16,12 @@ public class ReadAction {
 	public Transition t;
 
 	/// The position the channel read action is in.
-	public ProcInstance p;
+	public Proctype p;
 
 	/**
 	 * Create a new ReadAction using the specified variables.
 	 */
-	public ReadAction(ChannelReadAction cra, Transition t, ProcInstance p) {
+	public ReadAction(ChannelReadAction cra, Transition t, Proctype p) {
 		this.cra = cra;
 		this.t = t;
 		this.p = p;

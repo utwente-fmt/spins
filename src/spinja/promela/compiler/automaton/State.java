@@ -121,7 +121,17 @@ public class State {
 		in = new ArrayList<Transition>();
 		labels = new ArrayList<String>();
 	}
+/*
+	public boolean equals(Object o) {
+		if (!(o instanceof State)) return false;
+		State other = (State)o;
+		return stateId == other.stateId && automaton == other.automaton;
+	}
 
+	public int hashCode() {
+		return stateId * 37 + automaton.hashCode();
+	}
+*/ // States are unique!
 	/**
 	 * Adds a certain label to this state.
 	 * @param label

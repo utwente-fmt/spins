@@ -69,7 +69,7 @@ public class LTSminGuardOr implements LTSminGuardBase, LTSminGuardContainer {
 	}
 
 	@Override
-	public int size() {
+	public int guardCount() {
 		return guards.size();
 	}
 }

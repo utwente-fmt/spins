@@ -21,6 +21,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import spinja.promela.compiler.actions.ChannelReadAction;
+import spinja.promela.compiler.automaton.Transition;
+import spinja.promela.compiler.expression.RunExpression;
+import spinja.promela.compiler.ltsmin.model.LTSminUtil;
+import spinja.promela.compiler.ltsmin.model.ReadAction;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
@@ -35,7 +40,7 @@ public class Specification implements Iterable<ProcInstance> {
 
 	private final List<Proctype> procs;
 
-	private final List<ChannelType> channels;
+	private final List<ChannelType> channelTypes;
 
 	private final Map<String, CustomVariableType> userTypes;
 
@@ -43,14 +48,19 @@ public class Specification implements Iterable<ProcInstance> {
 
 	private final VariableStore varStore;
 
+	public List<RunExpression> runs = new ArrayList<RunExpression>();
+
 	private final List<String> mtypes;
+
+	private HashMap<Variable, List<ReadAction>> channels;
 
 	public Specification(final String name) {
 		this.name = name;
 		procs = new ArrayList<Proctype>();
-		channels = new ArrayList<ChannelType>();
+		channelTypes = new ArrayList<ChannelType>();
 		userTypes = new HashMap<String, CustomVariableType>();
 		varStore = new VariableStore();
+		channels = new HashMap<Variable, List<ReadAction>>();
 		Variable hidden = new Variable(VariableType.INT, "_", -1);
 		hidden.setHidden(true);
 		varStore.addVariable(hidden);
@@ -65,6 +75,21 @@ public class Specification implements Iterable<ProcInstance> {
 		return name;
 	}
 
+	public void clearReadActions() {
+		channels.clear();
+	}
+
+	public void addReadAction(ChannelReadAction cra, Transition t) {
+		if (!LTSminUtil.isRendezVousReadAction(cra)) return;
+		Variable cv = cra.getIdentifier().getVariable();
+		List<ReadAction> raw = channels.get(cv);
+		if (raw == null) {
+			raw = new ArrayList<ReadAction>();
+			channels.put(cv, raw);
+		}
+		raw.add(new ReadAction(cra, t, t.getProc()));
+	}
+
 	/**
 	 * Creates a new Channel type for in this Specification.
 	 * 
@@ -72,8 +97,8 @@ public class Specification implements Iterable<ProcInstance> {
 	 * @return The new ChannelType
 	 */
 	public ChannelType newChannelType(int bufferSize) {
-		ChannelType type = new ChannelType(channels.size(), bufferSize);
-		channels.add(type);
+		ChannelType type = new ChannelType(channelTypes.size(), bufferSize);
+		channelTypes.add(type);
 		return type;
 	}
 
@@ -92,8 +117,8 @@ public class Specification implements Iterable<ProcInstance> {
 	}
 	
 	public boolean usesRendezvousChannel() {
-		for (ChannelType t : channels) {
-			if (t.getBufferSize() == 0) {
+		for (ChannelType t : channelTypes) {
+			if (t.getBufferSize() < 1) {
 				return true;
 			}
 		}
@@ -181,7 +206,7 @@ public class Specification implements Iterable<ProcInstance> {
 	}
 
 	private void generateCustomTypes(StringWriter w) {
-		for (final ChannelType type : channels) {
+		for (final ChannelType type : channelTypes) {
 			type.generateClass(w);
 		}
 	}
@@ -262,8 +287,8 @@ public class Specification implements Iterable<ProcInstance> {
 					w.appendLine("switch(_reader.peekByte()) {");
 					{
 						w.indent();
-						for (int i = 0; i < channels.size(); i++) {
-							w.appendLine("case ", i, ": _channels[_i] = new Channel", channels.get(
+						for (int i = 0; i < channelTypes.size(); i++) {
+							w.appendLine("case ", i, ": _channels[_i] = new Channel", channelTypes.get(
 								i).getId(), "(); break;");
 						}
 						w.appendLine("default: return false;");
@@ -449,5 +474,9 @@ public class Specification implements Iterable<ProcInstance> {
 
 	public List<Proctype> getProcs() {
 		return procs;
+	}
+
+	public List<ReadAction> getReadActions(Variable cv) {
+		return channels.get(cv);
 	}
 }

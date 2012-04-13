@@ -153,4 +153,8 @@ public class ChannelType extends VariableType {
 	public List<VariableType> getTypes() {
 		return types;
 	}
+
+	public boolean isRendezVous() {
+		return getBufferSize() == 0;
+	}
 }

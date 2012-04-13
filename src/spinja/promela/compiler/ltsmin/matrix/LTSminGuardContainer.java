@@ -9,5 +9,5 @@ import spinja.promela.compiler.expression.Expression;
 public interface LTSminGuardContainer extends Iterable<LTSminGuardBase> {
 	abstract public void addGuard(LTSminGuardBase guard);
 	abstract public void addGuard(Expression guard);
-	abstract int size();
+	abstract int guardCount();
 }

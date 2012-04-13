@@ -7,8 +7,11 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.dieGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.getOutTransitionsOrNullSet;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.inAtomicGuard;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.isRendezVousReadAction;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.isRendezVousSendAction;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
@@ -18,13 +21,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
@@ -41,6 +40,7 @@ import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.actions.PrintAction;
 import spinja.promela.compiler.actions.Sequence;
 import spinja.promela.compiler.automaton.ActionTransition;
+import spinja.promela.compiler.automaton.Automaton;
 import spinja.promela.compiler.automaton.ElseTransition;
 import spinja.promela.compiler.automaton.EndTransition;
 import spinja.promela.compiler.automaton.GotoTransition;
@@ -66,12 +66,11 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
+import spinja.promela.compiler.ltsmin.model.LTSminState;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
 import spinja.promela.compiler.ltsmin.model.ReadAction;
-import spinja.promela.compiler.ltsmin.model.ReadersAndWriters;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.model.SendAction;
-import spinja.promela.compiler.ltsmin.model.TimeoutTransition;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.optimizer.RenumberAll;
 import spinja.promela.compiler.parser.ParseException;
@@ -89,62 +88,46 @@ import spinja.promela.compiler.variable.VariableType;
  * Constructs the LTSminModel by walking over the SpinJa {@link Specification}.
  * First processes are instantiated by copying their CST.
  * 
- * TODO: introduce LTSminState and precisely calculate the crossproduct
- * TODO: get rid of LTSminTransitionCombo
- * 
  * @author Freark van der Berg, Alfons Laarman
  */
 public class LTSminTreeWalker {
 
-	// The specification of which the model is created,
-	// initialized by constructor
+	public List<Pair> pairs = new ArrayList<Pair>();
+	public static class Pair {
+		public ChannelReadAction cra; public Transition t;
+		public Pair(ChannelReadAction cra, Transition t)
+		{ this.cra = cra; this.t = t; }
+	}
+	
 	private final Specification spec;
+	static boolean NEVER;
 
 	private LTSminDebug debug;
 
 	private LTSminModel model = null;
-	
-	// For each channel, a list of read actions and send actions is kept for later processing
-	private HashMap<ChannelVariable,ReadersAndWriters> channels;
 
-	// Maintain transition
-	private HashMap<Transition, Set<LTSminTransition>> t2t;
-
-	// List of transition with a TimeoutExpression
-    List<TimeoutTransition> timeout_transitions;
-
-	/**
-	 * Creates a new LTSMinPrinter using the specified Specification.
-	 * @param spec The specification.
-	 * @param name The name to give the model.
-	 */
 	public LTSminTreeWalker(Specification spec) {
 		this.spec = spec;
-        timeout_transitions = new ArrayList<TimeoutTransition>();
-		channels = new HashMap<ChannelVariable,ReadersAndWriters>();
-		t2t = new HashMap<Transition, Set<LTSminTransition>>();
+		NEVER = null != spec.getNever();
 	}
-		
+
 	/**
-	 * generates and returns an LTSminModel to the Specification provided
-	 * when creating this LTSMinPrinter instance.
-	 * @return The LTSminModel according to the Specification.
+	 * generates and returns an LTSminModel from the provided Specification
 	 */
 	public LTSminModel createLTSminModel(String name, boolean verbose) {
-		//long start_t = System.currentTimeMillis();
-		
 		this.debug = new LTSminDebug(verbose);
 		LTSminStateVector sv = new LTSminStateVector();
 		instantiate();
 		sv.createVectorStructs(spec, debug);
 		bindByReferenceCalls();
+		createProcessConstantVars();
+		for (Pair p : pairs)
+			spec.addReadAction(p.cra, p.t);
 		model = new LTSminModel(name, sv, spec);
 		addAcceptingConditions();
 		createModelTransitions();
 		LTSminDMWalker.walkModel(model, debug);
 		LTSminGMWalker.walkModel(model, debug);
-		
-		//long end_t = System.currentTimeMillis();
 		return model;
 	}
 
@@ -184,7 +167,6 @@ public class LTSminTreeWalker {
 		}
 	}
 
-	private List<RunExpression> runs = new ArrayList<RunExpression>();
     private List<String> iCount = new ArrayList<String>();
 
     private int getInstanceCount(Proctype p) {
@@ -223,6 +205,7 @@ public class LTSminTreeWalker {
 	private void instantiate() {
 		List<ProcInstance> instances = new ArrayList<ProcInstance>();
 		List<ProcInstance> active = new ArrayList<ProcInstance>();
+		spec.clearReadActions();
 
 		int id = 0;
 		for (Proctype p : spec.getProcs()) { // add active processes (including init)
@@ -312,7 +295,7 @@ public class LTSminTreeWalker {
 				(trans instanceof UselessTransition ? new UselessTransition(newState, newNextState, trans.getText()) :
 				 null))))));
 			for (Action a : trans)
-				newTrans.addAction(instantiate(a, p, null));
+				newTrans.addAction(instantiate(a, newTrans, p, null));
 			instantiate(next, newNextState, seen, p);
 		}
 	}
@@ -343,11 +326,12 @@ public class LTSminTreeWalker {
 	/**
 	 * Copy actions
 	 */
-	private Action instantiate(Action a, ProcInstance p, OptionAction loop) {
+	private Action instantiate(Action a, Transition t, ProcInstance p, OptionAction loop) {
 		if(a instanceof AssignAction) {
 			AssignAction as = (AssignAction)a;
 			Identifier id = (Identifier)instantiate(as.getIdentifier(), p);
 			Expression e = instantiate(as.getExpr(), p);
+			id.getVariable().setAssignedTo();
 			return new AssignAction(as.getToken(), id, e);
 		} else if(a instanceof ResetProcessAction) {
 			throw new AssertionError("Unexpected ResetProcessAction");
@@ -371,13 +355,13 @@ public class LTSminTreeWalker {
 			newoa.hasSuccessor(oa.hasSuccessor());
 			loop = newoa.loops() ? newoa : null;
 			for (Sequence seq : oa)
-				newoa.startNewOption((Sequence)instantiate(seq, p, loop)); 
+				newoa.startNewOption((Sequence)instantiate(seq, t, p, loop)); 
 			return newoa;
 		} else if(a instanceof Sequence) {
 			Sequence seq = (Sequence)a;
 			Sequence newseq = new Sequence(seq.getToken());
 			for (Action aa : seq) {
-				Action sub = instantiate(aa, p, loop);
+				Action sub = instantiate(aa, t, p, loop);
 				newseq.addAction(sub);
 			}
 			return newseq;
@@ -398,8 +382,13 @@ public class LTSminTreeWalker {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			Identifier id = (Identifier)instantiate(cra.getIdentifier(), p);
 			ChannelReadAction newcra = new ChannelReadAction(cra.getToken(), id, cra.isPoll());
-			for (Expression e : cra.getExprs())
+			for (Expression e : cra.getExprs()) {
 				newcra.addExpression(instantiate(e, p));
+				if (e instanceof Identifier) {
+					((Identifier)e).getVariable().setAssignedTo();
+				}
+			}
+			pairs.add(new Pair(newcra, t));
 			return newcra;
 		} else { // Handle not yet implemented action
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
@@ -472,7 +461,7 @@ public class LTSminTreeWalker {
 			} catch (ParseException e1) {
 				throw new AssertionError("RunExpression");
 			}
-			runs.add(newre); // add runexpression to a list
+			spec.runs.add(newre); // add runexpression to a list
 			return newre;
 		} else if (e instanceof EvalExpression) {
 			EvalExpression eval = (EvalExpression)e;
@@ -499,7 +488,7 @@ public class LTSminTreeWalker {
 		for (Proctype p : spec.getProcs()) {
 			if (p.getNrActive() > 0) continue;
 			List<RunExpression> rr = new ArrayList<RunExpression>();
-			for (RunExpression re : runs)
+			for (RunExpression re : spec.runs)
 				if (re.getProctype().equals(p)) rr.add(re);
 			if (rr.size() == 0) {
 				debug.say(MessageKind.WARNING, "Process "+ p.getName() +" is inactive.");
@@ -553,10 +542,12 @@ public class LTSminTreeWalker {
 							"Change the proctype's arguments or unroll the loop with run expressions in the model.");
 				String name = v.getName();
 				debug.say(MessageKind.DEBUG, "Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
+				//List<ReadAction> ras = spec.getReadActions(v);
 				v.setRealName(v.getName()); //TODO: this is also a variable mapping
 				v.setType(varParameter.getType());
 				v.setOwner(varParameter.getOwner());
 				v.setName(varParameter.getName());
+				//if (null != ras) spec.addReadActions(v.ras);
 			}
 		}
 		for (Variable v : target.getVariables()) {
@@ -580,7 +571,7 @@ public class LTSminTreeWalker {
 	 * constant.
 	 */
 	private void createProcessConstantVars() {
-		for (RunExpression re : runs){
+		for (RunExpression re : spec.runs){
 			for (Proctype p : re.getInstances()) {
 				Iterator<Expression> rei = re.getExpressions().iterator();
 				for (Variable v : p.getArguments()) {
@@ -596,172 +587,129 @@ public class LTSminTreeWalker {
 		}
 	}
 
-	private Iterable<State> getNeverAutomatonOrNullSet(boolean forceNullSet) {
-		if (forceNullSet || spec.getNever()==null)
-			return new HashSet<State>(Arrays.asList((State)null));
-		return spec.getNever().getAutomaton();
-	}
-	
-	private Iterable<Transition> getOutTransitionsOrNullSet(State s) {
-		if (s==null)
-			return new HashSet<Transition>(Arrays.asList((Transition)null));
-		return s.output;
-	}
-	
 	/**
 	 * Creates the state transitions.
 	 */
-	private int createModelTransitions() {
-		int trans = 0;
+	private void createModelTransitions() {
 		debug.say(MessageKind.DEBUG, "");
 
-		// Create the normal transitions for all processes.
-		// This excludes: rendezvous, else, timeout and loss of atomicity
-		// Calculate cross product with the never claim when not in atomic state 
 		for (ProcInstance p : spec) {
 			debug.say(MessageKind.DEBUG, "[Proc] " + p.getName());
-			for (State state : p.getAutomaton()) {
-				if (0 == state.sizeOut())
-					state.newTransition(null);
-				for (Transition t : state.output) {
-					if (collectRendezVous(p, t, trans)) continue;
-					trans = createCrossProduct(p, trans, t);
-				}
-			}
-		}
-		
-		createProcessConstantVars();
-		
-		// create the rendezvous transitions
-		for (Map.Entry<ChannelVariable,ReadersAndWriters> e : channels.entrySet()) {
-			for (SendAction sa : e.getValue().sendActions) {
-				for (ReadAction ra : e.getValue().readActions) {
-					for (State ns : getNeverAutomatonOrNullSet(false)) {
-						for (Transition nt : getOutTransitionsOrNullSet(ns)) {
-							trans = createRendezVousTransition(sa,ra,trans,nt);
-						}
-					}
-				}
-			}
+			State state = p.getAutomaton().getStartState();
+			State ns = null;
+			if (NEVER) ns = spec.getNever().getAutomaton().getStartState();
+			createCrossProduct(state, ns);
 		}
 
-		// detect atomic sub blocks
-		for (LTSminTransition t : model.getTransitions()) {
-			if (!(t.isAtomic()))
-				continue;
-			HashSet<State> seen = new HashSet<State>();
-			State state = t.getTransition().getTo();
-			Transition other = t.passesControlAtomically();
-			if (null != other) state = other.getTo();
-			reachability(state, seen, t);
-			//System.out.println(tc +" --> "+ tc.transitions);
-		}
-
-		// let never automata continue on deadlock FIXME
-		if (null != spec.getNever()) {
-			for (State ns : spec.getNever().getAutomaton()) {
-				for (Transition nt : ns.output) {
-					LTSminTransition lt = makeTransition(spec.getNever(), trans, nt, null, null);
+		// let never automata continue on deadlock FIXME: all deadlocks
+		if (NEVER) {
+			Automaton never = spec.getNever().getAutomaton();
+			createCrossProduct(never.getStartState(), null);
+			for (State s : never) {
+				LTSminState ns = model.getOrAddState(new LTSminState(s, null));
+				for (LTSminTransition lt : ns.getOut()) {
 					lt.addGuard(compare(PromelaConstants.EQ, id(_NR_PR), 0));
-					addNever(lt, nt);
-					model.getTransitions().add(lt);
-					trans++;
 				}
 			}
-		}
-
-		if (model.getTransitions().size() != trans)
-			throw new AssertionError("Transition not set at correct location in the transition array");
-
-		return trans;
-	}
-
-	/**
-	 * Add all reachable atomic transitions to tc
-	 */
-	private void reachability(State state, HashSet<State> seen,
-							  LTSminTransition t) {
-		if (state == null || !state.isInAtomic()) return;
-		if (!seen.add(state)) return;
-		for (Transition original : state.output) {
-			Set<LTSminTransition> set = t2t.get(original);
-			if (null == set) { // should be a rendez-vous read transition (loss of atomicity)
-				Action a = original.iterator().next();
-				if (a instanceof ChannelReadAction) {
-					ChannelReadAction send = (ChannelReadAction)a;
-					ChannelType ct = (ChannelType)send.getIdentifier().getVariable().getType();
-					if (0 == ct.getBufferSize()) continue; // rendez-vous read
-				}
-				throw new AssertionError("No transition created for "+ original);
-			}
-			for (LTSminTransition lt : set) {
-				t.addTransition(lt);
-				Transition other = lt.passesControlAtomically();
-				if (null != other) {
-					reachability(other.getTo(), seen, t);
-				}
-			}
-			reachability(original.getTo(), seen, t);
 		}
 	}
 
 	/**
-	 * Creates all transitions from the given state. This state should be
-	 * in the specified process.
+	 * Walks over process automaton (and, if present, over the never automaton
+	 * synchronizing its execution).
+	 * For rendez-vous send actions, all matching read actions are found and 
+	 * synchronized. The control passes to the read action process, which matters
+	 * if this action is in a synchronized block.
 	 */
-	private int createCrossProduct (ProcInstance process, int trans, Transition t) {
-		++debug.say_indent;
-		debug.say(MessageKind.DEBUG, t.toString());
-
-		for (State ns : getNeverAutomatonOrNullSet(t.getFrom().isInAtomic())) {
-			if (null != ns && 0 == ns.sizeOut())
-				ns.newTransition(null);
-			for (Transition never_t : getOutTransitionsOrNullSet(ns)) {
-				LTSminTransition lt = createStateTransition(process,trans,t,never_t);
-				model.getTransitions().add(lt);
-				trans++;
+	private LTSminState createCrossProduct(State state, State never) {
+		LTSminState state2 = new LTSminState(state, never);
+		LTSminState begin = model.getOrAddState(state2);
+		if (begin != state2 || null == state || (NEVER && null == never)) // no outgoing transitions
+			return begin;
+		addEndTransitions(state, never);
+		for (Transition out : state.output) { // trans X (ntrans | {null}):
+		for (Transition nout : getOutTransitionsOrNullSet(never)) {
+			Action a = out.getActionCount() > 0 ? out.iterator().next() : null;
+			State nto = null != nout ? nout.getTo() : null;
+			if (isRendezVousSendAction(a)) {
+				List<LTSminTransition> set = // matches all possible partners
+					createRendezVousTransitions(out, nout, (ChannelSendAction)a);
+				for (LTSminTransition lt : set) {
+					State to = lt.getSync().getTo(); // pass control to read
+					model.addTransition(lt);
+					LTSminState end = createCrossProduct(to, nto);
+					addAtomics(lt, begin, end);
+					createCrossProduct(out.getTo(), nto);
+				}
+			} else if (isRendezVousReadAction(a)) {
+				// skip, a transition is created for the comm. partner
+			} else {
+				LTSminTransition lt = createStateTransition(out, nout);
+				model.addTransition(lt);
+				LTSminState end = createCrossProduct(out.getTo(), nto);
+				addAtomics(lt, begin, end);
 			}
-		}
-		
-		--debug.say_indent;
-		return trans; // Return the next free transition ID
+		}}
+		return begin;
 	}
 
-	private LTSminTransition createStateTransition(ProcInstance process, int trans,
-											Transition t, Transition never_t) {
+	private void addEndTransitions(State state, State never) {
+		if (0 == state.sizeOut())
+			state.newTransition(null);
+		if (null != never && 0 == never.sizeOut()) {
+			never.newTransition(null);
+		}
+	}
+
+	/**
+	 * Executed in the edge backtrack of the DFS to collect reachable atomic
+	 * transitions .
+	 */
+	private void addAtomics(LTSminTransition lt, LTSminState begin,
+							LTSminState end) {
+		lt.setBegin(begin);
+		lt.setEnd(end);
+		if (begin.isAtomic())
+			begin.addTransition(lt);
+		if (begin.isAtomic() && end.isAtomic()) {
+			begin.addTransitions(end.getTransitions());
+		}
+	}
+
+	private LTSminTransition createStateTransition(Transition t, Transition n) {
 		++debug.say_indent;
-		if(never_t!=null) {
-			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName() + " || " + never_t.getClass().getName());
+		if(n!=null) {
+			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName() + " || " + n.getClass().getName());
 		} else {
 			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName());
 		}
 		--debug.say_indent;
 
-		LTSminTransition lt = makeTransition(process, trans, t, never_t, null);
+		ProcInstance p = (ProcInstance)t.getProc();
+		LTSminTransition lt = new LTSminTransition(t, n);
 
-        addNever(lt, never_t); // sync with never transition
+        addNever(lt, n); // sync with never transition
 
-		lt.addGuard(pcGuard(model, t.getFrom(), process)); // process counter
+		lt.addGuard(pcGuard(model, t.getFrom(), p)); // process counter
         createEnabledGuard(t, lt); // enabled action or else transition 
-		if (null != process.getEnabler())
-			lt.addGuard(process.getEnabler()); // process enabler (provided keyword)
+		if (null != p.getEnabler())
+			lt.addGuard(p.getEnabler()); // process enabler (provided keyword)
 		if (t.getTo() == null)
-			lt.addGuard(dieGuard(model, process)); // allowed to die (stack order)
-		lt.addGuard(inAtomicGuard(model, process)); // atomic
+			lt.addGuard(dieGuard(model, p)); // allowed to die (stack order)
+		lt.addGuard(inAtomicGuard(model, p)); // atomic
 
 		// Create actions of the transition, iff never is absent, dying or not atomic
-		if  (never_t == null || null == never_t.getTo() || !never_t.getTo().isInAtomic()) {
+		if  (n == null || null == n.getTo() || !n.getTo().isInAtomic()) {
 			if (t.getTo()==null) {
-				lt.addAction(new ResetProcessAction(process));
+				lt.addAction(new ResetProcessAction(p));
 			} else { // Action: PC counter update
-				lt.addAction(assign(model.sv.getPC(process), t.getTo().getStateId()));
+				lt.addAction(assign(model.sv.getPC(p), t.getTo().getStateId()));
 			}
 			// Actions: transition
 			for (Action action : t) {
 	            lt.addAction(action);
 	        }
 		}
-
 		return lt;
 	}
 
@@ -778,22 +726,8 @@ public class LTSminTreeWalker {
 		}
 	}
 
-	private LTSminTransition makeTransition(Proctype process, int trans,
-							Transition t, Transition never_t, Transition sync_t) {
-		LTSminTransition lt = new LTSminTransition(trans, t, sync_t, never_t, process);
-		Set <LTSminTransition> set = t2t.get(t);
-		if (null == set) {
-			set = new HashSet<LTSminTransition>();
-			t2t.put(t, set);
-		}
-		set.add(lt);
-		return lt;
-	}
-	
 	/**
 	 * Creates the guard of a transition for its action and for the end states.
-	 * @param t The transition of which the guard will be created.
-	 * @param trans The transition group ID to use for generation.
 	 */
 	private void createEnabledGuard(Transition t, LTSminGuardContainer lt) {
         if (t instanceof ElseTransition) {
@@ -815,18 +749,10 @@ public class LTSminTreeWalker {
 	 * The enabledness of rendezvous channel actions can only be determined
 	 * after all other transitions have been visited (when seenItAll is true).
 	 * 
-	 * Also records the assignTo property of identifier, to detect constants later. 
-	 * 
-	 * @param process The action should be in this process.
-	 * @param a The action for which the guard is created.
-	 * @param t The transition the action is in.
-	 * @param trans The transition group ID to use for generation.
-	 * @throws ParseException
+	 * Also records the assignTo property of identifier, to detect constants later.
 	 */
 	public static void createEnabledGuard(Action a, LTSminGuardContainer lt) {
 		if (a instanceof AssignAction) {
-			AssignAction ae = (AssignAction)a;
-			ae.getIdentifier().getVariable().setAssignedTo();
 		} else if(a instanceof AssertAction) {
 		} else if(a instanceof PrintAction) {
 		} else if(a instanceof ExprAction) {
@@ -835,7 +761,7 @@ public class LTSminTreeWalker {
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
-			if(var.getType().getBufferSize()>0) {
+			if(!var.getType().isRendezVous()) {
 				lt.addGuard(chanEmptyGuard(csa.getIdentifier()));
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send before all others! "+ var);
@@ -866,8 +792,6 @@ public class LTSminTreeWalker {
 						Identifier buf = id(bufferVar(cv), constant(0), elem);
 						Identifier next = new Identifier(id, buf);
 						lt.addGuard(compare(PromelaConstants.EQ,next,expr));
-					} else {
-						((Identifier)expr).getVariable().setAssignedTo(); // FIXME: WRONG, only done for first action! use setWritten (avoid arguments)
 					}
 				}
 			} else {
@@ -877,50 +801,23 @@ public class LTSminTreeWalker {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
 		}
 	}
-
-	/**
- 	 * Collects else transition or rendezvous enabled action for later processing 
-	 * Check only for the normal process, not for the never claim
-	 * 
-	 * For rendezvous actions we first need to calculate a cross product to
-	 * determine enabledness, therefore else transitions have to be processed even later.   
-	 * 
-	 * The never claim process is not allowed to contain message passing
-	 * statements.
-	 * "This means that a never claim may not contain assignment or message
-	 * passing statements." @ http://spinroot.com/spin/Man/never.html)
-	 */
-	private boolean collectRendezVous(ProcInstance process, Transition t, int trans) {
-		if (t.iterator().hasNext()) {
-			Action a = t.iterator().next();
-			if (a instanceof ChannelSendAction) {
-				ChannelSendAction csa = (ChannelSendAction)a;
-				ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
-				if(var.getType().getBufferSize()==0) {
-					ReadersAndWriters raw = channels.get(var);
-					if (raw == null) {
-						raw = new ReadersAndWriters();
-						channels.put(var, raw);
-					}
-					raw.sendActions.add(new SendAction(csa,t,process));
-					return true;
-				}
-			} else if (a instanceof ChannelReadAction) {
-				ChannelReadAction cra = (ChannelReadAction)a;
-				ChannelVariable var = (ChannelVariable)cra.getIdentifier().getVariable();
-				if (var.getType().getBufferSize()==0) {
-					if (!cra.isNormal()) debug.say(MessageKind.ERROR, "Abnormal receive on rendez-vous channel.");
-					ReadersAndWriters raw = channels.get(var);
-					if (raw == null) {
-						raw = new ReadersAndWriters();
-						channels.put(var, raw);
-					}
-					raw.readActions.add(new ReadAction(cra,t,process));
-					return true;
-				}
-			}
+	
+	private List<LTSminTransition> createRendezVousTransitions(
+				Transition t, Transition n, ChannelSendAction csa) {
+		Identifier id = csa.getIdentifier();
+		ChannelVariable cv = (ChannelVariable)id.getVariable();
+		List<LTSminTransition> set = new ArrayList<LTSminTransition>();
+		List<ReadAction> readActions = spec.getReadActions(cv);
+		if (null == readActions) {
+			debug.say("No reads found for "+ csa);
+			return set;
 		}
-		return false;
+		for (ReadAction ra : readActions) {
+			SendAction sa = new SendAction(csa, t, (ProcInstance)t.getProc());
+			LTSminTransition lt = createRendezVousTransition(n, sa, ra);
+			if (null != lt) set.add(lt);
+		}
+		return set;
 	}
 
 	/**
@@ -930,14 +827,14 @@ public class LTSminTreeWalker {
 	 * "If an atomic sequence contains a rendezvous send statement, control
 	 * passes from sender to receiver when the rendezvous handshake completes."
 	 */
-	private int createRendezVousTransition(SendAction sa, ReadAction ra,
-										   int trans, Transition never_t) {
-		if (sa.p == ra.p) return trans; // skip impotent matches
+	private LTSminTransition createRendezVousTransition(
+								Transition n, SendAction sa, ReadAction ra) {
+		if (sa.p == ra.p) return null; // skip impotent matches
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
 		List<Expression> csa_exprs = csa.getExprs();
 		List<Expression> cra_exprs = cra.getExprs();
-		Identifier sendId = sa.csa.getIdentifier();
+		Identifier sendId = csa.getIdentifier();
 		Identifier recvId = ra.cra.getIdentifier();
 		Expression array1 = null, array2 = null;
 		if (sendId.getVariable().getArraySize() > -1) { // array of channels
@@ -952,7 +849,7 @@ public class LTSminTreeWalker {
 			} catch (ParseException e) {}
 			try { // we skip creating transitions for impotent matches:
 				if (array1.getConstantValue() != array2.getConstantValue())
-					return trans;
+					return null;
 			} catch (ParseException e) {}
 		}
 		for (int i = 0; i < cra_exprs.size(); i++) {
@@ -960,12 +857,13 @@ public class LTSminTreeWalker {
 			final Expression cra_expr = cra_exprs.get(i);
 			try { // we skip creating transitions for impotent matches:
 				if (csa_expr.getConstantValue() != cra_expr.getConstantValue())
-					return trans;
+					return null;
 			} catch (ParseException pe) {}
 		}
-		LTSminTransition lt = makeTransition(ra.p, trans, sa.t, never_t, ra.t);
+		LTSminTransition lt = new LTSminTransition(sa.t, n);
+		lt.setSync(ra.t);
 
-        addNever(lt, never_t);
+        addNever(lt, n); // never executes first
 
 		lt.addGuard(pcGuard(model, sa.t.getFrom(), sa.p));
 		lt.addGuard(pcGuard(model, ra.t.getFrom(), ra.p));
@@ -990,10 +888,6 @@ public class LTSminTreeWalker {
 		lt.addAction(assign(model.sv.getPC(ra.p), ra.t.getTo().getStateId()));
 
 		lt.addGuard(inAtomicGuard(model, sa.p));
-		if (ra.t.getTo().isInAtomic()) {
-			lt.passesControlAtomically(ra.t); // control passes from sender to receiver
-		}
-		model.getTransitions().add(lt);
-		return trans + 1;
+		return lt;
 	}
 }

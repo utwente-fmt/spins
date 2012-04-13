@@ -16,6 +16,7 @@ public class LTSminTypeChanStruct extends LTSminTypeStruct {
 
 	public static Variable bufferVar(ChannelVariable cv) {
 		int size = cv.getType().getBufferSize();
+		assert (size > 0);
 		return new Variable(null, CHAN_BUF, size);
 	}
 

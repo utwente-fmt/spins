@@ -316,9 +316,8 @@ public class LTSminPrinter {
 		w.indent();
 		if (ts.size() > 0) {
 			int i = 0;
-			for (LTSminTransition tb : ts) {
+			for (LTSminTransition t : ts) {
 				if (0 != i) w.append(",\t// "+ (i-1)).appendPostfix();
-				LTSminTransition t = (LTSminTransition)tb;
 				w.appendPrefix();
 				w.append("" + t.leavesAtomic());
 				i++;
@@ -372,12 +371,7 @@ public class LTSminPrinter {
 		for(Action a: actions)
 			generateAction(w,a,model);
 		if (t.isAtomic()) {
-			String atomic_pid;
-			if (null != t.passesControlAtomically()) {
-				atomic_pid = printPID(t.passesControlAtomically().getProc(), out(model));
-			} else {
-				atomic_pid = printPID(t.getProcess(), out(model));
-			}
+			String atomic_pid = printPID(t.getEnd().getProc(), out(model));
 			w.appendLine("if (-1 != *atomic) {");
 			w.indent();
 			w.appendLine("transition_info.next_atomic = "+ atomic_pid +";");
@@ -436,7 +430,7 @@ public class LTSminPrinter {
 			generateExpression(w, g.expr, state);
 		} else if(guard instanceof LTSminGuardContainer) {
 			LTSminGuardContainer g = (LTSminGuardContainer)guard;
-			if (0 == g.size()){
+			if (0 == g.guardCount()){
 				w.append("true"); // vacuously true
 				return;
 			}
@@ -668,8 +662,7 @@ public class LTSminPrinter {
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			Identifier id = csa.getIdentifier();
-			ChannelVariable var = (ChannelVariable)id.getVariable();
-			if (0 == var.getType().getBufferSize())
+			if (csa.isRendezVous())
 				throw new AssertionError("Trying to actionise rendezvous send!");
 			List<Expression> exprs = csa.getExprs();
 			for (int e = 0; e < exprs.size(); e++) {
@@ -682,7 +675,7 @@ public class LTSminPrinter {
 			Identifier id = cra.getIdentifier();
 			ChannelVariable var = (ChannelVariable)id.getVariable();
 			int bufferSize = var.getType().getBufferSize();
-			if (0 == bufferSize)
+			if (cra.isRendezVous())
 				throw new AssertionError("Trying to actionise rendezvous receive!");
 			List<Expression> exprs = cra.getExprs();
 			for (int e = 0; e < exprs.size(); e++) {
@@ -824,7 +817,7 @@ public class LTSminPrinter {
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
-			if (((ChannelType)id.getVariable().getType()).getBufferSize() == 0)
+			if (((ChannelType)id.getVariable().getType()).isRendezVous())
 				throw new AssertionError("ChannelReadAction on rendez-vous channel.");
 			Expression size = chanLength(id);
 			w.append("((");
