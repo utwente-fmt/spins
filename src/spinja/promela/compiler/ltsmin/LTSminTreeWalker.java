@@ -67,7 +67,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
 import spinja.promela.compiler.ltsmin.model.ReadAction;
 import spinja.promela.compiler.ltsmin.model.ReadersAndWriters;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
@@ -648,15 +647,13 @@ public class LTSminTreeWalker {
 
 		// detect atomic sub blocks
 		for (LTSminTransition t : model.getTransitions()) {
-			if (!(t instanceof LTSminTransitionCombo))
+			if (!(t.isAtomic()))
 				continue;
-			LTSminTransitionCombo tc = (LTSminTransitionCombo)t;
 			HashSet<State> seen = new HashSet<State>();
-			State state = tc.getTransition().getTo();
-			Transition other = tc.passesControlAtomically();
+			State state = t.getTransition().getTo();
+			Transition other = t.passesControlAtomically();
 			if (null != other) state = other.getTo();
-			reachability(state, seen, tc);
-			tc.addTransition(tc);
+			reachability(state, seen, t);
 			//System.out.println(tc +" --> "+ tc.transitions);
 		}
 
@@ -683,28 +680,28 @@ public class LTSminTreeWalker {
 	 * Add all reachable atomic transitions to tc
 	 */
 	private void reachability(State state, HashSet<State> seen,
-							  LTSminTransitionCombo tc) {
+							  LTSminTransition t) {
 		if (state == null || !state.isInAtomic()) return;
 		if (!seen.add(state)) return;
-		for (Transition t : state.output) {
-			Set<LTSminTransition> set = t2t.get(t);
+		for (Transition original : state.output) {
+			Set<LTSminTransition> set = t2t.get(original);
 			if (null == set) { // should be a rendez-vous read transition (loss of atomicity)
-				Action a = t.iterator().next();
+				Action a = original.iterator().next();
 				if (a instanceof ChannelReadAction) {
 					ChannelReadAction send = (ChannelReadAction)a;
 					ChannelType ct = (ChannelType)send.getIdentifier().getVariable().getType();
 					if (0 == ct.getBufferSize()) continue; // rendez-vous read
 				}
-				throw new AssertionError("No transition created for "+ t);
+				throw new AssertionError("No transition created for "+ original);
 			}
 			for (LTSminTransition lt : set) {
-				tc.addTransition(lt);
+				t.addTransition(lt);
 				Transition other = lt.passesControlAtomically();
 				if (null != other) {
-					reachability(other.getTo(), seen, tc);
+					reachability(other.getTo(), seen, t);
 				}
 			}
-			reachability(t.getTo(), seen, tc);
+			reachability(original.getTo(), seen, t);
 		}
 	}
 
@@ -783,25 +780,7 @@ public class LTSminTreeWalker {
 
 	private LTSminTransition makeTransition(Proctype process, int trans,
 							Transition t, Transition never_t, Transition sync_t) {
-		LTSminTransition lt;
-		boolean atomic = t.isAtomic();
-		if (null != sync_t) {
-			Action a = sync_t.iterator().next();
-			if (a instanceof ChannelReadAction) {
-				ChannelReadAction csa = (ChannelReadAction)a;
-				if (csa.isRendezVous()) {
-					if (sync_t.getTo().isInAtomic())
-						atomic = true;
-					else
-						atomic = false;
-				}
-			}
-		}
-		if (atomic) {
-			lt = new LTSminTransitionCombo(trans, t, sync_t, never_t, process);
-		} else {
-			lt = new LTSminTransition(trans, t, sync_t, never_t, process);
-		}
+		LTSminTransition lt = new LTSminTransition(trans, t, sync_t, never_t, process);
 		Set <LTSminTransition> set = t2t.get(t);
 		if (null == set) {
 			set = new HashSet<LTSminTransition>();

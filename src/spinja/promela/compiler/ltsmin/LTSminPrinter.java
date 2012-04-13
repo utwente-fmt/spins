@@ -83,7 +83,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminSlot;
@@ -381,7 +380,6 @@ public class LTSminPrinter {
 			}
 			w.appendLine("if (-1 != *atomic) {");
 			w.indent();
-			assert (t instanceof LTSminTransitionCombo);
 			w.appendLine("transition_info.next_atomic = "+ atomic_pid +";");
 			generateACallback(w,t.getGroup());
 			w.outdent();

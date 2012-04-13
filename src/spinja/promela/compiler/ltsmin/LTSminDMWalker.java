@@ -47,7 +47,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminTransitionCombo;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminSlot;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
@@ -119,29 +118,24 @@ public class LTSminDMWalker {
 	}
 
 	static void walkTransition(Params params, LTSminTransition transition) {
-		if (transition instanceof LTSminTransitionCombo) {
-			LTSminTransitionCombo tc = (LTSminTransitionCombo)transition;
-			for(LTSminTransition t : tc.transitions) {
-				List<LTSminGuardBase> guards = t.getGuards();
-				for(LTSminGuardBase g: guards)
+		if(transition instanceof LTSminTransition) {
+			LTSminTransition t = (LTSminTransition)transition;
+			for(LTSminGuardBase g : t.getGuards())
+				walkGuard(params,g);
+			for(Action a : t.getActions())
+				walkAction(params,a);
+			for(LTSminTransition atomic : t.getTransitions()) {
+				for(LTSminGuardBase g : atomic.getGuards())
 					walkGuard(params,g);
-				List<Action> actions = t.getActions();
-				for(Action a: actions) {
+				for(Action a : atomic.getActions()) {
 					walkAction(params,a);
 				}
 			}
+			if (t.isAtomic())
 			for (ProcInstance instance : transition.getProcess().getSpecification()) {
 				Variable pid = params.sv.getPID(instance);
 				walkExpression(params, id(pid), MarkAction.READ); //the PID is READ!
 			}
-		} else if(transition instanceof LTSminTransition) {
-			LTSminTransition t = (LTSminTransition)transition;
-			List<LTSminGuardBase> guards = t.getGuards();
-			for(LTSminGuardBase g: guards)
-				walkGuard(params,g);
-			List<Action> actions = t.getActions();
-			for(Action a: actions)
-				walkAction(params,a);
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + transition.getClass().getSimpleName());
 		}

@@ -1,9 +1,11 @@
 package spinja.promela.compiler.ltsmin.model;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
@@ -44,7 +46,15 @@ public class LTSminTransition implements LTSminGuardContainer {
 	private Transition never;
 	private Transition sync;
 	private Transition passControl = null;
+	private Set<LTSminTransition> transitions = new HashSet<LTSminTransition>();
 	
+	public void addTransition(LTSminTransition t) {
+		transitions.add(t);
+	}
+
+	public Set<LTSminTransition> getTransitions() {
+		return transitions;
+	}
 
 	public LTSminTransition(int group, Transition t, Transition sync,
 							Transition never, Proctype process) {
