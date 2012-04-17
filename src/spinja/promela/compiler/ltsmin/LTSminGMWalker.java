@@ -10,6 +10,8 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.decr;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.incr;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.not;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.or;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.INCR;
@@ -39,8 +41,11 @@ import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
@@ -718,23 +723,50 @@ public class LTSminGMWalker {
 		} else*/
 		if(transition instanceof LTSminTransition) {
 			LTSminTransition t = (LTSminTransition)transition;
-			for(LTSminGuardBase g : t.getGuards())
+			for (LTSminGuardBase g : t.getGuards())
 				walkGuard(params, t, g);
+			
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + transition.getClass().getSimpleName());
 		}
 	}
 
 	static void walkGuard(Params params, LTSminTransition t, LTSminGuardBase guard) {
-		if(guard instanceof LTSminLocalGuard) { //Nothing
-		} else if(guard instanceof LTSminGuard) {
+		if (guard instanceof LTSminLocalGuard) { //Nothing
+		} else if (guard instanceof LTSminGuard) {
 			LTSminGuard g = (LTSminGuard)guard;
 			params.guardMatrix.addGuard(t.getGroup(), g);
-		} else if(guard instanceof LTSminGuardContainer) {
+		} else if (guard instanceof LTSminGuardAnd) {
 			LTSminGuardContainer g = (LTSminGuardContainer)guard;
 			for(LTSminGuardBase gb : g) {
 				walkGuard(params, t, gb);
 			}
+		} else if (guard instanceof LTSminGuardNor) {
+			LTSminGuardContainer g = (LTSminGuardContainer)guard;
+			LTSminGuardAnd and = new LTSminGuardAnd();
+			for (LTSminGuardBase gb : g) {
+				if (gb instanceof LTSminGuard) {
+					and.addGuard(not(((LTSminGuard) gb).getExpr()));
+				} else {
+					throw new AssertionError("UNSUPPORTED2: " + guard.getClass().getSimpleName());					
+				}
+			}
+			walkGuard(params, t, and);
+		} else if (guard instanceof LTSminGuardOr) {
+			LTSminGuardContainer g = (LTSminGuardContainer)guard;
+			Expression e = null;
+			for (LTSminGuardBase gb : g) {
+				if (gb instanceof LTSminGuard) {
+					if (null == e) {
+						e = ((LTSminGuard) gb).getExpr();
+					} else {
+						e = or(e, ((LTSminGuard) gb).getExpr());
+					}
+				} else {
+					throw new AssertionError("UNSUPPORTED3: " + guard.getClass().getSimpleName());					
+				}
+			}
+			walkGuard(params, t, new LTSminGuard(e));
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());
 		}

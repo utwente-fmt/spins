@@ -100,7 +100,19 @@ public class LTSminUtil {
 		String name = PromelaConstants.tokenImage[m];
 		return new AritmicExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
 	}
-	
+
+	public static BooleanExpression not(Expression e1) {
+		int m = PromelaConstants.LNOT;
+		String name = PromelaConstants.tokenImage[m];
+		return new BooleanExpression(new Token(m,name.substring(1,name.length()-1)), e1);
+	}
+
+	public static BooleanExpression or(Expression e1, Expression e2) {
+		int m = PromelaConstants.LOR;
+		String name = PromelaConstants.tokenImage[m];
+		return new BooleanExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
+	}
+
 	public static Expression compare(int m, Expression e1, int nr) {
 		return compare(m, e1, constant(nr));
 	}
