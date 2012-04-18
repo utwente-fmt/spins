@@ -551,6 +551,8 @@ public class LTSminTreeWalker {
 				v.setOwner(varParameter.getOwner());
 				v.setName(varParameter.getName());
 				//if (null != ras) spec.addReadActions(v.ras);
+			} else if (dynamic) {
+				v.setAssignedTo();
 			}
 		}
 		for (Variable v : target.getVariables()) {
