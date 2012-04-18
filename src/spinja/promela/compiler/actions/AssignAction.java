@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.List;
 
 import spinja.promela.compiler.Proctype;
+import spinja.promela.compiler.expression.AritmicExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.parser.ParseException;
@@ -30,7 +31,7 @@ import spinja.util.StringWriter;
 public class AssignAction extends Action {
 	private final Identifier id;
 
-	private final Expression expr;
+	private Expression expr;
 
 	public AssignAction(final Token token, final Identifier id) {
 		this(token, id, null);
@@ -150,5 +151,9 @@ public class AssignAction extends Action {
 
 	public Identifier getIdentifier() {
 		return id;
+	}
+
+	public void setExpr(AritmicExpression calc) {
+		expr = calc;
 	}
 }

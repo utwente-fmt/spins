@@ -707,6 +707,13 @@ public class LTSminTreeWalker {
 			}
 			// Actions: transition
 			for (Action action : t) {
+				if (action instanceof AssignAction) {
+					AssignAction aa = (AssignAction)action;
+					if (aa.getExpr() instanceof RunExpression) {
+			            lt.addAction(new ExprAction(aa.getExpr()));
+			            aa.setExpr(calc(PromelaConstants.MINUS, id(_NR_PR), constant(1)));
+					}
+				}
 	            lt.addAction(action);
 	        }
 		}
@@ -753,6 +760,9 @@ public class LTSminTreeWalker {
 	 */
 	public static void createEnabledGuard(Action a, LTSminGuardContainer lt) {
 		if (a instanceof AssignAction) {
+			AssignAction aa = (AssignAction)a;
+			if (aa.getExpr() instanceof RunExpression) 
+				createEnabledGuard(new ExprAction(aa.getExpr()), lt);
 		} else if(a instanceof AssertAction) {
 		} else if(a instanceof PrintAction) {
 		} else if(a instanceof ExprAction) {
