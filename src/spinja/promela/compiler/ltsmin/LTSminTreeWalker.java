@@ -923,6 +923,10 @@ public class LTSminTreeWalker {
 		lt.addAction(assign(model.sv.getPC(ra.p), ra.t.getTo().getStateId()));
 
 		lt.addGuard(inAtomicGuard(model, sa.p));
+		
+		for (int i = 1; i < ra.t.getActionCount(); i++)
+			lt.addAction(ra.t.getAction(i));
+		if (sa.t.getActionCount() > 1) throw new AssertionError("Rendez-vous send action in d_step.");
 		return lt;
 	}
 }
