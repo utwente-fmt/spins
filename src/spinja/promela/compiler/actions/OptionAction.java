@@ -146,7 +146,7 @@ public class OptionAction extends Action implements Iterable<Sequence> {
 
 	@Override
 	public String toString() {
-		return "d_step";
+		return loops ? "do" : "if";
 	}
 
 	@Override

@@ -132,9 +132,11 @@ public class AritmicExpression extends Expression {
 				case PromelaConstants.RSHIFT:
 					if (lhs == 0) return 0;
 					return lhs >>> ex2.getConstantValue();
+				case PromelaConstants.RARROW:
+					return (lhs == 0 ? ex3.getConstantValue() : ex2.getConstantValue() );
 			}
 		} catch (ParseException pe ) {
-			if (null == ex2) {
+			if (null == ex2 || PromelaConstants.RARROW == getToken().kind) {
 				throw new ParseException();
 			}
 			int rhs = ex2.getConstantValue();
@@ -164,7 +166,7 @@ public class AritmicExpression extends Expression {
 					return ex1.getConstantValue() >>> rhs;
 			}
 		}
-		throw new MyParseException("Unimplemented aritmic type: " + getToken().image, getToken());
+		throw new AssertionError("Unimplemented aritmic type: " + getToken().image);
 	}
 
 	@Override

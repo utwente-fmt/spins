@@ -139,7 +139,7 @@ public class LTSminTreeWalker {
 	 * Accepting condition semantics are overloaded with valid end state semantics.
 	 */
     private void addAcceptingConditions() {
-		if (null != spec.getNever()) {
+		if (NEVER) {
 			Proctype never = spec.getNever();
 			Variable pc = model.sv.getPC(never);
 			Expression g = compare(PromelaConstants.EQ, id(pc), constant(-1));

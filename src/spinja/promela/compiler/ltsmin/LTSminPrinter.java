@@ -1,6 +1,6 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelBottom;
@@ -9,17 +9,17 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelNext;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.decr;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.eq;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.incr;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.not;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.print;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPC;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPID;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_STATE;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
-import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
-import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_BOOL;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT16;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT32;
