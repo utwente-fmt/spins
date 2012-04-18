@@ -1,0 +1,117 @@
+#define p (GIOPAgent[prid[4]]@SRequestSent && srequest_reqId == 0)
+#define q (GIOPAgent[prid[4]]@SReplyReceived && sreply_reqId == 0)
+
+	/*
+	 * Formula As Typed: [](p -> <> q)
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([](p -> <> q))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([](p -> <> q)) */
+T0_init:
+	if
+	:: (! ((q)) && (p)) -> goto accept_S4
+	:: (1) -> goto T0_init
+	fi;
+accept_S4:
+	if
+	:: (! ((q))) -> goto T0_S4
+	fi;
+T0_S4:
+	if
+	:: (! ((q))) -> goto accept_S4
+	fi;
+accept_all:
+	skip
+}
+
+#ifdef NOTES
+
+#endif
+#ifdef RESULT
+warning: for p.o. reduction to be valid the never claim must be stutter-closed
+(never claims generated from LTL formulae are stutter-closed)
+Depth=     782 States=   1e+06 Transitions= 1.61295e+06 Memory= 42.593
+Depth=     786 States=   2e+06 Transitions= 3.20526e+06 Memory= 42.593
+Depth=     866 States=   3e+06 Transitions= 4.7791e+06 Memory= 42.695
+Depth=     866 States=   4e+06 Transitions= 6.34176e+06 Memory= 42.695
+Depth=     872 States=   5e+06 Transitions= 7.88053e+06 Memory= 42.695
+Depth=     872 States=   6e+06 Transitions= 9.41811e+06 Memory= 42.695
+Depth=     872 States=   7e+06 Transitions= 1.1034e+07 Memory= 42.695
+Depth=     872 States=   8e+06 Transitions= 1.26543e+07 Memory= 42.695
+Depth=     872 States=   9e+06 Transitions= 1.42335e+07 Memory= 42.695
+Depth=     872 States=   1e+07 Transitions= 1.5878e+07 Memory= 42.695
+Depth=     872 States= 1.1e+07 Transitions= 1.74516e+07 Memory= 42.695
+Depth=     872 States= 1.2e+07 Transitions= 1.91527e+07 Memory= 42.695
+Depth=     872 States= 1.3e+07 Transitions= 2.08168e+07 Memory= 42.695
+Depth=     872 States= 1.4e+07 Transitions= 2.25307e+07 Memory= 42.695
+Depth=     872 States= 1.5e+07 Transitions= 2.42823e+07 Memory= 42.695
+Depth=     872 States= 1.6e+07 Transitions= 2.59552e+07 Memory= 42.695
+Depth=     872 States= 1.7e+07 Transitions= 2.76876e+07 Memory= 42.695
+Depth=     872 States= 1.8e+07 Transitions= 2.94535e+07 Memory= 42.695
+Depth=     872 States= 1.9e+07 Transitions= 3.12175e+07 Memory= 42.695
+Depth=     872 States=   2e+07 Transitions= 3.30242e+07 Memory= 42.695
+Depth=     872 States= 2.1e+07 Transitions= 3.48229e+07 Memory= 42.695
+Depth=     872 States= 2.2e+07 Transitions= 3.66227e+07 Memory= 42.695
+Depth=     872 States= 2.3e+07 Transitions= 3.84881e+07 Memory= 42.695
+Depth=     872 States= 2.4e+07 Transitions= 4.0367e+07 Memory= 42.695
+Depth=     872 States= 2.5e+07 Transitions= 4.23829e+07 Memory= 42.695
+Depth=     872 States= 2.6e+07 Transitions= 4.44283e+07 Memory= 42.695
+Depth=     872 States= 2.7e+07 Transitions= 4.65257e+07 Memory= 42.695
+(Spin Version 3.2.2 -- 20 July 1998)
+	+ Partial Order Reduction
+
+Bit statespace search for:
+	never-claim         	+
+	assertion violations	+ (if within scope of claim)
+	acceptance   cycles 	+ (fairness disabled)
+	invalid endstates	- (disabled by never-claim)
+
+State-vector 668 byte, depth reached 872, errors: 0
+2.78586e+07 states, stored
+2.049e+07 states, matched
+4.83486e+07 transitions (= stored+matched)
+  411576 atomic steps
+hash factor: 2.40891 (best coverage if >100)
+(max size 2^26 states)
+
+Stats on memory usage (in Megabytes):
+18943.858	equivalent memory usage for states (stored*(State-vector + overhead))
+8.389 	memory used for hash-array (-w26)
+0.240 	memory used for DFS stack (-m10000)
+42.695	total actual memory usage
+
+unreached in proctype User
+	line 202, state 17, "printf('Request failed: user exception\n')"
+	line 205, state 19, "printf('Request failed: system exception\n')"
+	line 208, state 21, "printf('Request failed: object does not exist\n')"
+	(3 of 24 states)
+unreached in proctype GIOPClient
+	line 353, state 61, "D_STEP"
+	line 432, state 114, "D_STEP"
+	line 446, state 126, "-end-"
+	(3 of 126 states)
+unreached in proctype Server
+	line 544, state 34, "-end-"
+	(1 of 34 states)
+unreached in proctype GIOPAgent
+	line 643, state 43, "D_STEP"
+	line 650, state 44, "lout!Reply,dstport,msg.mhdr.request_id,msg.mhdr.object_key,msg.mhdr.reply_status,msg.mhdr.forward_port"
+	line 686, state 70, "(1)"
+	line 710, state 86, "D_STEP"
+	line 745, state 101, "(1)"
+	line 755, state 120, "D_STEP"
+	line 777, state 124, "-end-"
+	(7 of 124 states)
+unreached in proctype transport
+	line 893, state 51, "-end-"
+	(1 of 51 states)
+unreached in proctype :init:
+	(0 of 12 states)
+
+real  1:46:08.1
+user  1:45:24.7
+sys         0.4
+
+#endif

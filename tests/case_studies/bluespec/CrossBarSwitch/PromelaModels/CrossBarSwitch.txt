@@ -1,0 +1,397 @@
+/*fullf12 is used to denote that no more enqueue operations can occur on fifo f12 in that cycle. 
+Its set to true if an enqueue occurred in a fifo even if there is space left in fifo.*/
+
+byte rule;
+bool cycle, fullf12, fullf22, fullf32, fullf42, fullf13, fullf23, fullf33, fullf43;
+int x, a, b, c, d, dst, dst1, dst2, dst3, dst4;
+
+chan f11 = [2] of { int, int } ;
+chan f21 = [2] of { int, int } ;
+chan f31 = [2] of { int, int } ;
+chan f41 = [2] of { int, int } ;
+
+chan f12 = [2] of { int, int } ;
+chan f22 = [2] of { int, int } ;
+chan f32 = [2] of { int, int } ;
+chan f42 = [2] of { int, int } ;
+
+chan f13 = [2] of { int, int } ;
+chan f23 = [2] of { int, int } ;
+chan f33 = [2] of { int, int } ;
+chan f43 = [2] of { int, int } ;
+
+/*
+proctype res()
+{
+  	do 
+        :: atomic { if
+                    :: (rule == 0) -> { cycle = false;
+				        fullf12 = { ( full(f12) -> 1 : 0 ); };				 
+					fullf22 = full(f22);
+					fullf32 = full(f32);
+					fullf42 = full(f42);
+					fullf13 = full(f13);
+					fullf23 = full(f23);
+					fullf33 = full(f33);
+					fullf43 = full(f43);                                        
+					rule = 1; }
+                    fi;		    
+                  }
+	od
+}
+*/
+
+
+proctype reset()
+{
+  	do 
+        :: atomic { if
+                    :: (rule == 0) -> { cycle = false;
+
+				        if 
+                                        :: { full(f12) -> fullf12 = 1; }
+                                        :: else -> fullf12 = 0;
+ 					fi;  
+  			
+				        if 
+                                        :: { full(f22) -> fullf22 = 1; }
+                                        :: else -> fullf22 = 0;
+ 			                fi;    	
+		
+				        if 
+                                        :: { full(f32) -> fullf32 = 1; }
+                                        :: else -> fullf32 = 0;
+ 			                fi;    			
+
+				        if 
+                                        :: { full(f42) -> fullf42 = 1; }
+                                        :: else -> fullf42 = 0;
+ 			                fi;    			
+
+				        if 
+                                        :: { full(f13) -> fullf13 = 1; }
+                                        :: else -> fullf13 = 0;
+ 			                fi;    			
+
+				        if 
+                                        :: { full(f23) -> fullf23 = 1; }
+                                        :: else -> fullf23 = 0;
+ 			                fi;    			
+
+				        if 
+                                        :: { full(f33) -> fullf33 = 1; }
+                                        :: else -> fullf33 = 0;
+                                        fi;    			
+
+				        if 
+                                        :: { full(f43) -> fullf43 = 1; }
+                                        :: else -> fullf43 = 0; 			
+                                        fi;    			
+
+					rule = 1; }
+                    fi;		    
+                  }
+	od
+}
+
+
+proctype output1()
+{
+  	do 
+        :: atomic { { rule == 1 -> cycle = false; rule = 2; }
+		    unless	
+                    { ( rule == 1 && nempty(f13) ) -> { cycle = false;
+					                f13?(a,dst1);
+                                                        printf("Reading value %d - %d from f13", a, dst1);
+					                rule = 2;
+				                      }
+                    }		    
+                  }
+	od
+}
+
+proctype output2()
+{
+  	do 
+        :: atomic { { rule == 2 -> rule = 3; }
+		    unless 
+		    { ( rule == 2 && nempty(f23) ) -> { f23?(b,dst2);
+                                                        printf("Reading value %d - %d from f23", b, dst2);
+				                        rule = 3;
+				                      }
+                    }		    
+                  }
+	od
+}
+
+proctype output3()
+{
+  	do 
+        :: atomic { { rule == 3 -> rule = 4; }
+                    unless
+                    { ( rule == 3 && nempty(f33) ) -> { f33?(c,dst3);
+                                                        printf("Reading value %d - %d from f33", c, dst3);
+					                rule = 4;
+				                      }
+                    }		    
+                  }
+	od
+}
+
+
+proctype output4()
+{
+  	do 
+        :: atomic { { rule == 4 -> rule = 5; }
+                    unless
+                    { ( rule == 4 && nempty(f43) ) -> { f43?(d,dst4);
+                                                        printf("Reading value %d - %d from f43", d, dst4);
+					                rule = 5;
+				                      }
+                    }		    
+                  }
+	od
+}
+
+proctype route12()
+{	
+  	do
+	:: atomic { { rule == 5 -> rule = 6; }
+		    unless
+		    { (rule == 5 && nempty(f12)) -> { f12?<x,dst>;                                                        
+                                                      if
+  			                              :: { ((dst == 0) && !fullf13) -> f13!x,dst; fullf13 = 1; f12?(x,dst); }
+				                      :: { ((dst == 2) && !fullf33) -> f33!x,dst; fullf33 = 1; f12?(x,dst); }
+						      :: else -> skip;
+                                                      fi;  		                                        
+                                                      printf("Reading from f12");
+		                                      rule = 6;
+		        	                    }
+                    }
+                  }
+	od
+}
+
+proctype route22()
+{	
+  	do
+	:: atomic { { rule == 6 -> rule = 7; }
+		    unless
+		    { (rule == 6 && nempty(f22)) -> { f22?<x,dst>;
+                                                      if
+    			                              :: { ((dst == 1) && !fullf23) -> f23!x,dst; fullf23 = 1; f22?(x,dst); }
+				                      :: { ((dst == 3) && !fullf43) -> f43!x,dst; fullf43 = 1; f22?(x,dst); }
+                                                      :: else -> skip;		
+                                                      fi;
+  		                                      printf("Reading from f22");
+		                                      rule = 7;
+		        	                    }
+                    }
+                  }
+	od
+}
+
+proctype route32()
+{	
+  	do
+	:: atomic { { rule == 7 -> rule = 8; }
+		    unless
+		    { (rule == 7 && nempty(f32)) -> { f32?<x,dst>;
+                                                      if
+ 	                                              :: { ((dst == 0) && !fullf13) -> f13!x,dst; fullf13 = 1; f32?(x,dst); }
+				                      :: { ((dst == 2) && !fullf33) -> f33!x,dst; fullf33 = 1; f32?(x,dst); }
+                                                      :: else -> skip;		
+                                                      fi;  		                                       				                                                                           printf("Reading from f32");
+  		                                      rule = 8;
+		        	                    }
+                    }
+                  }
+	od
+}
+
+proctype route42()
+{	
+  	do
+	:: atomic { { rule == 8 -> rule = 9; }
+		    unless
+		    { (rule == 8 && nempty(f42)) -> { f42?<x,dst>;
+                                                      if
+  			                              :: { ((dst == 1) && !fullf23) -> f23!x,dst; fullf23 = 1; f42?(x,dst); }
+				                      :: { ((dst == 3) && !fullf43) -> f43!x,dst; fullf43 = 1; f42?(x,dst); }
+                                                      :: else -> skip;		
+                                                      fi;
+  		                                      printf("Reading from f42");
+		                                      rule = 9;
+		        	                    }
+                    }
+                  }
+	od
+}
+
+
+
+proctype route11()
+{	
+  	do
+	:: atomic { { rule == 9 -> rule = 10; }
+		    unless
+		    { (rule == 9 && nempty(f11)) -> { f11?<x,dst>;
+                                                      if
+  			                              :: { ( ((dst == 0) || (dst == 2)) && !fullf12 ) -> f12!x,dst; fullf12 = 1; f11?(x,dst); }
+				                      :: { ( ((dst == 1) || (dst == 3)) && !fullf22 ) -> f22!x,dst; fullf22 = 1; f11?(x,dst); }
+                                                      :: else -> skip;		
+                                                      fi;
+  		                                      printf("Reading from f11");
+		                                      rule = 10;
+		        	                    }
+                    }
+                  }
+	od
+}
+
+proctype route21()
+{	
+  	do
+	:: atomic { { rule == 10 -> rule = 11; }
+		    unless
+		    { (rule == 10 && nempty(f21)) -> { f21?<x,dst>;
+                                                       if
+  			                               :: { ( ((dst == 0) || (dst == 2)) && !fullf12 ) -> f12!x,dst; fullf12 = 1; f21?(x,dst); }
+				                       :: { ( ((dst == 1) || (dst == 3)) && !fullf22 ) -> f22!x,dst; fullf22 = 1; f21?(x,dst); }
+                                                       :: else -> skip;		
+                                                       fi;
+  		                                       printf("Reading from f21");
+		                                       rule = 11;
+		        	                     }
+                    }
+                  }
+	od
+}
+
+proctype route31()
+{	
+  	do
+	:: atomic { { rule == 11 -> rule = 12; }
+		    unless
+		    { (rule == 11 && nempty(f31)) -> { f31?<x,dst>;
+                                                       if
+  			                               :: { ( ((dst == 0) || (dst == 2)) && !fullf32 ) -> f32!x,dst; fullf32 = 1; f31?(x,dst); }
+				                       :: { ( ((dst == 1) || (dst == 3)) && !fullf42 ) -> f42!x,dst; fullf42 = 1; f31?(x,dst); }
+                                                       :: else -> skip;		
+                                                       fi;
+  		                                       printf("Reading from f31");
+		                                       rule = 12;
+		          	                     }
+                    }
+                  }
+	od
+}
+
+proctype route41()
+{	
+  	do
+	:: atomic { { rule == 12 -> rule = 13; }
+		    unless
+		    { (rule == 12 && nempty(f41)) -> { f41?<x,dst>;
+                                                       if
+  			                               :: { ( ((dst == 0) || (dst == 2)) && !fullf32 ) -> f32!x,dst; fullf32 = 1; f41?(x,dst); }
+				                       :: { ( ((dst == 1) || (dst == 3)) && !fullf42 ) -> f42!x,dst; fullf42 = 1; f41?(x,dst); }
+                                                       :: else -> skip;		
+                                                       fi;
+  		                                       printf("Reading from f41");
+		                                       rule = 13;
+		        	                     }
+                    }
+                  }
+	od
+}
+
+proctype enqeuef11()
+{	
+  	do 
+        :: atomic { if
+                    :: (rule == 13) && nfull(f11) -> f11!10,0;
+		    :: (rule == 13) && nfull(f11) -> f11!10,1;
+                    :: (rule == 13) && nfull(f11) -> f11!10,2; 
+                    :: (rule == 13) && nfull(f11) -> f11!10,3;    
+		    :: (rule == 13) -> skip;
+                    fi;
+                    rule = 14;
+                  }
+	od
+}
+
+
+proctype enqeuef21()
+{	
+  	do 
+        :: atomic { if
+                    :: (rule == 14) && nfull(f21) -> f21!20,0;
+		    :: (rule == 14) && nfull(f21) -> f21!20,1;
+                    :: (rule == 14) && nfull(f21) -> f21!20,2; 
+                    :: (rule == 14) && nfull(f21) -> f21!20,3;    
+		    :: (rule == 14) -> skip;
+                    fi;
+                    rule = 15;
+                  }
+	od
+}
+
+proctype enqeuef31()
+{	
+  	do 
+        :: atomic { if
+                    :: (rule == 15) && nfull(f31) -> f31!30,0;
+		    :: (rule == 15) && nfull(f31) -> f31!30,1;
+                    :: (rule == 15) && nfull(f31) -> f31!30,2; 
+                    :: (rule == 15) && nfull(f31) -> f31!30,3;    
+		    :: (rule == 15) -> skip;
+                    fi;
+                    rule = 16;
+                  }
+	od
+}
+
+
+proctype enqeuef41()
+{	
+  	do 
+        :: atomic { if
+                    :: (rule == 16) && nfull(f41) -> f41!40,0;
+		    :: (rule == 16) && nfull(f41) -> f41!40,1;
+                    :: (rule == 16) && nfull(f41) -> f41!40,2; 
+                    :: (rule == 16) && nfull(f41) -> f41!40,3;    
+		    :: (rule == 16) -> skip;
+                    fi;
+                    cycle = true;
+                    rule = 0;
+                  }
+	od
+}
+
+init{
+	atomic{	rule = 1;
+
+		run reset();
+                run output1();
+		run output2();
+		run output3();
+		run output4();			
+
+		run route12();
+		run route22();
+		run route32();
+		run route42();	
+		
+                run route11();
+		run route21();
+		run route31();
+		run route41();	
+		
+		run enqeuef11();
+		run enqeuef21();
+		run enqeuef31();
+		run enqeuef41();		
+	      }
+}
+

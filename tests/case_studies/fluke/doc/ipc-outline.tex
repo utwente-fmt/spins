@@ -1,0 +1,622 @@
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% CS 611 Fluke Verification Project
+%
+% Description of Fluke IPC
+%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Document setup info
+\documentstyle{article}
+
+%%%%%%%
+%%%%%%% Some standard \def's
+
+\long\def\com#1{}
+\long\def\xxx#1{{\em {\bf Fix: } #1}}
+
+% We don't need no steenkin' equations - just gimme a working underscore!
+\catcode`\_=\active
+
+
+%%%%%%%
+%%%%%%%
+
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0.3in
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6in
+
+%% Heh.. Not sure what this does... but it allows me to include postscript(?)
+%\input{psfig}
+
+\title{\Large \bf IPC Support Specification}
+
+\author{Ajay Chitturi~~~~John McCorquodale~~~~Patrick Tullmann~~~~\\
+        Jeff Turner~~~~Godmar Back \\[2ex]
+        {\tt veripc@jensen.cs.utah.edu}
+        }
+
+%BEGIN DOCUMENT--------------------
+\begin{document}
+
+\maketitle
+
+%% XXX fill all this in!
+
+% this was an open-ended comment that cut stuff off ...
+% \com{
+
+\subsection{IPC Setup}
+
+
+\subsection{IPC machine dependent macros}
+
+{\tt EXC_SET_IP(ip)} and {\tt EXC_GET_IP()} are wrappers that set the
+machine depenedent instruction pointer.  They are used for setting a
+new kernel entry point.  For example, during a {\tt
+fluke_client_connect_send_over_receive()}, after the ``connect'' phase
+is complete, the kernel will set the IP to be the {\tt
+fluke_send_over_receive()} entry point.  To exit the kernel, 
+the IP to {\tt fluke_nop__entry}.
+
+{\tt IPC_FINISH_RECEIVE(thread, status)}.  This macro sets the
+user-return code for a kernel syscall, and sets the thread's
+IP to {\tt fluke_nop__entry}.  It also does some silly stuff
+with the ``min_msg'' registers--but only because they aren't
+real registers.
+
+{\tt IPC_STATUS(thread)} sets the status code for the current ipc
+syscall.  The details are quite grungy:  On the x86 the eax register
+is overloaded.  The bottom 16 bits are the number of buffers
+the invoker is using (an in/out parameter), the top 16 bits are
+the return code of the IPC call.
+
+{\tt EXC_RETURN_INSANITY(cond)} set the {\tt exc_state.code} to
+the given insanity condintion, and returns a KR_USER_EXCEPTION.
+
+
+\subsection{Ipc Pickle Operations}
+
+\begin{itemize}
+
+\item {\tt void ipc_pickle(s_thread_t *client, s_thread_t *server)}
+
+Takes client and server threads.  They must be pointing to each other
+respectively.  Moves the active pointers into indirect links.  Zero's
+out the direct pointers.
+ 
+\item {\tt void ipc_unpickle(s_thread_t *client, s_thread_t *server)}
+
+Destroy the indirect pointers.  (We don't have to ``follow'' them,
+because they were passed in as parameters.)
+
+Check that the two threads agree on the ``direction'' of the
+connection--
+
+\xxx{What do the FLUKE_THREAD_/FOO/_SENDER bits mean?}
+
+\xxx{Shouldn't the code assert() that the passive links are correct?}
+
+The server's direct client pointer is set to the client and
+vice-versa-vice.
+
+\item {\tt int ipc_client_unpickle(s_thread_t *client, int no_wait)}
+
+Client must be the current thread.  It must have no direct server
+pointer.  (Its trying to restore the direct pointer.)
+
+First, the indirect server link is turned into a direct pointer. If
+the link is bogus, 0 is returned.  (The object is locked (the {\tt sob}
+lock) if the link was successfully followed.)  If the link pointed to a
+non-thread object, then unlock the object and return.
+
+\xxx{Couldn't server be waiting for _its_ server to pickle itself?}
+
+If the server is in WAIT_IPC_UNPICKLE, meaning that it is waiting
+for its ``other half'' to pickle a connection,  then we unlock the
+server.  The thread_wakeup() call put the thread in the WAIT_NONE
+state, and its not on any queues, so we have it ``captured''.
+
+If the captured server's {\em passive client link} isn't pointing at
+us, then the client blocks in WAIT_IPC_PICKLE and hands off to the
+server.  (An exception being, that if the no_wait flag is passed in
+non-zero, then the server is readied and we return immediately without
+blocking.) Otherwise, call {\tt ipc_unpickle(client, server)} which
+will restore the active links.  Then ready the server, as we had it
+captured.
+
+But, if the server wasn't in WAIT_IPC_UNPICKLE, then if we're the
+no_wait flag was passed in non-zero, 
+
+\item {\tt int ipc_server_unpickle(s_thread_t *server, int no_wait)}
+
+\end{itemize}
+
+
+
+
+%%%% ----------------------------
+\section{Support State \& Functions}
+
+These definitions are {\em {\sc NOT}} precise enough to generate
+formal definitions from.  They are here so that you can look up what a
+function does without having to mentally parse C code.  The meanings
+of various bits of state is also described.
+
+\subsection{Wait States}
+
+{\tt wait_state.val} is a flag describing the current state of
+a thread that is blocked in the kernel.  Wait states are {\em both}
+flags and masks.  They are ``ordered'' in that some wait states
+are more specific versions of other wait states.  The most
+``generic'' wait state is {\tt WAIT_ANYTHING}.  (No thread is
+every actually put in this state, but a specific version of
+this state.)  For example, a thread blocked in {\tt
+WAIT_IPC_SRV_SENDER} is also blocked as {\tt WAIT_CANCELABLE} and
+as {\tt WAIT_ANYTHING}.  The full list of states breaks down as
+the following tree illustrates:
+
+\begin{verbatim}
+ * WAIT_NONE
+ * WAIT_ANYTHING ->
+ *      WAIT_IPC_PICKLE
+ *      WAIT_STOPPED
+ *      WAIT_CANCELABLE ->
+ *              WAIT_ON_COND
+ *              WAIT_IPC_SRV_DSCN
+ *              WAIT_IPC_SRV_RECEIVER ->
+ *                      WAIT_IPC_SRV_RECV
+ *                      WAIT_IPC_SRV_ASEND
+ *              WAIT_IPC_SRV_SENDER ->
+ *                      WAIT_IPC_SRV_ORECV
+ *                      WAIT_IPC_SRV_SEND
+ *              WAIT_IPC_CLI_DSCN
+ *              WAIT_IPC_CLI_RECEIVER ->
+ *                      WAIT_IPC_CLI_RECV
+ *                      WAIT_IPC_CLI_ASEND
+ *              WAIT_IPC_CLI_SENDER ->
+ *                      WAIT_IPC_CLI_ORECV
+ *                      WAIT_IPC_CLI_SEND
+ *              WAIT_IPC_UNPICKLE
+ *              WAIT_IPC_IDEMPOTENT ->
+ *                      WAIT_IPC_EXCEPTION
+ *                      WAIT_IPC_CALL
+ *                      WAIT_IPC_SECURITY
+\end{verbatim}
+
+All of the values defined satisfy the property that (NODE \& \verb\<\{}NODE of
+any child\verb\>\ ) == NODE.  I.e., a bitwise AND of the wait state and itself
+or any of its "child" states will return itself.
+So, if you see {\tt thread_wakeup(thread, WAIT_IPC_SRV_SENDER)},
+then it will return {\tt WAIT_IPC_SRV_SENDER} 
+if the thread is in {\tt WAIT_IPC_SRV_SENDER},
+{\tt WAIT_IPC_SRV_ORECV}, or {\tt WAIT_IPC_SRV_SEND}.
+
+\subsection{IPC connection state}
+
+Existing, usable IPC connections can be in two states: active, and
+pickled.  Active connections are internally represented as a direct
+pointer from on thread to another. (ie, {\tt client\verb\->\ipc_state.server}
+is the address of the server's s_thread_t object).  Pickled connections
+are represented as {\em links}.  One or the other is accurate, never
+both (the non-active link is 0.)  A direct pointer can be
+thought of as a 'cached' value of the link.
+
+\subsection{thread_wakeup(target_thread, required_state)}
+
+Disables interrupts, spin locks 'target_thread's wait_state lock
+and then calls {\tt id_thread_wakeup_locked} which wakes up and
+captures 'target_thread' iff its current wait value is
+{\em at least} 'required_state'. (See the Wait State section for
+details on the wait states.)
+
+If 'target_thread' is waiting in {\tt WAIT_ON_COND} state, then it is
+removed from the queue and returned to the WAIT_NONE state.  The old
+wait state of the target thread is returned.
+(Note that there is a potential race condition handled in here, too.
+If a thread is woken from a condition variable wait, the kernel
+can't change its wait state until after its been removed from the
+wait queue.  Thus in this code, if the thread is waiting on a
+condition variable, but is not actually on the specified list, then
+it is in the process of being removed by {\tt id_cond_wakeup()} which
+has removed it from the list, but has not updated its state.)
+
+If 'target_thread' is not in {\tt WAIT_COND} then 'target_thread's
+old wait state is returned and it is put into the WAIT_NONE state.
+
+If 'target_thread' is not in at least 'required_state' then 0 is
+returned.
+
+\subsection{thread_handoff(current_thread, state, target_thread)}
+
+\textbf{Executive Summary:} Give control to 'target_thread' atomically,
+put ourselves in waiting 'state', and handle the possibility of
+us getting canceled.
+
+\textbf{Assertions:} 'current_thread' must be running and be different
+from 'target_thread'. 'state' must be different from both
+\texttt{WAIT_NONE} and \texttt{WAIT_ON_COND}.
+
+Disable interrupts, acquire spinlocks on both wait states in defined
+order to avoid deadlock, make sure that our own wait state is
+\texttt{WAIT_NONE}. Then, put 'target_thread' on the ready queue
+using \texttt{id_thread_ready} (because it's locked), release
+the lock and let the other thread go. That's all that's done to
+the other thread.
+
+At this point, a cancel may be already pending (indicated by
+\texttt{wait_state.cancel_pending}). If one is pending, then there are
+two cases:
+\begin{itemize}
+    \item The state we want to wait in is {\em not cancelable} (i.e.,
+        it doesn't have \texttt{WAIT_CANCELABLE} in its pattern - unlike
+        most of the intermediate IPC states) - then set our resume_rc
+        to \texttt{KR_CANCEL}. Note that we don't return here.
+        This is a somewhat special case.
+    \item If, however, the state we should wait in is {\em cancelable},
+        then unlock the current thread object, enable interrupts again
+        and return immediately with \texttt{KR_CANCEL}.
+        Don't context switch. Consider yourself canceled.
+\end{itemize}
+At this point, resume_rc is either set to \texttt{KR_RESTART} or
+to \texttt{KR_CANCEL}, depending on whether we have a cancelation
+pending or not. We now set the current thread's wait state to 'state'
+and go to the dispatcher.
+
+Cryptic comment \#21a in the code says:
+\begin{verbatim}
+/*
+ * We don't need to add the current thread to any wait queue,
+ * because the wait state itself defines the "ownership" of the thread.
+ */
+\end{verbatim}
+This simply means that another thread will explicitly point at us and
+make us ready - rather than we being one thread among dozens waiting
+for an event to happen.
+
+Eventually, the dispatcher will reschedule us (because someone else
+put us on the ready queue), and then we reenable interrupts and return
+with either \texttt{KR_RESTART} or \texttt{KR_CANCEL}, depending on
+whether a cancelation was pending or not when we invoked the
+dispatcher.
+
+Note that the ``unusual'' case, where the dispatcher is invoked
+even though we already knew a cancelation was pending is only used
+when actually handling a cancelation.
+\xxx{Figure out where exactly this is used.}
+
+
+\subsection{thread_wait(current_thread, state, other_thread, other_state)}
+
+\textbf{Executive Summary:} Put current_thread to sleep in the given
+state, (like thread_handoff) unless the other_thread is already in
+other_state.  Perhaps perform an atomic action on other_thread before
+we go to sleep.
+
+
+\textbf{Assertions:}
+\begin{itemize}
+  \item 'current_thread' must be the actual ``current thread''
+  \item 'current_thread' must be different than 'target_thread'
+  \item 'state' must be neither \texttt{WAIT_NONE} nor \texttt{WAIT_ON_COND}
+\end{itemize}
+
+\textbf{Assumptions:}
+
+None
+
+\textbf{Locks manipulated}
+\begin{itemize}
+  \item current_thread\verb\->\wait_state.lock (spin)
+  \item target_thread\verb\->\wait_state.lock (spin)
+\end{itemize}
+
+\textbf{Description:}
+
+This function is similar to thread_handoff() above (80\% of the code is
+identical), but instead of simply handing off to another thread, it
+checks to see if other_thread has reached other_state.  If so,
+thread_wait returns immediately with \texttt{KR_RESTART}.  Otherwise,
+the current_thread is put to sleep in wait_state state.
+
+The function first disables interrrupts, and grabs spin locks for both
+of the threads' wait_states.
+
+If other_state is equal to 0, the other_thread is canceled before
+current_thread is put to sleep.  Also, if other_state is equal to -1,
+it is a magic flag to unlock the other_thread\verb\->\sob.lock.  Both of these
+actions must be performed atomically due to potential race conditions
+with the other_thread waking up before current_thread is really asleep.
+
+At this point, a cancel may be already pending (indicated by
+\texttt{wait_state.cancel_pending}). If one is pending, then there are
+two cases:
+\begin{itemize}
+    \item The state we want to wait in is {\em not cancelable} (i.e.,
+        it doesn't have \texttt{WAIT_CANCELABLE} in its pattern - unlike
+        most of the intermediate IPC states) - then set our resume_rc
+        to \texttt{KR_CANCEL}. Note that we don't return here.
+        This is a somewhat special case.
+    \item If, however, the state we should wait in is {\em cancelable},
+        then unlock the current thread object, enable interrupts again
+        and return immediately with \texttt{KR_CANCEL}.
+        Don't context switch. Consider yourself canceled.
+\end{itemize}
+At this point, resume_rc is either set to \texttt{KR_RESTART} or
+to \texttt{KR_CANCEL}, depending on whether we have a cancelation
+pending or not. We now set the current thread's wait state to 'state'
+and go to the dispatcher.
+
+Cryptic comment \#21a in the code says:
+\begin{verbatim}
+/*
+ * We don't need to add the current thread to any wait queue,
+ * because the wait state itself defines the "ownership" of the thread.
+ */
+\end{verbatim}
+This simply means that another thread will explicitly point at us and
+make us ready - rather than we being one thread among dozens waiting
+for an event to happen.
+
+Eventually, the dispatcher will reschedule us (because someone else
+put us on the ready queue), and then we reenable interrupts and return
+with either \texttt{KR_RESTART} or \texttt{KR_CANCEL}, depending on
+whether a cancelation was pending or not when we invoked the
+dispatcher.
+
+Note that the ``unusual'' case, where the dispatcher is invoked
+even though we already knew a cancelation was pending is only used
+when actually handling a cancelation.
+\xxx{Figure out where exactly this is used.}
+
+\subsection{thread_cancel(thread)}
+
+\textbf{Executive Summary:}  Set the cancel pending bit in thread.
+
+\textbf{Assertions:}
+\begin{itemize}
+  \item Assert thread doesn't already have a cancel pending, OR
+        that its in an uncancelable wait.
+\end{itemize}
+
+\textbf{Assumptions:}
+
+\textbf{Locks manipulated}
+\begin{itemize}
+  \item spin locks wait_state.lock
+  \item disables interrupts
+\end{itemize}
+
+\textbf{Description:}
+
+Disables interrupts, locks the wait_state.lock, and sets
+thread.cancel_pending. If it can wakeup the thread, it does
+so, sets the thread's resume_rc to KR_CANCEL and readies it.
+
+\subsection{Functions in ipc.c}
+\begin{itemize}
+\item ipc_client_disconnect(client_thread)\\ 
+Make sure any connection we are involved in is actually active, by
+unpickling the connection if it is pickled. (Since unpickling a
+connection may involve waiting this means that the standard disconnect
+is a {\it soft} disconnect, which means the other side can potentially
+delay arbitrarily). Now wake up the server thread if it is waiting in
+some wait state (i.e. its wait_state is WAIT_ANYTHING), nuke the
+server corresponding to the client and the client corresponding to the
+server and put the server on
+the ready queue. Otherwise
+cancel the server thread and put yourself to sleep in the wait state
+{\tt WAIT_IPC_CLI_DSCN}. 
+
+\item ipc_server_disconnect(server_thread)\\ 
+Similar to ipc_client_disconnect (described above) except that 
+the server needs to break any (XXX) idempotent connection as well.
+
+\item ipc_client_find_server(client_thread, disconnect_code)\\ 
+Ensures that the appropriate reliable connection exists and is
+active. This involves unpickling a pickled connection. If the server
+field is still zero after a successful return from the
+ipc_client_unpickle() function check the disconnect_code parameter. If
+it is FLUKE_IPC_RECV_DISCONNECTED do a IPC_FINISH_RECEIVE().
+\xxx{explain IPC_FINISH_RECEIVE()}
+Otherwise IPC Status is set to the disconnect_code and the IP of the
+EXC state is set to fluke_nop__entry. Return KR_RESTART in either
+case.
+\xxx{List IP and status in the IPC state at the beginning and come up
+  with some clean terminology}
+
+\item ipc_server_find_client(server_thread, disconnect_code)\\ 
+Similar to ipc_client_find_server() described above.
+
+\xxx{Organize this stuff better}
+\item Functions implementing components of reliable IPC paths\\ 
+Most paths are built from two phases: 1(send) and 2(receive).
+All phase 1 routines are called with the current thread in an unknown
+state, and on successful return, the other thread is captured as the
+receiver. All pahse 2 routines are called with the other thread
+captured as receiver, and return with everything all done, ready to
+return from the syscall. Routines that implement both phases 1 and 2
+are marked _12_.
+
+\item ipc_client_1_connect_send(client_thread, connected_ip)\\ 
+  First disconnect any connection client_thread is involved
+  in. Establish a
+  connection to a new server thread using s_port_capture(). Set the
+  server field of the client and the client field of the server
+  appropriately and change the flags of the client and the server to
+  show that the client is now a client_sender and the server can no
+  longer be a server_sender. Transfer a min_msg(XXX) from the client
+  to the server. Set the IP field of the client to the connected_ip
+  parameter and the IP field of the server to
+  fluke_ipc_server_receive__entry. Then perform a reliable transfer
+  operation from the client to the server.  \xxx{semantics of the
+    connected_ip parameter}
+
+\item ipc_client_1_ack_send(client_thread, acked_ip)\\  
+  First make sure the connection is active (by calling
+  ipc_client_find_server). If the server is not waiting to send
+  (i.e. it's wait state is not at least WAIT_IPC_SRV_SENDER) put the
+  client thread to sleep in the WAIT_IPC_CLI_ASEND state and return. 
+  If the server is waiting to send, capture the server. If the server
+  wasn't waiting in WAIT_IPC_SRV_ORECV (i.e. it is not waiting for a
+  over and receive) put the client thread to sleep in the wait state
+  WAIT_IPC_CLI_ASEND, put the server on the ready queue (by calling
+  thread_handoff) and return. If the above condition doesn't hold this
+  means bot the client and the server are ready to reverse. Change the
+  flags of the server and the client to indicate that the client will
+  now be a sender and that the server is no longer a sender. Transfer
+  min_msg(XXX) from the client to the server. Set the IP of the client
+  to the acked_ip parameter and that of the server to
+  fluke_ipc_server_receive__entry. Now perform a reliable transfer
+  from the client to the server.
+  
+\item ipc_client_1_send(client_thread, out_wval)\\
+  First make sure the connection is active (by calling
+  ipc_client_find_server). If the server is not waiting as a receiver
+  (i.e. it's wait state is not at least WAIT_IPC_SRV_RECEIVER) put the
+  client_thread to sleep in the wait state WAIT_IPC_CLI_SEND and
+  return. Otherwise capture the server as a receiver. If the server
+  was waiting to receive (i.e. in the wait state 
+  WAIT_IPC_SRV_RECV) do a reliable transfer from the client to the
+  server. If the server was waiting in the wait state
+  WAIT_IPC_SRV_ASEND, this means that the server is acking the client before
+  it is done and so just throw away the send data.
+
+\item ipc_client_2_over_receive(client_thread, wval)\\
+  \xxx{wval could be just IPC_SRV_RECEIVER or IPC_SRV_ASEND.. What is
+    it semantically}
+  If the wval parameter is WAIT_IPC_SRV_RECV do a IPC_FINISH_RECEIVE
+  \xxx{What does FINISH do}(Since the server still thinks it's
+  receiving data notify it that the message has ended).
+  Put the client to sleep in the wait state WAIT_IPC_CLI_ORECV and put
+  the server on the ready queue.
+  \xxx{how does release sound for the the opposite of capture instead
+    of put the server on the ready queue}
+
+\item ipc_client_12_receive(client_thread)\\
+  First make sure the connection is active (by calling
+  ipc_client_find_server). If the server is not waiting as a sender
+  (i.e. it's wait state is not WAIT_IPC_SRV_SENDER), put the client
+  thread to sleep in the wait state WAIT_IPC_CLI_RECV (by calling
+  thread_wait) and return. Otherwise capture the server thread as the
+  sender. If the the server is not waiting to send (i.e. it's wait
+  state is not WAIT_IPC_SRV_SEND, it means that the server is done
+  sending; so release the server, do a FINISH_RECEIVE(XXX) and return
+  KR_RESTART. Otherwise put the client to sleep in the wait state
+  WAIT_IPC_CLI_RECV and release the server.
+
+ \xxx{What are the semantics of the sys_ipc_client_receive() function
+ which seems to be the only one calling this function}\\
+ \xxx{need to explain codes and ip parameters etc being passed to
+   functions properly}\\
+
+
+\textbf{Server-side reliable IPC path components}\\
+\item ipc_server_1_ack_send(server_thread, acked_ip)\\
+ Similar to ipc_client_1_ack_end() described above.
+
+\item ipc_server_1_send(server_thread, out_wval)\\
+ Similar to ipc_client_1_send() described above.
+
+\item ipc_server_2_wait_receive(server_thread, wval)\\
+ Break the connection with the client thread and release it. Nuke the
+ client field of the server and the server field of the client. Do a
+ FINISH_RECEIVE() (XXX), set the IP to fluke_ipc_wait_receive__entry
+ and put the client on the ready queue and then 
+ wait on a port set for an incoming IPC request.
+
+\item ipc_server_2_over_receive(server_thread, wval)\\
+ Similar to ipc_client_2_over_receive() described above.
+
+\item ipc_server_3_wait_receive(server_thread)\\
+ Set the IP of the server to fluke_ipc_wait_receive__entry and wait
+ on a port set for an incoming IPC request.
+
+\item ipc_server_12_receive(server_thread)\\
+ Similar to ipc_client_12_receive() described above.
+
+\end{itemize}
+
+\subsection{Functions in {\tt sys_ipc.c}}
+This section gives the flavor of IPC (one-way/idempotent/reliable)
+corresponding to each of the functions in {\tt sys_ipc.c}.
+Note that {\tt sys_ipc_setup()} is used in all three flavors, and
+{\tt sys_ipc_wait_receive()} is used in one-way and reliable IPC.
+
+\noindent \textbf{One-way IPC:}
+
+\begin{itemize}
+\item  sys_ipc_send()
+\item  sys_ipc_wait_receive()
+\item  sys_ipc_setup()
+\end{itemize}
+
+\noindent \textbf{Idempotent IPC:}
+
+\begin{itemize}
+\item sys_ipc_call()
+\item sys_ipc_reply()
+\item sys_ipc_setup()
+\end{itemize}
+
+\noindent \textbf{Reliable IPC:}
+
+\begin{tabular}{ll}
+ & \\
+ {\bf Client}                               & {\bf Server}                           \\ \hline
+ sys_ipc_client_connect_send()              & sys_ipc_wait_receive()                 \\
+ sys_ipc_client_ack_send()                  & sys_ipc_reply_wait_receive()           \\
+ sys_ipc_client_send()                      & sys_ipc_server_ack_send()              \\
+ sys_ipc_client_connect_send_over_receive() & sys_ipc_server_send()                  \\
+ sys_ipc_client_ack_send_over_receive()     & sys_ipc_server_ack_send_wait_receive() \\
+ sys_ipc_client_send_over_receive()         & sys_ipc_server_ack_send_over_receive() \\
+ sys_ipc_client_receive()                   & sys_ipc_server_send_wait_receive()     \\
+ sys_ipc_client_disconnect()                & sys_ipc_server_send_over_receive()     \\
+                                            & sys_ipc_server_receive()               \\
+                                            & sys_ipc_server_disconnect()            \\
+                                            & sys_ipc_setup()
+\end{tabular}
+
+\subsection{Kernel-internal exception codes}
+This section describes kernel return codes used within the kernel
+to flag exception conditions that require interrupting a kernel operation.
+
+\begin{enumerate}
+
+\item {\tt KR_MIN} Minimum kernel-internal return code value. any
+value greater than or equal to this is a kernel-internal code.
+
+\item {\tt KR_USER_EXCEPTION} A processor exception occured which
+should be blamed on the user (e.g. because the exception was generated
+while accessing user space). The current thread's exception_state
+contains the details.
+
+\item {\tt KR_PAGE_FAULT} Page fault occurred.
+This gets turned into a real KR_USER_EXCEPTION by the kentry layer
+if the page fault cannot be resolved in the kernel
+and no appropriate region keeper can be found to handle the fault
+
+\item {\tt KR_CANCEL} Another thread is trying to manipulate us and
+has asynchronously canceled us,  e.g. due to thread_interrupt(),
+thread_get_state(), thread_set_state().
+
+\item {\tt KR_NO_MEMORY} Ran out of kernel memory
+
+\item {\tt KR_RESTART} This return code indicates that we have context
+switched due to a wait, and we need to restart execution in user mode
+before doing anything else, since in a nonblocking
+(stack-per-processor) kernel any variables still on the kernel stack
+will still refer to the old thread.
+
+\item {\tt KR_SECURITY_FAULT} Security fault occurred.
+An upcall to the security policy server is required. (We don't need
+this probably).
+
+\end{enumerate}
+
+\end{document}

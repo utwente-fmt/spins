@@ -1,0 +1,63 @@
+\section{Fluke Core Models}
+\label{core}
+
+While evolving our current Promela model of Fluke
+IPC we have developed a support infrastructure which includes Promela
+implementations of many low-level Fluke objects used during Fluke IPC 
+sessions. We call this support infrastructure the
+{\it Core Models}.  These models model such Fluke entities as mutexes,
+condition variables, wait queues, links, ports and port sets, and the
+Fluke kernel entry layer (which embodies behavior intimately related to
+the cancellability of IPC operations).
+
+Implementation details and the design rationale of these models are
+presented here.  Where appropriate, the implementation of these models is
+quite faithful to the C-language source from which they are derived.  When
+particular divergence from the C-code has occurred, we note the underlying
+motivation and discuss the semantic similarities between the two
+implementations.
+
+Since our model is heavily based on the actual implementation, we have
+a high measure of confidence that the results obtained from model
+checking are in fact applicable to the real system.
+
+\subsection{Translation Artifacts and the Sliding {\tt d_step} Technique}
+
+Since Promela does not support language-level procedures or named blocks,
+we were forced to rely on C preprocessor macros to give us the ability to
+name code segments and provide a function-like decomposition of source
+code.  Since these macros are not lexical scopes, and many instances of
+the same macro can be instantiated in a single lexical scope (proctype),
+these macros cannot contain variable declarations, labels or other symbol
+declarations or duplicate symbol declaration will occur.  Thus, most macros
+assume the presence of a local variable called {\tt rc} which
+is used to hold the ``return value'' from the ``function'' that the macro
+embodies.  This variable can be interrogated by the user of the macro.
+
+The Core Models are designed to allow the use of a
+technique we call the {\it sliding {\tt d_step}}.  When working with
+a model as large as the Fluke IPC model, the problem of state-space
+explosion is an omnipresent threat.  Since the Core Models are largely
+self-contained and contain no external references, individual Core
+Models (or groups of them) can be verified together, and then 
+their ``public methods'' can be encased with the SPIN/Promela 
+{\tt d_step} statement, which will avoid an overall increase in 
+state-space. 
+%% "can be kept at the edge of manageability" is too wordy... 
+%% but I'll leave it in since I can't immediately come up with something better
+The positioning of these {\tt d_steps} is quite flexible due to the
+hierarchical and rigidly encapsulated structure of our models.  Thus,
+problems can be kept at the edge of manageability, to verify the Fluke
+implementation as rigorously as possible using the hardware available.
+
+\input{core-mutex.tex}
+
+\input{core-wq.tex}
+
+\input{core-cond.tex}
+
+\input{core-links.tex}
+
+\input{core-portsEtc.tex}
+
+\input{core-kentry.tex}

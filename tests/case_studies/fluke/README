@@ -1,0 +1,29 @@
+Fluke IPC Verification
+---------------------
+
+This is an archive of the Flux Project's Promela sources used for
+modeling Fluke's IPC path and using SPIN to check it out.  This
+archive is much more of a snapshot of a project in motion, than a
+distribution of a stable Promela implementation.  We are releasing it
+in the hopes that some of the abstractions and approaches might be
+useful; we don't expect anyone to do any rigorous testing of Fluke
+with it.
+
+NOTE:  We had to make a small change to SPIN to allow it to compile
+and run our larger simulations.  This, and a longer list of our gripes
+about Promela and SPIN are detailed in README.SPIN.
+
+More information on Fluke, Flux, and this verification effort can be
+found at http://www.cs.utah.edu/projects/flux. 
+
+http://www.cs.utah.edu/~tullmann/flux/verify.html will take you
+directly to the web page describing this work.
+
+Documentation is minimal, though the code is pretty well commented.
+But, CPP macros can only be taken so far...
+
+---
+
+The Flux Project
+University of Utah
+http://www.cs.utah.edu/projects/flux

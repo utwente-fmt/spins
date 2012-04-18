@@ -1,0 +1,93 @@
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% CS 611 Project Report
+%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Document setup info
+\documentstyle{article}
+     
+%%%%%%%
+%%%%%%% Some standard \def's 
+
+% We don't need no steenkin' equations - just gimme a working underscore!
+\catcode`\_=\active 
+
+\long\def\com#1{}
+\long\def\xxx#1{{\em {\bf Fix: } #1}}
+
+%%%%%%%
+%%%%%%%
+
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0.3in  
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6in
+
+%% Heh.. Not sure what this does... but it allows me to include postscript(?)
+%\input{psfig}
+
+\title{\bf \Large Fluke IPC Verification Project Report}
+
+\author{Patrick Tullmann~~~~Godmar Back~~~~Ajay Chitturi~~~~\\
+        John McCorquodale~~~~Jeff Turner\\[2ex]
+        {\tt veripc@jensen.cs.utah.edu}
+        }
+
+\date{November 27, 1996}
+
+%BEGIN DOCUMENT--------------------
+\begin{document}
+
+%HEADER
+\maketitle
+
+%%%%%%%
+%
+% abstract follows
+%
+
+\begin{abstract}
+    We have formally described and modeled the reliable Interprocess 
+    Communication (IPC) as implemented in the Fluke operating 
+    system\cite{ford+:osdi96}. With this model we were able to verify
+    certain properties, such as freedom of deadlock, under a number of
+    test scenarios.  We have also provided a base of documentation and
+    infrastructure for formal verification of other areas of Fluke.
+    Our model tries to follow closely the actual C implementation
+    of the IPC system, allowing us to make strong claims about 
+    the actual system, as opposed to claims simply about the design.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%%%%%%% 
+% give an introduction
+\input{intro.tex}
+
+% intro to fluke IPC and desc of modelling it
+\input{flukeipc.tex}
+
+% desc of low-level objects and implementation
+\input{core.tex}
+
+% describe the one or two experiments that run
+\input{results.tex}
+
+% give some conclusions bla-bla-bla
+\input{conclusions.tex}
+
+%
+\appendix
+\input{appendix.tex}
+
+\bibliography{report,sys}
+\bibliographystyle{abbrv}
+
+\end{document}
+

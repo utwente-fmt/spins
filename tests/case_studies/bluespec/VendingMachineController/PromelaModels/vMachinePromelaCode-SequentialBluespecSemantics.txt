@@ -1,0 +1,136 @@
+/*For this model, 1- priorities between ins10 and ins50 and mbbtn are not fixed. Any one can be chosen. 
+                  2- do_dispense_gum can only be fired if ins10 and ins50 are not enabled. 
+                  3- money_back_button and do_dispense_gum are also chosen randomly */
+
+#define dummy(x)  x
+
+int count, count_old;
+byte action;
+bool money_back, gum_dispensed, ten_cent_in, fifty_cent_in, money_back_button, action_fired;
+	
+proctype IFC_ten_cent_in()
+{	
+  	do
+	:: atomic { (action != 6 && ten_cent_in == 1) -> { count_old = count; 
+					           count = count + 10; 
+			                           printf("Inserting ten cents");
+                                                   action_fired = true;
+		        	 	           action = 6;
+				                 }
+                  }
+	od
+}
+
+proctype IFC_fifty_cent_in()
+{	
+  	do
+	:: atomic { (action != 6 && fifty_cent_in == 1) -> { count_old = count;  
+						   count = count + 50; 
+   		          		           printf("Inserting fifty cents");
+                                                   action_fired = true;
+		        	 	           action = 6;
+					         }
+                  }
+	od
+}
+
+proctype RL_do_dispense_money()
+{	
+  	do
+	::  atomic { (action != 6 && money_back) -> { count_old = count; 
+						    if
+				                    :: (count == 0) -> money_back = false;
+					            :: else -> { count = count - 10;
+                                                                 if
+		                                                 :: (count == 0) -> money_back = false;
+		 					         :: else -> skip;
+                                                                 fi;
+                                                               }
+				                     fi;
+		 		                     printf("Trying to dispense ten cents");
+                                                     action_fired = true;
+						     action = 6;
+						   }
+        	   }
+	od
+}
+
+proctype RL_do_dispense_gum()
+{
+	do
+	:: atomic { (action != 6 && ten_cent_in == 0 && fifty_cent_in == 0 && !money_back && count >= 50) -> { count_old = count; 
+											       count = count - 50; 
+		       		 		                                               printf("RL_do_dispense_gum executed");
+			  						    		       gum_dispensed = true;
+			   	                                                               action_fired = true;
+	          					      				       action = 6;
+			                 						     }
+                  }
+	od
+}
+
+
+
+proctype IFC_money_back_button()
+{	
+  	do
+	:: atomic { (action != 6 && money_back_button == 1) -> { count_old = count; 
+						   money_back = true; 
+			 		           printf("Pressing money back button");
+						   action = 6;
+						 }
+		  }
+	od
+}
+
+proctype start_of_cycle()
+{
+	do
+	:: atomic { if 
+                    :: (action == 6) -> { 
+                                        if
+					:: money_back -> { ten_cent_in = 0; fifty_cent_in = 0; money_back_button = 0; }
+                                        :: else -> if
+                                                   :: { ten_cent_in = 1; fifty_cent_in = 1; money_back_button = 1; } 
+                                                   :: { ten_cent_in = 1; fifty_cent_in = 1; money_back_button = 0; } 
+                                                   :: { ten_cent_in = 1; fifty_cent_in = 0; money_back_button = 1; } 
+                                                   :: { ten_cent_in = 1; fifty_cent_in = 0; money_back_button = 0; } 
+                                                   :: { ten_cent_in = 0; fifty_cent_in = 1; money_back_button = 1; } 
+                                                   :: { ten_cent_in = 0; fifty_cent_in = 1; money_back_button = 0; } 
+                                                   :: { ten_cent_in = 0; fifty_cent_in = 0; money_back_button = 1; } 
+                                                   :: { ten_cent_in = 0; fifty_cent_in = 0; money_back_button = 0; }                                                   					   fi;
+                                        fi; 
+			                
+                                        gum_dispensed = false;        							
+                                        action_fired = false; 
+                                          
+                                        if 
+                                        :: (!money_back && count < 50 && ten_cent_in == 0 && fifty_cent_in == 0 && money_back_button == 0) -> action = 6;   
+                                        :: else -> action = 0;
+					fi                                        
+				      }	
+                    fi
+		  }
+        od
+}
+
+
+init{
+	atomic{
+		count = 0;
+		money_back = false;
+		gum_dispensed = false;
+
+		action  = 6;
+		ten_cent_in = 0;
+		fifty_cent_in = 0;
+                money_back_button = 0;
+
+		run IFC_ten_cent_in();
+		run IFC_fifty_cent_in();
+		run RL_do_dispense_money();
+		run RL_do_dispense_gum();	
+		run IFC_money_back_button();
+		run start_of_cycle();
+	      }
+}

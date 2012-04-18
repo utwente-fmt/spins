@@ -1,0 +1,20 @@
+/* 
+Harmony Validation
+File :              queues
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          13 April 94
+Last modification : 15 April 94
+Description :       
+- send queue management
++ reabstraction from complete kernel
+*/
+
+#define empty_send_q(q_owner)\
+  hd_send_q[q_owner]==NIL
+#define tins_send_q(q_owner,id)\
+  hd_send_q[q_owner]=id
+#define hdel_send_q(q_owner,id)\
+  id=hd_send_q[q_owner];\
+  hd_send_q[q_owner]=NIL
+#define del_send_q(q_owner,id)\
+  hd_send_q[q_owner]=NIL

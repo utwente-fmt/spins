@@ -1,0 +1,121 @@
+/* 
+Harmony Validation
+File :              task
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 28 Jul 94
+Description :       
+- general skeleton of application task with fine grain control
+for task destruction
+*/
+
+proctype Task(byte _Active){
+  byte  ltm_id,rid,requestor,child,child1,child2;
+  byte  leng,burst,replyee,sender,i,corr_id;
+  short level;
+  message(request);message(response);message(reply);
+  
+START:
+  (state[_Active]==READY && valid[_Active]) ->
+end:
+progress:
+    do
+    :: atomic{
+         ( _Active==running[processor[_Active]] &&
+           !treatment[processor[_Active]] &&
+           (!len(fifo[processor[_Active]]) || masked[_Active]))
+         ->
+         if
+         :: killed[_Active] ->
+
+            /* _Infanticides() */
+            assert(valid[_Active]);
+            if
+            :: SEQI(0,  _Disable())
+            :: COND(1,  (left_son[_Active]==NIL),2,4)
+            :: SEQI(2,  _Enable())
+            :: GOTO(3,  23)
+            :: SEQI(4,  _Enable())
+            :: CAL1(5,  _Destroys,left_son[_Active])
+            :: GOTO(22, 0)
+            :: SEQI(23, request[SIZE]=MAXMSGLENGTH)
+            :: SEQI(24, request[TYPE]=SUICIDE)
+            :: CAL4(25, _Sends,rid,request,request,_Ltm_id[processor[_Active]])
+            :: SEQI(38, printf("_Infanticide ERROR\n") /*;assert(0)*/)
+            :: GOTO(39,  39)
+            fi
+
+         :: !killed[_Active] ->
+              if
+              :: index[_Active]==TASK1 ->
+
+                 /* SRK1 */
+                 if
+                 :: CAL2(0,  _Creates,child,TASK2)
+#if TRACE
+                    ;printf("T%d creation of S%d index%d\n",_Active,child,TASK2)
+#endif
+                 :: CAL2(20, _Creates,child,TASK3)
+#if TRACE
+                    ;printf("T%d creation of R%d index%d\n",_Active,child,TASK3)
+#endif
+                 :: CAL2(40, _Creates,child,TASK4)
+#if TRACE
+                    ;printf("T%d creation of K%d index%d\n",_Active,child,TASK4)
+#endif
+                 :: GOTO(60, 60)
+#if TRACE
+                    ;printf("T%d \n",_Active)
+#endif     
+                 fi
+
+              :: index[_Active]==TASK2 ->
+
+                 /* S1 */
+                 if
+                 :: SEQI(0,  request[SIZE]=MAXMSGLENGTH;request[RESULT]=99)
+                 :: CAL4(1,  _Sends,rid,request,response,6)
+#if TRACE
+                    ;printf("S%d send{%d} to R%d\n",_Active,response[RESULT],rid)
+#endif
+                 :: GOTO(14, 14)
+#if TRACE
+                    ;printf("S%d \n",_Active)
+#endif     
+                 fi
+
+              :: index[_Active]==TASK3 ->
+
+                 /* R1 */
+                 if
+                 :: SEQI(0,  request[SIZE]=MAXMSGLENGTH)
+                 :: CAL3(1,  _Receives,rid,request,5)
+#if TRACE
+                    ;printf("R%d receive{%d} from S%d\n",_Active,response[RESULT],rid)
+#endif
+                 :: GOTO(55,  55)
+#if TRACE
+                    ;printf("R%d \n",_Active)
+#endif     
+                 fi
+
+              :: index[_Active]==TASK4 ->
+
+                 /* K1 */
+                 if
+                 :: CAL1(0,  _Destroys,5)
+                 :: GOTO(17, 17)
+#if TRACE
+                    ;printf("K%d \n",_Active)
+#endif
+                 fi
+
+              :: index[_Active]>TASK4 ->  
+
+                 assert(0)
+
+            fi
+         fi
+       }
+    od
+}

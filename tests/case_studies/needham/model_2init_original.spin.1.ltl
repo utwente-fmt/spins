@@ -1,0 +1,92 @@
+#define p	IniCommitA1B
+#define q	ResRunningA1B
+
+	/*
+	 * Formula As Typed: [] ( ([]  !(p))  ||  (!(p) U (q)) )
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([] ( ([]  !(p))  ||  (!(p) U (q)) ))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([] ( ([]  !(p))  ||  (!(p) U (q)) )) */
+T0_init:
+	if
+	:: (! ((q)) && (p)) -> goto accept_S11
+	:: (! ((q)) && (p)) -> goto accept_all
+	:: (! ((q))) -> goto T0_S14
+	:: (! ((q)) && (p)) -> goto accept_S2
+	:: (1) -> goto T0_init
+	fi;
+accept_S11:
+	if
+	:: (! ((q))) -> goto accept_S11
+	:: (! ((q)) && (p)) -> goto accept_all
+	fi;
+accept_S2:
+	if
+	:: ((p)) -> goto accept_all
+	:: (1) -> goto T0_S2
+	fi;
+T0_S14:
+	if
+	:: (! ((q)) && (p)) -> goto accept_S11
+	:: (! ((q)) && (p)) -> goto accept_all
+	:: (! ((q))) -> goto T0_S14
+	:: (! ((q)) && (p)) -> goto accept_S2
+	fi;
+T0_S2:
+	if
+	:: ((p)) -> goto accept_all
+	:: (1) -> goto T0_S2
+	fi;
+accept_all:
+	skip
+}
+
+#ifdef NOTES
+q precedes p
+
+
+
+#endif
+#ifdef RESULT
+warning: for p.o. reduction to be valid the never claim must be stutter-closed
+(never claims generated from LTL formulae are stutter-closed)
+(Spin Version 3.4.12 -- 18 December 2001)
+	+ Partial Order Reduction
+
+Full statespace search for:
+	never-claim         	+
+	assertion violations	+ (if within scope of claim)
+	acceptance   cycles 	+ (fairness disabled)
+	invalid endstates	- (disabled by never-claim)
+
+State-vector 68 byte, depth reached 43, errors: 0
+    8245 states, stored
+   27368 states, matched
+   35613 transitions (= stored+matched)
+   77458 atomic steps
+hash conflicts: 6220 (resolved)
+(max size 2^19 states)
+
+Stats on memory usage (in Megabytes):
+0.627 	equivalent memory usage for states (stored*(State-vector + overhead))
+0.409 	actual memory usage for states (compression: 65.30%)
+	State-vector as stored = 42 byte + 8 byte overhead
+2.097 	memory used for hash-table (-w19)
+0.240 	memory used for DFS stack (-m10000)
+2.849 	total actual memory usage
+
+unreached in proctype PIni
+	(0 of 22 states)
+unreached in proctype PRes
+	(0 of 22 states)
+unreached in proctype PI
+	line 235, state 138, "-end-"
+	(17 of 138 states)
+unreached in proctype :init:
+	(0 of 12 states)
+1.46user 0.01system 0:01.51elapsed 96%CPU (0avgtext+0avgdata 0maxresident)k
+0inputs+0outputs (147major+685minor)pagefaults 0swaps
+
+#endif

@@ -1,0 +1,42 @@
+/* 
+Harmony Validation
+File :              pc-debug
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 25 Jul 94
+Description :       
+- management of running task's program counter
+*/
+
+#define SEQI(s, i)\
+  (pc[_Active]==s) ->\
+    printf("pc[%d]=%d\n",_Active,pc[_Active]);\
+    i;pc[_Active]=pc[_Active]+1
+
+#define GOTO(s, b)\
+  (pc[_Active]==s) ->\
+    printf("pc[%d]=%d\n",_Active,pc[_Active]);\
+    pc[_Active]=b
+
+#define COND(s, c,t,e)\
+  (pc[_Active]==s) ->\
+    printf("pc[%d]=%d\n",_Active,pc[_Active]);\
+    if\
+    :: (c) ->  pc[_Active]=t\
+    :: !(c) -> pc[_Active]=e\
+    fi
+
+#define RETS(s)\
+  (pc[_Active]==s) ->\
+    printf("pc[%d]=%d\n",_Active,pc[_Active]);\
+    pc[_Active]=pc[_Active]+1
+
+#define CAL0(s, n)             n(s)
+
+#define CAL1(s, n,p1)          n(p1,s)
+
+#define CAL2(s, n,p1,p2)       n(p1,p2,s)
+
+#define CAL3(s, n,p1,p2,p3)    n(p1,p2,p3,s)
+
+#define CAL4(s, n,p1,p2,p3,p4) n(p1,p2,p3,p4,s)

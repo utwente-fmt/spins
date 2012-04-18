@@ -1,0 +1,25 @@
+/* 
+Harmony Validation
+File :              infanticides
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 28 Jul 94
+Description :       
+- code executed by a task to destroy its offspring and to end
+*/
+
+            /* _Infanticides() */
+            assert(valid[_Active]);
+            if
+            :: SEQI(0,  _Disable())
+            :: COND(1,  (left_son[_Active]==NIL),2,4)
+            :: SEQI(2,  _Enable())
+            :: GOTO(3,  23)
+            :: SEQI(4,  _Enable())
+            :: CAL1(5,  _Destroys,left_son[_Active])
+            :: GOTO(22, 0)
+            :: SEQI(23, request[SIZE]=MAXMSGLENGTH)
+            :: SEQI(24, request[TYPE]=SUICIDE)
+            :: CAL4(25, _Sends,rid,request,request,_Ltm_id[processor[_Active]])
+            :: SEQI(38, printf("_Infanticide ERROR\n")/*;assert(0)*/)
+            fi

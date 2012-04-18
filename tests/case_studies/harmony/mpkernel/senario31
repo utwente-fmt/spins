@@ -1,0 +1,55 @@
+/* 
+Harmony Validation
+File :              senario
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 April 94
+Description :       
+- senario
++ reabstraction from complete kernel
+*/
+
+proctype _Sender(byte _Active)
+{  byte rid;
+
+#if TRACE
+  printf("_Sender\n");
+#endif
+  _Send(rid,2);
+#if TRACE
+  printf("T%d send    T%d\n", _Active,rid);
+#endif
+  assert(rid==2)
+}
+
+proctype _Receiver(byte _Active)
+{  byte rid,sender,replyee,c;
+
+#if TRACE
+  printf("_Receiver\n");
+#endif
+  if
+  :: c=0
+  :: c=1
+  fi;
+  _Try_receive(sender,c);
+#if TRACE
+  printf("T%d receive T%d\n", _Active,sender);
+#endif
+  if
+  :: sender==1 ->
+       _Reply(rid,sender);
+#if TRACE
+       printf("T%d reply   T%d\n", _Active,rid);
+#endif
+       assert(rid==1)
+  :: sender==0
+  :: sender!=0 && sender!=1 ->
+       assert(FALSE)
+  fi
+}
+
+#define _Start_up()\
+  _Create(_Sender,1,0);\
+  _Create(_Receiver,2,0)
+

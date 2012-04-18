@@ -1,0 +1,30 @@
+\subsection{Wait Queue Model}
+
+%\xxx{describe wait queues here - how they're implemented,
+% what the essential abstraction is, i.e., do we need a guaranteed
+% ordering etc., discuss multiprocessor, fairness, starvation}
+
+A wait queue is a data structure used to represent a FIFO list of
+threads waiting for a particular event. This is used to keep track 
+of the list of threads waiting on a condition variable. 
+
+% We have two implementations of wait queues XXX -- forget it for now --Pat
+
+% -- old paragraph was
+% Wait Queues are implemented as a doubly linked list.  The Wait Queue
+% itself contains a ``pointer'' to the head and tail.  (The pointer is
+% just the id of the thread.)  Additionally, each thread has storage for
+% a ``next'' and ``prev'' pointer.  Since it can by definition only ever
+% be on one wait queue at a time, this is sufficient.
+
+% new paragraph is
+Wait Queues are implemented as a doubly linked list of threads where the 
+Thread id are used as pointers. Each thread object contains one ``next''
+and one ``prev'' pointer -- this is sufficient since
+a thread can only be on one wait queue at a time.
+% and goes until here
+The interface provided by our model is exactly the same as that
+provided by the kernel's C implementation. In addition, the Promela
+implementation allows to remove an arbitrary thread from the
+wait queue.
+ 

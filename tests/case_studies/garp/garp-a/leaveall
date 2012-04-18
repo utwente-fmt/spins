@@ -1,0 +1,19 @@
+/*
+ * PROMELLA Validation Model
+ * Leave All
+ * by T.Nakatani
+ */
+
+proctype leaveallpro(byte n)
+{	bool leavealltimer;
+	byte type, state;
+
+	leavealltimer = true;	/* leavealltimer on */
+
+	do
+	:: llc_to_leaveall[n]?type	/* ignore */
+	:: empty(llc_to_leaveall[n]) &&
+		(leavealltimer == true) ->/* leavealltimer expired */
+progress:	leaveall_to_llc[n]!leaveall
+	od
+}

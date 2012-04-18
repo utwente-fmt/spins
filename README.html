@@ -28,6 +28,85 @@
 
 <body>
 
+
+<h1>SpinJa for LTSmin</h1>
+
+<p>
+As described below, SpinJa was originally developed to generate Java code for
+PROMELA models, which was then run in a Java environment. For the
+<a href="http://fmt.cs.utwente.nl/tools/ltsmin/">LTSmin</a> toolset, we
+extended SpinJa to generate C code adhering to the
+<a href="http://eprints.eemcs.utwente.nl/15703/">PINS interface</a>.  
+<p/>
+
+<p>
+Additionally, SpinJa was extended with a great many new features available in
+the <a href="http://spinroot.com/spin/Man/grammar.html">PROMELA</a> language.
+To give a quick overview:
+<ul>
+<li>An advanced preprocessor, crucial to handle many case studies</li>
+<li>Custom type structs</li>
+<li>Remote refs</li>
+<li>Channel actions and expressions (random, rendez-vous, polling)</li>
+<li>d_step options and communication</li>
+<li>Atomicity with loss of atomicity</li>
+<li>Special variables: _pid only</li>
+</ul> 
+</p>
+
+<p>
+The result is that we are now able to handle many large case studies with
+LTSmin. But more significantly, the semantics models is so close that the
+state counts, error counts and transition counts are equal to those of SPIN
+for many of these large case studies. An overview is given by the scripts in
+the test directory.
+</p>
+
+<p>
+Moreover, due to the functionality of the PINS interface, we are able to add a
+rich set of analysis algorithms to the PROMELA world. These are available as 
+the generic, but efficient tools of LTSmin, and include:
+<ul>
+<li>Semi-symbolic reachability and CTL model checking with reordering,
+saturation and chaining
+(<a href="http://eprints.eemcs.utwente.nl/15703/">paper</a>).</li>
+<li>Scalable multi-core reachability
+(<a href="http://www.foldr.org/~michaelw/papers/fmcad-2010-shared-hash.pdf">paper</a>)
+and LTL model checking algorithms
+(<a href="http://fmt.cs.utwente.nl/tools/ltsmin/papers/atva-2011-mcndfs.pdf">paper</a>)
+with leading explicit state compression techniques 
+(<a href="http://fmt.cs.utwente.nl/tools/ltsmin/papers/spin-2011-tree-compression.pdf">paper</a>).</li>
+<li>Guard-based partial order reduction, competative to SPINs ample set approach
+(<a href="http://essay.utwente.nl/61036/1/MSc_E_Pater.pdf">paper</a>).</li>
+</ul>
+All of these techniques should work nicely together with PROMELA semantics on
+assertion violations, deadlocks, never claims and valid end states.
+Note that some combinations, like POR and never claims, require some alternative
+approaches for now. The LTL formula can for example be loaded directly in LTSmin.
+</p>
+
+<p>
+The following things we would like to (and are able to) add in the future:
+<ul>
+<li>Support for c_code.</li>
+<li>Uninitialized channel references and passing of these references.</li>
+<li>Channels/type structs in channels</li>
+<li>Timeouts</li>
+</ul> 
+</p>
+
+<p>
+<b>
+We did NOT check whether the original SpinJa code is still working flawlessly!
+Therefore, this SpinJa distribution is only ment to be used in combination with
+the latest LTSmin release and should be obtained as a submodule in the LTSmin
+package.
+</b>
+</p>
+
+<hr/>
+From here the original documentation of SpinJa continues:
+
 <h1>SpinJa</h1>
 
 <a href="">SpinJa</a> is a model checker for Promela, written 

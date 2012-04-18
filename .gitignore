@@ -3,9 +3,15 @@
 .settings
 bin
 spinja
+*.spinja
+*.spinja.c
 *.diff
 *.model
 *.trail
+pan.*
+pan
+backup-*
+.DS_Store
 src/spinja/promela/compiler/parser/Promela*
 src/spinja/promela/compiler/parser/Parse*
 src/spinja/promela/compiler/parser/Token*

@@ -1,0 +1,6 @@
+This directory contains the Promela/SPIN code of the models of
+Harmony related to the paper (see forte94.ps)
+  Cattel, T. Modelling and verification of a multiprocessor
+  realtime OS kernel. Proceedings of the Seventh International
+  Conference on Formal Description Techniques, Berne, Switzerland.
+  Oct. 4-7, 1994. In press. Nat. Research Council of Canada 38309. 

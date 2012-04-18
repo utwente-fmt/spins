@@ -1,0 +1,195 @@
+/* 
+Harmony Validation
+File :              queues-debug
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 25 Jul 94
+Description :       
+- send,receive,reply & ready queues management
+*/
+
+#define NONE  0
+#define READY 1
+#define SEND  2
+#define RECV  3
+#define RPLY  4
+
+#define readyqacc(i,j)          i*NB_PRIO_LEVEL+j
+#define readyqref(a,i,j)        a[readyqacc(i,j)]
+
+#define empty_ready_q(p,l)      readyqref(hd_ready_q,p,l)==NIL
+#define empty_send_q(q_owner)   hd_send_q[q_owner]==NIL
+#define empty_rcv_q(q_owner)    hd_rcv_q[q_owner]==NIL
+#define empty_rply_q(q_owner)   hd_rply_q[q_owner]==NIL
+
+#define head_ready_q(id,p,l)    id=readyqref(hd_ready_q,p,l)
+#define head_send_q(q_owner,id) id=hd_send_q[q_owner]
+#define head_rcv_q(q_owner,id)  id=hd_rcv_q[q_owner]
+#define head_rply_q(q_owner,id) id=hd_rply_q[q_owner]
+
+#define tail_ready_q(id,p,l)    id=readyqref(tl_ready_q,p,l)
+#define tail_send_q(q_owner,id) id=tl_send_q[q_owner]
+#define tail_rcv_q(q_owner,id)  id=tl_rcv_q[q_owner]
+#define tail_rply_q(q_owner,id) id=tl_rply_q[q_owner]
+
+#define tins_ready_q(p,l,id)\
+  td_next[id]=NIL;\
+  td_prev[id]=readyqref(tl_ready_q,p,l);\
+  if\
+  :: (readyqref(tl_ready_q,p,l)==NIL) ->\
+      readyqref(hd_ready_q,p,l)=id\
+  :: (readyqref(tl_ready_q,p,l)!=NIL) ->\
+      td_next[readyqref(tl_ready_q,p,l)]=id\
+  fi;\
+  readyqref(tl_ready_q,p,l)=id;\
+  my_queue_type[id]=READY;\
+  printf("tins_ready_q %d %d %d\n",p,l,id)
+
+#define tins_send_q(q_owner,id)\
+  td_next[id]=NIL;\
+  td_prev[id]=tl_send_q[q_owner];\
+  if\
+  :: (tl_send_q[q_owner]==NIL) ->\
+       hd_send_q[q_owner]=id\
+  :: (tl_send_q[q_owner]!=NIL) ->\
+       td_next[tl_send_q[q_owner]]=id\
+  fi;\
+  tl_send_q[q_owner]=id;\
+  my_queue_type[id]=SEND;\
+  my_queue_owner[id]=q_owner;\
+  printf("tins_send_q %d %d\n",q_owner,id)
+#define tins_rcv_q(q_owner,id)\
+  td_next[id]=NIL;\
+  td_prev[id]=tl_rcv_q[q_owner];\
+  if\
+  :: (tl_rcv_q[q_owner]==NIL) ->\
+       hd_rcv_q[q_owner]=id\
+  :: (tl_rcv_q[q_owner]!=NIL) ->\
+       td_next[tl_rcv_q[q_owner]]=id\
+  fi;\
+  tl_rcv_q[q_owner]=id;\
+  my_queue_type[id]=RECV;\
+  my_queue_owner[id]=q_owner;\
+  printf("tins_rcv_q %d %d\n",q_owner,id)
+#define tins_rply_q(q_owner,id)\
+  td_next[id]=NIL;\
+  td_prev[id]=tl_rply_q[q_owner];\
+  if\
+  :: (tl_rply_q[q_owner]==NIL) ->\
+       hd_rply_q[q_owner]=id\
+  :: (tl_rply_q[q_owner]!=NIL) ->\
+       td_next[tl_rply_q[q_owner]]=id\
+  fi;\
+  tl_rply_q[q_owner]=id;\
+  my_queue_type[id]=RPLY;\
+  my_queue_owner[id]=q_owner;\
+  printf("tins_rply_q %d %d\n",q_owner,id)
+
+#define hdel_send_q(q_owner,id)\
+  id = hd_send_q[q_owner];\
+  hd_send_q[q_owner]=td_next[hd_send_q[q_owner]];\
+  if\
+  :: (hd_send_q[q_owner]==NIL) ->\
+       tl_send_q[q_owner]=NIL\
+  :: (hd_send_q[q_owner]!=NIL) ->\
+       td_prev[hd_send_q[q_owner]]=NIL\
+  fi;\
+  my_queue_type[id]=NONE;\
+  my_queue_owner[id]=NIL;\
+  printf("hdel_send_q %d %d\n",q_owner,id)
+#define hdel_rcv_q(q_owner,id)\
+  id = hd_rcv_q[q_owner];\
+  hd_rcv_q[q_owner]=td_next[hd_rcv_q[q_owner]];\
+  if\
+  :: (hd_rcv_q[q_owner]==NIL) ->\
+       tl_rcv_q[q_owner]=NIL\
+  :: (hd_rcv_q[q_owner]!=NIL) ->\
+       td_prev[hd_rcv_q[q_owner]]=NIL\
+  fi;\
+  my_queue_type[id]=NONE;\
+  my_queue_owner[id]=NIL;\
+  printf("hdel_rcv_q %d %d\n",q_owner,id)
+#define hdel_rply_q(q_owner,id)\
+  id = hd_rply_q[q_owner];\
+  hd_rply_q[q_owner]=td_next[hd_rply_q[q_owner]];\
+  if\
+  :: (hd_rply_q[q_owner]==NIL) ->\
+       tl_rply_q[q_owner]=NIL\
+  :: (hd_rply_q[q_owner]!=NIL) ->\
+       td_prev[hd_rply_q[q_owner]]=NIL\
+  fi;\
+  my_queue_type[id]=NONE;\
+  my_queue_owner[id]=NIL;\
+  printf("hdel_rply_q %d %d\n",q_owner,id)
+
+#define del_ready_q(p,l,id)\
+  if\
+  :: (readyqref(hd_ready_q,p,l)==id && readyqref(tl_ready_q,p,l)!=id) ->\
+       readyqref(hd_ready_q,p,l)=td_next[id];\
+       td_prev[readyqref(hd_ready_q,p,l)]=NIL\
+  :: (readyqref(hd_ready_q,p,l)!=id && readyqref(tl_ready_q,p,l)==id) ->\
+       readyqref(tl_ready_q,p,l)=td_prev[id];\
+       td_next[readyqref(tl_ready_q,p,l)]=NIL\
+  :: (readyqref(hd_ready_q,p,l)==id && readyqref(tl_ready_q,p,l)==id) ->\
+       readyqref(hd_ready_q,p,l)=NIL;\
+       readyqref(tl_ready_q,p,l)=NIL\
+  :: (readyqref(hd_ready_q,p,l)!=id && readyqref(tl_ready_q,p,l)!=id) ->\
+       td_prev[td_next[id]]=td_prev[id];\
+       td_next[td_prev[id]]=td_next[id]\
+  fi;\
+  my_queue_type[id]=NONE;\
+  printf("del_ready_q %d %d %d\n",p,l,id)
+#define del_send_q(q_owner,id)\
+  if\
+  :: (hd_send_q[q_owner]==id && tl_send_q[q_owner]!=id) ->\
+       hd_send_q[q_owner]=td_next[id];\
+       td_prev[hd_send_q[q_owner]]=NIL\
+  :: (hd_send_q[q_owner]!=id && tl_send_q[q_owner]==id) ->\
+       tl_send_q[q_owner]=td_prev[id];\
+       td_next[tl_send_q[q_owner]]=NIL\
+  :: (hd_send_q[q_owner]==id && tl_send_q[q_owner]==id) ->\
+       hd_send_q[q_owner]=NIL;\
+       tl_send_q[q_owner]=NIL\
+  :: (hd_send_q[q_owner]!=id && tl_send_q[q_owner]!=id) ->\
+       td_prev[td_next[id]]=td_prev[id];\
+       td_next[td_prev[id]]=td_next[id]\
+  fi;\
+  my_queue_type[id]=NONE;\
+  my_queue_owner[id]=NIL;\
+  printf("del_send_q %d %d\n",q_owner,id)
+#define del_rcv_q(q_owner,id)\
+  if\
+  :: (hd_rcv_q[q_owner]==id && tl_rcv_q[q_owner]!=id) ->\
+       hd_rcv_q[q_owner]=td_next[id];\
+       td_prev[hd_rcv_q[q_owner]]=NIL\
+  :: (hd_rcv_q[q_owner]!=id && tl_rcv_q[q_owner]==id) ->\
+       tl_rcv_q[q_owner]=td_prev[id];\
+       td_next[tl_rcv_q[q_owner]]=NIL\
+  :: (hd_rcv_q[q_owner]==id && tl_rcv_q[q_owner]==id) ->\
+       hd_rcv_q[q_owner]=NIL;\
+       tl_rcv_q[q_owner]=NIL\
+  :: (hd_rcv_q[q_owner]!=id && tl_rcv_q[q_owner]!=id) ->\
+       td_prev[td_next[id]]=td_prev[id];\
+       td_next[td_prev[id]]=td_next[id]\
+  fi;\
+  my_queue_type[id]=NONE;\
+  my_queue_owner[id]=NIL;\
+  printf("del_rcv_q %d %d\n",q_owner,id)
+#define del_rply_q(q_owner,id)\
+  if\
+  :: (hd_rply_q[q_owner]==id && tl_rply_q[q_owner]!=id) ->\
+       hd_rply_q[q_owner]=td_next[id];\
+       td_prev[hd_rply_q[q_owner]]=NIL\
+  :: (hd_rply_q[q_owner]!=id && tl_rply_q[q_owner]==id) ->\
+       tl_rply_q[q_owner]=td_prev[id];\
+       td_next[tl_rply_q[q_owner]]=NIL\
+  :: (hd_rply_q[q_owner]==id && tl_rply_q[q_owner]==id) ->\
+       hd_rply_q[q_owner]=NIL;\
+       tl_rply_q[q_owner]=NIL\
+  :: (hd_rply_q[q_owner]!=id && tl_rply_q[q_owner]!=id) ->\
+       td_prev[td_next[id]]=td_prev[id];\
+       td_next[td_prev[id]]=td_next[id]\
+  fi;\
+  my_queue_type[id]=NONE;\
+  my_queue_owner[id]=NIL;\
+  printf("del_rply_q %d %d\n",q_owner,id)

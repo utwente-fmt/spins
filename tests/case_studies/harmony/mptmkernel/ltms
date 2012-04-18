@@ -1,0 +1,157 @@
+/* 
+Harmony Validation
+File :              ltms
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          Jan 94
+Last modification : 7 Aug 94
+Description :       
+- local task manager ; fine grain control
+*/
+
+proctype _Local_task_manager(byte _Active){
+  byte  rid,requestor,id,sender,leng,burst,replyee,victim,i,corr_id;
+  short level;
+  message(request); 
+  message(response);
+
+  _Signal_processor(_Active);
+end:
+  do
+  :: 
+     atomic{
+       ( _Active==running[processor[_Active]] &&
+         !treatment[processor[_Active]] &&
+         (!len(fifo[processor[_Active]]) || masked[_Active]))
+       ->
+       if
+       :: SEQI(0,   response[SIZE]=MAXMSGLENGTH)
+       :: CAL3(1,   _Receives,requestor,request,0);
+          assert(requestor)
+#if TRACE
+          ;printf("ltm%d request %d,%d pour %d\n",_Active,request[TYPE],request[VICTIM],requestor)
+#endif
+       :: COND(55,  (request[TYPE]==CREATE), 
+                    56, 200)
+       :: SEQI(56,  _Get_td(id))
+       :: COND(57,  !id, 
+                    58, 91)
+       :: SEQI(58,  response[RESULT]=0)
+       :: CAL3(59,  _Replys,rid,response,requestor)
+       :: GOTO(90,  0)
+       :: SEQI(91,  _I_td(id,
+                          _Ltm_for_template[request[RESULT]]-1,
+                          requestor,
+                          template_priority[request[RESULT]],
+                          request[RESULT]))
+       :: SEQI(92,  correspondent[_Active]=id)
+       :: SEQI(93,  state[_Active]=ATTACH_OFFSPRING )
+       :: SEQI(94,  _Disable())
+       :: SEQI(95,  _Block_signal_processor(requestor))
+       :: SEQI(96,  _Enable())
+       :: COND(97,  (!correspondent[_Active]), 
+                    0, 98)
+       :: SEQI(98,  response[SIZE]=MAXMSGLENGTH )
+       :: SEQI(99,  response[RESULT]=id)
+       :: CAL3(100,  _Replys,rid,response,requestor)
+       :: GOTO(131, 0)
+
+       :: COND(200, (request[TYPE]==DESTROY),
+                    201,400)
+       :: SEQI(201, _Convert_to_td(victim,request[VICTIM]))
+       :: COND(202, !victim,
+                    203,237)
+       :: SEQI(203, response[SIZE]=MAXMSGLENGTH)
+       :: SEQI(204, response[RESULT]=0)
+       :: CAL3(205, _Replys,rid,response,requestor)
+       :: GOTO(236, 0)
+       :: SEQI(237, _Disable())
+       :: SEQI(238, del_rply_q(_Active,requestor))
+       :: SEQI(239, tins_rply_q(victim,requestor))
+       :: SEQI(240, _Enable())
+       :: COND(241, (td_flags[victim]),
+                    0,242)
+       :: SEQI(242, td_flags[victim]=TRUE)
+       :: SEQI(243, _Victim_id[processor[_Active]]=victim)
+       :: SEQI(244, _Disable())
+       :: COND(245, (state[victim]==READY || 
+                    state[victim]==COPYING_MSG ||
+                    state[victim]==ABORT_COPY_MSG),
+                    246,248)
+       :: SEQI(246, if
+                    :: (my_queue_type[victim]==NONE)
+                    :: (my_queue_type[victim]==READY) ->
+                        del_ready_q(processor[victim],priority[victim],victim)
+                    :: (my_queue_type[victim]!=READY &&  
+                       my_queue_type[victim]!=NONE) ->
+                         printf("ltm ERROR my_queue_type%d\n",my_queue_type[victim]);
+                         assert(0)
+                    fi)
+       :: GOTO(247, 255)
+       :: COND(248, (state[victim]==AWAIT_INTERRUPT),
+                    249,251)
+       :: SEQI(249, _Int_table[correspondent[victim]]=0)
+       :: GOTO(250, 255)
+       :: COND(251, (state[victim] & TRANSFERRED),
+                    252,255)
+       :: SEQI(252, correspondent[_Active]=victim)
+       :: SEQI(253, state[_Active]=RETRIEVING)
+       :: SEQI(254, _Block_signal_processor(correspondent[victim]))
+       :: SEQI(255, _Enable())
+       :: SEQI(256, _Victim_id[processor[_Active]]=0)
+       :: SEQI(257, killed[victim]=TRUE)
+       :: SEQI(258, pc[victim]=0;priority[victim]=priority[_Active])
+       :: SEQI(259, state[victim]=INFANTICIDE)
+       :: SEQI(260, _Signal_processor(victim))
+       :: GOTO(261, 0)
+
+       :: COND(400, (request[TYPE]==SUICIDE),
+                    401,500)
+       :: SEQI(401, _Convert_to_td(victim,requestor))
+       :: SEQI(402, state[victim]=0)
+       :: SEQI(403, del_rply_q(_Active,victim))
+       :: SEQI(404, correspondent[_Active]=victim)
+       :: SEQI(405, state[_Active]=DETACH_OFFSPRING)
+       :: SEQI(406, _Disable())
+       :: SEQI(407, _Block_signal_processor(father[victim]))
+       :: SEQI(408, _Enable())
+       :: SEQI(409, _Invalidate_td(victim);_Disable())
+/* forgot :: SEQI(4??, _Disable()) */
+       :: COND(410, empty_send_q(victim),
+                    418,411)
+       :: SEQI(411, hdel_send_q(victim,id))
+       :: SEQI(412, correspondent[id]=0)
+       :: SEQI(413, state[id]=REPLYING)
+       :: SEQI(414, _Signal_processor(id))
+       :: SEQI(415, _Enable())
+       :: SEQI(416, _Disable())
+       :: GOTO(417, 410)
+       :: COND(418, empty_rcv_q(victim),
+                    426,419)
+       :: SEQI(419, hdel_rcv_q(victim,id))
+       :: SEQI(420, correspondent[id]=0)
+       :: SEQI(421, state[id]=ACK_UNQ_RECEIVER)
+       :: SEQI(422, _Signal_processor(id))
+       :: SEQI(423, _Enable())
+       :: SEQI(424, _Disable())
+       :: GOTO(425, 418)
+       :: COND(426, empty_rply_q(victim),
+                    434,427)
+       :: SEQI(427, hdel_rply_q(victim,id))
+       :: SEQI(428, correspondent[id]=0)
+       :: SEQI(429, state[id]=REPLYING)
+       :: SEQI(430, _Signal_processor(id))
+       :: SEQI(431, _Enable())
+       :: SEQI(432, _Disable())
+       :: GOTO(433, 426)
+       :: SEQI(434, _Enable())
+       :: SEQI(435, _Free_td(victim))
+       :: GOTO(436, 0)
+#if TRACE
+          ;printf("T%d killed\n",victim)
+#endif
+       :: SEQI(500, printf("_Ltm ERROR default\n")/*;assert(0)*/)
+       :: GOTO(501, 0)
+       fi
+     }
+  od
+}

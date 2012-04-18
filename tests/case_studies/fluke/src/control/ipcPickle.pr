@@ -1,0 +1,195 @@
+/*
+ * Copyright (c) 1996 The University of Utah and
+ * the Computer Systems Laboratory at the University of Utah (CSL).
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify and distribute this software is hereby
+ * granted provided that (1) source code retains these copyright, permission,
+ * and disclaimer notices, and (2) redistributions including binaries
+ * reproduce the notices in supporting documentation, and (3) all advertising
+ * materials mentioning features or use of this software display the following
+ * acknowledgement: ``This product includes software developed by the
+ * Computer Systems Laboratory at the University of Utah.''
+ *
+ * THE UNIVERSITY OF UTAH AND CSL ALLOW FREE USE OF THIS SOFTWARE IN ITS "AS
+ * IS" CONDITION.  THE UNIVERSITY OF UTAH AND CSL DISCLAIM ANY LIABILITY OF
+ * ANY KIND FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+ *
+ * CSL requests users of this software to return to csl-dist@cs.utah.edu any
+ * improvements that they make and grant CSL redistribution rights.
+ */
+/*
+ * ipcPickle.pr
+ *
+ * any of the pickle functions from ipc.c are here.
+ */
+#ifndef _PROMELA_IPC_PICKLE_PR_
+#define _PROMELA_IPC_PICKLE_PR_
+
+#include "wait.pr"
+
+#define defineIpcPickleLocals() \
+  Thread pickleServer;		\
+  Thread pickleClient
+
+#define ipcPickle(client, server)				\
+  /* Assert client's server pointer is correct. */		\
+  assert(server == threadIPCServer(client));			\
+								\
+  /* Assert server's client pointer is correct. */		\
+  assert(client == threadIPCClient(server));			\
+								\
+  /* Need temps to presever semantics */			\
+  pickleServer = threadIPCServer(client);			\
+  pickleClient = threadIPCClient(server);			\
+								\
+  /* Pickle server's client link.  Nuke the pointer.*/		\
+  linkDestroy(threadIPCClientLink(pickleServer));		\
+  linkProduce(threadIPCClientLink(pickleServer), pickleClient);	\
+  threadSetIPCClient(pickleServer, THREAD_ID_INVALID);		\
+								\
+  linkDestroy(threadIPCServerLink(pickleClient));		\
+  linkProduce(threadIPCServerLink(pickleClient), pickleServer);	\
+  threadSetIPCServer(pickleClient, THREAD_ID_INVALID)
+
+
+
+#define ipcUnpickle(client, server)					\
+  /* Null out the cross-links. */					\
+  linkDestroy(threadIPCServerLink(client));				\
+  linkDestroy(threadIPCClientLink(server));				\
+									\
+  /* Only establish connection if direction is agreed */		\
+  if									\
+  :: (((threadIPCFlags(client) & FLUKE_THREAD_CLIENT_SENDER)		\
+       && (threadIPCFlags(server) & FLUKE_THREAD_SERVER_SENDER))	\
+      || (!(threadIPCFlags(client) & FLUKE_THREAD_CLIENT_SENDER)	\
+          && !(threadIPCFlags(server) & FLUKE_THREAD_SERVER_SENDER))) ->\
+       skip; /* RETURN w/o making connection */				\
+  :: else ->								\
+       threadSetIPCServer(/*of*/client, /*to*/server);			\
+       threadSetIPCClient(/*of*/server, /*to*/client);			\
+  fi
+
+
+
+#define ipcClientUnpickle(client, noWaitFlag)				\
+   /* Use local variable pickle_server */				\
+   assert(client == currentThread);					\
+   assert(threadIPCServer(client) == THREAD_ID_INVALID);		\
+									\
+   /* Try and revive a half-connection.  Turn the passive */		\
+   /* link into an active link, if one exists...          */		\
+   linkFollow(threadIPCServerLink(client),/*out*/pickleServer);		\
+   if									\
+   :: pickleServer == THREAD_ID_INVALID ->				\
+        DONEWITH(pickleServer);						\
+        /* RETURN */ rc = 0;						\
+   :: else ->								\
+        threadWakeup(pickleServer, WAIT_IPC_UNPICKLE);			\
+        /* sets rc */							\
+        if								\
+        :: rc == THREAD_ID_INVALID -> /* ie, !threadWakeup() */		\
+             if								\
+             :: noWaitFlag != 0 ->					\
+                 mutexUnlock(sobMutexes[pickleServer],currentThread);	\
+                 /* RETURN */ rc = 0;					\
+             :: else ->							\
+                 threadCancel(pickleServer);				\
+                 threadWait(client, WAIT_IPC_UNPICKLE,			\
+                            pickleServer, -1 /* unlock it */);		\
+                 /* RETURN rc from threadWait() */			\
+             fi;							\
+	     DONEWITH(pickleServer);					\
+        :: else -> /* threadWakeup() != 0 */				\
+             mutexUnlock(sobMutexes[pickleServer],			\
+			 currentThread);				\
+             /* server is now locked and captured. */			\
+             /* Get server's client pointer;       */			\
+             /* make sure it points to me.         */			\
+									\
+             if								\
+	     :: !linkComparePtr(					\
+	             threadIPCClientLink(pickleServer),	client) ->	\
+                 /* server's client pointer doesn't point to me */	\
+                 if 							\
+                 :: noWaitFlag != 0 ->					\
+                      threadReady(pickleServer);			\
+                      /* RETURN */ rc = 0;				\
+                 :: else ->						\
+		      assert(noWaitFlag == 0);				\
+                      threadHandoff(client, WAIT_IPC_UNPICKLE,		\
+                                    pickleServer);			\
+                      /* RETURN rc from threadHandoff() */		\
+                 fi;							\
+             :: else ->							\
+                  /* server's client pointer points to me. */		\
+                  ipcUnpickle(client, pickleServer);			\
+                  threadReady(pickleServer);				\
+                  /* RETURN */ rc = 0;					\
+             fi;							\
+	     DONEWITH(pickleServer);					\
+        fi;								\
+   fi
+
+
+#define ipcServerUnpickle(server, noWaitFlag)				\
+   /* assumes local variable pickleClient */				\
+   assert(server == currentThread);					\
+   assert(threadIPCClient(server) == THREAD_ID_INVALID);		\
+									\
+    /*									\
+     * Try and revive a half-connection.  Turn the passive		\
+     * link into an active link, if one exists...			\
+     */									\
+   linkFollow(threadIPCClientLink(server), pickleClient);		\
+   if									\
+   :: pickleClient == THREAD_ID_INVALID ->				\
+        DONEWITH(pickleClient);						\
+        /* RETURN */ rc = 0;						\
+   :: else ->								\
+        threadWakeup(pickleClient, WAIT_IPC_UNPICKLE);			\
+        /* sets rc */							\
+        if								\
+	   /* should be rc == 0 but will work */			\
+        :: rc == THREAD_ID_INVALID -> /* !threadWakeup() */		\
+             if								\
+             :: noWaitFlag != 0 ->					\
+                 mutexUnlock(sobMutexes[pickleClient], currentThread);  \
+                 /* RETURN */ rc = 0;					\
+             :: else ->							\
+		 assert(noWaitFlag == 0);				\
+                 threadCancel(pickleClient);				\
+                 threadWait(server, WAIT_IPC_UNPICKLE,			\
+                            pickleClient, -1 /* unlock it */);		\
+                  /* RETURN rc from threadWait() */			\
+             fi;							\
+        :: else -> /* threadWakeup() != 0 */				\
+             mutexUnlock(sobMutexes[pickleClient], currentThread);	\
+             /* client is now locked and captured. */			\
+             /* Get client's server pointer;       */			\
+             /* make sure it points to me.         */			\
+             if								\
+             :: threadIPCServer(pickleClient) != server ->		\
+                 /* client's server pointer doesn't point to me */	\
+                 if							\
+                 :: noWaitFlag != 0 ->					\
+                      threadReady(pickleClient);			\
+                      /* RETURN */ rc = 0;				\
+                 :: else ->						\
+		      assert(noWaitFlag == 0);				\
+                      threadHandoff(server, WAIT_IPC_UNPICKLE,		\
+		                    pickleClient);			\
+                      /* RETURN rc from threadHandoff() */		\
+                 fi;							\
+             :: else ->							\
+                 /* client's server pointer points to me. */		\
+                 ipcUnpickle(server, pickleClient);			\
+                 threadReady(pickleClient);				\
+                 /* RETURN */ rc = 0;					\
+             fi;							\
+        fi;								\
+        DONEWITH(pickleClient);						\
+   fi
+
+#endif /* _PROMELA_IPC_PICKLE_PR_ */

@@ -1,0 +1,317 @@
+/* $Header: /home/stufs1/vicdu/cos/version2/i2.sr,v 1.1 1999/11/03 01:39:30 vicdu Exp vicdu $ */
+
+/*
+  Taylor's I-Protocol, as implemented in the GNU UUCP package
+
+  - restructed sender and receiver 
+  - removed source and sink processes (sndr_u and recv_u)
+*/
+
+/* Version: Window size W,    (on command line define W for winsize);
+   define FULL and FIXED if want to run full, fixed version.
+   Also use -DT=0 up to -DT=2 to choose violation property 
+*/
+#define WINSIZE W       /* window size */
+#define dbl_WINSIZE (2*WINSIZE)
+#define MAX_SEQ (2*WINSIZE - 1)
+#define diff(x, y)  ((x - y) mod (2*WINSIZE) )
+
+type catagory : (ack, nak, data)   /* types of pakets */
+
+#include "QRY.h"
+
+proc s:NoDet(4) /* asynchronous scheduler for interleaving semantics */
+	/*	
+		0: sender send data
+		1: sender receive
+		2: sender send nak
+		3: receiver receive
+		4: receiver send
+	*/
+proc drop:NoDet(1)  /* = 1 means message dropped */
+/***********************************************************************/
+
+proc sender
+  import s, medium[0], medium[1]
+  stvar sendseq, rack, seq: (0.. MAX_SEQ)  
+     /* seq_st holds seq received from medium[1] */
+  selvar outseq, outak: (0.. MAX_SEQ)
+  selvar outpty: catagory
+  stvar $: (beginning, nak_resend, timeout_resend)
+  selvar #:= $
+  selvar push0, pop1, openwindow: boolean 
+	/* openwindow is a selvar, because then I can export
+		it to the property file easier */
+
+  init $ :=beginning, seq := 0, sendseq:=1, rack:=0
+
+  asgn openwindow := ((diff(sendseq, rack)<=WINSIZE)*(sendseq~=rack))
+
+  /* push to medium[0] */
+  asgn push0 := (medium[0].#=empty)*   /* medium 0 ready */
+                ( ($:beginning)*((s:0)*openwindow  +
+                                 /* window open and  send data selected */
+		                 (s:2) ) + /* time out selected; send nak! */
+                  ($:nak_resend)*(s:0,2) +
+                  ($:timeout_resend)*(s:0,2) )
+  /* pop from medium[1] */  
+  asgn pop1 := (medium[1].#=full)*(s:1)*($:beginning)
+
+  asgn sendseq -> (sendseq+1) mod dbl_WINSIZE ? push0*($:beginning)*(s:0) 
+		| sendseq
+  asgn rack -> medium[1].ak ? pop1*(medium[1].hck=1)*
+			  ( ~ ( (medium[1].ak=sendseq)+
+			        (diff(medium[1].ak, rack)>WINSIZE )+
+			        (diff(sendseq, medium[1].ak)>WINSIZE)
+			      )  
+ 			  )
+                        | rack
+      /* medium[1].pak can only be ack or nak, so this not necessary 
+        ( (medium[1].pty=ack)+(medium[1].pty=nak) ) */
+
+  asgn seq -> medium[1].seq ? pop1 | seq
+  asgn outpty := nak ? (medium[0].#:empty)*(#:beginning)*(s:2) 
+                         /*push0 is 1 when the above is true*/
+                | data
+  asgn outak := 0
+  asgn outseq :=  sendseq ? push0*(#:beginning)*(s:0) 
+                | 1       ? push0*(#:beginning)*(s:2) 
+                | (rack+1) mod dbl_WINSIZE ? push0*(#:timeout_resend) 
+                | seq     ? push0*(#:nak_resend)
+                | 0 /* default value */
+
+  kill (s:1,2)*($:nak_resend,timeout_resend)
+   /* for those states, sender won't need the other two values of s */
+  kill (s:0)*(~openwindow)*($:beginning)
+
+  trans
+    beginning
+    -> beginning: (s:0)*openwindow*(medium[0].#:empty)
+            /* send data! */
+     -> nak_resend: (s:1)*(medium[1].#: full)*
+                   (medium[1].hck=1)*(medium[1].pty=nak)* 
+                   ~( (medium[1].seq=sendseq)+
+		      ( diff(medium[1].seq, rack)>WINSIZE )+
+		      ( diff(sendseq, medium[1].seq) > WINSIZE) )
+            /* receive data and prepare to resend data due to nak received */
+    -> timeout_resend : (s:2)*(medium[0].#: empty)*
+                        (sendseq ~= ((rack+1) mod dbl_WINSIZE))
+            /* send nak, and prepare to resend data */ 
+    -> $:else;
+
+    nak_resend
+    -> beginning: (s:0)*(medium[0].#:empty)
+    -> $: else;
+
+    timeout_resend
+    -> beginning: (s:0)*(medium[0].#:empty)
+    -> $: else
+
+end  sender
+
+/************************************************************************/
+
+proctype medium_type(inpak: catagory; inseq, inak: (0.. MAX_SEQ);
+		      push, pop: boolean)
+  import inak, inseq, inpak, push, pop  /* push and pop should be mutex */
+
+  stvar $: (full, empty)
+  selvar hck, dck: boolean  /* for header and data checksum */
+  stvar seq_st, ak_st: (0.. MAX_SEQ)
+  stvar pty_st: catagory
+  selvar pty: catagory
+  selvar seq, ak: (0.. MAX_SEQ)
+  selvar # := $
+  init  $:=empty, pty_st := data, seq_st := 1, ak_st := 0
+  
+  asgn pty := pty_st
+  asgn seq := seq_st
+  asgn ak := ak_st
+#ifdef FULL
+  asgn dck := {*}
+  asgn hck := {*}
+#else
+  asgn hck := 1
+  asgn dck := 1
+#endif
+  
+  asgn pty_st -> inpak ? push | pty_st
+  asgn seq_st -> inseq     ? push | seq_st
+  asgn ak_st -> inak       ? push | ak_st
+
+  asgn $ -> empty ? pop | full ? push | $
+  end  medium_type()
+
+/***********************************************************************/
+
+proc medium[i<2]: medium_type (sender.outpty ? (i=0) | receiver.outpty,
+		  sender.outseq ? (i=0) | receiver.outseq,
+		  sender.outak ? (i=0) | receiver.outak,
+		  (sender.push0*(drop:0)) ? (i=0) | (receiver.push1*(drop:0)),
+		  receiver.pop0 ? (i=0) | sender.pop1)
+
+/**********************************************************************/
+
+proc receiver
+  import s, medium[0], medium[1]
+
+  stvar recbuf[dbl_WINSIZE]: boolean
+  stvar nakd[dbl_WINSIZE]: boolean
+  stvar $:( beginning, nak_in, bad_dck, ack_inOrder, nak_outOfOrder)
+     /* nak_in: to send ack for bug fix */
+     /* bad_dck: send nak; ack_inOrder: send ack; nak_outOfOrder: send nak */
+     /* notice the states nak_in, bad_dck, ack_inOrder and nak_outOfOrder are
+	states just before the next packet is to be sent out.
+	I can make $ to have two states: beggining and r_getdata,
+	where r_getdata is the state after a packet has been received. In this
+	case, the decision about what to respond is made at the state
+	r_getdata, not beginning. Thus although $ has a small number of
+	values, I have to introduce additional stvars to keep in value
+	of the incoming packet (for testing in r_getdata). That may
+	be more expensive */
+  selvar #:= $
+  selvar outpty: catagory
+  selvar outseq, outak: (0.. MAX_SEQ)
+  stvar seq, tmp, recseq, lack: (0.. MAX_SEQ)
+  selvar push1, pop0, inOrder: boolean
+	/* inOrder is a selvar, because then I can export
+		it to the property file easier */
+
+  init $:= beginning, 
+	   [i in 0.. MAX_SEQ ] { recbuf[i] :=0, nakd[i] := 0 },
+	     seq :=1, recseq :=0, lack:=0, tmp:=0
+
+  /* pop from medium[0] */  
+  asgn pop0 := (medium[0].#=full)*(s:3)*($:beginning)
+  /* push to medium[1] */
+  asgn push1 := (medium[1].#=empty)*(s:4)*
+                ( ($:beginning, 
+#ifdef FIXED
+		   nak_in, 
+#endif
+		   bad_dck, ack_inOrder) +
+                  ($:nak_outOfOrder)*(tmp~=seq)*(nakd[tmp]~=1)*(recbuf[tmp]~=1))
+
+  kill (s:3)*($~=beginning)  /* other than beginning, no attempt to receiver */
+
+  asgn lack -> recseq ? push1 | lack  /* notice this contains the bug fix
+				      for nak_in if it's in push1! */
+
+/* consec is the largest sequence in a block of consecutive recbuf with the 
+   value 1. Notice this block can be wrapped around; Also notice I have to
+   be careful as the starting point, recbuf[startSeq] may or may not be 1 ! */
+  macro startSeq := (medium[0].seq+1) mod dbl_WINSIZE,  
+        /* upperConsec assumes recbuf[startSeq] = 1 */
+        upperConsec := (|[i in 0.. (MAX_SEQ-1)] i 
+		      ? (i>=startSeq)*(recbuf[i]=1)*(recbuf[i+1]=0) | MAX_SEQ),
+        lowerConsec := MAX_SEQ ?(recbuf[0] = 0) /*handle the case recbuf[0]=0*/
+                   | (|[i in 0.. (MAX_SEQ-1)] i 
+                      ? (i>=0)*(recbuf[i]=1)*(recbuf[i+1]=0) | MAX_SEQ),
+        consec :=  medium[0].seq ?  (recbuf[startSeq]=0)
+                   | ( upperConsec ? (upperConsec~=MAX_SEQ)
+		       | lowerConsec ),
+        inWindow := ~((medium[0].seq=lack)+(diff(medium[0].seq,lack)>WINSIZE)),
+        inData := ((medium[0].pty=data)*(medium[0].hck=1)), 
+        outOfOrder := inData*inWindow*(medium[0].dck=1)
+                        *(medium[0].seq ~= (recseq+1) mod dbl_WINSIZE)
+
+  asgn inOrder := inData*inWindow*(medium[0].dck=1)
+                        *(medium[0].seq= (recseq+1) mod dbl_WINSIZE)
+  asgn recseq -> consec ? pop0*inOrder | recseq
+
+  asgn tmp -> 
+    (recseq+1) mod dbl_WINSIZE ? 
+	   pop0*outOfOrder
+             *(medium[0].seq~=recseq)*(recbuf[medium[0].seq]~=1)  /* *** */
+  | (tmp+1) mod dbl_WINSIZE ? ($: nak_outOfOrder)*push1
+  | (tmp+1) mod dbl_WINSIZE ? ($: nak_outOfOrder)*
+       (tmp~=seq)*~((nakd[tmp]~=1)*(recbuf[tmp]~=1))
+  | tmp 
+
+  asgn [i in 0.. MAX_SEQ ]  { nakd[i] ->
+	     1?  (i=medium[0].seq)*push1*($:bad_dck) +
+	         (i= (recseq+1)mod dbl_WINSIZE)*push1*($:beginning) +
+	         (i= tmp)* push1*($: nak_outOfOrder)
+           | 0?  ($:beginning)*push1*(i~=(recseq+1)mod dbl_WINSIZE) +
+                 (i=medium[0].seq)*pop0*inData*inWindow*(medium[0].dck=1)
+           | nakd[i] }
+
+  asgn [i in 0.. MAX_SEQ ] 
+    { recbuf[i] -> 0 ? (recbuf[startSeq]=1) *  /* otherwise nothing to reset */
+                       ( (startSeq <= consec)*(i>=startSeq)*(i<=consec) +
+                       (startSeq > consec)*((i<=consec)+(i>=startSeq))  ) 
+                        *pop0*inOrder
+     /* reset recbuf from startSeq to consec when in order data received */
+	        |  1 ? (i=medium[0].seq)*pop0*outOfOrder
+                           *(medium[0].seq~=recseq)*(recbuf[medium[0].seq]~=1) 
+                               /* *** */
+                | recbuf[i] }
+
+  asgn seq -> medium[0].seq ? pop0 | seq
+  asgn outpty := ( nak ? ($: beginning, bad_dck, nak_outOfOrder)
+                     | ack ? 
+#ifdef FIXED 
+                             ($: nak_in) /*bug fix */ +
+#endif
+                             ($: ack_inOrder)
+                     | ack /* default ack; this value not important */
+                     ) ? push1
+                       |  ack /* default ack; this value not important */
+
+  asgn outseq := (  (recseq+1) mod dbl_WINSIZE ? ($:beginning) |
+		    seq ? ($:bad_dck,ack_inOrder) |
+		    tmp ? ($: nak_outOfOrder) 
+#ifdef FIXED
+                  | recseq ? ($:nak_in) /*bug fix */
+#endif
+		  | 0 /* unimportant default value */
+                 ) ? push1
+                 | 0 /* unimportant default value */
+
+  asgn outak := ( recseq ? ($:beginning,nak_outOfOrder,bad_dck,ack_inOrder)
+#ifdef FIXED
+                           + ($:nak_in)  /*bug fix */
+#endif
+                | 0 /* unimportant default value */
+                ) ? push1
+                | 0 /* unimportant default value */
+
+  /*  recur $:*->r_timeout */
+  trans  
+  beginning
+#ifdef FIXED
+  -> nak_in: pop0*(medium[0].hck=1)*(medium[0].pty=nak)
+#endif
+  -> bad_dck: pop0*inData*inWindow*(medium[0].dck=0)
+               *((medium[0].seq~=recseq)*(recbuf[medium[0].seq]~=1)
+                 *(diff(medium[0].seq, recseq)<=WINSIZE))
+  -> ack_inOrder:  pop0*inOrder*(diff(consec, lack)>=WINSIZE/2)
+     /* go back to beginning directly if the last conjunct false; also, use
+      consec rather than recseq as recseq won't be updated till next state */
+  -> nak_outOfOrder: pop0*outOfOrder
+                *(medium[0].seq~=recseq)*(recbuf[medium[0].seq]~=1) /* *** */
+  /* -> beginning: push1 (for timeout and send nak) - not needed */
+  -> $: else;
+
+#ifdef FIXED
+  nak_in
+  -> beginning: push1
+  -> $: else;
+#endif
+
+  bad_dck
+  -> beginning: push1
+  -> $: else;
+
+  ack_inOrder
+  -> beginning: push1 /* send ack at half window boundary and update lack. */
+  -> $: else;
+
+  nak_outOfOrder
+  -> beginning: (tmp=seq)
+  -> $: else;
+
+end receiver
+
+
+

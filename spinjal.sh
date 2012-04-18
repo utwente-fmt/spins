@@ -7,6 +7,7 @@ if [ "${script_dir:0:1}" != "/" ]; then
 fi
 
 CP="$script_dir/spinja.jar"
+#CP="$script_dir/build/classes"
 show_usage=
 promela_file=
 gcc_options=
@@ -43,16 +44,17 @@ if [ "$SKIP_SPINJA" != "1" ]; then
 		rm -f "$output_file";
 	fi
 	
-	java -Xms120m -Xmx2048m -cp $CP spinja.Compile -o3 -l $promela_file
-	if [ ! -f "$output_file" ]; then
+	java -Xms120m -Xmx2048m -cp $CP spinja.Compile $OPTIONS -l $promela_file
+	ERROR=$?
+	if [ $ERROR -ne 0 ]; then
 		echo "Compilation of $promela_file failed"
-		exit;
+		exit $ERROR;
 	fi
 else
 	echo "Skipping compilation...";
 fi
 
-gcc -fPIC -shared $output_file -o $promela_name.spinja -O2 -gstabs $gcc_options
+gcc -fPIC -gstabs -shared $output_file -o $promela_name.spinja -O2 -gstabs $gcc_options
 if [ ! $? -eq 0 ]; then
 	echo "Compilation of $output_file failed"
 else

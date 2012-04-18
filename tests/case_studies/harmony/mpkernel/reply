@@ -1,0 +1,42 @@
+/* 
+Harmony Validation
+File :              reply
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 April 94
+Description :       
+- msg emission in response to a msg reception
++ reabstraction from complete kernel
+*/
+
+#define _Reply(rid,id)\
+  _Disable();\
+  correspondent[_Active]=id;\
+  _Convert_to_td(replyee,id);\
+  if\
+  :: (!replyee ||\
+     (state[replyee]!=REPLY_BLOCKED) ||\
+     (correspondent[replyee]!=_Active)) ->\
+       _Enable();\
+       rid = 0\
+  :: (replyee &&\
+     (state[replyee]==REPLY_BLOCKED) &&\
+     (correspondent[replyee]==_Active)) ->\
+       state[_Active] = COPYING_MSG;\
+       _Enable();\
+       _Copy_msg();\
+       _Disable();\
+       if\
+       :: (state[_Active]==ABORT_COPY_MSG) ->\
+            state[_Active]=READY;\
+            _Enable();\
+            rid=0\
+       :: (state[_Active]!=ABORT_COPY_MSG) ->\
+            state[_Active] = READY;\
+            state[replyee] = REPLYING;\
+            _Signal_processor(id);\
+            _Enable();\
+            rid = id\
+       fi\
+  fi
+

@@ -1,0 +1,18 @@
+/*
+ * PROMELA Validation Model
+ * GARP(LLC Service no loss)
+ */
+
+proctype llcnoloss()
+{	byte type;
+
+endIDLE:
+	do
+	:: appl_to_llc[0]?type ->
+		llc_to_appl[1]!type; llc_to_regist[0]!type
+	:: appl_to_llc[1]?type ->
+		llc_to_appl[0]!type; llc_to_regist[0]!type
+	:: regist_to_llc[0]?type ->
+		llc_to_appl[0]!type; llc_to_appl[1]!type
+	od
+}

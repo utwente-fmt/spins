@@ -1,0 +1,35 @@
+/*
+ * PROMELA Validation Model
+ * GARP(Global Definitions)
+ */
+
+#define N_APL		2	/* number of applicants */
+#define N_RGS		1	/* number of registrar */
+#define N_LVAL		1	/* number of leaveall */
+
+#define true		1
+#define false		0
+
+#define out		1
+#define lanx		2
+#define in		3
+#define vanx		4
+
+#define out_reg		1
+#define awt_rjin	2
+#define lv_imm		3
+#define in_reg		4
+
+
+mtype = {
+	reqjoin, reqleave,
+	join, leave, leaveall
+	}
+
+chan user_to_appl[N_APL] = [0] of { byte };
+chan appl_to_llc[N_APL] = [0] of { byte };
+chan llc_to_appl[N_APL] = [1] of { byte };
+chan regist_to_llc[N_RGS] = [0] of { byte };
+chan llc_to_regist[N_RGS] = [1] of { byte };
+chan leaveall_to_llc[N_LVAL] = [0] of { byte };
+chan llc_to_leaveall[N_LVAL] = [1] of { byte };

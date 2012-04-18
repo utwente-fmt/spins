@@ -1,0 +1,37 @@
+
+#define eqTo0 count == 0
+#define gEq50 count >= 50
+#define gt10  count > 10
+
+#define inc10 count_old == (count - 10)
+#define inc50 count_old == (count - 50)
+#define dec10 count_old == (count + 10)
+#define dec50 count_old == (count + 50)
+
+#define ins10 tenCentIn
+#define ins50 fiftyCentIn
+#define mbbtn moneyBackButton
+
+#define dspGm (dec50 && gumControl)
+
+
+[] ( ( (moneyBack &&  gt10) -> X (!action_fired U (dec10 && moneyBack)) 
+     ) && 
+     ( (moneyBack && !gt10) -> X (!action_fired U (eqTo0 && !moneyBack)) 
+     ) && 
+     ( (( one_action_fired && !moneyBack && gEq50) -> X (!action_fired U (inc10 || inc50 || moneyBack || dspGm))) &&
+       ((!one_action_fired && !moneyBack && gEq50 && !ins10 && !ins50 && mbbtn) -> X (!action_fired U (moneyBack || dspGm))) &&
+       ((!one_action_fired && !moneyBack && gEq50 && !ins10 && !ins50 && !mbbtn) -> X (!action_fired U dspGm)) 
+     ) &&
+     ( (( one_action_fired && !moneyBack && !gEq50) -> X (!action_fired U (inc10 || inc50 || moneyBack))) &&
+       ((!one_action_fired && !moneyBack && !gEq50 && !ins10 && !ins50 && mbbtn) -> X (!action_fired U moneyBack)) &&
+       ((!one_action_fired && !moneyBack && !gEq50 && !ins10 && !ins50 && !mbbtn) -> X (!action_fired U (inc10 || inc50 || moneyBack)))       
+     ) && 
+     ( ((!one_action_fired && !moneyBack &&  ins10 && !ins50 &&  mbbtn) -> X (!action_fired U (inc10 || moneyBack))) &&
+       ((!one_action_fired && !moneyBack &&  ins10 && !ins50 && !mbbtn) -> X (!action_fired U inc10)) &&
+
+       ((!one_action_fired && !moneyBack && !ins10 && ins50 &&  mbbtn) -> X (!action_fired U (inc50 || moneyBack))) &&
+       ((!one_action_fired && !moneyBack && !ins10 && ins50 && !mbbtn) -> X (!action_fired U inc50))
+     )
+  )
+

@@ -1,0 +1,19 @@
+#define r (User[prid[6]]@NoException)
+#define p (user6Processed == 1)
+	/*
+	 * Formula As Typed: [] (r -> p)
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([] (r -> p))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([] (r -> p)) */
+T0_init:
+	if
+	:: (1) -> goto T0_init
+	:: (! ((p)) && (r)) -> goto accept_all
+	fi;
+accept_all:
+	skip
+}
+

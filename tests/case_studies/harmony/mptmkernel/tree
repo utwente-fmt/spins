@@ -1,0 +1,42 @@
+/* 
+Harmony Validation
+File :              trees
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 24 Jun 94
+Description :       
+- offspring trees management
+*/
+
+#define ins_son(father,id)\
+  if\
+  :: (right_son[father]!=NIL) ->\
+       left_brother[id]=right_son[father];\
+       right_brother[id]=right_brother[right_son[father]];\
+       left_brother[right_brother[right_son[father]]]=id;\
+       right_brother[right_son[father]]=id\
+  :: (right_son[father]==NIL) ->\
+       left_brother[id]=id;\
+       right_brother[id]=id;\
+       left_son[father]=id\
+  fi;\
+  right_son[father]=id
+
+#define del_son(id)\
+  if\
+  :: (left_son[father[id]]==id && right_son[father[id]]!=id) ->\
+       left_son[father[id]]=right_brother[id];\
+       right_brother[left_brother[id]]=right_brother[id];\
+       left_brother[right_brother[id]]=left_brother[id]\
+  :: (left_son[father[id]]!=id && right_son[father[id]]==id) ->\
+       right_son[father[id]]=left_brother[id];\
+       right_brother[left_brother[id]]=right_brother[id];\
+       left_brother[right_brother[id]]=left_brother[id]\
+  :: (left_son[father[id]]==id && right_son[father[id]]==id) ->\
+       left_son[father[id]]=NIL;\
+       right_son[father[id]]=NIL\
+  :: (left_son[father[id]]!=id && right_son[father[id]]!=id) ->\
+       right_brother[left_brother[id]]=right_brother[id];\
+       left_brother[right_brother[id]]=left_brother[id]\
+  fi
+

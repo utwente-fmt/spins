@@ -1,0 +1,275 @@
+% conclusions.tex - How we're wiser, better people now that it's over
+%------------------------------------------------------------------------------
+
+\section{Conclusions}
+\label{conclusions}
+
+The results from this project were fairly typical of a small
+specification and verification effort: no major problems with the
+system being modeled were discovered (but we have more confidence that
+there are no problems), the specifiers gained insight into the
+workings of a complex part of the system, and we now have valuable
+documentation that should lower the learning curve for people trying
+to learn about Fluke internals.
+
+In addition generating the documentation, and providing a foundation
+for further verification work, the project was successful in pointing
+out one latent bug.  In implementing the Fluke security kernel, Steve
+Smalley added a new security-related wait state, without realizing
+that the wait states were organized in a hierarchy.  The hierarchy in
+our documentation made him realize that the new wait state was wrong,
+and that he had made a lucky choice.  So, the project has already had
+success in eliminating some ambiguity.
+
+We plan to integrate much of the documentation developed under this
+project back into the Fluke kernel documentation and source code.  In
+particular, Appendix A as well as the call traces contain information
+that will be valuable to anyone studying the kernel.  We also have
+many useful comments that will be integrated back into the source
+code, such as the wait state hierarchy, etc.  The Promela code itself
+may be valuable as encouragement for other OS teams to try out
+verification projects.
+
+The Fluke IPC verification effort has seen a great deal of conceptual
+and organizational change in a very short amount of time.  In particular,
+organizational techniques to promote Promela code understandability and
+to keep the state space size under control saw much evolution.  Avenues
+which initially seemed viable, clean and attractive proved in the end
+to be difficult, unwieldy and self-defeating in often subtle and
+unexpected ways.
+
+We've attempted to present in the preceding sections the organization
+that we currently find workable, and our optimism for its continued
+viability.  We now seek to more fully justify this organization in
+comparison with other approaches.  We first examine work by others,
+and discuss improvements we feel have been made over past approaches.
+We then move on to describe specific failed organizations that were
+attempted by this effort, and the problems we encountered.
+
+%-- Related Work --------------------------------------------------------------
+
+\subsection{Related Work}
+
+Two other interesting efforts have been made to verify the correctness
+of operating systems' IPC mechanisms.  We examine these briefly here,
+paying particular attention to difficulties and inflexibilities in
+these other approaches which have been specifically addressed by
+the Fluke IPC verification effort.
+
+\subsubsection{Harmony}
+
+Cattel~\cite{Harmony-verify} performed a SPIN-based verification of
+the Harmony operating system, a ``portable real-time multitasking
+multiprocess operating system'' developed by the Canadian National
+Research Council in the 1980's and early 1990's.  Cattel's effort
+sought to verify properties of Harmony as a whole, and attempted
+to model all kernel services.  Like our effort, Cattel was concerned
+primarily with the interprocess synchronization mechanisms at work
+during IPC.
+
+While Harmony IPC is less complex than Fluke IPC, there are structural
+similarities between the way Cattel structured his Promela and the
+way our Promela is structured.  Cattel held IPC state in an array of
+``task descriptors'' and pointed at them with their array index.  We
+formalized this to the notion of the Reference, but the basic idea is
+the same.  Also like our effort, Cattel generated his models by studying
+the implementation code of a pre-existing system.  Thus, like our
+verification, Cattel had strong reason to believe that he was proving
+things about his particular implementation of the system, and not just
+its abstract specification.
+
+However, Cattel seems to have been mainly concerned with showing
+freedom from deadlock, while we would like to consider stronger
+guarantees such as correct state progression in the presence of
+cancellation, as well as some sense of correct data delivery in this
+environment.  Also, Cattel spends a great deal of effort analyzing
+and minimizing his scenario-space, with the implication that he
+would generate, by hand, a scenario for every possible interaction of
+sender and receiver.  We seek to exploit SPIN's talents at exploring
+the scenario-space for us.  We ultimately envision processes which
+nondeterministically try all allowed high-level operations, so that
+we are sure to explore all possible user errors, in addition to
+reasonable interleavings of operations.
+
+\subsubsection{RUBIS}
+
+Duval and Julliand utilitized SPIN to model the intertask communication
+facilities of the RUBIS microkernel~\cite{RUBIS-verify}.  Like our effort,
+theirs sought to build and exhaustively test usage scenarios.  However,
+their effort placed emphasis on formally expressing mappings between
+implementation source code and Promela code via a collection of
+transformation rules.  While these transformation rules do not appear to
+have been used to perform {\it automatic} transformation of source code
+to verifier code, the authors state their belief that such an automated
+transformation tool would be of great value.
+
+We, on the other hand, question the success that such a tool might find.
+It is often the case that the verification of desired properties requires
+the addition of extra "hidden" state to a model, which represents some
+semantic state outside the implementation domain, but related to the
+property of interest.  The ability to add this semantic state can make
+demands on the overall structure of the verification code.  We have seen
+cases where semantic properties we wish to expose are distributed
+across much C code, for implementation reasons.  In cases like these,
+it is unlikely that an automated tool would have the necessary intuition
+to extract these distributed semantics in a meaningful way.
+
+We feel that a more plausible approach is the formulation of a
+meta-language, rich in explicit semantic content, from which both
+%%	               ^^^^^^^^          ^^^^^^^
+%% would we then need warning labels???
+%
+Promela code and implementation-language code could be automatically
+generated.  We feel that such a meta-language could be made flexible
+enough to facilitate the evolution of software by allowing experimental
+manipulation of both semantic and implementation constructs, always in
+the presence of easy verification of desired properties.
+
+The RUBIS modeling project also made a distinction between {\it
+abstract models} and {\it detailed models}.  Abstract models are
+generated from high-level semantics defined in the system
+specification and are useful for formalizing the system functionality
+independently of implementation.  Detailed models, on the other hand,
+are generated with the implementation of the system in mind, and can
+be used to verify that the system provides the behavior defined in the
+specification.
+
+It is our belief that the rigidity of this distinction is unnecessary.
+The ``sliding {\tt d_step}'' technique we employ for state-space
+management creates a spectrum of models from the abstract to the
+detailed.  Placing {\tt d_step}s around necessarily atomic segments in
+a minimal fashion creates a pure detailed model.  Placing {\tt
+d_step}s around high-level functions creates a pure abstract model.
+Since these models share the same code, we can be sure that they
+embody exactly the same semantics.  The precise implementation of
+these semantics, once verified, can be abstracted away and the same
+Promela code can be used as the basis for constructing the next layer
+to be verified.
+
+The RUBIS emphasis on abstract modeling at specification-time and detailed
+modeling at implementation-time ignores the complex and recursive
+interrelationship of these two processes.  We believe the ability to slide
+{\tt d_step}s lower and formally understand the semantic impact of late-cycle
+specification changes to be of great potential value to living software
+projects whose goals are in constant flux.
+
+%-- Lessons Learned -----------------------------------------------------------
+
+\subsection{Lessons Learned}
+
+The progress of the Fluke IPC verification project thus far fills us with
+optimism.  However, we've traveled down our share of blind alleys, and
+present brief summaries of these here:
+
+\begin{itemize}
+
+\item
+We were originally going to encapsulate the state associated with
+Thread objects as local state to a particular proctype, and access it
+by sending message to that proctype.  The rationale was that the PO
+reductions allowed by encapsulating the state and declaring the
+communication channel "xs" to the "state-proc" would outweigh the
+added state-vector length that would result from the extra proctype
+instances.  However, we found it impossible to get appropriate
+blocking semantics when locking Mutex'es held by this state-proc.
+Also, since local variables were required to hold values "gotten" from
+the state-proc (there is no stack), the state-vector costs were much
+greater than our original estimates.  The approach was scrapped and
+thread state was made global, greatly simplifying all code that
+accessed it.
+
+\item
+\xxx{Any others?}
+
+\end{itemize}
+
+Also, we've noticed some potential improvements to the SPIN system itself:
+
+\begin{itemize}
+
+\item
+SPIN's {\tt if} syntax is less than ideal for the task of translating nested
+if-then-else statements.  Since "properly formatted" if :: :: fi statements
+take several lines, and the ``:: else $\rightarrow$''  syntax requires deep
+indentation, it is tedious to translate C structures of the form
+{\tt if \ldots else if \ldots else if \ldots }
+
+\item
+SPIN has internal hard-coded limits on how much code can be in d_step
+bodies.  We hit some constant hidden in {\tt d_step.c}, which we had
+to increase from 512 to 1024 to get our code to compile.
+
+\item
+Variable names (not necessarily variable slots) and labels should be
+scoped to their enclosing block, to allow goto's to be used inside
+macros that are instantiated multiple times in the same proctype.
+
+\item
+SPIN should understand hexadecimal integer constants, like {\tt
+0xfff0}.  Fluke ``wait states'' are even more cryptic in Promela than
+they were in the C code, since they must be expressed as decimal values.
+(Even the compilers generated by the 507 class do this!)
+
+\item
+Execution traces say "(1)" for macros whose bodies are skip, when the
+macro name is more meaningful (for example enabling and disabling
+interrupts).  This is a manifestation of the larger problem that cpp'ed
+source is displayed in the traces, not "meaningful" source.
+
+\item
+A {\tt printf()} is not available that can print during a
+verification. (Well, you can turn them {\em all} on, but if
+you only want one, its impossible.)  This would be very
+helpful in generating coherent run-time error messages.
+
+\item
+The {\tt assert()} should take a string argument explaining what went wrong.
+It would make assert failures far more informative.
+
+\item
+More flexible pre-processing support should be standard.  In particular,
+SPIN should honor the CPP environment variable, or at least run the
+cpp on the user's PATH. (Currently the source hard codes {\tt /usr/lib/cpp}.)
+
+\item
+Most SPIN error messages are completely inane.  In particular, error messages
+that refer to nonexistent proctypes, error messages that report the ASCII
+values of trouble characters, and messages that say ``{\em thingX} seen near
+{\em thingX}'' are particularly frustrating.
+
+\item
+Accurate reporting of error line number and source file would be useful.
+
+
+\end{itemize}
+
+Several of the above items result from a fundamental tension between
+the simplicity that Promela's designers want you to focus on, and the
+complexity of Fluke IPC.  Promela does not have functions, partly in
+order to make designers think hard about making the specification as
+simple as possible.  In order to adequately capture Fluke
+functionality and keep the Promela code readable, we rely heavily on
+a preprocessor to provide the illusion of function calls.  That made
+debugging difficult, but the only other choice would be to duplicate 
+code in many different places.
+
+Finally, a note on the basic approach we took.  Although the use of
+Promela/SPIN was effective in analyzing a reverse engineered
+specification of the Fluke IPC path, we do not believe that SPIN would
+have been as effective in developing a from-scratch specification.  It
+is certainly possible to develop a specification (in a natural style
+for Promela), but it is very unlikely that the corresponding
+implementation could be so easily related back to the specification.
+Also, the Promela specification is of limited value in developing
+alternate (e.g., highly optimized) versions of Fluke IPC.
+
+\subsection{Prospects for the Future}
+
+In conclusion, we feel that the work completed thus far serves a dual
+purpose.  First, it represents a successful proof-of-concept that
+SPIN- based model-checking is a viable approach for verifying certain
+properties about the Fluke operating system.  Second, it lays the
+groundwork for the verification of many properties of the Fluke IPC
+system.  In addition, we are optimistic that the techniques learned
+thus far could be applied toward other facets of the Fluke operating
+system.

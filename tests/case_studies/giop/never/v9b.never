@@ -1,0 +1,147 @@
+#define s	(GIOPClient[prid[3]]@RequestSent && request_reqId ==0)
+#define r	(GIOPClient[prid[3]]@ReplyRecvd && reply_reqId == 0)
+#define c	(GIOPClient[prid[3]]@CancelSent && request_reqId == 0)
+
+	/*
+	 * Formula As Typed: []  (s -> <>  (r || c))
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([]  (s -> <>  (r || c)))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([]  (s -> <>  (r || c))) */
+T0_init:
+	if
+	:: (! ((c)) && ! ((r)) && (s)) -> goto accept_S4
+	:: (1) -> goto T0_init
+	fi;
+accept_S4:
+	if
+	:: (! ((c)) && ! ((r))) -> goto T0_S4
+	fi;
+T0_S4:
+	if
+	:: (! ((c)) && ! ((r))) -> goto accept_S4
+	fi;
+accept_all:
+	skip
+}
+
+#ifdef NOTES
+Use Load to open a file or a template.
+
+#endif
+#ifdef RESULT
+warning: for p.o. reduction to be valid the never claim must be stutter-closed
+(never claims generated from LTL formulae are stutter-closed)
+Depth=     637 States=   1e+06 Transitions= 1.68651e+06 Memory= 84.296
+Depth=     637 States=   2e+06 Transitions= 3.42446e+06 Memory= 84.296
+Depth=     637 States=   3e+06 Transitions= 5.11352e+06 Memory= 84.296
+Depth=     637 States=   4e+06 Transitions= 6.77407e+06 Memory= 84.296
+Depth=     639 States=   5e+06 Transitions= 8.43994e+06 Memory= 84.296
+Depth=     639 States=   6e+06 Transitions= 1.01826e+07 Memory= 84.296
+Depth=     639 States=   7e+06 Transitions= 1.19197e+07 Memory= 84.296
+Depth=     639 States=   8e+06 Transitions= 1.37002e+07 Memory= 84.296
+Depth=     639 States=   9e+06 Transitions= 1.53843e+07 Memory= 84.296
+Depth=     639 States=   1e+07 Transitions= 1.72102e+07 Memory= 84.296
+Depth=     639 States= 1.1e+07 Transitions= 1.88474e+07 Memory= 84.296
+Depth=     639 States= 1.2e+07 Transitions= 2.05428e+07 Memory= 84.296
+Depth=     639 States= 1.3e+07 Transitions= 2.21526e+07 Memory= 84.296
+Depth=     639 States= 1.4e+07 Transitions= 2.37749e+07 Memory= 84.296
+Depth=     639 States= 1.5e+07 Transitions= 2.55248e+07 Memory= 84.296
+Depth=     639 States= 1.6e+07 Transitions= 2.73799e+07 Memory= 84.296
+Depth=     639 States= 1.7e+07 Transitions= 2.90699e+07 Memory= 84.296
+Depth=     639 States= 1.8e+07 Transitions= 3.07113e+07 Memory= 84.296
+Depth=     639 States= 1.9e+07 Transitions= 3.25915e+07 Memory= 84.296
+Depth=     639 States=   2e+07 Transitions= 3.43524e+07 Memory= 84.296
+Depth=     639 States= 2.1e+07 Transitions= 3.61967e+07 Memory= 84.296
+Depth=     639 States= 2.2e+07 Transitions= 3.7913e+07 Memory= 84.296
+Depth=     639 States= 2.3e+07 Transitions= 3.95872e+07 Memory= 84.296
+Depth=     639 States= 2.4e+07 Transitions= 4.12109e+07 Memory= 84.296
+Depth=     639 States= 2.5e+07 Transitions= 4.29706e+07 Memory= 84.296
+Depth=     639 States= 2.6e+07 Transitions= 4.47141e+07 Memory= 84.296
+Depth=     639 States= 2.7e+07 Transitions= 4.65136e+07 Memory= 84.296
+Depth=     699 States= 2.8e+07 Transitions= 4.82851e+07 Memory= 84.296
+Depth=     699 States= 2.9e+07 Transitions= 5.01695e+07 Memory= 84.296
+Depth=     699 States=   3e+07 Transitions= 5.19063e+07 Memory= 84.296
+Depth=     699 States= 3.1e+07 Transitions= 5.36648e+07 Memory= 84.296
+Depth=     699 States= 3.2e+07 Transitions= 5.54098e+07 Memory= 84.296
+Depth=     699 States= 3.3e+07 Transitions= 5.72765e+07 Memory= 84.296
+Depth=     699 States= 3.4e+07 Transitions= 5.91107e+07 Memory= 84.296
+Depth=     699 States= 3.5e+07 Transitions= 6.10877e+07 Memory= 84.296
+Depth=     699 States= 3.6e+07 Transitions= 6.27958e+07 Memory= 84.296
+Depth=     699 States= 3.7e+07 Transitions= 6.45226e+07 Memory= 84.296
+Depth=     699 States= 3.8e+07 Transitions= 6.63054e+07 Memory= 84.296
+Depth=     699 States= 3.9e+07 Transitions= 6.83134e+07 Memory= 84.296
+Depth=     699 States=   4e+07 Transitions= 7.00498e+07 Memory= 84.296
+Depth=     699 States= 4.1e+07 Transitions= 7.17987e+07 Memory= 84.296
+Depth=     699 States= 4.2e+07 Transitions= 7.3574e+07 Memory= 84.296
+Depth=     699 States= 4.3e+07 Transitions= 7.53652e+07 Memory= 84.296
+Depth=     699 States= 4.4e+07 Transitions= 7.73209e+07 Memory= 84.296
+Depth=     699 States= 4.5e+07 Transitions= 7.92049e+07 Memory= 84.296
+Depth=     699 States= 4.6e+07 Transitions= 8.11124e+07 Memory= 84.296
+Depth=     699 States= 4.7e+07 Transitions= 8.29832e+07 Memory= 84.296
+Depth=     699 States= 4.8e+07 Transitions= 8.49218e+07 Memory= 84.296
+Depth=     699 States= 4.9e+07 Transitions= 8.68155e+07 Memory= 84.296
+Depth=     699 States=   5e+07 Transitions= 8.87835e+07 Memory= 84.296
+Depth=     699 States= 5.1e+07 Transitions= 9.07209e+07 Memory= 84.296
+Depth=     699 States= 5.2e+07 Transitions= 9.27048e+07 Memory= 84.296
+Depth=     699 States= 5.3e+07 Transitions= 9.47386e+07 Memory= 84.296
+Depth=     699 States= 5.4e+07 Transitions= 9.67954e+07 Memory= 84.296
+Depth=     699 States= 5.5e+07 Transitions= 9.88129e+07 Memory= 84.296
+Depth=     699 States= 5.6e+07 Transitions= 1.00878e+08 Memory= 84.296
+Depth=     699 States= 5.7e+07 Transitions= 1.02943e+08 Memory= 84.296
+Depth=     699 States= 5.8e+07 Transitions= 1.0505e+08 Memory= 84.296
+Depth=     699 States= 5.9e+07 Transitions= 1.07167e+08 Memory= 84.296
+Depth=     699 States=   6e+07 Transitions= 1.09275e+08 Memory= 84.296
+Depth=     699 States= 6.1e+07 Transitions= 1.11395e+08 Memory= 84.296
+Depth=     699 States= 6.2e+07 Transitions= 1.13551e+08 Memory= 84.296
+(Spin Version 3.2.4 -- 10 January 1999)
+	+ Partial Order Reduction
+
+Bit statespace search for:
+	never-claim         	+
+	assertion violations	+ (if within scope of claim)
+	acceptance   cycles 	+ (fairness disabled)
+	invalid endstates	- (disabled by never-claim)
+
+State-vector 656 byte, depth reached 699, errors: 0
+6.21311e+07 states, stored
+5.17007e+07 states, matched
+1.13832e+08 transitions (= stored+matched)
+  256675 atomic steps
+hash factor: 2.16023 (best coverage if >100)
+(max size 2^27 states)
+
+Stats on memory usage (in Megabytes):
+41503.579	equivalent memory usage for states (stored*(State-vector + overhead))
+16.777	memory used for hash-array (-w27)
+0.024 	memory used for DFS stack (-m1000)
+84.296	total actual memory usage
+
+unreached in proctype User
+	line 194, state 29, "printf('Request failed: user exception\n')"
+	line 201, state 33, "printf('Request failed: object does not exist\n')"
+	(2 of 36 states)
+unreached in proctype GIOPClient
+	line 396, state 88, "-end-"
+	(1 of 88 states)
+unreached in proctype Server
+	line 455, state 20, "assert(0)"
+	line 498, state 49, "-end-"
+	(2 of 49 states)
+unreached in proctype GIOPAgent
+	line 576, state 26, "D_STEP"
+	line 681, state 84, "-end-"
+	(2 of 84 states)
+unreached in proctype transport
+	line 781, state 37, "-end-"
+	(1 of 37 states)
+unreached in proctype :init:
+	(0 of 12 states)
+
+real  3:32:28.3
+user  3:12:42.0
+sys         1.3
+
+#endif

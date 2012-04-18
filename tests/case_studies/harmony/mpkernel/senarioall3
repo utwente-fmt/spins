@@ -1,0 +1,41 @@
+/* 
+Harmony Validation
+File :              senario
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 April 94
+Description :       
+- senario
++ reabstraction from complete kernel
+*/
+
+proctype _Task(byte _Active)
+{  byte rid,c,replyee,sender;
+
+#if TRACE
+  printf("Task %d\n",_Active);
+#endif
+  if
+  :: c=0
+  :: c=1
+  :: c=2
+  :: c=3
+  :: c=99
+  :: goto FINISHED
+  fi;
+  if
+  :: 1 -> _Send(rid,c);goto FINISHED
+  :: 1 -> _Receive(rid,c)
+  :: 1 -> _Try_receive(rid,c)
+  :: rid=c;goto REPLY
+  fi;
+REPLY:
+  _Reply(replyee,rid);
+FINISHED:
+  skip
+}
+
+#define _Start_up()\
+  _Create(_Task,1,0);\
+  _Create(_Task,2,1)
+

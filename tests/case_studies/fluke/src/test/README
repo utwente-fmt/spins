@@ -1,0 +1,16 @@
+
+Fluke IPC in Promela 
+--------------------
+
+This is the directory with the various tests of our system.  You will
+need to have the hacks in the provided bin directory in your path
+(sundry perl scripts that post-process various SPIN input and output.)
+
+Most of the work is done in the make/testcase.mk file, this is included
+by the Makefile in each subdirectory.   See make/testcase.mk for the
+various variables you can set.  (e.g., 'make MODE=progress' will
+run livelock tests)
+
+If you've got some real big hardware and you run these tests, we'd be
+very interested in the results.  (We got ours on a single-processor
+200Mhz Pentium Pro with 256Mb of RAM.)

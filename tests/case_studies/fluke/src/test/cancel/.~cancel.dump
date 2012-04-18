@@ -1,0 +1,867 @@
+spin: couldn't find claim (ignored)
+(line 06199)    |  1: .(goto)
+(line 06208)    |  1: .(goto)
+(line 06217)    |  1: .(goto)
+(line 06228)    |  1: :: (run user_client(1,2))
+(line 06229)    |  1: :: (run user_server(2))
+(line 06230)    |  1: :: (run user_cancel_wacko(3,1,2))
+(line 06124)    |   |   |  3: :: (run flukeKernelControl(currentThread,kernel.kernelChan))
+(line 00068)    |   |   |   |  4: assert((currentThread!=0))
+(line 06125)    |   |   |  3: assert((currentThread!=target1))
+(line 06126)    |   |   |  3: assert((currentThread!=target2))
+(line 06128)    |   |   |  3: :: (1)
+(line 06129)    |   |   |  3: threads[(currentThread-1)].exc.connectArg = target1
+(line 06130)    |   |   |  3: threads[(currentThread-1)].exc.ip = 2
+(line 06131)    |   |   |  3: kernel.kernelChan!msgFlukeSyscallIPC,kernel.replyChan
+(line 00072)    |   |   |   |  4: userRequestChan?msgFlukeSyscallIPC,replyChan
+(line 00073)    |   |   |   |  4: rc = 0
+(line 00074)    |   |   |   |  4: threads[(currentThread-1)].exc.status = 0
+(line 00076)    |   |   |   |  4: :: (1)
+(line 00080)    |   |   |   |  4: :: ((threads[(currentThread-1)].exc.ip==2))
+(line 00081)    |   |   |   |  4: :: ((sobMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==0))
+(line 00082)    |   |   |   |  4: sobMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 1
+(line 00087)    |   |   |   |  4: :: else
+(line 00088)    |   |   |   |  4: assert((currentThread!=threads[(currentThread-1)].exc.connectArg))
+(line 00090)    |   |   |   |  4: *disableInterrupts()
+(line 00091)    |   |   |   |  4: :: ((waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==0))
+(line 00092)    |   |   |   |  4: waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 1
+(line 00094)    |   |   |   |  4: assert((0x2000010!=0))
+(line 00095)    |   |   |   |  4: assert((0x2000010!=0x38))
+(line 00144)    |   |   |   |  4: :: else
+(line 00145)    |   |   |   |  4: assert(((threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.val&0x2000010)!=0x2000010))
+(line 00146)    |   |   |   |  4: rc = 0
+(line 00148)    |   |   |   |  4: assert((waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==1))
+(line 00149)    |   |   |   |  4: waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 0
+(line 00151)    |   |   |   |  4: *enableInterrupts()
+(line 00163)    |   |   |   |  4: :: else
+(line 00164)    |   |   |   |  4: *disableInterrupts()
+(line 00165)    |   |   |   |  4: :: ((waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==0))
+(line 00166)    |   |   |   |  4: waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 1
+(line 00168)    |   |   |   |  4: assert((!(threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.cancelPending)||((threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.val&0x18)!=0x18)))
+(line 00169)    |   |   |   |  4: threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.cancelPending = 1
+(line 00170)    |   |   |   |  4: assert((0x18!=0))
+(line 00171)    |   |   |   |  4: assert((0x18!=0x38))
+(line 00220)    |   |   |   |  4: :: else
+(line 00221)    |   |   |   |  4: assert(((threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.val&0x18)!=0x18))
+(line 00222)    |   |   |   |  4: rc = 0
+(line 00230)    |   |   |   |  4: :: else
+(line 00231)    |   |   |   |  4: assert((rc==0))
+(line 00233)    |   |   |   |  4: assert((waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==1))
+(line 00234)    |   |   |   |  4: waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 0
+(line 00236)    |   |   |   |  4: *enableInterrupts()
+(line 00237)    |   |   |   |  4: *disableInterrupts()
+(line 00238)    |   |   |   |  4: assert((sobMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==1))
+(line 00239)    |   |   |   |  4: assert(1)
+(line 00240)    |   |   |   |  4: :: ((waitStateMutexes[currentThread].isLocked==0))
+(line 00241)    |   |   |   |  4: waitStateMutexes[currentThread].isLocked = 1
+(line 00243)    |   |   |   |  4: assert((threads[(currentThread-1)].wait.val==0))
+(line 00253)    |   |   |   |  4: :: else
+(line 00254)    |   |   |   |  4: assert((threads[(currentThread-1)].wait.cancelPending==0))
+(line 00255)    |   |   |   |  4: threads[(currentThread-1)].wait.resumeRC = KR_RESTART
+(line 00256)    |   |   |   |  4: threads[(currentThread-1)].wait.val = 0x38
+(line 00257)    |   |   |   |  4: threads[(currentThread-1)].wait.waitingOn = threads[(currentThread-1)].exc.connectArg
+(line 00258)    |   |   |   |  4: assert((sobMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==1))
+(line 00259)    |   |   |   |  4: sobMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 0
+(line 00260)    |   |   |   |  4: assert((currentThread==currentThread))
+(line 00261)    |   |   |   |  4: assert((threads[(currentThread-1)].waitQueue.next==0))
+(line 00262)    |   |   |   |  4: assert((threads[(currentThread-1)].waitQueue.prev==0))
+(line 00263)    |   |   |   |  4: threads[(currentThread-1)].waitQueue.prev = WaitQueues[(threads[(currentThread-1)].exc.connectArg-1)].tail
+(line 00264)    |   |   |   |  4: :: ((WaitQueues[(threads[(currentThread-1)].exc.connectArg-1)].head==0))
+(line 00265)    |   |   |   |  4: WaitQueues[(threads[(currentThread-1)].exc.connectArg-1)].head = currentThread
+(line 00270)    |   |   |   |  4: :: else
+(line 00272)    |   |   |   |  4: WaitQueues[(threads[(currentThread-1)].exc.connectArg-1)].tail = currentThread
+(line 00273)    |   |   |   |  4: assert((waitStateMutexes[currentThread].isLocked==1))
+(line 00274)    |   |   |   |  4: waitStateMutexes[currentThread].isLocked = 0
+(line 00275)    |   |   |   |  4: assert((currentThread==currentThread))
+(line 00276)    |   |   |   |  4: assert((threads[(currentThread-1)].wait.blocked==0))
+(line 00277)    |   |   |   |  4: threads[(currentThread-1)].wait.blocked = 1
+(line 06085)    |   |  2: :: (run flukeKernelControl(currentThread,kernel.kernelChan))
+(line 00068)    |   |   |   |   |  5: assert((currentThread!=0))
+(line 06088)    |   |  2: :: (1)
+(line 06089)    |   |  2: rData = 0
+(line 06090)    |   |  2: threads[(currentThread-1)].exc.ip = 0x14
+(line 06091)    |   |  2: kernel.kernelChan!msgFlukeSyscallIPC,kernel.replyChan
+(line 00072)    |   |   |   |   |  5: userRequestChan?msgFlukeSyscallIPC,replyChan
+(line 00073)    |   |   |   |   |  5: rc = 0
+(line 00074)    |   |   |   |   |  5: threads[(currentThread-1)].exc.status = 0
+(line 00076)    |   |   |   |   |  5: :: (1)
+(line 02300)    |   |   |   |   |  5: :: ((threads[(currentThread-1)].exc.ip==0x14))
+(line 02301)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 02302)    |   |   |   |   |  5: ipcf_client = threads[(currentThread-1)].ipc.client
+(line 02303)    |   |   |   |   |  5: :: ((ipcf_client==0))
+(line 02304)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 02305)    |   |   |   |   |  5: assert((threads[(currentThread-1)].ipc.client==0))
+(line 02310)    |   |   |   |   |  5: :: else
+(line 02311)    |   |   |   |   |  5: assert((threads[(currentThread-1)].ipc.clientLink==0))
+(line 02313)    |   |   |   |   |  5: pickleClient = threads[(currentThread-1)].ipc.clientLink
+(line 02314)    |   |   |   |   |  5: :: ((pickleClient==0))
+(line 02315)    |   |   |   |   |  5: *donewith(pickleClient)
+(line 02316)    |   |   |   |   |  5: rc = 0
+(line 02689)    |   |   |   |   |  5: *donewith(ipcf_client)
+(line 02692)    |   |   |   |   |  5: :: else
+(line 02693)    |   |   |   |   |  5: assert((rc==0))
+(line 02694)    |   |   |   |   |  5: ipcf_client = threads[(currentThread-1)].ipc.client
+(line 02907)    |   |   |   |   |  5: :: else
+(line 02908)    |   |   |   |   |  5: rc = 0
+(line 02910)    |   |   |   |   |  5: *donewith(ipcf_client)
+(line 02912)    |   |   |   |   |  5: :: ((rendezvousMutexes[currentThread].isLocked==0))
+(line 02913)    |   |   |   |   |  5: rendezvousMutexes[currentThread].isLocked = 1
+(line 02915)    |   |   |   |   |  5: *disableInterrupts()
+(line 02916)    |   |   |   |   |  5: rc = WaitQueues[(threads[(currentThread-1)].ipc.rendezvous-1)].head
+(line 02931)    |   |   |   |   |  5: :: else
+(line 02933)    |   |   |   |   |  5: .(goto)
+(line 02945)    |   |   |   |   |  5: :: else
+(line 02946)    |   |   |   |   |  5: rc = 0
+(line 02955)    |   |   |   |   |  5: :: else
+(line 02956)    |   |   |   |   |  5: :: (1)
+(line 02958)    |   |   |   |   |  5: *enableInterrupts()
+(line 02959)    |   |   |   |   |  5: rc = KR_INVALID
+(line 02960)    |   |   |   |   |  5: *disableInterrupts()
+(line 02961)    |   |   |   |   |  5: assert((rendezvousMutexes[currentThread].isLocked==1))
+(line 02962)    |   |   |   |   |  5: assert(1)
+(line 02963)    |   |   |   |   |  5: :: ((waitStateMutexes[currentThread].isLocked==0))
+(line 02964)    |   |   |   |   |  5: waitStateMutexes[currentThread].isLocked = 1
+(line 02966)    |   |   |   |   |  5: assert((threads[(currentThread-1)].wait.val==0))
+(line 02976)    |   |   |   |   |  5: :: else
+(line 02977)    |   |   |   |   |  5: assert((threads[(currentThread-1)].wait.cancelPending==0))
+(line 02978)    |   |   |   |   |  5: threads[(currentThread-1)].wait.resumeRC = KR_RESTART
+(line 02979)    |   |   |   |   |  5: threads[(currentThread-1)].wait.val = 0x38
+(line 02980)    |   |   |   |   |  5: threads[(currentThread-1)].wait.waitingOn = threads[(currentThread-1)].ipc.rendezvous
+(line 02981)    |   |   |   |   |  5: assert((rendezvousMutexes[currentThread].isLocked==1))
+(line 02982)    |   |   |   |   |  5: rendezvousMutexes[currentThread].isLocked = 0
+(line 02983)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 02984)    |   |   |   |   |  5: assert((threads[(currentThread-1)].waitQueue.next==0))
+(line 02985)    |   |   |   |   |  5: assert((threads[(currentThread-1)].waitQueue.prev==0))
+(line 02986)    |   |   |   |   |  5: threads[(currentThread-1)].waitQueue.prev = WaitQueues[(threads[(currentThread-1)].ipc.rendezvous-1)].tail
+(line 02987)    |   |   |   |   |  5: :: ((WaitQueues[(threads[(currentThread-1)].ipc.rendezvous-1)].head==0))
+(line 02988)    |   |   |   |   |  5: WaitQueues[(threads[(currentThread-1)].ipc.rendezvous-1)].head = currentThread
+(line 02993)    |   |   |   |   |  5: :: else
+(line 02995)    |   |   |   |   |  5: WaitQueues[(threads[(currentThread-1)].ipc.rendezvous-1)].tail = currentThread
+(line 02996)    |   |   |   |   |  5: assert((waitStateMutexes[currentThread].isLocked==1))
+(line 02997)    |   |   |   |   |  5: waitStateMutexes[currentThread].isLocked = 0
+(line 02998)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 02999)    |   |   |   |   |  5: assert((threads[(currentThread-1)].wait.blocked==0))
+(line 03000)    |   |   |   |   |  5: threads[(currentThread-1)].wait.blocked = 1
+(line 06105)    |  1: :: (run flukeKernelControl(currentThread,kernel.kernelChan))
+(line 00068)    |   |   |   |   |   |  6: assert((currentThread!=0))
+(line 06108)    |  1: :: (1)
+(line 06109)    |  1: sData = 0x2a
+(line 06110)    |  1: threads[(currentThread-1)].exc.ip = 0xa
+(line 06111)    |  1: threads[(currentThread-1)].exc.connectArg = server
+(line 06112)    |  1: threads[(currentThread-1)].exc.sendPayload = sData
+(line 06113)    |  1: kernel.kernelChan!msgFlukeSyscallIPC,kernel.replyChan
+(line 00072)    |   |   |   |   |   |  6: userRequestChan?msgFlukeSyscallIPC,replyChan
+(line 00073)    |   |   |   |   |   |  6: rc = 0
+(line 00074)    |   |   |   |   |   |  6: threads[(currentThread-1)].exc.status = 0
+(line 00076)    |   |   |   |   |   |  6: :: (1)
+(line 00285)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].exc.ip==0xa))
+(line 00286)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].ipc.server==0))
+(line 00287)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 00288)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].ipc.server==0))
+(line 00293)    |   |   |   |   |   |  6: :: else
+(line 00294)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].ipc.serverLink==0))
+(line 00296)    |   |   |   |   |   |  6: pickleServer = threads[(currentThread-1)].ipc.serverLink
+(line 00297)    |   |   |   |   |   |  6: :: ((pickleServer==0))
+(line 00298)    |   |   |   |   |   |  6: *donewith(pickleServer)
+(line 00299)    |   |   |   |   |   |  6: rc = 0
+(line 00675)    |   |   |   |   |   |  6: :: else
+(line 00887)    |   |   |   |   |   |  6: :: else
+(line 00888)    |   |   |   |   |   |  6: rc = 0
+(line 00893)    |   |   |   |   |   |  6: :: else
+(line 00894)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].ipc.server==0))
+(line 00895)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 00897)    |   |   |   |   |   |  6: assert((currentThread!=threads[(currentThread-1)].exc.connectArg))
+(line 00898)    |   |   |   |   |   |  6: :: ((rendezvousMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==0))
+(line 00899)    |   |   |   |   |   |  6: rendezvousMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 1
+(line 00901)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 00902)    |   |   |   |   |   |  6: rc = WaitQueues[(threads[(threads[(currentThread-1)].exc.connectArg-1)].ipc.rendezvous-1)].head
+(line 00903)    |   |   |   |   |   |  6: :: ((rc!=0))
+(line 00904)    |   |   |   |   |   |  6: assert((rc!=currentThread))
+(line 00905)    |   |   |   |   |   |  6: assert(threads[(rc-1)].wait.blocked)
+(line 00906)    |   |   |   |   |   |  6: assert((threads[(rc-1)].waitQueue.prev==0))
+(line 00907)    |   |   |   |   |   |  6: :: ((threads[(rc-1)].waitQueue.next==0))
+(line 00908)    |   |   |   |   |   |  6: WaitQueues[(threads[(threads[(currentThread-1)].exc.connectArg-1)].ipc.rendezvous-1)].head = 0
+(line 00909)    |   |   |   |   |   |  6: assert((rc==WaitQueues[(threads[(threads[(currentThread-1)].exc.connectArg-1)].ipc.rendezvous-1)].tail))
+(line 00910)    |   |   |   |   |   |  6: WaitQueues[(threads[(threads[(currentThread-1)].exc.connectArg-1)].ipc.rendezvous-1)].tail = 0
+(line 00917)    |   |   |   |   |   |  6: .(goto)
+(line 00919)    |   |   |   |   |   |  6: .(goto)
+(line 00920)    |   |   |   |   |   |  6: :: ((rc!=0))
+(line 00921)    |   |   |   |   |   |  6: :: ((waitStateMutexes[rc].isLocked==0))
+(line 00922)    |   |   |   |   |   |  6: waitStateMutexes[rc].isLocked = 1
+(line 00924)    |   |   |   |   |   |  6: assert((threads[(rc-1)].wait.val==0x38))
+(line 00925)    |   |   |   |   |   |  6: assert((threads[(rc-1)].wait.waitingOn==threads[(threads[(currentThread-1)].exc.connectArg-1)].ipc.rendezvous))
+(line 00926)    |   |   |   |   |   |  6: threads[(rc-1)].wait.val = 0
+(line 00927)    |   |   |   |   |   |  6: threads[(rc-1)].wait.waitingOn = 0
+(line 00928)    |   |   |   |   |   |  6: assert((waitStateMutexes[rc].isLocked==1))
+(line 00929)    |   |   |   |   |   |  6: waitStateMutexes[rc].isLocked = 0
+(line 00934)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 00982)    |   |   |   |   |   |  6: :: else
+(line 00983)    |   |   |   |   |   |  6: assert((rendezvousMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==1))
+(line 00984)    |   |   |   |   |   |  6: rendezvousMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 0
+(line 00986)    |   |   |   |   |   |  6: rc = 0
+(line 00991)    |   |   |   |   |   |  6: :: else
+(line 00992)    |   |   |   |   |   |  6: assert((rc==0))
+(line 00993)    |   |   |   |   |   |  6: threads[(currentThread-1)].ipc.server = threads[(currentThread-1)].exc.connectArg
+(line 00994)    |   |   |   |   |   |  6: threads[(threads[(currentThread-1)].exc.connectArg-1)].ipc.client = currentThread
+(line 00995)    |   |   |   |   |   |  6: threads[(currentThread-1)].ipc.flags = (threads[(currentThread-1)].ipc.flags|1)
+(line 00996)    |   |   |   |   |   |  6: threads[(threads[(currentThread-1)].exc.connectArg-1)].ipc.flags = (threads[(threads[(currentThread-1)].exc.connectArg-1)].ipc.flags&~(2))
+(line 00997)    |   |   |   |   |   |  6: threads[(currentThread-1)].exc.ip = 0xc
+(line 00999)    |   |   |   |   |   |  6: threads[(threads[(currentThread-1)].exc.connectArg-1)].exc.ip = 0x1b
+(line 01000)    |   |   |   |   |   |  6: threads[(threads[(currentThread-1)].exc.connectArg-1)].exc.recvPayload = threads[(currentThread-1)].exc.sendPayload
+(line 01001)    |   |   |   |   |   |  6: rc = 0
+(line 01005)    |   |   |   |   |   |  6: :: ((rc==0))
+(line 01006)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].ipc.server!=currentThread))
+(line 01007)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 01008)    |   |   |   |   |   |  6: :: ((waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked==0))
+(line 01009)    |   |   |   |   |   |  6: waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked = 1
+(line 01011)    |   |   |   |   |   |  6: assert((threads[(threads[(currentThread-1)].ipc.server-1)].wait.val==0))
+(line 01023)    |   |   |   |   |   |  6: :: else
+(line 01024)    |   |   |   |   |   |  6: assert((threads[(threads[(currentThread-1)].ipc.server-1)].wait.cancelPending==0))
+(line 01025)    |   |   |   |   |   |  6: threads[(threads[(currentThread-1)].ipc.server-1)].wait.resumeRC = KR_RESTART
+(line 01026)    |   |   |   |   |   |  6: threads[(threads[(currentThread-1)].ipc.server-1)].wait.val = 0x498
+(line 01027)    |   |   |   |   |   |  6: threads[(threads[(currentThread-1)].ipc.server-1)].wait.waitingOn = 0
+(line 01029)    |   |   |   |   |   |  6: assert((waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked==1))
+(line 01030)    |   |   |   |   |   |  6: waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked = 0
+(line 01032)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 01033)    |   |   |   |   |   |  6: rc = 0
+(line 04305)    |   |   |   |   |   |  6: :: ((rc==0))
+(line 04306)    |   |   |   |   |   |  6: threads[(currentThread-1)].exc.ip = 1
+(line 06064)    |   |   |   |   |   |  6: :: else
+(line 06065)    |   |   |   |   |   |  6: assert((rc==0))
+(line 06067)    |   |   |   |   |   |  6: assert((rc==0))
+(line 06069)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].wait.cancelPending==1))
+(line 06070)    |   |   |   |   |   |  6: rc = KR_CANCEL
+(line 04312)    |   |   |   |   |   |  6: assert((rc!=0))
+(line 04316)    |   |   |   |   |   |  6: :: else
+(line 04317)    |   |   |   |   |   |  6: :: ((rc==KR_CANCEL))
+(line 04318)    |   |   |   |   |   |  6: threads[(currentThread-1)].wait.cancelPending = 0
+(line 04319)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 04320)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].ipc.server!=0))
+(line 04321)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 04322)    |   |   |   |   |   |  6: :: ((waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked==0))
+(line 04323)    |   |   |   |   |   |  6: waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked = 1
+(line 04325)    |   |   |   |   |   |  6: assert((0x58!=0))
+(line 04326)    |   |   |   |   |   |  6: assert((0x58!=0x38))
+(line 04375)    |   |   |   |   |   |  6: :: else
+(line 04376)    |   |   |   |   |   |  6: assert(((threads[(threads[(currentThread-1)].ipc.server-1)].wait.val&0x58)!=0x58))
+(line 04377)    |   |   |   |   |   |  6: rc = 0
+(line 04379)    |   |   |   |   |   |  6: assert((waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked==1))
+(line 04380)    |   |   |   |   |   |  6: waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked = 0
+(line 04382)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 04394)    |   |   |   |   |   |  6: :: else
+(line 04395)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 04396)    |   |   |   |   |   |  6: :: ((waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked==0))
+(line 04397)    |   |   |   |   |   |  6: waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked = 1
+(line 04399)    |   |   |   |   |   |  6: assert((0x100010!=0))
+(line 04400)    |   |   |   |   |   |  6: assert((0x100010!=0x38))
+(line 04449)    |   |   |   |   |   |  6: :: else
+(line 04450)    |   |   |   |   |   |  6: assert(((threads[(threads[(currentThread-1)].ipc.server-1)].wait.val&0x100010)!=0x100010))
+(line 04451)    |   |   |   |   |   |  6: rc = 0
+(line 04453)    |   |   |   |   |   |  6: assert((waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked==1))
+(line 04454)    |   |   |   |   |   |  6: waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked = 0
+(line 04456)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 04476)    |   |   |   |   |   |  6: :: else
+(line 04477)    |   |   |   |   |   |  6: assert((rc==0))
+(line 05026)    |   |   |   |   |   |  6: :: else
+(line 05027)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 05028)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].ipc.client==0))
+(line 05033)    |   |   |   |   |   |  6: :: else
+(line 05034)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].ipc.clientLink==0))
+(line 05036)    |   |   |   |   |   |  6: pickleClient = threads[(currentThread-1)].ipc.clientLink
+(line 05037)    |   |   |   |   |   |  6: :: ((pickleClient==0))
+(line 05038)    |   |   |   |   |   |  6: *donewith(pickleClient)
+(line 05039)    |   |   |   |   |   |  6: rc = 0
+(line 05409)    |   |   |   |   |   |  6: assert((rc==0))
+(line 05411)    |   |   |   |   |   |  6: rc = KR_INVALID
+(line 05412)    |   |   |   |   |   |  6: assert((rc==KR_INVALID))
+(line 05413)    |   |   |   |   |   |  6: :: ((sobMutexes[currentThread].isLocked==0))
+(line 05414)    |   |   |   |   |   |  6: sobMutexes[currentThread].isLocked = 1
+(line 05416)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 05417)    |   |   |   |   |   |  6: rc = WaitQueues[(currentThread-1)].head
+(line 05418)    |   |   |   |   |   |  6: :: ((rc!=0))
+(line 05419)    |   |   |   |   |   |  6: assert((rc!=currentThread))
+(line 05420)    |   |   |   |   |   |  6: assert(threads[(rc-1)].wait.blocked)
+(line 05421)    |   |   |   |   |   |  6: assert((threads[(rc-1)].waitQueue.prev==0))
+(line 05422)    |   |   |   |   |   |  6: :: ((threads[(rc-1)].waitQueue.next==0))
+(line 05423)    |   |   |   |   |   |  6: WaitQueues[(currentThread-1)].head = 0
+(line 05424)    |   |   |   |   |   |  6: assert((rc==WaitQueues[(currentThread-1)].tail))
+(line 05425)    |   |   |   |   |   |  6: WaitQueues[(currentThread-1)].tail = 0
+(line 05432)    |   |   |   |   |   |  6: .(goto)
+(line 05434)    |   |   |   |   |   |  6: .(goto)
+(line 05435)    |   |   |   |   |   |  6: :: ((rc!=0))
+(line 05436)    |   |   |   |   |   |  6: :: ((waitStateMutexes[rc].isLocked==0))
+(line 05437)    |   |   |   |   |   |  6: waitStateMutexes[rc].isLocked = 1
+(line 05439)    |   |   |   |   |   |  6: assert((threads[(rc-1)].wait.val==0x38))
+(line 05440)    |   |   |   |   |   |  6: assert((threads[(rc-1)].wait.waitingOn==currentThread))
+(line 05441)    |   |   |   |   |   |  6: threads[(rc-1)].wait.val = 0
+(line 05442)    |   |   |   |   |   |  6: threads[(rc-1)].wait.waitingOn = 0
+(line 05443)    |   |   |   |   |   |  6: assert((waitStateMutexes[rc].isLocked==1))
+(line 05444)    |   |   |   |   |   |  6: waitStateMutexes[rc].isLocked = 0
+(line 05449)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 05450)    |   |   |   |   |   |  6: :: ((rc!=0))
+(line 05451)    |   |   |   |   |   |  6: assert((sobMutexes[currentThread].isLocked==1))
+(line 05452)    |   |   |   |   |   |  6: sobMutexes[currentThread].isLocked = 0
+(line 05454)    |   |   |   |   |   |  6: sThread_other = rc
+(line 05455)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 05700)    |   |   |   |   |   |  6: :: else
+(line 05701)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].ipc.client==0))
+(line 05703)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].ipc.server!=0))
+(line 05704)    |   |   |   |   |   |  6: assert((threads[(threads[(currentThread-1)].ipc.server-1)].ipc.client==currentThread))
+(line 05719)    |   |   |   |   |   |  6: :: else
+(line 05720)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 05721)    |   |   |   |   |   |  6: :: ((waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked==0))
+(line 05722)    |   |   |   |   |   |  6: waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked = 1
+(line 05724)    |   |   |   |   |   |  6: assert((0x10!=0))
+(line 05725)    |   |   |   |   |   |  6: assert((0x10!=0x38))
+(line 05726)    |   |   |   |   |   |  6: :: (((threads[(threads[(currentThread-1)].ipc.server-1)].wait.val&0x10)==0x10))
+(line 05765)    |   |   |   |   |   |  6: :: else
+(line 05766)    |   |   |   |   |   |  6: :: ((threads[(threads[(currentThread-1)].ipc.server-1)].wait.val!=0))
+(line 05767)    |   |   |   |   |   |  6: rc = threads[(threads[(currentThread-1)].ipc.server-1)].wait.val
+(line 05768)    |   |   |   |   |   |  6: assert((threads[(threads[(currentThread-1)].ipc.server-1)].wait.waitingOn==0))
+(line 05769)    |   |   |   |   |   |  6: threads[(threads[(currentThread-1)].ipc.server-1)].wait.val = 0
+(line 05778)    |   |   |   |   |   |  6: assert((waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked==1))
+(line 05779)    |   |   |   |   |   |  6: waitStateMutexes[threads[(currentThread-1)].ipc.server].isLocked = 0
+(line 05781)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 05782)    |   |   |   |   |   |  6: :: ((rc!=0))
+(line 05783)    |   |   |   |   |   |  6: ipcCancel_server = threads[(currentThread-1)].ipc.server
+(line 05784)    |   |   |   |   |   |  6: assert((ipcCancel_server==threads[(currentThread-1)].ipc.server))
+(line 05785)    |   |   |   |   |   |  6: assert((currentThread==threads[(ipcCancel_server-1)].ipc.client))
+(line 05786)    |   |   |   |   |   |  6: pickleServer = threads[(currentThread-1)].ipc.server
+(line 05787)    |   |   |   |   |   |  6: pickleClient = threads[(ipcCancel_server-1)].ipc.client
+(line 05788)    |   |   |   |   |   |  6: threads[(pickleServer-1)].ipc.clientLink = 0
+(line 05789)    |   |   |   |   |   |  6: threads[(pickleServer-1)].ipc.clientLink = pickleClient
+(line 05790)    |   |   |   |   |   |  6: threads[(pickleServer-1)].ipc.client = 0
+(line 05791)    |   |   |   |   |   |  6: threads[(pickleClient-1)].ipc.serverLink = 0
+(line 05792)    |   |   |   |   |   |  6: threads[(pickleClient-1)].ipc.serverLink = pickleServer
+(line 05793)    |   |   |   |   |   |  6: threads[(pickleClient-1)].ipc.server = 0
+(line 05794)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 05795)    |   |   |   |   |   |  6: assert((ipcCancel_server!=currentThread))
+(line 05796)    |   |   |   |   |   |  6: assert((threads[(ipcCancel_server-1)].wait.blocked==1))
+(line 05797)    |   |   |   |   |   |  6: threads[(ipcCancel_server-1)].wait.blocked = 0
+(line 05799)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 05800)    |   |   |   |   |   |  6: *donewith(ipcCancel_server)
+(line 05981)    |   |   |   |   |   |  6: rc = 0
+(line 05982)    |   |   |   |   |   |  6: :: (1)
+(line 05985)    |   |   |   |   |   |  6: :: else
+(line 05986)    |   |   |   |   |   |  6: assert((rc==0))
+(line 05987)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 05988)    |   |   |   |   |   |  6: assert((currentThread!=sThread_other))
+(line 05989)    |   |   |   |   |   |  6: assert((0x2000010!=0))
+(line 05990)    |   |   |   |   |   |  6: assert((0x2000010!=0x38))
+(line 05991)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 05992)    |   |   |   |   |   |  6: :: ((currentThread<sThread_other))
+(line 05993)    |   |   |   |   |   |  6: :: ((waitStateMutexes[currentThread].isLocked==0))
+(line 05994)    |   |   |   |   |   |  6: waitStateMutexes[currentThread].isLocked = 1
+(line 05996)    |   |   |   |   |   |  6: :: ((waitStateMutexes[sThread_other].isLocked==0))
+(line 05997)    |   |   |   |   |   |  6: waitStateMutexes[sThread_other].isLocked = 1
+(line 06006)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].wait.val==0))
+(line 06007)    |   |   |   |   |   |  6: assert((sThread_other!=currentThread))
+(line 06008)    |   |   |   |   |   |  6: assert((threads[(sThread_other-1)].wait.blocked==1))
+(line 06009)    |   |   |   |   |   |  6: threads[(sThread_other-1)].wait.blocked = 0
+(line 06011)    |   |   |   |   |   |  6: assert((waitStateMutexes[sThread_other].isLocked==1))
+(line 06012)    |   |   |   |   |   |  6: waitStateMutexes[sThread_other].isLocked = 0
+(line 06014)    |   |   |   |   |   |  6: threads[(currentThread-1)].wait.resumeRC = KR_RESTART
+(line 06021)    |   |   |   |   |   |  6: :: else
+(line 06024)    |   |   |   |   |   |  6: :: else
+(line 06025)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].wait.cancelPending==0))
+(line 06027)    |   |   |   |   |   |  6: threads[(currentThread-1)].wait.val = 0x2000010
+(line 06028)    |   |   |   |   |   |  6: threads[(currentThread-1)].wait.waitingOn = 0
+(line 06029)    |   |   |   |   |   |  6: assert((waitStateMutexes[currentThread].isLocked==1))
+(line 06030)    |   |   |   |   |   |  6: waitStateMutexes[currentThread].isLocked = 0
+(line 06031)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 06032)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].wait.blocked==0))
+(line 06033)    |   |   |   |   |   |  6: threads[(currentThread-1)].wait.blocked = 1
+(line 03001)    |   |   |   |   |  5: :: ((threads[(currentThread-1)].wait.blocked==0))
+(line 03003)    |   |   |   |   |  5: *enableInterrupts()
+(line 03004)    |   |   |   |   |  5: rc = threads[(currentThread-1)].wait.resumeRC
+(line 04308)    |   |   |   |   |  5: :: else
+(line 04309)    |   |   |   |   |  5: assert(((rc!=0)&&(rc!=KR_INVALID)))
+(line 04312)    |   |   |   |   |  5: assert((rc!=0))
+(line 04314)    |   |   |   |   |  5: :: ((rc==KR_RESTART))
+(line 04315)    |   |   |   |   |  5: rc = 0
+(line 06064)    |   |   |   |   |  5: :: else
+(line 06065)    |   |   |   |   |  5: assert((rc==0))
+(line 06067)    |   |   |   |   |  5: assert((rc==0))
+(line 06072)    |   |   |   |   |  5: :: else
+(line 06073)    |   |   |   |   |  5: :: (1)
+(line 00076)    |   |   |   |   |  5: :: (1)
+(line 03006)    |   |   |   |   |  5: :: ((threads[(currentThread-1)].exc.ip==0x1b))
+(line 03007)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 03008)    |   |   |   |   |  5: ipcf_client = threads[(currentThread-1)].ipc.client
+(line 03009)    |   |   |   |   |  5: :: ((ipcf_client==0))
+(line 03010)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 03011)    |   |   |   |   |  5: assert((threads[(currentThread-1)].ipc.client==0))
+(line 03012)    |   |   |   |   |  5: :: ((threads[(currentThread-1)].ipc.clientLink!=0))
+(line 00278)    |   |   |   |  4: :: ((threads[(currentThread-1)].wait.blocked==0))
+(line 00280)    |   |   |   |  4: *enableInterrupts()
+(line 00281)    |   |   |   |  4: rc = threads[(currentThread-1)].wait.resumeRC
+(line 04308)    |   |   |   |  4: :: else
+(line 04309)    |   |   |   |  4: assert(((rc!=0)&&(rc!=KR_INVALID)))
+(line 04312)    |   |   |   |  4: assert((rc!=0))
+(line 04314)    |   |   |   |  4: :: ((rc==KR_RESTART))
+(line 04315)    |   |   |   |  4: rc = 0
+(line 06064)    |   |   |   |  4: :: else
+(line 06065)    |   |   |   |  4: assert((rc==0))
+(line 06067)    |   |   |   |  4: assert((rc==0))
+(line 06072)    |   |   |   |  4: :: else
+(line 06073)    |   |   |   |  4: :: (1)
+(line 00076)    |   |   |   |  4: :: (1)
+(line 00080)    |   |   |   |  4: :: ((threads[(currentThread-1)].exc.ip==2))
+(line 00081)    |   |   |   |  4: :: ((sobMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==0))
+(line 00082)    |   |   |   |  4: sobMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 1
+(line 00087)    |   |   |   |  4: :: else
+(line 00088)    |   |   |   |  4: assert((currentThread!=threads[(currentThread-1)].exc.connectArg))
+(line 00090)    |   |   |   |  4: *disableInterrupts()
+(line 00091)    |   |   |   |  4: :: ((waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==0))
+(line 00092)    |   |   |   |  4: waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 1
+(line 00094)    |   |   |   |  4: assert((0x2000010!=0))
+(line 00095)    |   |   |   |  4: assert((0x2000010!=0x38))
+(line 00096)    |   |   |   |  4: :: (((threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.val&0x2000010)==0x2000010))
+(line 00135)    |   |   |   |  4: :: else
+(line 00136)    |   |   |   |  4: :: ((threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.val!=0))
+(line 00137)    |   |   |   |  4: rc = threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.val
+(line 00138)    |   |   |   |  4: assert((threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.waitingOn==0))
+(line 00139)    |   |   |   |  4: threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.val = 0
+(line 00148)    |   |   |   |  4: assert((waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==1))
+(line 00149)    |   |   |   |  4: waitStateMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 0
+(line 00151)    |   |   |   |  4: *enableInterrupts()
+(line 00152)    |   |   |   |  4: :: ((rc!=0))
+(line 00153)    |   |   |   |  4: threads[(currentThread-1)].exc.status = threads[(currentThread-1)].exc.connectArg
+(line 00154)    |   |   |   |  4: assert((sobMutexes[threads[(currentThread-1)].exc.connectArg].isLocked==1))
+(line 00155)    |   |   |   |  4: sobMutexes[threads[(currentThread-1)].exc.connectArg].isLocked = 0
+(line 00156)    |   |   |   |  4: *disableInterrupts()
+(line 03013)    |   |   |   |   |  5: :: ((sobMutexes[threads[(currentThread-1)].ipc.clientLink].isLocked==0))
+(line 03014)    |   |   |   |   |  5: sobMutexes[threads[(currentThread-1)].ipc.clientLink].isLocked = 1
+(line 03019)    |   |   |   |   |  5: pickleClient = threads[(currentThread-1)].ipc.clientLink
+(line 03023)    |   |   |   |   |  5: :: else
+(line 03024)    |   |   |   |   |  5: *disableInterrupts()
+(line 00157)    |   |   |   |  4: assert((threads[(currentThread-1)].exc.connectArg!=currentThread))
+(line 00158)    |   |   |   |  4: assert((threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.blocked==1))
+(line 00159)    |   |   |   |  4: threads[(threads[(currentThread-1)].exc.connectArg-1)].wait.blocked = 0
+(line 00161)    |   |   |   |  4: *enableInterrupts()
+(line 00162)    |   |   |   |  4: rc = 0
+(line 04305)    |   |   |   |  4: :: ((rc==0))
+(line 06034)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].wait.blocked==0))
+(line 06037)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 06038)    |   |   |   |   |   |  6: rc = threads[(currentThread-1)].wait.resumeRC
+(line 06041)    |   |   |   |   |   |  6: *donewith(sThread_other)
+(line 06062)    |   |   |   |   |   |  6: :: ((rc!=0))
+(line 04312)    |   |   |   |   |   |  6: assert((rc!=0))
+(line 04314)    |   |   |   |   |   |  6: :: ((rc==KR_RESTART))
+(line 04315)    |   |   |   |   |   |  6: rc = 0
+(line 06064)    |   |   |   |   |   |  6: :: else
+(line 06065)    |   |   |   |   |   |  6: assert((rc==0))
+(line 06067)    |   |   |   |   |   |  6: assert((rc==0))
+(line 06072)    |   |   |   |   |   |  6: :: else
+(line 06073)    |   |   |   |   |   |  6: :: (1)
+(line 00076)    |   |   |   |   |   |  6: :: (1)
+(line 00078)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].exc.ip==1))
+(line 06077)    |   |   |   |   |   |  6: assert((rc==0))
+(line 06078)    |   |   |   |   |   |  6: replyChan!threads[(currentThread-1)].exc.status
+(line 06114)    |  1: kernel.replyChan?rc
+(line 04306)    |   |   |   |  4: threads[(currentThread-1)].exc.ip = 1
+(line 06064)    |   |   |   |  4: :: else
+(line 06065)    |   |   |   |  4: assert((rc==0))
+(line 06067)    |   |   |   |  4: assert((rc==0))
+(line 06072)    |   |   |   |  4: :: else
+(line 06073)    |   |   |   |  4: :: (1)
+(line 00076)    |   |   |   |  4: :: (1)
+(line 00078)    |   |   |   |  4: :: ((threads[(currentThread-1)].exc.ip==1))
+(line 06077)    |   |   |   |  4: assert((rc==0))
+(line 06078)    |   |   |   |  4: replyChan!threads[(currentThread-1)].exc.status
+(line 06132)    |   |   |  3: kernel.replyChan?rc
+(line 06133)    |   |   |  3: assert((rc==target1))
+(line 06142)    |   |   |  3: :: (1)
+(line 06115)    |  1: assert((rc==0))
+(line 06108)    |  1: :: (1)
+(line 06109)    |  1: sData = 0x2a
+(line 06110)    |  1: threads[(currentThread-1)].exc.ip = 0xa
+(line 06111)    |  1: threads[(currentThread-1)].exc.connectArg = server
+(line 06112)    |  1: threads[(currentThread-1)].exc.sendPayload = sData
+(line 06113)    |  1: kernel.kernelChan!msgFlukeSyscallIPC,kernel.replyChan
+(line 00072)    |   |   |   |   |   |  6: userRequestChan?msgFlukeSyscallIPC,replyChan
+(line 00073)    |   |   |   |   |   |  6: rc = 0
+(line 00074)    |   |   |   |   |   |  6: threads[(currentThread-1)].exc.status = 0
+(line 00076)    |   |   |   |   |   |  6: :: (1)
+(line 00285)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].exc.ip==0xa))
+(line 00286)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].ipc.server==0))
+(line 00287)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 00288)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].ipc.server==0))
+(line 00289)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].ipc.serverLink!=0))
+(line 00290)    |   |   |   |   |   |  6: :: ((sobMutexes[threads[(currentThread-1)].ipc.serverLink].isLocked==0))
+(line 00291)    |   |   |   |   |   |  6: sobMutexes[threads[(currentThread-1)].ipc.serverLink].isLocked = 1
+(line 00296)    |   |   |   |   |   |  6: pickleServer = threads[(currentThread-1)].ipc.serverLink
+(line 00300)    |   |   |   |   |   |  6: :: else
+(line 00301)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 00302)    |   |   |   |   |   |  6: :: ((waitStateMutexes[pickleServer].isLocked==0))
+(line 00303)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 1
+(line 00305)    |   |   |   |   |   |  6: assert((0x200018!=0))
+(line 00306)    |   |   |   |   |   |  6: assert((0x200018!=0x38))
+(line 00355)    |   |   |   |   |   |  6: :: else
+(line 00356)    |   |   |   |   |   |  6: assert(((threads[(pickleServer-1)].wait.val&0x200018)!=0x200018))
+(line 00357)    |   |   |   |   |   |  6: rc = 0
+(line 00359)    |   |   |   |   |   |  6: assert((waitStateMutexes[pickleServer].isLocked==1))
+(line 00360)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 0
+(line 00362)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 00363)    |   |   |   |   |   |  6: :: ((rc==0))
+(line 00369)    |   |   |   |   |   |  6: :: else
+(line 00370)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 00371)    |   |   |   |   |   |  6: :: ((waitStateMutexes[pickleServer].isLocked==0))
+(line 00372)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 1
+(line 00374)    |   |   |   |   |   |  6: assert((!(threads[(pickleServer-1)].wait.cancelPending)||((threads[(pickleServer-1)].wait.val&0x18)!=0x18)))
+(line 00375)    |   |   |   |   |   |  6: threads[(pickleServer-1)].wait.cancelPending = 1
+(line 00376)    |   |   |   |   |   |  6: assert((0x18!=0))
+(line 00377)    |   |   |   |   |   |  6: assert((0x18!=0x38))
+(line 00426)    |   |   |   |   |   |  6: :: else
+(line 00427)    |   |   |   |   |   |  6: assert(((threads[(pickleServer-1)].wait.val&0x18)!=0x18))
+(line 00428)    |   |   |   |   |   |  6: rc = 0
+(line 00436)    |   |   |   |   |   |  6: :: else
+(line 00437)    |   |   |   |   |   |  6: assert((rc==0))
+(line 00439)    |   |   |   |   |   |  6: assert((waitStateMutexes[pickleServer].isLocked==1))
+(line 00440)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 0
+(line 00442)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 00443)    |   |   |   |   |   |  6: assert((0x200018!=0))
+(line 00444)    |   |   |   |   |   |  6: assert((0x200018!=0x38))
+(line 00445)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 00446)    |   |   |   |   |   |  6: assert((currentThread!=pickleServer))
+(line 00447)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 00448)    |   |   |   |   |   |  6: :: ((currentThread<pickleServer))
+(line 00449)    |   |   |   |   |   |  6: :: ((waitStateMutexes[currentThread].isLocked==0))
+(line 00450)    |   |   |   |   |   |  6: waitStateMutexes[currentThread].isLocked = 1
+(line 00452)    |   |   |   |   |   |  6: :: ((waitStateMutexes[pickleServer].isLocked==0))
+(line 00453)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 1
+(line 00463)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].wait.val==0))
+(line 00473)    |   |   |   |   |   |  6: :: else
+<<<<<START OF CYCLE>>>>>
+(line 00474)    |   |   |   |   |   |  6: assert((((-(1)==0)||(-(1)==-(1)))||((threads[(pickleServer-1)].wait.val&-(1))!=-(1))))
+(line 00541)    |   |   |   |   |   |  6: :: ((-(1)==-(1)))
+(line 00542)    |   |   |   |   |   |  6: assert((sobMutexes[pickleServer].isLocked==1))
+(line 00543)    |   |   |   |   |   |  6: sobMutexes[pickleServer].isLocked = 0
+(line 00548)    |   |   |   |   |   |  6: assert((waitStateMutexes[pickleServer].isLocked==1))
+(line 00549)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 0
+(line 00551)    |   |   |   |   |   |  6: threads[(currentThread-1)].wait.resumeRC = KR_RESTART
+(line 00558)    |   |   |   |   |   |  6: :: else
+(line 00561)    |   |   |   |   |   |  6: :: else
+(line 00562)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].wait.cancelPending==0))
+(line 00564)    |   |   |   |   |   |  6: threads[(currentThread-1)].wait.val = 0x200018
+(line 00565)    |   |   |   |   |   |  6: threads[(currentThread-1)].wait.waitingOn = 0
+(line 00566)    |   |   |   |   |   |  6: assert((waitStateMutexes[currentThread].isLocked==1))
+(line 00567)    |   |   |   |   |   |  6: waitStateMutexes[currentThread].isLocked = 0
+(line 00568)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 00569)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].wait.blocked==0))
+(line 00570)    |   |   |   |   |   |  6: threads[(currentThread-1)].wait.blocked = 1
+(line 03025)    |   |   |   |   |  5: :: ((waitStateMutexes[pickleClient].isLocked==0))
+(line 03026)    |   |   |   |   |  5: waitStateMutexes[pickleClient].isLocked = 1
+(line 03028)    |   |   |   |   |  5: assert((0x200018!=0))
+(line 03029)    |   |   |   |   |  5: assert((0x200018!=0x38))
+(line 03030)    |   |   |   |   |  5: :: (((threads[(pickleClient-1)].wait.val&0x200018)==0x200018))
+(line 03069)    |   |   |   |   |  5: :: else
+(line 03070)    |   |   |   |   |  5: :: ((threads[(pickleClient-1)].wait.val!=0))
+(line 03071)    |   |   |   |   |  5: rc = threads[(pickleClient-1)].wait.val
+(line 03072)    |   |   |   |   |  5: assert((threads[(pickleClient-1)].wait.waitingOn==0))
+(line 03073)    |   |   |   |   |  5: threads[(pickleClient-1)].wait.val = 0
+(line 03082)    |   |   |   |   |  5: assert((waitStateMutexes[pickleClient].isLocked==1))
+(line 03083)    |   |   |   |   |  5: waitStateMutexes[pickleClient].isLocked = 0
+(line 03085)    |   |   |   |   |  5: *enableInterrupts()
+(line 03303)    |   |   |   |   |  5: :: else
+(line 03304)    |   |   |   |   |  5: assert((sobMutexes[pickleClient].isLocked==1))
+(line 03305)    |   |   |   |   |  5: sobMutexes[pickleClient].isLocked = 0
+(line 03307)    |   |   |   |   |  5: :: ((threads[(pickleClient-1)].ipc.server!=currentThread))
+(line 03316)    |   |   |   |   |  5: :: else
+(line 03317)    |   |   |   |   |  5: assert((0==0))
+(line 03318)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 03319)    |   |   |   |   |  5: assert((currentThread!=pickleClient))
+(line 03320)    |   |   |   |   |  5: assert((0x200018!=0))
+(line 03321)    |   |   |   |   |  5: assert((0x200018!=0x38))
+(line 03322)    |   |   |   |   |  5: *disableInterrupts()
+(line 03330)    |   |   |   |   |  5: :: else
+(line 03330)    |   |   |   |   |  5: :: ((waitStateMutexes[pickleClient].isLocked==0))
+(line 03331)    |   |   |   |   |  5: waitStateMutexes[pickleClient].isLocked = 1
+(line 03333)    |   |   |   |   |  5: :: ((waitStateMutexes[currentThread].isLocked==0))
+(line 03334)    |   |   |   |   |  5: waitStateMutexes[currentThread].isLocked = 1
+(line 03337)    |   |   |   |   |  5: assert((threads[(currentThread-1)].wait.val==0))
+(line 03338)    |   |   |   |   |  5: assert((pickleClient!=currentThread))
+(line 03339)    |   |   |   |   |  5: assert((threads[(pickleClient-1)].wait.blocked==1))
+(line 03340)    |   |   |   |   |  5: threads[(pickleClient-1)].wait.blocked = 0
+(line 00571)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].wait.blocked==0))
+(line 00574)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 00575)    |   |   |   |   |   |  6: rc = threads[(currentThread-1)].wait.resumeRC
+(line 00579)    |   |   |   |   |   |  6: *donewith(pickleServer)
+(line 00673)    |   |   |   |   |   |  6: :: ((rc!=0))
+(line 00674)    |   |   |   |   |   |  6: :: (1)
+(line 00891)    |   |   |   |   |   |  6: :: ((rc!=0))
+(line 00892)    |   |   |   |   |   |  6: :: (1)
+(line 01034)    |   |   |   |   |   |  6: :: else
+(line 04308)    |   |   |   |   |   |  6: :: else
+(line 04309)    |   |   |   |   |   |  6: assert(((rc!=0)&&(rc!=KR_INVALID)))
+(line 04312)    |   |   |   |   |   |  6: assert((rc!=0))
+(line 04314)    |   |   |   |   |   |  6: :: ((rc==KR_RESTART))
+(line 04315)    |   |   |   |   |   |  6: rc = 0
+(line 06064)    |   |   |   |   |   |  6: :: else
+(line 06065)    |   |   |   |   |   |  6: assert((rc==0))
+(line 06067)    |   |   |   |   |   |  6: assert((rc==0))
+(line 06072)    |   |   |   |   |   |  6: :: else
+(line 06073)    |   |   |   |   |   |  6: :: (1)
+(line 00076)    |   |   |   |   |   |  6: :: (1)
+(line 00285)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].exc.ip==0xa))
+(line 00286)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].ipc.server==0))
+(line 00287)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 00288)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].ipc.server==0))
+(line 00289)    |   |   |   |   |   |  6: :: ((threads[(currentThread-1)].ipc.serverLink!=0))
+(line 03342)    |   |   |   |   |  5: assert((waitStateMutexes[pickleClient].isLocked==1))
+(line 03343)    |   |   |   |   |  5: waitStateMutexes[pickleClient].isLocked = 0
+(line 03345)    |   |   |   |   |  5: threads[(currentThread-1)].wait.resumeRC = KR_RESTART
+(line 03346)    |   |   |   |   |  5: :: (((threads[(currentThread-1)].wait.cancelPending!=0)&&!(((0x200018&24)!=0x18))))
+(line 03347)    |   |   |   |   |  5: assert((waitStateMutexes[currentThread].isLocked==1))
+(line 03348)    |   |   |   |   |  5: waitStateMutexes[currentThread].isLocked = 0
+(line 03350)    |   |   |   |   |  5: *enableInterrupts()
+(line 03351)    |   |   |   |   |  5: rc = KR_CANCEL
+(line 03390)    |   |   |   |   |  5: *donewith(pickleClient)
+(line 03395)    |   |   |   |   |  5: *donewith(ipcf_client)
+(line 03396)    |   |   |   |   |  5: :: ((rc!=0))
+(line 03397)    |   |   |   |   |  5: :: (1)
+(line 03410)    |   |   |   |   |  5: :: ((rc!=0))
+(line 03411)    |   |   |   |   |  5: :: (1)
+(line 04308)    |   |   |   |   |  5: :: else
+(line 04309)    |   |   |   |   |  5: assert(((rc!=0)&&(rc!=KR_INVALID)))
+(line 04312)    |   |   |   |   |  5: assert((rc!=0))
+(line 04316)    |   |   |   |   |  5: :: else
+(line 04317)    |   |   |   |   |  5: :: ((rc==KR_CANCEL))
+(line 04318)    |   |   |   |   |  5: threads[(currentThread-1)].wait.cancelPending = 0
+(line 04319)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 04480)    |   |   |   |   |  5: :: else
+(line 04481)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 04482)    |   |   |   |   |  5: assert((threads[(currentThread-1)].ipc.server==0))
+(line 04487)    |   |   |   |   |  5: :: else
+(line 04488)    |   |   |   |   |  5: assert((threads[(currentThread-1)].ipc.serverLink==0))
+(line 04490)    |   |   |   |   |  5: pickleServer = threads[(currentThread-1)].ipc.serverLink
+(line 04491)    |   |   |   |   |  5: :: ((pickleServer==0))
+(line 04492)    |   |   |   |   |  5: *donewith(pickleServer)
+(line 04493)    |   |   |   |   |  5: rc = 0
+(line 04863)    |   |   |   |   |  5: assert((rc==0))
+(line 05026)    |   |   |   |   |  5: :: else
+(line 05027)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 05028)    |   |   |   |   |  5: assert((threads[(currentThread-1)].ipc.client==0))
+(line 05029)    |   |   |   |   |  5: :: ((threads[(currentThread-1)].ipc.clientLink!=0))
+(line 05030)    |   |   |   |   |  5: :: ((sobMutexes[threads[(currentThread-1)].ipc.clientLink].isLocked==0))
+(line 05031)    |   |   |   |   |  5: sobMutexes[threads[(currentThread-1)].ipc.clientLink].isLocked = 1
+(line 05036)    |   |   |   |   |  5: pickleClient = threads[(currentThread-1)].ipc.clientLink
+(line 05040)    |   |   |   |   |  5: :: else
+(line 05041)    |   |   |   |   |  5: *disableInterrupts()
+(line 05042)    |   |   |   |   |  5: :: ((waitStateMutexes[pickleClient].isLocked==0))
+(line 05043)    |   |   |   |   |  5: waitStateMutexes[pickleClient].isLocked = 1
+(line 05045)    |   |   |   |   |  5: assert((0x200018!=0))
+(line 05046)    |   |   |   |   |  5: assert((0x200018!=0x38))
+(line 05095)    |   |   |   |   |  5: :: else
+(line 05096)    |   |   |   |   |  5: assert(((threads[(pickleClient-1)].wait.val&0x200018)!=0x200018))
+(line 05097)    |   |   |   |   |  5: rc = 0
+(line 05099)    |   |   |   |   |  5: assert((waitStateMutexes[pickleClient].isLocked==1))
+(line 05100)    |   |   |   |   |  5: waitStateMutexes[pickleClient].isLocked = 0
+(line 05102)    |   |   |   |   |  5: *enableInterrupts()
+(line 05103)    |   |   |   |   |  5: :: ((rc==0))
+(line 05104)    |   |   |   |   |  5: :: ((1!=0))
+(line 05105)    |   |   |   |   |  5: assert((sobMutexes[pickleClient].isLocked==1))
+(line 05106)    |   |   |   |   |  5: sobMutexes[pickleClient].isLocked = 0
+(line 05108)    |   |   |   |   |  5: rc = 0
+(line 05407)    |   |   |   |   |  5: *donewith(pickleClient)
+(line 05409)    |   |   |   |   |  5: assert((rc==0))
+(line 05411)    |   |   |   |   |  5: rc = KR_INVALID
+(line 05412)    |   |   |   |   |  5: assert((rc==KR_INVALID))
+(line 05413)    |   |   |   |   |  5: :: ((sobMutexes[currentThread].isLocked==0))
+(line 05414)    |   |   |   |   |  5: sobMutexes[currentThread].isLocked = 1
+(line 05416)    |   |   |   |   |  5: *disableInterrupts()
+(line 05417)    |   |   |   |   |  5: rc = WaitQueues[(currentThread-1)].head
+(line 05432)    |   |   |   |   |  5: :: else
+(line 05434)    |   |   |   |   |  5: .(goto)
+(line 05446)    |   |   |   |   |  5: :: else
+(line 05447)    |   |   |   |   |  5: rc = 0
+(line 05449)    |   |   |   |   |  5: *enableInterrupts()
+(line 06042)    |   |   |   |   |  5: :: else
+(line 06043)    |   |   |   |   |  5: assert((rc==0))
+(line 06044)    |   |   |   |   |  5: assert((sobMutexes[currentThread].isLocked==1))
+(line 06045)    |   |   |   |   |  5: sobMutexes[currentThread].isLocked = 0
+(line 06047)    |   |   |   |   |  5: rc = 0
+(line 06064)    |   |   |   |   |  5: :: else
+(line 06065)    |   |   |   |   |  5: assert((rc==0))
+(line 06067)    |   |   |   |   |  5: assert((rc==0))
+(line 00290)    |   |   |   |   |   |  6: :: ((sobMutexes[threads[(currentThread-1)].ipc.serverLink].isLocked==0))
+(line 00291)    |   |   |   |   |   |  6: sobMutexes[threads[(currentThread-1)].ipc.serverLink].isLocked = 1
+(line 00296)    |   |   |   |   |   |  6: pickleServer = threads[(currentThread-1)].ipc.serverLink
+(line 00300)    |   |   |   |   |   |  6: :: else
+(line 00301)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 00302)    |   |   |   |   |   |  6: :: ((waitStateMutexes[pickleServer].isLocked==0))
+(line 00303)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 1
+(line 00305)    |   |   |   |   |   |  6: assert((0x200018!=0))
+(line 00306)    |   |   |   |   |   |  6: assert((0x200018!=0x38))
+(line 00355)    |   |   |   |   |   |  6: :: else
+(line 00356)    |   |   |   |   |   |  6: assert(((threads[(pickleServer-1)].wait.val&0x200018)!=0x200018))
+(line 00357)    |   |   |   |   |   |  6: rc = 0
+(line 00359)    |   |   |   |   |   |  6: assert((waitStateMutexes[pickleServer].isLocked==1))
+(line 00360)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 0
+(line 00362)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 00363)    |   |   |   |   |   |  6: :: ((rc==0))
+(line 00369)    |   |   |   |   |   |  6: :: else
+(line 00370)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 00371)    |   |   |   |   |   |  6: :: ((waitStateMutexes[pickleServer].isLocked==0))
+(line 00372)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 1
+(line 00374)    |   |   |   |   |   |  6: assert((!(threads[(pickleServer-1)].wait.cancelPending)||((threads[(pickleServer-1)].wait.val&0x18)!=0x18)))
+(line 06072)    |   |   |   |   |  5: :: else
+(line 06073)    |   |   |   |   |  5: :: (1)
+(line 00076)    |   |   |   |   |  5: :: (1)
+(line 00375)    |   |   |   |   |   |  6: threads[(pickleServer-1)].wait.cancelPending = 1
+(line 00376)    |   |   |   |   |   |  6: assert((0x18!=0))
+(line 00377)    |   |   |   |   |   |  6: assert((0x18!=0x38))
+(line 00426)    |   |   |   |   |   |  6: :: else
+(line 00427)    |   |   |   |   |   |  6: assert(((threads[(pickleServer-1)].wait.val&0x18)!=0x18))
+(line 00428)    |   |   |   |   |   |  6: rc = 0
+(line 00436)    |   |   |   |   |   |  6: :: else
+(line 00437)    |   |   |   |   |   |  6: assert((rc==0))
+(line 03006)    |   |   |   |   |  5: :: ((threads[(currentThread-1)].exc.ip==0x1b))
+(line 03007)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 00439)    |   |   |   |   |   |  6: assert((waitStateMutexes[pickleServer].isLocked==1))
+(line 00440)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 0
+(line 00442)    |   |   |   |   |   |  6: *enableInterrupts()
+(line 00443)    |   |   |   |   |   |  6: assert((0x200018!=0))
+(line 00444)    |   |   |   |   |   |  6: assert((0x200018!=0x38))
+(line 00445)    |   |   |   |   |   |  6: assert((currentThread==currentThread))
+(line 00446)    |   |   |   |   |   |  6: assert((currentThread!=pickleServer))
+(line 00447)    |   |   |   |   |   |  6: *disableInterrupts()
+(line 00448)    |   |   |   |   |   |  6: :: ((currentThread<pickleServer))
+(line 00449)    |   |   |   |   |   |  6: :: ((waitStateMutexes[currentThread].isLocked==0))
+(line 00450)    |   |   |   |   |   |  6: waitStateMutexes[currentThread].isLocked = 1
+(line 00452)    |   |   |   |   |   |  6: :: ((waitStateMutexes[pickleServer].isLocked==0))
+(line 00453)    |   |   |   |   |   |  6: waitStateMutexes[pickleServer].isLocked = 1
+(line 00463)    |   |   |   |   |   |  6: assert((threads[(currentThread-1)].wait.val==0))
+(line 00473)    |   |   |   |   |   |  6: :: else
+(line 03008)    |   |   |   |   |  5: ipcf_client = threads[(currentThread-1)].ipc.client
+(line 03009)    |   |   |   |   |  5: :: ((ipcf_client==0))
+(line 03010)    |   |   |   |   |  5: assert((currentThread==currentThread))
+(line 03011)    |   |   |   |   |  5: assert((threads[(currentThread-1)].ipc.client==0))
+(line 03012)    |   |   |   |   |  5: :: ((threads[(currentThread-1)].ipc.clientLink!=0))
+(line 03013)    |   |   |   |   |  5: :: ((sobMutexes[threads[(currentThread-1)].ipc.clientLink].isLocked==0))
+(line 03014)    |   |   |   |   |  5: sobMutexes[threads[(currentThread-1)].ipc.clientLink].isLocked = 1
+(line 03019)    |   |   |   |   |  5: pickleClient = threads[(currentThread-1)].ipc.clientLink
+(line 03023)    |   |   |   |   |  5: :: else
+(line 03024)    |   |   |   |   |  5: *disableInterrupts()
+spin: trail ends after 1348 steps
+#processes: 7
+		threads[0].stoppedFlag = 0
+		threads[0].ipc.serverLink = 2
+		threads[0].ipc.server = 0
+		threads[0].ipc.clientLink = 0
+		threads[0].ipc.client = 0
+		threads[0].ipc.flags = 1
+		threads[0].ipc.rendezvous = 5
+		threads[0].wait.blocked = 0
+		threads[0].wait.val = 0
+		threads[0].wait.waitingOn = 0
+		threads[0].wait.cancelPending = 0
+		threads[0].wait.resumeRC = 104
+		threads[0].exc.ip = 10
+		threads[0].exc.status = 0
+		threads[0].exc.code = 0
+		threads[0].exc.sendPayload = 42
+		threads[0].exc.recvPayload = 0
+		threads[0].exc.connectArg = 2
+		threads[0].waitQueue.prev = 0
+		threads[0].waitQueue.next = 0
+		threads[1].stoppedFlag = 0
+		threads[1].ipc.serverLink = 0
+		threads[1].ipc.server = 0
+		threads[1].ipc.clientLink = 1
+		threads[1].ipc.client = 0
+		threads[1].ipc.flags = 0
+		threads[1].ipc.rendezvous = 6
+		threads[1].wait.blocked = 0
+		threads[1].wait.val = 0
+		threads[1].wait.waitingOn = 0
+		threads[1].wait.cancelPending = 1
+		threads[1].wait.resumeRC = 104
+		threads[1].exc.ip = 27
+		threads[1].exc.status = 0
+		threads[1].exc.code = 0
+		threads[1].exc.sendPayload = 0
+		threads[1].exc.recvPayload = 42
+		threads[1].exc.connectArg = 0
+		threads[1].waitQueue.prev = 0
+		threads[1].waitQueue.next = 0
+		threads[2].stoppedFlag = 0
+		threads[2].ipc.serverLink = 0
+		threads[2].ipc.server = 0
+		threads[2].ipc.clientLink = 0
+		threads[2].ipc.client = 0
+		threads[2].ipc.flags = 0
+		threads[2].ipc.rendezvous = 7
+		threads[2].wait.blocked = 0
+		threads[2].wait.val = 0
+		threads[2].wait.waitingOn = 0
+		threads[2].wait.cancelPending = 0
+		threads[2].wait.resumeRC = 104
+		threads[2].exc.ip = 1
+		threads[2].exc.status = 1
+		threads[2].exc.code = 0
+		threads[2].exc.sendPayload = 0
+		threads[2].exc.recvPayload = 0
+		threads[2].exc.connectArg = 1
+		threads[2].waitQueue.prev = 0
+		threads[2].waitQueue.next = 0
+		threads[3].stoppedFlag = 0
+		threads[3].ipc.serverLink = 0
+		threads[3].ipc.server = 0
+		threads[3].ipc.clientLink = 0
+		threads[3].ipc.client = 0
+		threads[3].ipc.flags = 0
+		threads[3].ipc.rendezvous = 8
+		threads[3].wait.blocked = 0
+		threads[3].wait.val = 0
+		threads[3].wait.waitingOn = 0
+		threads[3].wait.cancelPending = 0
+		threads[3].wait.resumeRC = 0
+		threads[3].exc.ip = 0
+		threads[3].exc.status = 0
+		threads[3].exc.code = 0
+		threads[3].exc.sendPayload = 0
+		threads[3].exc.recvPayload = 0
+		threads[3].exc.connectArg = 0
+		threads[3].waitQueue.prev = 0
+		threads[3].waitQueue.next = 0
+		WaitQueues[0].head = 0
+		WaitQueues[0].tail = 0
+		WaitQueues[1].head = 0
+		WaitQueues[1].tail = 0
+		WaitQueues[2].head = 0
+		WaitQueues[2].tail = 0
+		WaitQueues[3].head = 0
+		WaitQueues[3].tail = 0
+		WaitQueues[4].head = 0
+		WaitQueues[4].tail = 0
+		WaitQueues[5].head = 0
+		WaitQueues[5].tail = 0
+		WaitQueues[6].head = 0
+		WaitQueues[6].tail = 0
+		WaitQueues[7].head = 0
+		WaitQueues[7].tail = 0
+		waitStateMutexes[0].isLocked = 0
+		waitStateMutexes[1].isLocked = 1
+		waitStateMutexes[2].isLocked = 1
+		waitStateMutexes[3].isLocked = 0
+		ipcStateMutexes[0].isLocked = 0
+		ipcStateMutexes[1].isLocked = 0
+		ipcStateMutexes[2].isLocked = 0
+		ipcStateMutexes[3].isLocked = 0
+		rendezvousMutexes[0].isLocked = 0
+		rendezvousMutexes[1].isLocked = 0
+		rendezvousMutexes[2].isLocked = 0
+		rendezvousMutexes[3].isLocked = 0
+		sobMutexes[0].isLocked = 0
+		sobMutexes[1].isLocked = 1
+		sobMutexes[2].isLocked = 1
+		sobMutexes[3].isLocked = 0
+1348:	proc  6 (flukeKernelControl) line 474 "cancel" (state 453)
+1348:	proc  5 (flukeKernelControl) line 3025 "cancel" (state 3305)
+1348:	proc  4 (flukeKernelControl) line  69 "cancel" (state 6715)
+1348:	proc  3 (user_cancel_wacko) line 6143 "cancel" (state 19)
+1348:	proc  2 (user_server) line 6092 "cancel" (state 6)
+1348:	proc  1 (user_client) line 6114 "cancel" (state 8)
+1348:	proc  1 (:init:) line 6232 "cancel" (state 37)
+7 processes created

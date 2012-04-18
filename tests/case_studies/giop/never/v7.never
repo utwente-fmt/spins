@@ -1,0 +1,56 @@
+#define t	(usedReqId[0] != FREE)
+#define p	(GIOPClient[prid[3]]@ReplyRecvd && (reply_reqId == 0))
+
+	/*
+	 * Formula As Typed: []  (  ! t -> ( ( !p  U  t ) || [] !p ) )
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([]  (  ! t -> ( ( !p  U  t ) || [] !p ) ))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([]  (  ! t -> ( ( !p  U  t ) || [] !p ) )) */
+T0_init:
+	if
+	:: (! ((t)) && (p)) -> goto accept_S5
+	:: (! ((t)) && (p)) -> goto accept_all
+	:: (! ((t))) -> goto T0_S12
+	:: (! ((t)) && (p)) -> goto accept_S18
+	:: (1) -> goto T0_init
+	fi;
+accept_S5:
+	if
+	:: (! ((t))) -> goto T0_S5
+	:: (! ((t)) && (p)) -> goto accept_all
+	fi;
+accept_S18:
+	if
+	:: ((p)) -> goto accept_all
+	:: (1) -> goto T0_S18
+	fi;
+T0_S5:
+	if
+	:: (! ((t))) -> goto accept_S5
+	:: (! ((t)) && (p)) -> goto accept_all
+	fi;
+T0_S12:
+	if
+	:: (! ((t)) && (p)) -> goto accept_S5
+	:: (! ((t)) && (p)) -> goto accept_all
+	:: (! ((t))) -> goto T0_S12
+	:: (! ((t)) && (p)) -> goto accept_S18
+	fi;
+T0_S18:
+	if
+	:: ((p)) -> goto accept_all
+	:: (1) -> goto T0_S18
+	fi;
+accept_all:
+	skip
+}
+
+#ifdef NOTES
+Use Load to open a file or a template.
+#endif
+#ifdef RESULT
+
+#endif

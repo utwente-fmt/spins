@@ -1,0 +1,171 @@
+/* Definiciones de predicados para smcs*/
+
+#
+#if NODOS == 2
+
+#define merging_domain (merging[0] || merging[1])
+#define safe_domain (! merging_domain && (up[1] == 0))
+#define dos_tops           ((top[0] + top[1]) >= 20)
+
+#if NOTACION == LTL
+#define nuevo_cliente    (_last == 11 && client[_last]@end_client1 )
+#define attach_req       (_last == 11 && client[_last]@wait_userid )
+#endif
+#if NOTACION == OBS
+#define nuevo_cliente    (LAST == 12 && client[LAST]@end_client1 )
+#define attach_req       (LAST == 12 && client[LAST]@wait_userid )
+#endif
+
+#if NOTACION == LTL
+#define envia_pdin      ( (_last == 8 && domaind[_last]@plumb ) || \
+                          (_last == 10 && domaind[_last]@plumb ) )
+#define consume_pdin    ( (_last == 8 && domaind[_last]@recv_pdin ) || \
+                          (_last == 10 && domaind[_last]@recv_pdin )  )
+#endif
+#if NOTACION == OBS
+#define envia_pdin      ( (LAST == 9 && domaind[LAST]@plumb ) || \
+                          (LAST == 11 && domaind[LAST]@plumb ) )
+#define consume_pdin    ( (LAST == 9 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 11 && domaind[LAST]@recv_pdin ) )
+#endif
+
+#endif 
+#
+#if NODOS == 3
+#define merging_domain (merging[0] || merging[1] || merging[2])
+#define safe_domain (! merging_domain && (up[1] == 0 && up[2] == 1))
+#define dos_tops           ((top[0] + top[1] + top[2]) > 20)
+
+#if NOTACION == LTL
+#define nuevo_cliente    ((_last == 16 && client[_last]@end_client1 ) || \
+                          (_last == 17 && client[_last]@end_client1 ) )
+
+#define attach_req       ((_last == 16 && client[_last]@wait_userid ) || \
+                          (_last == 17 && client[_last]@wait_userid ) )
+#endif
+#if NOTACION == OBS
+#define nuevo_cliente    ((LAST == 17 && client[LAST]@end_client1 ) || \
+                          (LAST == 18 && client[LAST]@end_client1 ) )
+
+#define attach_req       ((LAST == 17 && client[LAST]@wait_userid ) || \
+                          (LAST == 18 && client[LAST]@wait_userid ) )
+
+#endif
+
+#if NOTACION == LTL
+#define envia_pdin      ( (_last == 11 && domaind[_last]@plumb ) || \
+                          (_last == 13 && domaind[_last]@plumb ) || \
+                          (_last == 15 && domaind[_last]@plumb ) )
+#define consume_pdin    ( (_last == 11 && domaind[_last]@recv_pdin ) || \
+                          (_last == 13 && domaind[_last]@recv_pdin ) || \
+                          (_last == 15 && domaind[_last]@recv_pdin ) )
+#endif
+#if NOTACION == OBS
+#define envia_pdin      ( (LAST == 12 && domaind[LAST]@plumb ) || \
+                          (LAST == 14 && domaind[LAST]@plumb ) || \
+                          (LAST == 16 && domaind[LAST]@plumb ) )
+#define consume_pdin    ( (LAST == 12 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 14 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 16 && domaind[LAST]@recv_pdin ) )
+#endif
+
+#endif 
+#
+#if NODOS == 4
+#define merging_domain (merging[0] || merging[1] || merging[2] || merging[3])
+#define safe_domain (! merging_domain && (up[1] == 0 && up[2] == 0 && up[1] == 0 && up[3] == 1))
+#define dos_tops           ((top[0] + top[1] + top[2] + top[3]) > 20)
+
+#if NOTACION == LTL
+#define nuevo_cliente    ((_last == 21 && client[_last]@end_client1 ) || \
+                          (_last == 22 && client[_last]@end_client1 ) )
+
+#define attach_req       ((_last == 21 && client[_last]@wait_userid ) || \
+                          (_last == 22 && client[_last]@wait_userid ) )
+
+#endif
+#if NOTACION == OBS
+#define nuevo_cliente    ((LAST == 22 && client[LAST]@end_client1 ) || \
+                          (LAST == 23 && client[LAST]@end_client1 ) )
+
+#define attach_req       ((LAST == 22 && client[LAST]@wait_userid ) || \
+                          (LAST == 23 && client[LAST]@wait_userid ) )
+
+#endif
+
+#if NOTACION == LTL
+#define envia_pdin      ( (_last == 14 && domaind[_last]@plumb ) || \
+                          (_last == 16 && domaind[_last]@plumb ) || \
+                          (_last == 18 && domaind[_last]@plumb ) || \
+                          (_last == 20 && domaind[_last]@plumb ) )
+#define consume_pdin    ( (_last == 14 && domaind[_last]@recv_pdin ) || \
+                          (_last == 16 && domaind[_last]@recv_pdin ) || \
+                          (_last == 18 && domaind[_last]@recv_pdin ) || \
+                          (_last == 20 && domaind[_last]@recv_pdin ) )
+#endif
+#if NOTACION == OBS
+#define envia_pdin      ( (LAST == 15 && domaind[LAST]@plumb ) || \
+                          (LAST == 17 && domaind[LAST]@plumb ) || \
+                          (LAST == 19 && domaind[LAST]@plumb ) || \
+                          (LAST == 21 && domaind[LAST]@plumb ) )
+#define consume_pdin    ( (LAST == 15 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 17 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 19 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 21 && domaind[LAST]@recv_pdin ) )
+#endif
+
+#endif 
+#
+#if NODOS == 5
+#define merging_domain (merging[0] || merging[1] || merging[2] || merging[3] || merging[4])
+#define safe_domain (! merging_domain && (up[1] == 0 && up[2] == 1 && \
+                                          up[3] == 2 && up[4] == 2))
+#define dos_tops           ((top[0] + top[1] + top[2] + top[3] + top[4]) > 20)
+#if NOTACION == LTL
+#define nuevo_cliente    ((_last == 26 && client[_last]@end_client1 ) || \
+                          (_last == 27 && client[_last]@end_client1 ) || \
+                          (_last == 28 && client[_last]@end_client1 ) )
+
+#define attach_req       ((_last == 26 && client[_last]@wait_userid ) || \
+                          (_last == 27 && client[_last]@wait_userid ) || \
+                          (_last == 28 && client[_last]@wait_userid ) )
+
+#endif
+#if NOTACION == OBS
+#define nuevo_cliente    ((LAST == 27 && client[LAST]@end_client1 ) || \
+                          (LAST == 28 && client[LAST]@end_client1 ) || \
+                          (LAST == 29 && client[LAST]@end_client1 ) )
+
+#define attach_req       ((LAST == 27 && client[LAST]@wait_userid ) || \
+                          (LAST == 28 && client[LAST]@wait_userid ) || \
+                          (LAST == 29 && client[LAST]@wait_userid ) )
+
+#endif
+
+#if NOTACION == LTL
+#define envia_pdin      ( (_last == 17 && domaind[_last]@plumb ) || \
+                          (_last == 19 && domaind[_last]@plumb ) || \
+                          (_last == 21 && domaind[_last]@plumb ) || \
+                          (_last == 23 && domaind[_last]@plumb ) || \
+                          (_last == 25 && domaind[_last]@plumb ) )
+#define consume_pdin    ( (_last == 17 && domaind[_last]@recv_pdin ) || \
+                          (_last == 19 && domaind[_last]@recv_pdin ) || \
+                          (_last == 21 && domaind[_last]@recv_pdin ) || \
+                          (_last == 23 && domaind[_last]@recv_pdin ) || \
+                          (_last == 25 && domaind[_last]@recv_pdin ) )
+#endif
+#if NOTACION == OBS
+#define envia_pdin      ( (LAST == 18 && domaind[LAST]@plumb ) || \
+                          (LAST == 20 && domaind[LAST]@plumb ) || \
+                          (LAST == 22 && domaind[LAST]@plumb ) || \
+                          (LAST == 24 && domaind[LAST]@plumb ) || \
+                          (LAST == 26 && domaind[LAST]@plumb ) )
+#define consume_pdin    ( (LAST == 18 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 20 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 22 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 24 && domaind[LAST]@recv_pdin ) || \
+                          (LAST == 26 && domaind[LAST]@recv_pdin ) )
+#endif
+
+#endif
+#

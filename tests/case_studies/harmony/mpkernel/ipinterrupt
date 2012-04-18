@@ -1,0 +1,55 @@
+/* 
+Harmony Validation
+File :              ipinterrupt
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 April 94
+Description :       
+- hardware fifo
+- inter processor interrupt handling
+- signal primitives
+- processor initialisation
++ reabstraction from complete kernel
+*/
+
+chan fifo[NB_PROC] = [FIFO_LENGTH] of {byte};
+
+#define _Signal_processor(id)\
+    fifo[processor[id]]!id
+
+#define _Block()\
+    _Redispatch(processor[_Active]) 
+
+#define _Block_signal_processor(id)\
+    fifo[processor[id]]!_Active;\
+    _Redispatch(processor[_Active]) 
+
+#include "tdservice"
+
+#define _IP_int(p)\
+  fifo[p]?candidate;\
+  lock(locked[p]);\
+  _Td_service(candidate);\
+  unlock(locked[p]);\
+  _Dispatch(p)
+
+proctype Int_handling(byte p)
+{ byte candidate,sender,receiver,id;
+
+end:
+  do
+  :: _IP_int(p)
+  od
+}
+
+#define Proc_init()\
+   p=0;\
+   do\
+   :: (p <  NB_PROC) ->\
+        locked[p]=FALSE;\
+        run Int_handling(p);\
+        p=p+1\
+   :: (p >= NB_PROC) ->\
+        break\
+   od\
+

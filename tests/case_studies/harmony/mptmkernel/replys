@@ -1,0 +1,37 @@
+/* 
+Harmony Validation
+File :              replys
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 7 Jul 94
+Description :       
+- msg emission in response to a msg reception
+*/
+
+#define _Replys(rid,rply_msg,id,pc)\
+     SEQI(pc+0,  _Disable())\
+  :: SEQI(pc+1,  correspondent[_Active]=id)\
+  :: SEQI(pc+2,  _Convert_to_td(replyee,id))\
+  :: COND(pc+3,  !replyee ||\
+                 (state[replyee]!=REPLY_BLOCKED) ||\
+                 (correspondent[replyee]!=_Active),\
+                 pc+4, pc+7)\
+  :: SEQI(pc+4,  _Enable())\
+  :: SEQI(pc+5,  rid = 0)\
+  :: GOTO(pc+6,  pc+30)\
+  :: SEQI(pc+7,  state[_Active] = COPYING_MSG)\
+  :: SEQI(pc+8,  _Enable())\
+  :: CAL2(pc+9,  _Copy_msg2s,rply_msg,replyee)\
+  :: SEQI(pc+19,  _Disable())\
+  :: COND(pc+20, (state[_Active]==ABORT_COPY_MSG),\
+                  pc+21,pc+25)\
+  :: SEQI(pc+21, state[_Active]=READY)\
+  :: SEQI(pc+22, _Enable())\
+  :: SEQI(pc+23, rid=0)\
+  :: GOTO(pc+24, pc+30)\
+  :: SEQI(pc+25, del_rply_q(_Active,replyee);state[_Active]=READY)\
+  :: SEQI(pc+26, state[replyee] = REPLYING)\
+  :: SEQI(pc+27, _Signal_processor(id))\
+  :: SEQI(pc+28, _Enable())\
+  :: SEQI(pc+29, rid=id)\
+  :: RETS(pc+30)

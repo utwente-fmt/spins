@@ -1,0 +1,53 @@
+% intro.tex - What we did and did not do, and a hint of why, with forward refs
+%------------------------------------------------------------------------------
+
+\section{Introduction}
+\label{intro}
+
+%%% Godmar/Pat draft 1:
+%%% McQ draft 1: 
+%%% Godmar revisions
+%%% McQ revisions
+%%% Godmar revisions 2 (mostly threw stuff out)
+
+Fluke is a microkernel implemented in an object-based spirit.
+Fluke operations are made available as methods on a collection of
+primitive {\it Fluke objects} such as threads, ports, memory regions,
+mutexes, condition variables, and others.  Fluke's high-level organizing
+pattern is that of {\em recursive virtual machines\/}
+or {\em nested processes\/}\cite{ford+:osdi96}. Nested processes  
+communicate via the low-level Fluke inter-thread communications facility, 
+called {\it Fluke IPC}, to provide a virtual machine abstraction.
+
+Fluke allows the kernel state of an object to be exported {\em at any time}
+\cite{Tullmann+:iwooos96}. This even holds for long-running kernel operations
+in which an object may be involved. Therefore, these operations must
+be decomposable into smaller units that leave each object in a
+consistent state which can be exported. A checkpointer may extract
+an object's state, pickle it and use the exported state to reconstruct
+and restart these objects at a later time.
+
+For instance, the Fluke IPC mechanism is designed to allow suspension 
+and resumption of long-lived IPC operations.  The operations are broken
+into smaller pieces. Objects enter and leave these smaller primitives
+in a consistent state. Since the Fluke thread objects of the participating
+threads are used to keep track of the IPC operation's progress, 
+these consistent states must be valid restart-points for these threads.
+
+Our work thus far has focused on model-checking the Fluke IPC subsystem,
+in particular the Fluke {\it reliable IPC} mechanism, which is the most
+complex, subtle and important of the three flavors of Fluke IPC.
+
+The achievements of this effort are threefold.  First, we have
+reverse-engineered a descriptive model of the Fluke IPC subsystem from
+the current C implementation.  Second, we used this descriptive 
+model to develop a checkable model of the reliable IPC subsystem in
+Promela \cite{Spin-book} which we present in sections \ref{ipc} and
+\ref{core}.  Lastly, we have begun evaluating the performance of this
+model under various realistic scenarios with encouraging results, as
+presented in section \ref{results}.  This section we also
+describe our experiences with SPIN and list some perceived shortcomings.
+We conclude with an evaluation of the prospects of using
+the SPIN model-checker as the basis for a larger-scale formal
+verification effort of the Fluke kernel.
+

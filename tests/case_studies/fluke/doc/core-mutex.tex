@@ -1,0 +1,44 @@
+\subsection{Mutex Model}
+\label{mutex-model}
+
+{\it Mutexes} are a mechanism for
+achieving mutual exclusion among a set of concurrently executing threads.  
+A mutex is an object that can be in one of two states, {\it locked} and 
+{\it unlocked}.  Mutex objects must support {\it lock} and {\it unlock},
+which move the mutex from the unlocked state to the locked state, and
+vice versa. Mutual exclusion is guaranteed since the lock and unlock
+operations are atomic and only one contender will successfully acquire
+the lock. Attempts to lock a mutex that is already locked by some 
+other thread will cause the calling thread to wait until the mutex is 
+unlocked.  
+
+\paragraph{Fluke {\tt mutex} Objects}
+
+The Fluke implementation of mutexes uses Fluke wait queues to keep track
+of threads waiting to acquire a particular mutex.
+
+\paragraph{The Promela {\tt Mutex} Type}
+
+Since Promela has builtin atomicity support via the {\tt atomic}
+and {\tt d_step} constructs, it was not necessary for us to build our
+model Mutexes on top of our model WaitQueues. 
+Rather, one bit is sufficient to represent the state of a mutex.
+We call Mutexes with one state bit {\it simple} mutexes. They are
+implemented in {\tt src/fluke/Mutex-simple.pr}.
+
+However, there are many useful properties that one may wish to verify
+about mutexes and how they are used by other code.  For example, it may
+be desirable to assert that the same thread that locked a mutex must unlock
+it. Also, we might wish to
+ensure that the {\it same} thread does not try to lock a mutex it already
+holds since this action would result in deadlock.  
+We have a second, more heavyweight,
+implementation of Promela Mutexes, called {\it safe} mutexes that address
+these concerns and aggressively make sanity assertions.  This implementation
+can be found in {\tt src/fluke/Mutex-safe.pr}.
+
+Both implementations of Promela Mutexes support the same set of functions.
+The intention is that {\tt Mutex-safe.pr} will be used to verify the
+appropriate use of Mutexes in a system, and then {\tt Mutex-simple.pr}
+will be substituted when the whole system is tested, to minimize state
+vector length.

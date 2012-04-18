@@ -1,0 +1,23 @@
+/* 
+Harmony Validation
+File :              processor
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 April 94
+Description :       
+- variables for each processor
+- interrupt masking
++ reabstraction from complete kernel
+*/
+
+bool locked[NB_PROC];
+
+#define Test_and_Set(l,t,v) atomic{(l==t)->l=v}
+#define lock(l)  Test_and_Set(l,FALSE,TRUE)
+#define unlock(l)  l=FALSE
+
+#define _Enable() \
+  unlock(locked[processor[_Active]])
+
+#define _Disable()\
+  lock(locked[processor[_Active]])

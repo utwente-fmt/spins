@@ -1,0 +1,746 @@
+#define r	(User[prid[6]]@NoException)
+#define s	(User[prid[6]]@URequestSent)
+#define p	(Server[prid[8]]@User6Processed1 || Server[prid[9]]@User6Processed1 || Server[prid[8]]@User6Processed2 || Server[prid[9]]@User6Processed2)
+
+	/*
+	 * Formula As Typed: [](<>r -> ([]((s && <>r) -> ( !r U p )) && [] (( s && <> r) -> (( !p && !r) U ( r || (( p &&  ! r) U ( r || ( ! p U r))))))))
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([](<>r -> ([]((s && <>r) -> ( !r U p )) && [] (( s && <> r) -> (( !p && !r) U ( r || (( p &&  ! r) U ( r || ( ! p U r)))))))))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([](<>r -> ([]((s && <>r) -> ( !r U p )) && [] (( s && <> r) -> (( !p && !r) U ( r || (( p &&  ! r) U ( r || ( ! p U r))))))))) */
+T0_init:
+	if
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5437
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S5436
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5582
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S5435
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5623
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5637
+	:: (((! ((p)) && ((r) && (s))) || (! ((r)) && ((p) && ((r) && (s)))))) -> goto accept_all
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6123
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S6527
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6328
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S6121
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6400
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S6399
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6427
+	:: (((! ((r)) && ((p) && ((r) && (s)))) || (! ((p)) && ((r) && (s))))) -> goto accept_S2
+	:: ((r)) -> goto T4_S6448
+	:: (! ((r)) && (s)) -> goto T0_S6123
+	:: (! ((r)) && (p) && (s)) -> goto T0_S6527
+	:: (! ((p)) && ! ((r)) && (s)) -> goto T0_S6328
+	:: (! ((p)) && ! ((r)) && (p) && (s)) -> goto T0_S6121
+	:: (! ((r)) && (p) && (s)) -> goto T0_S6400
+	:: (! ((r)) && (p) && (s)) -> goto T0_S6399
+	:: (! ((p)) && ! ((r)) && (p) && (s)) -> goto T0_S6427
+	:: (! ((p)) && ! ((r)) && (p) && (s)) -> goto T0_S2
+	:: (! ((p)) && (r) && (s)) -> goto accept_S6103
+	:: (! ((p)) && (r) && (s)) -> goto accept_S6496
+	:: ((r)) -> goto T2_S6503
+	:: (! ((p)) && (s)) -> goto T0_S6496
+	:: (1) -> goto T0_S6119
+	:: (1) -> goto T0_S6494
+	:: (1) -> goto T0_init
+	fi;
+accept_S280:
+	if
+	:: (! ((r))) -> goto T0_S5437
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S1864
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S280
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S5582
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto T0_S5637
+	:: (! ((r)) && (p)) -> goto T0_S5436
+	:: (! ((r)) && (p)) -> goto T0_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S5435
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+accept_S1864:
+	if
+	:: (! ((r))) -> goto T0_S1864
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S5637
+	:: (! ((r)) && (p)) -> goto T0_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+accept_S4031:
+	if
+	:: (! ((r)) && (r)) -> goto T0_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto T0_S1864
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5623
+	:: (! ((r))) -> goto T0_S4031
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S2
+	fi;
+accept_S5437:
+	if
+	:: (! ((r))) -> goto T0_S5437
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S1864
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S280
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S5582
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto T0_S5637
+	:: (! ((r)) && (p)) -> goto T0_S5436
+	:: (! ((r)) && (p)) -> goto T0_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S5435
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+accept_S5436:
+	if
+	:: (! ((r))) -> goto T0_S5437
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S1864
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S280
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S5582
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto T0_S5637
+	:: (! ((r)) && (p)) -> goto T0_S5436
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S5435
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+accept_S5582:
+	if
+	:: (! ((r))) -> goto T0_S5437
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S1864
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S5582
+	:: (! ((r)) && (p)) -> goto T0_S280
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto T0_S5637
+	:: (! ((r)) && (p)) -> goto T0_S5436
+	:: (! ((r)) && (p)) -> goto T0_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S5435
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+accept_S5435:
+	if
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S5582
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto T0_S5637
+	:: (! ((r)) && (p)) -> goto T0_S5436
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S5435
+	:: (! ((r))) -> goto T0_S5437
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+accept_S5623:
+	if
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S5637
+	:: (! ((r))) -> goto T0_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+accept_S5637:
+	if
+	:: (! ((r))) -> goto T0_S5637
+	:: (! ((r)) && (p)) -> goto accept_all
+	fi;
+accept_S6103:
+	if
+	:: (! ((p))) -> goto T0_S6103
+	:: (! ((p)) && (r)) -> goto accept_all
+	fi;
+accept_S6123:
+	if
+	:: (! ((r)) && (r)) -> goto T0_S5437
+	:: (! ((r)) && (r)) -> goto T0_S1864
+	:: (! ((r)) && (p) && (r)) -> goto T0_S280
+	:: (! ((r)) && (r)) -> goto T0_S5582
+	:: (! ((r)) && (r)) -> goto T0_S5637
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5623
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5436
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r))) -> goto T0_S6123
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S4031
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S6328
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S6527
+	:: (! ((r)) && (p)) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S6121
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S2
+	fi;
+accept_S6328:
+	if
+	:: (! ((r)) && (r)) -> goto T0_S5437
+	:: (! ((r)) && (r)) -> goto T0_S1864
+	:: (! ((r)) && (p) && (r)) -> goto T0_S280
+	:: (! ((r)) && (r)) -> goto T0_S5582
+	:: (! ((r)) && (r)) -> goto T0_S5637
+	:: (! ((r))) -> goto T0_S6123
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S4031
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S6328
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5436
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5435
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5623
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S6527
+	:: (! ((r)) && (p)) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S6121
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S2
+	fi;
+accept_S6121:
+	if
+	:: (! ((r)) && (r)) -> goto T0_S5437
+	:: (! ((r)) && (r)) -> goto T0_S5582
+	:: (! ((r)) && (r)) -> goto T0_S5637
+	:: (! ((r)) && (r)) -> goto T0_S5623
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5436
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S6527
+	:: (((! ((r)) && (r)) || (! ((r)) && (p)))) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S6121
+	:: (! ((r))) -> goto T0_S6123
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S6328
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S2
+	fi;
+accept_S6400:
+	if
+	:: (! ((r)) && (r)) -> goto T0_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto T0_S1864
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5623
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S6427
+	:: (! ((r))) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S2
+	fi;
+accept_S6399:
+	if
+	:: (! ((r)) && (r)) -> goto T0_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S6427
+	:: (! ((r))) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (! ((r)) && (r)) -> goto T0_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S2
+	fi;
+accept_S6427:
+	if
+	:: (! ((r)) && (r)) -> goto T0_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r))) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S2
+	fi;
+accept_S2:
+	if
+	:: ((r)) -> goto accept_all
+	:: (1) -> goto T0_S2
+	fi;
+accept_S6496:
+	if
+	:: (! ((p)) && (r)) -> goto accept_all
+	:: (! ((p)) && (r)) -> goto T0_S6103
+	:: (! ((p))) -> goto T0_S6496
+	:: (! ((p)) && (r)) -> goto T0_S2
+	fi;
+accept_S6527:
+	if
+	:: (! ((r)) && (r)) -> goto T0_S5437
+	:: (! ((r)) && (r)) -> goto T0_S1864
+	:: (! ((r)) && (p) && (r)) -> goto T0_S280
+	:: (! ((r)) && (r)) -> goto T0_S5582
+	:: (! ((r)) && (r)) -> goto T0_S5637
+	:: (! ((r)) && (r)) -> goto T0_S5623
+	:: (! ((r))) -> goto T0_S6123
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S4031
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto T0_S6328
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto T0_S6427
+	:: (! ((r)) && (p) && (r)) -> goto T0_S5436
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6527
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S6121
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto T0_S2
+	fi;
+T4_S4031:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5623
+	:: (! ((r))) -> goto T4_S4031
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r))) -> goto T4_S6427
+	:: (! ((r)) && (p)) -> goto T4_S6400
+	:: (! ((r)) && (p)) -> goto T4_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S2
+	fi;
+T4_S6123:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5437
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S280
+	:: (! ((r)) && (r)) -> goto accept_S5582
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5436
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r))) -> goto T4_S6123
+	:: (! ((r)) && (r)) -> goto accept_S6123
+	:: (! ((r)) && (r)) -> goto accept_S4031
+	:: (! ((r)) && (p)) -> goto T4_S4031
+	:: (! ((r)) && (r)) -> goto accept_S6328
+	:: (! ((p)) && ! ((r))) -> goto T4_S6328
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S6427
+	:: (! ((r)) && (p)) -> goto T4_S6527
+	:: (! ((r)) && (p)) -> goto T4_S6400
+	:: (! ((r)) && (p)) -> goto T4_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6121
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S6121
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S2
+	fi;
+T4_S6328:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5437
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S280
+	:: (! ((r)) && (r)) -> goto accept_S5582
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r))) -> goto T4_S6123
+	:: (! ((r)) && (r)) -> goto accept_S4031
+	:: (! ((r)) && (p)) -> goto T4_S4031
+	:: (! ((r)) && (r)) -> goto accept_S6328
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5436
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((p)) && ! ((r))) -> goto T4_S6328
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S6427
+	:: (! ((r)) && (p)) -> goto T4_S6527
+	:: (! ((r)) && (p)) -> goto T4_S6400
+	:: (! ((r)) && (p)) -> goto T4_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6121
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S6121
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S2
+	fi;
+T4_S6121:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5437
+	:: (! ((r)) && (r)) -> goto accept_S5582
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5436
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S6427
+	:: (! ((r)) && (p)) -> goto T4_S6527
+	:: (! ((r)) && (p)) -> goto T4_S6400
+	:: (! ((r)) && (p)) -> goto T4_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6121
+	:: (! ((r))) -> goto T4_S6123
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S6121
+	:: (! ((r)) && (r)) -> goto accept_S6328
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S2
+	:: (! ((p)) && ! ((r))) -> goto T4_S6328
+	:: (! ((r)) && (r)) -> goto accept_S6400
+	fi;
+T4_S6400:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r))) -> goto T4_S6427
+	:: (! ((r))) -> goto T4_S6400
+	:: (! ((r)) && (p)) -> goto T4_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S2
+	fi;
+T4_S6399:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r))) -> goto T4_S6427
+	:: (! ((r))) -> goto T4_S6400
+	:: (! ((r)) && (p)) -> goto T4_S6399
+	:: (! ((r)) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S2
+	fi;
+T4_S6427:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r))) -> goto T4_S6427
+	:: (! ((r)) && (p)) -> goto T4_S2
+	fi;
+T4_S2:
+	if
+	:: ((r)) -> goto accept_all
+	:: (1) -> goto T4_S2
+	fi;
+T4_S6448:
+	if
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5437
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S5436
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5582
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S5435
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5623
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_all
+	:: (! ((r)) && (s)) -> goto T4_S6123
+	:: (! ((r)) && (p) && (s)) -> goto T4_S6527
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6328
+	:: (! ((p)) && ! ((r)) && (s)) -> goto T4_S6328
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S6121
+	:: (! ((p)) && ! ((r)) && (p) && (s)) -> goto T4_S6121
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6400
+	:: (! ((r)) && (p) && (s)) -> goto T4_S6400
+	:: (! ((r)) && (p) && (s)) -> goto T4_S6399
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p) && (s)) -> goto T4_S6427
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p) && (s)) -> goto T4_S2
+	:: (1) -> goto T4_S6448
+	fi;
+T4_S6527:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5437
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S280
+	:: (! ((r)) && (r)) -> goto accept_S5582
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (r)) -> goto accept_S5623
+	:: (! ((r))) -> goto T4_S6123
+	:: (! ((r)) && (r)) -> goto accept_S6123
+	:: (! ((r)) && (r)) -> goto accept_S4031
+	:: (! ((r)) && (p)) -> goto T4_S4031
+	:: (! ((r)) && (r)) -> goto accept_S6328
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((p)) && ! ((r))) -> goto T4_S6328
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S6427
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5436
+	:: (! ((r)) && (r)) -> goto accept_S6400
+	:: (! ((r)) && (p)) -> goto T4_S6400
+	:: (! ((r)) && (p)) -> goto T4_S6527
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6527
+	:: (! ((r)) && (p)) -> goto T4_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6121
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S6121
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T4_S2
+	fi;
+T2_S6496:
+	if
+	:: (! ((p)) && (r)) -> goto accept_all
+	:: (! ((p)) && (r)) -> goto accept_S6103
+	:: (! ((p))) -> goto T2_S6496
+	:: (! ((p)) && (r)) -> goto accept_S2
+	fi;
+T2_S6503:
+	if
+	:: (! ((p)) && (r) && (s)) -> goto accept_S6103
+	:: (! ((p)) && (r) && (s)) -> goto accept_all
+	:: (! ((p)) && (s)) -> goto T2_S6496
+	:: (! ((p)) && (r) && (s)) -> goto accept_S2
+	:: (1) -> goto T2_S6503
+	fi;
+T0_S280:
+	if
+	:: (! ((r))) -> goto accept_S5437
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto accept_S1864
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_S280
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto accept_S5582
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto accept_S5637
+	:: (! ((r)) && (p)) -> goto accept_S5436
+	:: (! ((r)) && (p)) -> goto accept_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_S5435
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+T0_S1864:
+	if
+	:: (! ((r))) -> goto accept_S1864
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto accept_S5637
+	:: (! ((r)) && (p)) -> goto accept_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+T0_S4031:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5623
+	:: (! ((r))) -> goto T0_S4031
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r))) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S2
+	fi;
+T0_S5437:
+	if
+	:: (! ((r))) -> goto accept_S5437
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto accept_S1864
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_S280
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto accept_S5582
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto accept_S5637
+	:: (! ((r)) && (p)) -> goto accept_S5436
+	:: (! ((r)) && (p)) -> goto accept_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_S5435
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+T0_S5436:
+	if
+	:: (! ((r))) -> goto accept_S5437
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto accept_S1864
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_S280
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto accept_S5582
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto accept_S5637
+	:: (! ((r)) && (p)) -> goto accept_S5436
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto accept_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_S5435
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+T0_S5582:
+	if
+	:: (! ((r))) -> goto accept_S5437
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto accept_S1864
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto accept_S5582
+	:: (! ((r)) && (p)) -> goto accept_S280
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto accept_S5637
+	:: (! ((r)) && (p)) -> goto accept_S5436
+	:: (! ((r)) && (p)) -> goto accept_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_S5435
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+T0_S5435:
+	if
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto accept_S5582
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && (r)))) -> goto accept_S5637
+	:: (! ((r)) && (p)) -> goto accept_S5436
+	:: (((! ((r)) && (p)) || (! ((r)) && (r)))) -> goto accept_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_S5435
+	:: (! ((r))) -> goto accept_S5437
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+T0_S5623:
+	if
+	:: (((! ((p)) && ! ((r))) || (! ((r)) && (r)))) -> goto accept_S5637
+	:: (! ((r))) -> goto accept_S5623
+	:: (((! ((p)) && (! ((r)) && (p))) || (! ((r)) && ((p) && (r))))) -> goto accept_all
+	fi;
+T0_S5637:
+	if
+	:: (! ((r))) -> goto accept_S5637
+	:: (! ((r)) && (p)) -> goto accept_all
+	fi;
+T0_S6103:
+	if
+	:: (! ((p))) -> goto accept_S6103
+	:: (! ((p)) && (r)) -> goto accept_all
+	fi;
+T0_S6123:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5437
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S280
+	:: (! ((r)) && (r)) -> goto accept_S5582
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5436
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r))) -> goto T0_S6123
+	:: (! ((r)) && (r)) -> goto accept_S6123
+	:: (! ((r)) && (r)) -> goto accept_S4031
+	:: (! ((r)) && (p)) -> goto T0_S4031
+	:: (! ((r)) && (r)) -> goto accept_S6328
+	:: (! ((p)) && ! ((r))) -> goto T0_S6328
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S6527
+	:: (! ((r)) && (p)) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6121
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S6121
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S2
+	fi;
+T0_S6328:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5437
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S280
+	:: (! ((r)) && (r)) -> goto accept_S5582
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r))) -> goto T0_S6123
+	:: (! ((r)) && (r)) -> goto accept_S4031
+	:: (! ((r)) && (p)) -> goto T0_S4031
+	:: (! ((r)) && (r)) -> goto accept_S6328
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5436
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((p)) && ! ((r))) -> goto T0_S6328
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S6527
+	:: (! ((r)) && (p)) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6121
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S6121
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S2
+	fi;
+T0_S6121:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5437
+	:: (! ((r)) && (r)) -> goto accept_S5582
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5436
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S6527
+	:: (! ((r)) && (p)) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6121
+	:: (! ((r))) -> goto T0_S6123
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S6121
+	:: (! ((r)) && (r)) -> goto accept_S6328
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S2
+	:: (! ((p)) && ! ((r))) -> goto T0_S6328
+	:: (! ((r)) && (r)) -> goto accept_S6400
+	fi;
+T0_S6400:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r))) -> goto T0_S6427
+	:: (! ((r))) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S2
+	fi;
+T0_S6399:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r))) -> goto T0_S6427
+	:: (! ((r))) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (! ((r)) && (r)) -> goto accept_S5623
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S2
+	fi;
+T0_S6427:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((r))) -> goto T0_S6427
+	:: (! ((r)) && (p)) -> goto T0_S2
+	fi;
+T0_S2:
+	if
+	:: ((r)) -> goto accept_all
+	:: (1) -> goto T0_S2
+	fi;
+T0_S6119:
+	if
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5437
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S5436
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5582
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S5435
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5623
+	:: (! ((r)) && (r) && (s)) -> goto accept_S5637
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_all
+	:: (! ((r)) && (s)) -> goto T0_S6123
+	:: (! ((r)) && (p) && (s)) -> goto T0_S6527
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6328
+	:: (! ((p)) && ! ((r)) && (s)) -> goto T0_S6328
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S6121
+	:: (! ((p)) && ! ((r)) && (p) && (s)) -> goto T0_S6121
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6400
+	:: (! ((r)) && (p) && (s)) -> goto T0_S6400
+	:: (! ((r)) && (p) && (s)) -> goto T0_S6399
+	:: (! ((r)) && (r) && (s)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p) && (s)) -> goto T0_S6427
+	:: (! ((r)) && (p) && (r) && (s)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p) && (s)) -> goto T0_S2
+	:: (1) -> goto T0_S6119
+	:: ((r)) -> goto T4_S6448
+	fi;
+T0_S6496:
+	if
+	:: (! ((p)) && (r)) -> goto accept_all
+	:: (! ((p)) && (r)) -> goto accept_S6103
+	:: (! ((p))) -> goto T0_S6496
+	:: (! ((p)) && (r)) -> goto accept_S2
+	fi;
+T0_S6494:
+	if
+	:: (! ((p)) && (r) && (s)) -> goto accept_S6103
+	:: (! ((p)) && (r) && (s)) -> goto accept_all
+	:: (! ((p)) && (s)) -> goto T0_S6496
+	:: (! ((p)) && (r) && (s)) -> goto accept_S2
+	:: (1) -> goto T0_S6494
+	:: ((r)) -> goto T2_S6503
+	fi;
+T0_S6527:
+	if
+	:: (! ((r)) && (r)) -> goto accept_S5437
+	:: (! ((r)) && (r)) -> goto accept_S1864
+	:: (! ((r)) && (p) && (r)) -> goto accept_S280
+	:: (! ((r)) && (r)) -> goto accept_S5582
+	:: (! ((r)) && (r)) -> goto accept_S5637
+	:: (! ((r)) && (r)) -> goto accept_S5623
+	:: (! ((r))) -> goto T0_S6123
+	:: (! ((r)) && (r)) -> goto accept_S6123
+	:: (! ((r)) && (r)) -> goto accept_S4031
+	:: (! ((r)) && (p)) -> goto T0_S4031
+	:: (! ((r)) && (r)) -> goto accept_S6328
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5435
+	:: (! ((r)) && (p) && (r)) -> goto accept_all
+	:: (! ((p)) && ! ((r))) -> goto T0_S6328
+	:: (! ((r)) && (r)) -> goto accept_S6427
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S6427
+	:: (! ((r)) && (p) && (r)) -> goto accept_S5436
+	:: (! ((r)) && (r)) -> goto accept_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6400
+	:: (! ((r)) && (p)) -> goto T0_S6527
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6527
+	:: (! ((r)) && (p)) -> goto T0_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6399
+	:: (! ((r)) && (p) && (r)) -> goto accept_S6121
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S6121
+	:: (! ((r)) && (p) && (r)) -> goto accept_S2
+	:: (! ((p)) && ! ((r)) && (p)) -> goto T0_S2
+	fi;
+accept_all:
+	skip
+}
+
+#ifdef NOTES
+This is the full formula including both the existence and bounded existence pattern along with
+the initial implication.
+#endif
+#ifdef RESULT
+
+#endif

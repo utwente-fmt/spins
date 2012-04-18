@@ -1,0 +1,16 @@
+
+chan rv = [0] of { byte };
+chan nrv = [1] of { byte };
+
+
+proctype test() {
+    if
+        :: full(rv) -> assert(false);
+        else; skip
+    fi;
+}
+
+init {
+  run test();
+   int f = 1; 
+}

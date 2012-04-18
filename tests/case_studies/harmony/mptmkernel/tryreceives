@@ -1,0 +1,50 @@
+/* 
+Harmony Validation
+File :              tryreceives
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 22 Jun 94
+Description :       
+- non blocking msg reception
+*/
+
+#define _Try_receives(rid,rqst_msg,id,pc)\
+     COND(pc+0,  id,\
+                 pc+1,pc+24)\
+ /* Try receive specific */\
+  :: SEQI(pc+1,  _Disable())\
+  :: SEQI(pc+2,  correspondent[_Active] = id)\
+  :: SEQI(pc+3,  _Convert_to_td(sender,correspondent[_Active]))\
+  :: COND(pc+4,  !sender ||\
+                 (state[sender]!=SEND_BLOCKED) ||\
+                 (correspondent[sender]!=_Active),\
+                 pc+5,pc+8)\
+  :: SEQI(pc+5,  _Enable())\
+  :: SEQI(pc+6,  rid = 0)\
+  :: GOTO(pc+7,  pc+48)\
+  :: SEQI(pc+8,  state[sender] = REPLY_BLOCKED)\
+  :: SEQI(pc+9,  state[_Active] = COPYING_MSG)\
+  :: SEQI(pc+10, _Enable())\
+  :: CAL2(pc+11, _Copy_msg1s,sender,rqst_msg)\
+  :: SEQI(pc+21, state[_Active] = READY)\
+  :: SEQI(pc+22, rid=correspondent[_Active])\
+  :: GOTO(pc+23, pc+48)\
+ /* Try receive any */\
+  :: SEQI(pc+24, _Disable())\
+  :: COND(pc+25, empty_send_q(_Active),\
+                 pc+26,pc+29)\
+  :: SEQI(pc+26, _Enable())\
+  :: SEQI(pc+27, rid=0)\
+  :: GOTO(pc+28, pc+48)\
+  :: SEQI(pc+29, hdel_send_q(_Active,sender))\
+  :: SEQI(pc+30, tins_rply_q(_Active,sender))\
+  :: SEQI(pc+31, state[sender] = REPLY_BLOCKED)\
+  :: SEQI(pc+32, correspondent[_Active]=sender)\
+  :: SEQI(pc+33, state[_Active] = COPYING_MSG)\
+  :: SEQI(pc+34, _Enable())\
+  :: CAL2(pc+35, _Copy_msg1s,sender,rqst_msg)\
+  :: COND(pc+45, (state[_Active]==ABORT_COPY_MSG),\
+                 pc+24, pc+46)\
+  :: SEQI(pc+46, state[_Active] = READY)\
+  :: SEQI(pc+47, rid = correspondent[_Active])\
+  :: RETS(pc+48)

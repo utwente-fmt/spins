@@ -1,0 +1,175 @@
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% CS 611 Progress Report
+%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Document setup info
+\documentstyle{article}
+     
+%%%%%%%
+%%%%%%% Some standard \def's 
+
+% We don't need no steenkin' equations - just gimme a working underscore!
+\catcode`\_=\active 
+
+\long\def\com#1{}
+\long\def\xxx#1{{\em {\bf Fix: } #1}}
+
+%%%%%%%
+%%%%%%%
+
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0.3in  
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6in
+
+%% Heh.. Not sure what this does... but it allows me to include postscript(?)
+%\input{psfig}
+
+\title{\bf \Large Fluke IPC Verification Progress Report}
+
+\author{Ajay Chitturi~~~~John McCorquodale~~~~Patrick Tullmann~~~~\\
+	Jeff Turner~~~~Godmar Back \\[2ex]
+	{\tt veripc@jensen.cs.utah.edu}
+	}
+
+\date{November 12, 1996}
+
+%BEGIN DOCUMENT--------------------
+\begin{document}
+
+%HEADER
+\maketitle
+
+%%%%%%% 
+\section*{Project Outline}
+
+We proposed to model Fluke reliable Interprocess Communication (IPC)
+and verify that under normal execution the threads involved
+will not deadlock.  In addition, we will verify that any IPC can be canceled
+at arbitrary points, without leaving the threads involved deadlocked
+or lost.  We will also generate a descriptive formal model of the IPC
+implementation in Fluke and the objects related to it.
+
+\section*{Status}
+
+\subsection*{Clarified Direction}
+
+We have clarified the goals of the project.  We have defined
+what we will model in Promela, and how.
+
+We will simulate kernel threads, mutexes, wait queues, and condition
+variables.  Threads both represent the flow of control through the
+kernel code and are objects that encapsulate the state of the thread.
+Mutexes are the kernel mechanism for mutual exclusion.  Wait queues
+are an abstraction for creating lists of threads that are waiting for
+an event.  All threads, the first thread, or a specific thread can be
+awoken (and removed) from a wait queue.  Condition variables are an
+abstraction on top of wait queues.
+
+This is the full extent of low-level kernel objects that are utilized
+in in the kernel IPC code path.  Other kernel supported objects are
+either tangential or irrelevant.  We have decided to exclude port and
+port set objects, they are used so that one thread may {\em find}
+another thread to communicate with.  We are only concerned with the
+communication itself;  there is still a great deal of setup that
+goes on once two threads have a handle on each other, which will
+probably simulate, but we will just give thread handles directly. 
+
+To give a feel for how the kernel handles IPC operations, we will look
+at the {\tt sys_ipc_client_send()} operation which sends some data to
+the thread's current server.  It does not reverse the direction of the
+half-duplex channel (so the thread may do multiple sends before
+awakening the server.)
+
+First, the client ``refreshes'' its handle to the server (in the
+common case, this is not necessary.)  Then it ``captures'' the server
+thread; if the server is in the required state (waiting to receive,)
+the transfer of data is made.  Barring any page faults during the
+transfer, the client then puts the server back into the 
+waiting-to-receive state (so it can transfer more data.)  Note that
+during this whole operation, the server thread was never actually awoken.
+
+\subsection*{Current Project Status}
+
+\subsubsection*{Completed Work}
+
+We completed an analysis of kernel source, looking for which 
+objects and abstractions are used in the IPC path, and trying
+to gain an understanding of the issues and workings of the code.
+We generated html cross-references of the source tree with some
+freely available tools.  This greatly aided our understanding
+of the interdependencies of the code.
+
+We all have gained a solid understanding of the C code that
+is relevant to the IPC path, and have implemented many of
+the basic abstractions that the IPC code is implemented with.
+We have detailed the requirements and some implementation details of
+all of the low-level abstractions.  See the attached ``Simulation
+Specification'' for more details.  The decision on modeling threads
+is, we think, the most interesting.
+
+We have documented many of the kernel internal support functions,
+constants, and idiosyncracies.  See the attached ``IPC Support
+Specification'' for more details.
+
+\subsubsection*{Work in progress}
+
+We are currently working on implementing and testing the low-level
+abstractions.  Mutexes are complete and tested;  Wait queues need
+some testing; condition variables are under way.  The thread objects
+are well thought-out, but we haven't started implementation.
+
+One of the core kernel files where much of the interesting
+inter-thread communication is captured, {\tt wait.c} is being
+``translated'' to Promela.  This is providing a wealth of information
+and letting us see what issues we will face in translating the Fluke
+kernel source.
+
+All of our work is in the Flux project CVS tree.  You can look at
+our source tree in {\tt ~tullmann/class/cs611/verify/}.   Or,
+a ``cvs checkout verify'' will check the tree out of the Flux root CVS
+tree.
+
+\section*{Remaining Work}
+
+\begin{enumerate}
+\item Complete testing of low-level abstractions.  The thread state
+and control objects must be implemented first, then the wait queues
+can be implemented on top of that.  Condtion variables will come after
+that.  These components should all be testable on their own.
+
+\item Finalize design issues in Promela implementation.  Specificially,
+handling exceptional return codes, temporary variables (naming
+issues), conventions for naming accessor functions, etc.  There are a
+lot of issues that arise only because of deficiencies in Promela.
+Most striking is the lack of ``functions.''
+
+\item Finalize design of user-level ``drivers'' for test cases.  We
+have a rough idea of how we will generate test cases for the IPC
+operations, this will need to be worked out.
+
+\item Implement lots of Promela.  We have a lot of C code that needs
+to be effectively translated into Promela.  A lot of work has gone
+into supporting the same abstractions as the C code, so the
+translation should be straightforward (baring the problems outlined in
+the previous item.
+
+\item Scale back, tweak, bug fix.  As more and more of the system
+runs, we will find out what is feasible (in terms of memory usage,
+etc.) and what is not.
+\end{enumerate}
+
+We have a lot of momentum now.  We all understand the basics of the
+kernel code, and the thread interactions.  We have a good set of base
+abstractions to build on, and we've thought of many of the issues
+involved.  We think that by the end of the week we will have all of
+the abstractions implemented and tested, and a good start on the IPC
+control code path implemented.
+
+\end{document}

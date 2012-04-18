@@ -1,0 +1,65 @@
+\subsection{Port and Port Set Models}
+
+Ports are Fluke objects representing targets for IPC requests.
+Ports might represent CORBA or MOM objects, for example,
+or in Fluke implementations implementing full protection,
+they may be used as secure capabilities.
+A single server may maintain a number of ports,
+each distinguishing a particular object, client,
+or object/client pair.
+
+Port sets are objects that act as a rendezvous point
+between client threads attempting to perform IPC to a port
+and server threads waiting for incoming IPC requests on one or more ports.
+Multiple ports can be attached to a single port set,
+and multiple server threads can wait for incoming requests
+on a single port set at once.
+This allows a single ``pool'' of service threads
+to service incoming IPC requests from many ports
+(i.e. requests associated with many ``objects'' the server exports).
+
+Our model assumes that threads to connect
+to for IPC have been ``found'' (the purpose of ports, port sets, and
+references). Thus, models of ports or port sets were not
+implemented in detail.  The only relevant interfaces used are 
+{\tt s_pset_wait_receive()} by servers and {\tt s_port_capture()} by
+clients.  The semantics of these operations have been distilled from
+the C code.  
+
+% This stuff below has to be made more clear
+\com{
+Specifically, a thread will block if its ``other half''
+hasn't arrived yet.  It will check its cancel pending bit before
+blocking.  It will block on a condition variable, in the WAIT_ON_COND
+wait state.  When it is awoken it will, by default, return a
+KR_RESTART code to its caller.  Additionally, the server thread {\em
+always} blocks.  If it arrives and a client is waiting for it, then it
+will awaken the client and then block.  In this way it is implied that
+the client has the server ``captured'' when it returns from 
+{\tt s_port_capture().}}
+
+In our Promela implementation, we model these two functions to implement
+the interface and make use of as little state as possible. The
+rendezvous point is actually implemented as a bit in the server's
+state. If the rendezvous bit is set, it means that either the client
+or the server is waiting for a connection.
+So when a client wants to connect to a server, it checks the
+rendezvous bit to see if the server is waiting for a connection. If
+the server is waiting, the server is captured and the connection
+is made. If the server is not waiting for a connection, the client
+sets the rendezvous 
+bit and waits for the server to notice it. When a server is waiting
+for an IPC  connection, it checks the rendezvous bit and if a client
+is waiting, it makes the connection with the client. Otherwise the
+server sets the rendezvous bit and waits for the client. In either
+case the server blocks and is captured by the client which eventually
+establishes a connection with this server.
+
+% Do we need to say something about the non-cancelability of the wait 
+% out here ?
+
+It is interesting to note that the majority of the bugs in our model
+came through this interface.  Since we strayed from the actual
+implementation of the ports we missed subtle nuances like the server
+always being blocked, etc. 
+

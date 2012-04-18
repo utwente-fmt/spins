@@ -1,0 +1,85 @@
+#define r0 (gTag == prid[6] && (Server[prid[8]]@UserProcessed1 || Server[prid[8]]@UserProcessed2))
+#define r1 (gTag == prid[7] && (Server[prid[8]]@UserProcessed1 || Server[prid[8]]@UserProcessed2))
+#define i0 (User[prid[6]]@URequestSent)
+#define i1 (User[prid[7]]@URequestSent)
+
+	/*
+	 * Formula As Typed: []  (( i0 && i1 && <> r0) ->  ( ! r1 U r0))
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([]  (( i0 && i1 && <> r0) ->  ( ! r1 U r0)))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([]  (( i0 && i1 && <> r0) ->  ( ! r1 U r0))) */
+T0_init:
+	if
+	:: (! ((r0)) && (i0) && (i1) && (r0)) -> goto accept_S11
+	:: (! ((r0)) && (i0) && (i1) && (r0) && (r1)) -> goto accept_all
+	:: (! ((r0)) && (i0) && (i1)) -> goto T0_S14
+	:: (! ((r0)) && (i0) && (i1) && (r1)) -> goto T0_S2
+	:: (1) -> goto T0_init
+	fi;
+accept_S11:
+	if
+	:: (! ((r0))) -> goto T0_S11
+	:: (! ((r0)) && (r1)) -> goto accept_all
+	fi;
+T0_S11:
+	if
+	:: (! ((r0))) -> goto accept_S11
+	:: (! ((r0)) && (r1)) -> goto accept_all
+	fi;
+T0_S14:
+	if
+	:: (! ((r0)) && (r0)) -> goto accept_S11
+	:: (! ((r0)) && (r0) && (r1)) -> goto accept_all
+	:: (! ((r0))) -> goto T0_S14
+	:: (! ((r0)) && (r1)) -> goto T0_S2
+	fi;
+T0_S2:
+	if
+	:: ((r0)) -> goto accept_all
+	:: (1) -> goto T0_S2
+	fi;
+accept_all:
+	skip
+}
+
+#ifdef NOTES
+
+
+#endif
+#ifdef RESULT
+warning: for p.o. reduction to be valid the never claim must be stutter-closed
+(never claims generated from LTL formulae are stutter-closed)
+Depth=     782 States=   1e+06 Transitions= 1.45474e+06 Memory= 42.593
+(Spin Version 3.2.2 -- 20 July 1998)
+Warning: Search not completed
+	+ Partial Order Reduction
+
+Bit statespace search for:
+	never-claim         	+
+	assertion violations	+ (if within scope of claim)
+	acceptance   cycles 	+ (fairness disabled)
+	invalid endstates	- (disabled by never-claim)
+
+State-vector 668 byte, depth reached 782, errors: 0
+1.34743e+06 states, stored
+  627595 states, matched
+1.97502e+06 transitions (= stored+matched)
+      87 atomic steps
+hash factor: 49.8051 (expected coverage: >= 98% on avg.)
+(max size 2^26 states)
+
+Stats on memory usage (in Megabytes):
+916.251	equivalent memory usage for states (stored*(State-vector + overhead))
+8.389 	memory used for hash-array (-w26)
+0.240 	memory used for DFS stack (-m10000)
+42.593	total actual memory usage
+
+
+real     4:38.3
+user     4:35.5
+sys         0.3
+
+#endif

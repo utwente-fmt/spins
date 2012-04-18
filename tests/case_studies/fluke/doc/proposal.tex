@@ -1,0 +1,453 @@
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Patrick Tullmann, John McCorquodale, Ajay Chitturi,
+% Jeff Turner, and Godmar Back
+%
+% Fluke Verification Project
+%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Document setup info
+\documentclass{article}
+\usepackage{times}
+     
+%%%%%%%
+%%%%%%% Some standard \def's 
+
+\long\def\com#1{}
+\long\def\xxx#1{{\em {\bf Fix: } #1}}
+
+% We don't need no steenkin' equations - just gimme a working underscore!
+\catcode`\_=\active 
+
+\def\psinc(#1,#2)#3{
+\setlength{\unitlength}{1in}
+{\unitlength =1pt
+\centering\begin{picture}(#1,#2)
+\put(0,0){\special{psfile=#3.eps}}
+\end{picture}}}
+
+\def\psfig(#1,#2)#3#4{
+\begin{figure}[t] % XXX fix this, don't want at top
+\psinc(#1,#2){#3}
+\caption{\footnotesize #4}
+\label{#3}
+\end{figure}}
+
+%%%%%%%
+%%%%%%%
+
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0.3in  
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6in
+
+%% I'm going to try to structure this like a paper, to 
+%% minimize re-writing if things go well and this becomes
+%% a real paper.
+
+\title{\Large Verifying the Fluke $\mu$kernel IPC path}
+
+\author{Ajay Chitturi~~~~John McCorquodale~~~~Patrick Tullmann~~~~\\
+	Jeff Turner~~~~Godmar Back \\[2ex]
+	{\sc CS 611--Formal Methods for System Design}
+	}
+
+%\date{October 14, 1996}
+\date{November 12, 1996}
+
+%BEGIN DOCUMENT--------------------
+\begin{document}
+
+\maketitle
+
+{\it We propose to model Fluke reliable Interprocess Communication (IPC)
+and verify 
+first, that under normal execution the threads involved
+will not deadlock.  Also, we will verify
+that any IPC can be canceled at arbitrary points, without
+leaving the threads involved deadlocked or lost.
+We will also generate a descriptive formal model of the IPC
+implementation in Fluke and the objects related to it.
+}
+
+\section*{Introduction}
+
+Fluke~\cite{Flukedocs:96} is a microkernel in the tradition of Mach, QNX, and KeyKOS.
+Internally, most operations in fluke are implemented as operations
+on distinct kernel objects.  For example, in an IPC 
+operation between two threads (client \& sever), when  
+the client decides to send some data to the server it will
+find the server thread kernel object, lock part of it, 
+copy the data, adjust state in the server object to 
+reflect the copied state, and then restart the server
+on its way.
+
+%% XXX this is _way_ too detailed.
+
+One of the key properties of Fluke is that the state of all
+kernel-mediated objects is extractable at any time.  This
+extracted state is guaranteed to be consistent, requiring
+that all operations on these objects appear to be atomic.
+The kernel accomplishes this by cleanly ``rolling back''
+non-atomic operations that get interrupted.
+
+% XXX Flesh this example out more, make it real.
+For example, a thread in Fluke may attempt to acquire the
+``state'' of another thread (the current register values,
+communication connection information, etc.)  This action
+implicitly stops the targeted thread, and extracts the
+required information.  
+If the target thread is involved in a complex operation
+(i.e. a large IPC data transfer,) the kernel may
+have arbitrary internal state to keep track of the
+transfer.  Instead of trying to store this arbitrary state
+in the thread, it can roll the operation back to a ``clean''
+point in the execution.  
+At this point, the state can be taken and given to the
+requesting thread.
+
+\section*{Related Work}
+
+\subsubsection*{Cancelable IPC operations}
+
+The fact that Fluke claims to be able to cancel IPC operations at any
+arbitrary point is non-trivial. 
+In Mach, certain IPC operations are not cancelable at arbitrary points
+(despite hard work to the contrary).  In Mach, a message send containing
+multi-page out-of-line data cannot be interrupted and safely restarted.  
+Amoeba has similar restrictions.   
+
+\subsubsection*{Modeling Operating Systems in Promela}
+
+The Harmony operating system is a ``portable real-time multitasking
+multiprocessor operating system'', developed by the Canadian National
+Research Council in the 1980's and early 1990's.  It is
+microkernel-based, and provides interrupt management, scheduling, IPC,
+memory management, and I/O management~\cite{Harmony-verify}.
+
+The Harmony verification effort performed an exhaustive verification
+of the IPC features of Harmony, focusing on deadlock and livelock.
+The Harmony effort is similar to our own in that they developed their
+detailed models through study of the Harmony code, resulting in very
+low-level models that accurately reflect the details of the kernel.
+
+We will be able to use many of the lessons learned from the Harmony
+effort.  For example, they concluded that an abstract model was not
+particularly useful, because there was not enough detail to prove 
+absence of deadlock.  The paper also contains several tips for
+managing the state space problem.  
+
+\com{
+Our effort differs from that of the Harmony modeling in the extent to
+which we model the interaction of the IPC system with other parts of
+the Fluke kernel.  In particular, instead of a complete model of the
+IPC subsystem, we choose only one of the types of IPC, and examine the
+guarantees that can be made about operations on thread objects.
+}
+
+The RUBIS operating system is another microkernel-based operating
+system, developed by a company called TELEMAT in Switzerland.  The
+paper~\cite{RUBIS-verify} 
+claims to have performed an exhaustive verification of the IPC
+features of RUBIS.  However, they are vague about what
+properties are actually verified (e.g., ``Different kinds of errors
+have been detected''), and the claim is not substantiated.
+
+\com{
+As with the Harmony effort, our project differs from the RUBIS
+verification in that we intend to do more than just prove that there
+are no errors in the IPC system.
+}
+
+It is important to note that both of these efforts used Promela and
+SPIN to model their system.
+
+\section*{Fluke Interprocess Communication}
+
+This section gives the basics of the reliable Fluke IPC mechanism.
+Two other forms of IPC in Fluke, One-way and Idempotent, are
+described in the glossary.
+
+{\em Reliable IPC} is the mechanism Fluke provides
+for general, high-performance, reliable, protected communication.
+Reliable IPC in Fluke operates in a stream-oriented model,
+in which two threads connect to each other directly
+and can send data to each other as if through a pipe.
+These connections are symmetrical but half-duplex,
+meaning that data can only flow in one direction at a time.
+However, the direction of data flow can be reversed
+without destroying the connection.
+
+Any Fluke thread can be involved in two reliable IPC connections at once:
+any thread may have both a connection to a {\em client} thread,
+or a thread that ``called'' it (its {\em caller}),
+as well as a connection to a {\em server} thread,
+or a thread that it has ``called'' (its {\em callee}).
+\com{
+These two connections are typically used to form a chain of threads
+representing a {\em call stack}.
+When a thread makes an invocation to a server,
+the server thread is added to the top of the call stack;
+when the server thread completes its work and breaks the connection,
+it is removed once again from the call stack.
+}
+
+Either side of a reliable IPC connection
+may be held up arbitrarily long while waiting for the other side.
+%e.g. because of page faults in the other task that need to be handled.
+Thus, there are no guarantees regarding the ``promptness''
+with which a server thread can perform its work and disconnect;
+the server thread is essentially dedicated to a particular client thread
+for the duration of the IPC operation.
+
+There are two objects supported by the Fluke kernel 
+which are used to establish IPC connections, {\bf Ports}
+and {\bf Port Sets}.
+
+Ports are Fluke objects representing targets for IPC requests.
+Ports might represent CORBA or MOM objects, for example,
+or in Fluke implementations implementing full protection,
+they may be used as secure capabilities.
+A single server may maintain a number of ports,
+each distinguishing a particular object, client,
+or object/client pair.
+
+Port sets are objects that act as a rendezvous point
+between client threads attempting to perform IPC to a port
+and server threads waiting for incoming IPC requests on one or more ports.
+Multiple ports can be attached to a single port set,
+and multiple server threads can wait for incoming requests
+on a single port set at once.
+This allows a single ``pool'' of service threads
+to service incoming IPC requests from many ports
+(i.e. requests associated with many ``objects'' the server exports).
+
+Note that our model assumes that threads to connect to for IPC
+have been ``found'' (the purpose of ports, port sets, and references).
+Thus, we will not be implementing models of ports or port sets.
+
+\section*{Modeling}
+
+To accurately model the Fluke IPC implementation we propose
+to develop Promela code that will follow Fluke's {\em implementation}
+of IPC. 
+
+The Fluke implementation is decomposed into layers and
+objects.  Layers start from the user-level kernel interface and
+proceed downward to more and more machine-oriented interfaces.
+The objects encapsulate implementation details and provide
+interfaces at the various layers.  This clean code layout
+should make our job much simpler.
+
+There are several ``primitive'' objects that are used
+extensively throughout the IPC implementation.  
+We plan to model and test each independent of the IPC
+tests.  In addition to supporting our proposal,
+this should provide a foundation for
+modeling and verification of other parts of the Fluke kernel.
+
+Part of our verification effort will be devoted to
+formally describing these objects.   
+This will facilitate generation of Promela code
+modeling these objects.
+
+\com{
+Things to model
+        - Mutex
+        - Condition variables
+        - Links (inter-object references)
+        - Ports/Port Sets
+        - Thread objects
+}%com
+
+The two most basic objects are the {\bf mutex} and
+{\bf condition variable}.  
+Both have very clean, small,
+well defined interfaces; 
+both objects are used throughout the kernel
+to synchronize threads and protect kernel data.
+
+The kernel provides {\bf links} which represent 
+inter-object references.  They are used for
+encapsulating pointers and for reference counting.
+Initially we will model
+these as simply as possible; we may add
+verification of the reference counting later.
+
+Two objects, {\bf ports} and {\bf port sets} are
+used as rendezvous-points in the IPC 
+(as described above).  We will assume that 
+a thread has a direct handle on the thread it
+is communicating with, as such ports and port
+sets will not be modeled in our project.
+
+The most important object in our model will be
+the {\bf thread} objects.  These are the 
+initiators of all IPC and cancel operations that
+we will be interested in.  Again, we will only
+model the portion of a thread object that is
+relevant to IPC.  This distinction should be
+quite simple because the Fluke thread objects
+are compartmentalized quite well already.
+
+To successfully model the 
+IPC implementation, we will have to come up with
+a scaled-down model of the actual code path.
+We plan to generate logical control flows directly
+from the C source using existing tools.  
+These flows will help us determine exactly what
+we want to model.
+
+%The Setup
+In order to verify the cancelability of Fluke IPC
+operations we intend to simulate three running
+kernel threads involved in a reliable IPC connection.
+One thread will be a ``client'' another the ``server''
+and the third thread will interpose on the connection.
+
+\psfig(421,224){threads}{
+	Three threads communicating as client, server, and
+	interposer.  The fourth thread issues 
+	{\tt fluke_thread_cancel()} operations on
+	the others
+	at arbitrary times.
+}
+	
+A fourth thread, the ``rogue canceler'', will issue
+{\tt fluke_thread_cancel()} operations to any
+of the threads involved in the IPC at arbitrary points
+in time (see Figure~\ref{threads}.)
+
+We intend to show that despite the fact that the cancel
+thread is canceling complex IPC operations, the thread
+state and internal kernel state stay consistent and
+none of the involved threads deadlock.
+
+\section*{Verification}
+
+While the descriptive model-generation phase of this project is sure
+to generate many fine-grained verifiable properties, we 
+specify four high-level properties that the Fluke Reliable
+IPC system should exhibit.
+
+First, and of most importance to the user, the IPC system should
+be proven to provide reliable, correct data delivery to user processes,
+or to fail in a well-defined and expected way, under all circumstances.
+No allowed "successful" execution path should result in delivery of
+partial, out-of-order, or otherwise corrupted data.  Furthermore,
+no execution path defined in the descriptive phase to be "safe" (ie:
+that does not require special user-guarantees) should result in
+deadlock or lack of progress.
+
+Second, thread state as visible to the user via the {\tt fluke_thread_get_state()}
+function should be consistent and appropriate under all "safe" execution
+paths.  These paths will include cancellations of IPC operations at
+arbitrary points.  What constitutes "consistent and appropriate state"
+will be defined during the descriptive model-generation process.
+If the set of primitive thread operations can be
+shown to exhibit "correct" behavior under all circumstances, it 
+should follow that higher-level functionality is also correct.  
+For example, we propose that if {\tt fluke_thread_cancel()} can be shown
+to be correct, we can conclude that {\tt fluke_thread_get_state()}
+is also correct.
+Proof of any such propositions will be provided.
+
+Third, thread cancellations occurring at arbitrary points must
+not only preserve liveness properties, but also in some circumstances
+promptness properties, as determined in the descriptive modeling
+phase.
+
+Lastly, thread cancellations must be shown to provide semantically
+proper behavior whenever they can legally be applied.
+
+\section*{Results}
+
+We hope to accomplish several things with this project (beyond passing
+the course, that is.)
+
+\begin{itemize}
+\item We will have a model of the IPC system.  In addition to having five more
+Flux 
+team members who are intimately familiar with the Fluke reliable IPC 
+mechanism, this effort will provide clear documentation for new team
+members.
+
+\item We will probably be able to add stronger assertions to the
+kernel code, derived from invariants we come up with during
+the verification process.
+
+\item We will be able to precisely define what Fluke guarantees
+in terms of IPC.
+
+\item We will have a strong infrastructure for verifying other
+parts of the kernel implementation.
+
+\end{itemize}
+
+Lastly, there should be five more people with a comprehensive
+understanding of formal verification methods as applied to
+existing systems.
+
+\com{
+\section*{Future Work}
+
+Interaction of Fluke Reliable IPC and DSM protocols.
+
+Verification of memory management.
+
+User-level server/nester verification.
+
+Integration of the verification code/doc with the
+kernel source.
+}
+\section*{Glossary}
+
+\begin{description}
+  \item[One-Way IPC] An unreliable one-way message send.  No
+guarantees are made about the delivery of the message, and the sender
+does not wait for any type of reply.
+
+  \item[Idempotent IPC] Two-way communication, with ``at-least-once''
+semantics.  The sender waits for a reply, and may have to resend until
+a reply is received.  Duplicate messages must be tolerable at the
+receiver side.
+
+  \item[Reliable IPC] Two-way communication, with ``exactly-once''
+semantics.  In Fluke, reliable IPC connections are half-duplex,
+meaning that messages can be sent in only one direction at a time.
+
+  \item[Cancel (a.k.a. ``stun'')] A cancel or stun operation is an
+interruption of one thread by another, usually done using 
+the {\tt fluke_thread_cancel()}
+call.  The Fluke kernel will either allow the stunned thread to
+continue execution to the end of an atomic block, or will roll the
+stunned thread back to an appropriate (clean and consistent) point.
+
+  \item[Rollback] In order to maintain consistent state when an
+operation is interrupted, the Fluke kernel sometimes ``undoes'' the
+operation, back to a point at which it can be safely restarted at a
+later time.
+
+  \item[Livelock] A system state in which no meaningful progress
+is taking place.
+
+  \item[Thread] A thread is the basic unit of execution in the Fluke
+model.  It executes a particular flow of control for an application.
+Multiple threads can be active at once in an application.
+
+% XXX atomic
+
+% XXX ``state''
+
+\end{description}
+
+
+\bibliography{sys,formal}
+\bibliographystyle{abbrv}
+
+\end{document}

@@ -1,0 +1,19 @@
+/*
+ * PROMELA Validation Model
+ * GARP(MAC Service User2)
+ * by T.Nakatnai
+ */
+
+proctype macuser2(byte n)
+{
+	if
+	:: user_to_appl[n]!reqjoin
+	:: user_to_appl[n]!reqleave
+	:: skip
+	fi;
+	if
+	:: user_to_appl[n]!reqjoin
+	:: user_to_appl[n]!reqleave
+	:: skip
+	fi
+}

@@ -1,0 +1,143 @@
+/* 
+Harmony Validation
+File :              kernel-nodebug
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 8 Aug 94
+Description :       Model for Harmony kernel
+- Msgpassing
+- Task management
+- Hardware FIFO
+- Priority preemptive scheduling
+*/
+
+#define TRACE 01
+#define DEBUG 0
+#define NB_PROC 2
+#define NB_PRIO_LEVEL 8
+#define NB_TASK 4
+#define NB_TASK1 5
+#define MQLENGTH 25 /* NB_PROC*NB_PRIO_LEVEL + 1 */
+#define TASK1 0
+#define TASK2 1
+#define TASK3 2
+#define TASK4 3
+#define MAXMSGLENGTH 4
+#define MAXMSGLENGTH1 5
+#define MALENGTH 40 /* NB_TASK1*MAXMSGLENGTH1 */
+#define NB_ITLEVEL 5
+#define MILENGTH 5 /* NB_PROC*NB_ITLEVEL */
+#define FIFO_LENGTH 10
+#define TRUE  1
+#define FALSE 0
+#define NIL 0
+#define UND 0
+
+/* external */
+byte _Avail_task_number;
+byte _Max_task_number;
+
+#include "taskstate"
+
+#include "ltmmsg"
+
+#include "td"
+
+#include "processor-nodebug"
+
+#include "pc-nodebug"
+
+#include "queue-nodebug"
+
+#include "tree"
+
+#include "copymsgs"
+
+/*#include "device"*/
+
+#include "scheduling-nodebug"
+
+#include "ipinterrupt" 
+
+#include "fatherid"
+
+#include "myid"
+
+#include "homeprocessor"
+
+#include "sends"
+
+#include "receives.fix"
+
+#include "tryreceives"
+
+#include "replys"
+
+/*#include "awaitinterrupt"*/
+
+#include "creates"
+
+#include "destroys"
+
+#include "suicides"
+
+#include "task.fd_cp"
+
+#include "ltms"
+
+#define Global_init()\
+   t=NB_PROC+1;\
+   do\
+   :: (t <  NB_TASK1) ->\
+        /*_Free_td(t);*/\
+        run Task(t);\
+        t=t+1\
+   :: (t >= NB_TASK1) ->\
+        break\
+   od;\
+   _Max_task_number=NB_TASK;\
+   _Avail_task_number = NB_PROC+1;\
+   _Ltm_for_template[TASK1]=1;\
+   _Ltm_for_template[TASK2]=2;\
+   _Ltm_for_template[TASK3]=2;\
+   _Ltm_for_template[TASK4]=3;\
+                              \
+   template_priority[TASK1]=4;\
+   template_priority[TASK2]=3;\
+   template_priority[TASK3]=3;\
+   template_priority[TASK4]=3
+
+init{
+  short p,t,l,level;
+
+  atomic{
+    Global_init();
+
+    /* initialize processors */
+    Proc_init()
+
+  };
+
+#if   NB_PROC==1
+    (state[1]==RCV_BLOCKED);
+#elif NB_PROC==2
+    (state[1]==RCV_BLOCKED && state[2]==RCV_BLOCKED);
+#elif NB_PROC==3
+    (state[1]==RCV_BLOCKED && state[2]==RCV_BLOCKED && state[3]==RCV_BLOCKED);
+#else
+    printf("NB_PROC > 3 !!!!!!!!!!!!!\n")
+#endif
+    /* start user program */
+    _I_td(NB_PROC+1,0,0,template_priority[TASK1],TASK1);
+    atomic{_Add_ready(NB_PROC+1)};
+#if TRACE
+    printf("User pgm starts\n");
+#endif
+    _Dispatch(0)
+  
+/*  */
+  ;
+progress :
+  do :: skip od
+/*  */
+}

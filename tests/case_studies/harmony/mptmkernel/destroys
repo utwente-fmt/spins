@@ -1,0 +1,16 @@
+/* 
+Harmony Validation
+File :              destroys
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 22 Jun 94
+Description :       
+- task destruction
+*/
+
+#define _Destroys(id,pc)\
+     SEQI(pc+0,  request[SIZE]=MAXMSGLENGTH)\
+  :: SEQI(pc+1,  request[TYPE]=DESTROY)\
+  :: SEQI(pc+2,  request[VICTIM]=id)\
+  :: CAL4(pc+3,  _Sends,rid,request,request,_Ltm_id[processor[id]])\
+  :: RETS(pc+16)

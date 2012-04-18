@@ -1,0 +1,540 @@
+\documentstyle[fleqn,epsf,11pt]{article}
+\input{amssym.def}
+\input{amssym}
+\input{vpi.input}
+
+
+%\pagestyle{headings}
+\textwidth 15.5cm
+\textheight 21.5cm
+\parindent 10pt
+\oddsidemargin 0.85cm
+\evensidemargin 0.37cm
+\def\appendix{%\par
+              \setcounter{section}{0}\setcounter{subsection}{0}}
+\begin{document}
+
+\title{\sf Verifying Relay Circuits using State Machines}
+\author{{\sf P.H.J. van Eijk}\\
+       {\footnotesize\sl Utrecht University, Department of Philosophy}\\
+       {\footnotesize\sl Heidelberglaan 8, Utrecht, the Netherlands}\\
+       {\footnotesize\sl \tt pve@phil.ruu.nl} \\
+       {\footnotesize\sl http://www.phil.ruu.nl/home/pve} \\
+       {\footnotesize\sl and} \\
+       {\footnotesize\sl EDS CVI, PO Box 2233, Utrecht, The Netherlands} \\
+       {\footnotesize\sl \tt pve@cvi.ns.nl}\\
+       {\footnotesize\sl September 1995}
+             }
+\date{}
+\maketitle
+
+\begin{abstract}
+\noindent
+######### In this paper we present and discuss a number of techniques that can be used in the modelling
+and
+verification of electro-mechanical
+relay circuits.
+
+
+
+\noindent
+\footnotesize
+{\sl Key words \& Phrases: formal specification, formal verification,
+safety critical system, relay, state machines, PROMELA.}
+\end{abstract}
+
+\thispagestyle{empty}
+
+\section{Introduction}\label{intro}
+
+For any artefact that is designed, the question sooner or later comes up:
+"If we build it this way, will it do what we want it to do?"
+This is the correctness question, and the answer to it can be a matter of life and death.
+In this paper we will see how current technology for verifying
+correctness can be applied
+to relatively old hardware technology.
+It will become apparent that correctness of relay circuits is a topic with
+many sides, and many levels.
+On each of these levels there are a number of techniques that can be applied.
+
+This paper is subdivided in the following sections:
+\begin{itemize}
+\item introduction into electromechanical relay circuits.
+\item an example: train mode control.
+	\begin{itemize}
+	\item combinatorial correctness of the example circuit.
+	\end{itemize}
+\item PROMELA\cite{GH91}
+\item The example studied as a sequential system
+\item Verification against state machine models.
+\item Conclusion
+\end{itemize}
+The topic of relay verification has also been discussed by Jacky in \cite{JJ91}.
+That work concentrates on {\em combinatorial}
+correctness, where the past history of inputs has no relation on the output
+of the system and only the current input is relevant.
+
+In this paper we also discuss the correctness of {\em sequential} systems,
+whose behaviour depends on the history of inputs or on the interleaving
+of events. Such systems exhibit state.
+Remarkably, there is little further literature concerning formal approaches to relay
+circuits.
+
+
+\section{Electromechanical relays}
+
+An electromechanical relay, or relay for short, is a hardware device that can implement a
+number of digital switching functions.
+It typically consists of an electric coil that can exert a magnetic force on a number of contacts.
+When electrical power is applied on the coil the contacts either break or make. 
+In short, a relay is an electrically operated switch.
+Logically, the relay can implement a decoupler or negation function, and the wiring can
+implements the logical 'and' and 'or' functions.
+In this way circuits can be built that implement arbitrarily complex logical functions.
+
+Relays have been in use for over a hundred years now. Entire telephone switches were once
+built out of them.
+Despite their relative demise as the result of electronics, and programmable electronics in
+particular, there are still applications where their ruggedness and simplicity is vital.
+For a number of these applications the same reasons that lead to the deployment of relays make
+that the correctness of the circuit is safety-critical. 
+
+A typical design using relays consists of a network of interconnected switches, including the
+inputs of the system, that terminate in the relays.
+A relay circuit is usually described with a graphical notation that illustrates the
+wiring between the components, but not necessarily the physical layout.
+
+There is an almost infinite variety of relay types.
+The number of contacts can differ, as well as the
+order of there opening and closing. Time-relays exist, that delay their closing for
+anything from seconds to  hours, and memory-relays, with two coils, serving as a latch.
+\begin{figure}
+\epsfxsize=150pt 
+\centerline{\epsfbox{figure1.eps}}
+\caption{example relay circuit}
+\end{figure}
+
+
+
+In figure 1 a simple relay circuit is drawn. D is the relay, and A, B and C are contacts or
+switches.
+The top and bottom lines are wires that power the circuit.
+A is a {\em normally-closed} contact, which on activation will interrupt the current. B and C are
+{\em normally-open} contacts, which on activation will allow current to flow. The drawing
+convention is to show the nonactivated state. In this paper the two cases are also
+distinguished by the fact that normally-open contacts are shown to the left, and with a wider
+gap.
+
+Logically this circuit can be described as 
+
+\begin{verbatim}
+        D = !A && (B || C)
+\end{verbatim}
+
+where {\tt !} denotes logical {\tt not}, {\tt \&\&} denotes logical {\tt and},
+and {\tt ||} denotes logical {\tt or} (this is PROMELA notation,
+ to be explained more fully later).
+
+\section{An example}
+
+Like an automobile, a railway train has several modes of operation.
+A car can be off, it can have the accessories on, and it can be fully operational.
+These modes are typically controlled through a single key switch.
+For a railway train the operational modes determine for example
+whether or not the heating and lighting
+systems are on, how the doors can be operated, and if the train can actually move. A
+typical train can have as much as six major modes.
+The system that realises the control over these modes is called the {\em operational mode
+control system}.
+
+The passenger train in this example can consist of a fairly arbitrary number of motorcars (each
+car has its own engine, like a subway, as opposed to 
+the case of a
+train that is pulled by a separate locomotive engine),
+each of which has two operator cabins, one on each side.
+The entire train can be controlled from each cabin, subject to certain requirements.
+Some of these requirements are safety-critical. For example, the train must only be able to
+move if it is in the 'in service' mode, which can only be entered when an operator key switch
+is activated.
+The first operator to activate his key must have control, and a second operator (in a
+different cabin) must be denied control. Computer scientists will recognize this as a mutual
+exclusion problem. 
+
+
+
+The operational mode control system (in dutch: bedrijfstoestandskeuze systeem) is typically
+implemented using relays, although for newer designs PLC's (Programmable Logic Controller, a
+type of microcomputer) are beginning to be applied.
+All cabins are equipped with identical copies of a relay circuit. These copies are connected
+by a set of wires that run through the entire length of the train.
+Together these copies perform the functions of the operational mode control system.
+The requirements can be divided in those that apply to each individual copy of the circuit 
+and those that apply to the system as a whole.
+For example, there may be some kind of exclusion within each individual copy required, as well
+as exclusion between all copies.
+
+One of the complications is that the system can consist of a (relatively) arbitrary number of
+connected copies of a circuit.
+One would want
+to validate the system as a whole, independent of the number of connected
+copies.
+
+
+\subsection{The example as a relay circuit}
+
+The circuit that we take as an example here is a simple operational mode control system, it
+controls the 'service' state
+of a train.
+In each cabin a train operator can attempt to set the train in the {\em in service} state through
+the use of a key-operated switch.
+The function of the circuit is to allow only {\em one} operator to actually control the train,
+i.e. the circuit implements a mutual exclusion.
+The circuit is drawn in figure 2.
+
+\begin{figure}
+\epsfxsize=200pt 
+\centerline{\epsfbox{figure2.eps}}
+\caption{Two copies of a control circuit}
+\end{figure}
+
+The system consists of a number of identical copies of a circuit. Here two copies are drawn.
+Each cabin is equipped with one such circuit.
+The top and bottom horizontal lines are the electrical power feed, and the middle horizontal
+line (labelled 'InService') is the one that connects all cabins together.
+This line signals whether or not the entire
+train is in service, it also functions as a distributed OR. Presumably, other train systems, such as the door and traction systems,
+are controlled on the basis of this signal.
+
+The relation between the contacts and their relays is indicated by the name that they are
+labelled by.
+We
+will append a digit to the names to indicate the copy of the circuit that they are in, e.g. {\tt servicelocal_1}.
+All contacts are shown in the state in which the relays are not activated.
+
+\subsection{Combinatorial correctness}
+
+The combinatorial behaviour of the circuit can be formalised with the following equations:
+
+\begin{verbatim}
+        servicelocal_1 = key_1 && !serviceremote_1
+        serviceremote_1 = inservice && (!key_1 || serviceremote_1)
+
+        servicelocal_2 = key_2 && !serviceremote_2
+        serviceremote_2 = inservice && (!key_2 || serviceremote_2)
+
+        inservice = servicelocal_1 || servicelocal_2
+\end{verbatim}
+
+For any input, all combinations of values that fulfill these equations represent a stable state of the
+circuit.
+Conversely, if the equations are not satisfiable for all inputs the circuit is not stable.
+An example of a system that is not stable is simply:
+\begin{verbatim}
+        k = !k
+\end{verbatim}
+A relay implementation of this will most likely exhibit an oscillation.
+
+
+
+The correctness criteria on the circuit are:
+
+\begin{verbatim}
+        !(servicelocal_1 && servicelocal_2)
+\end{verbatim}
+meaning that only one of the cabins can be the operating cabin, and
+
+\begin{verbatim}
+        !(servicelocal_1 && serviceremote_1) &&
+        !(servicelocal_2 && serviceremote_2)
+\end{verbatim}
+which is a type of consistency check on the settings of the relays of one cabin. The relays should not
+simultaneously indicate that this is the operating cabin, and that some other cabin is the
+operating cabin.
+
+The behaviour equations, taken as a logical proposition, should logically imply these
+correctness criteria.
+Actually, the first one is not true. There is a race condition if two keys are switched
+simultaneously..
+
+
+\section{PROMELA}
+
+PROMELA\cite{GH91} is a language designed for the modelling of communicating finite state
+machines. It was designed for the modelling of communication protocols, but it can be used for
+the analysis of almost any parallel or distributed computer system.
+Beyond these applications, it can even be used to model systems (such as relay circuits)
+that are not traditionally
+seen as computing devices.
+In this paper we show the various levels at which PROMELA can be used to analyse relay
+circuits.
+
+PROMELA as a language is complemented by SPIN, a software package for the analysis of
+specifications written in PROMELA. SPIN can be used in a number of ways. In an interactive
+mode it can provide a simulation of the behaviour of a system. In an automatic mode it can try
+to exhaustively analyse the statespace of a system, proving or refuting user specified
+correctness requirements.
+
+(hier nog wat beschrijving van features uit Cattel's paper overnemen)
+
+
+\section{Modelling Sequential behaviour}
+
+
+In the above we have looked at the modelling of relay circuits by simple combinatorial equations.
+At that level there are a number of correctness criteria that
+can be expressed, and verified or refuted.
+
+In this view relays are in one of two states.
+Yet, the story is not that simple. All switching elements have delays, and these delays can
+influence the correctness of the system.
+What happens in fact is that  each switching activity progresses through a sequence of
+ at least three phases or states.
+Suppose the
+relay is unpowered, or off. That phase ends when the power is applied, and here an
+intermediate phase starts. From this point on the
+magnetic force starts to build up, and above a certain threshold the contacts start to move
+from their resting positions.
+A 'break' contact will break as soon as it has started to move,
+a 'make' contact will make as soon as it has reached its end position (hopefully it will not
+bounce back from there).
+When all contacts have done so, the intermediate phase is over, and the last phase begins: the realy is truly activated.
+There is not necessarily a fixed order in which the contacts make or break, although some
+types of relays have been designed to exhibit an explicit order, e.g. make before break or
+vice versa.
+
+The fact that relays have this type of
+behaviour can have an impact on the correctness of the circuit.
+There can be situations in which there is literally a race between two contacts to reach their
+positions, and the behaviour of the system depends on the winner of the race.
+In cases like these it is thus important in an analysis to consider all possible sequences of operations.
+
+For some types of relays this behaviour is also influenced by aging.
+The implication of that is that such systems can fail after a long time of correct operation.
+
+\subsection{Modelling Approach}
+
+How to model this intermediate stage? 
+There is a parallel between the delay in the closing of a relay contact, and the delay
+a message can experience on its way from sender to receiver.
+It is tempting to use this analogy in modelling a relay circuit in PROMELA. A relay is then a
+process with an incoming message (the electrical current) and a number of outbound messages, one for each
+contact. The wires would then be the message conduits or channels.
+Appealing in this approach is that it is truly event based, and that all possible
+interleavings of events will be considered by the analyser.
+Unfortunately this approach has its flaws.
+It is awkward to model junctions of wires in this
+way. They will become processes with multiple inputs and/or outputs.
+Some wires are 
+bidirectional (such as InService in the example), which also adds to the complexity.
+
+Instead of looking at events, we can also look at states.
+The voltage on a wire is a state, represented by a variable,
+and (re)computing the position of the relay contacts is
+then a state change, which can be
+represented by an assignment.
+Each relay now corresponds to one assignment statement, with the left hand
+side variable representing the coil, and the right hand side expression
+representing the combinatorial logic of wires and contacts.
+Intermediate wires (in the example {\tt inservice}) can also be represented
+explicitly with an assignment statement.
+
+The behaviour of the system can now be described by a set of assignment statements that are
+randomly executed.
+All reachable states are covered by this model.
+
+The system can be described in PROMELA as follows. Every wire could be described by a separate
+variable, but for reasons of simplicity only a minimal subset is taken. All variables are
+global, so as to be able to inspect and modify them, where appropriate.
+
+\begin{verbatim}
+proctype tks()
+{
+do
+::	servicelocal_1 = key_1 && !serviceremote_1; skip
+::	serviceremote_1 = inservice && (!key_1 || serviceremote_1); skip
+
+::	servicelocal_2 = key_2 && !serviceremote_2; skip
+::	serviceremote_2 = inservice && (!key_2 || serviceremote_2); skip
+
+::	inservice = servicelocal_1 || servicelocal_2; skip
+od
+}
+
+proctype monkey()
+{
+do
+::	key_1=1; skip
+::	key_1=0; skip
+
+::	key_2=1; skip
+::	key_2=0; skip
+
+od
+}
+
+init
+{       run tks();
+        run monkey();
+}
+\end{verbatim}
+
+The {\tt monkey} process\footnote{Named after the saying: {\em if you give enough monkeys
+enough typewriters, you will find a Shakespeare sooner or later.}}
+can arbitrarily turn all key switches on and off.
+Two parallel processes, one representing the system, and the other representing the
+environment using the system, together describe an entire state space. The occurrence of {\tt
+skip} instructions is for technical reasons.
+Without them, the process {\tt tks} would have only one state, which would make the output of
+SPIN less clear.
+On models along these lines SPIN will now be able to explore all behaviour
+that is electromechanically possible.
+For example, make before break or vice-versa can be studied, and even relay deavtivation before all contacts are made.
+
+The requirements on the model are the same as before, and can be described in PROMELA as follows.
+
+\begin{verbatim}
+proctype checks()
+{
+   assert(!(servicelocal_1 && servicelocal_2));
+   assert(!(servicelocal_1 && serviceremote_1))
+}
+\end{verbatim}
+
+Not surprisingly, the same race condition still persists in the system. If the two switches are
+turned on together, there will be no mutual exclusion
+(For the system to be really correct, this circuit would need to implement a distributed leader election\cite{LE} function).
+
+The assumption under which the circuit will work correctly, is that no external input will be
+given as long as the circuit is still processing. In other words, the circuit has to be
+{\em stable} or {\em quiescent} before an additional input is given.
+In the model this means that every assignment that can have an effect must have been done.
+This is expressed by translating every assignment of the form {\tt x = E} into a condition
+{\tt x == E}, and taking the conjunction of all these conditions.
+In the example this boils down to adding the following PROMELA code.
+
+\begin{verbatim}
+proctype tks()
+{
+do
+/* as before */
+::      stable=
+        servicelocal_1 == (key_1 && !serviceremote_1)) &&
+        (serviceremote_1 == (inservice && (!key_1 || serviceremote_1))) &&
+        (servicelocal_2 == (key_2 && !serviceremote_2)) &&
+        (serviceremote_2 == (inservice && (!key_2 || serviceremote_2))) &&
+        (inservice == (servicelocal_1 || servicelocal_2));  stable=0
+od
+}
+\end{verbatim}
+
+Of all the states of this process, there is only one state where another process can assume that
+the system is stable, and that is the state at the last semicolon.
+If the variable {\tt stable} is true, the model will be in this state.
+
+Expressing that the system will only be operated in a stable state
+can be done with the following monkey process.
+
+\begin{verbatim}
+proctype monkey()
+{
+do
+::	stable; key_1=1; stable=0
+::	stable; key_1=0; stable=0
+
+::	stable; key_2=1; stable=0
+::	stable; key_2=0; stable=0
+
+od
+}
+\end{verbatim}
+
+The keys can only be operated when the system is stable,
+ and they can be operated only once at a time.
+The correctness requirements in this model need to 'lock-out' the system
+process, which is done here with an 'atomic' statement.
+Note that the monkey process does not need to be locked-out, as the system
+will not react to it during the assertion.
+
+\begin{verbatim}
+proctype checks()
+{ atomic{
+   stable;
+   assert(!(servicelocal_1 && servicelocal_2));
+   assert(!(servicelocal_1 && serviceremote_1))
+	}
+}
+\end{verbatim}
+
+Additional embellishments and refinements can be added to this model.
+This model assumes that all relays are indeed in their nonactivated state
+when the system is initialised.
+This is realistic for normal relays, but not so for memory relays or external switches.
+It is a small matter to add a nondeterministic assignment of values to variables in the initialisation phase. This would then expose all errors
+that may be the result of an incorrect initialisation.
+
+In case the correctness of a circuit critically depends on the fact that
+a certain contact makes before another breaks, this can be expressed by putting the corresponding assignments in sequence rather than in parallel.
+
+\section{Relay circuits as implementations of state machines}
+
+
+On a certain level of abstraction the circuit is a state machine, with external stimuli as
+true events. Some relay circuits are required to actually remember something, rather than just
+compute some logical function.
+It can be convenient to describe the actual state machine, and check it against the relay circuit.
+On the state machine itself certain validations are also possible: can every state be
+reached?
+
+
+Pushing the button so fast that the relays can't handle it.
+
+You will also see behaviour that will occur if only a subset of the contacts will have been
+operated, (is toch ook al bij de vorige)
+or not at all.
+
+Again discussion on stable.
+
+\section{Concluding Remarks and Future Research}
+
+Relay systems can be analysed in great detail, right down to the level of 'meaningless'
+errors.
+
+
+\begin{thebibliography}{10}
+
+
+\bibitem{LE}
+D.~Dolev, M.~Klawe, and M.~Rodeh.
+\newblock An {$O(\mbox{$n$ log $n$})$} unidirectional distributed
+algorithm for
+  extrema finding in a circle.
+\newblock {\em Journal of Algorithms}, (3):245--260, 1982.
+
+\bibitem{HK94}
+J.F.~Groote, J.W.C.~Koorn and S.F.M.~van Vlijmen.
+\newblock The sfaety guaranteeing system at station {Hoorn-Kersenboogerd}.
+\newblock Technical Report 121, Logic Group Preprint Series, Utrecht University, 1994.
+
+%\bibitem{BKOV94}
+%R.N. Bol, J.W.C. Koorn, L.H. Oei, and S.F.M. van Vlijmen.
+%\newblock Syntax and static semantics of the interlocking design 
+%and application language.
+%\newblock Report P9422, Programming Research Group, University of Amsterdam,
+%1994. To appear.
+
+\bibitem{JJ91}
+J.~Jacky
+\newblock Verification, Analysis and Synthesis of Safety Interlocks.
+\newblock Technical Report 91-04-01, Radiation Oncology Department, University of Washington,
+1991
+
+\bibitem{GH91}
+G.~Holzmann.
+Design and Validation of Computer Protocols.
+Prentice Hall, New Jersey, 1991, ISBN 0-13-539925-4. 
+\\
+{\tt http://netlib.att.com/netlib/att/cs/home/holzmann-spin.html}
+\end{thebibliography}
+
+\end{document}
+

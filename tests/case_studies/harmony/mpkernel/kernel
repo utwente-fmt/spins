@@ -1,0 +1,73 @@
+/* 
+Harmony Validation
+File :              kernel
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 Avril 94
+Last modification : 21 Avril 94
+Description :       Model for Harmony kernel
+- Msgpassing
+- Hardware FIFO
+- nondet. scheduling
++ reabstraction from complete kernel
+*/
+
+#define TRACE 0
+#define NB_PROC 2
+#define NB_TASK 3
+#define NB_TASK1 4
+#define FIFO_LENGTH 10
+#define TRUE  1
+#define FALSE 0
+#define NIL 0
+#define UND 0
+
+/* external */
+byte _Max_task_number;
+
+#include "taskstates"
+
+#include "td"
+
+#include "processor"
+
+#include "queues"
+
+#include "copymsg"
+
+#include "scheduling"
+
+#include "ipinterrupt" 
+
+#include "send"
+
+#include "receive"
+
+#include "tryreceive"
+
+#include "reply"
+
+#include "create"
+
+#include "senarioall1"
+
+#define Global_init()\
+   t=1;\
+   do\
+   :: (t <  NB_TASK1) ->\
+        _Free_td(t);\
+        t=t+1\
+   :: (t >= NB_TASK1) ->\
+        break\
+   od;\
+   _Max_task_number=NB_TASK
+
+init{
+  int p,t,l;
+
+  atomic{
+    Proc_init();
+    Global_init();
+    /* start user program */
+    _Start_up()
+  }
+}

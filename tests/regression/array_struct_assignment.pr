@@ -1,0 +1,10 @@
+
+typedef ObjRef {
+    byte objKey;
+    byte port;
+}
+
+init {
+	int ar[6] = 6;
+    ObjRef objRefs[5] = 255; 
+}

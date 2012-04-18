@@ -1,0 +1,121 @@
+/* 
+Harmony Validation
+File :              td
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 11 Jul 94
+Description :       
+- task descripteurs data and functions
+*/
+
+/* task descriptors */
+byte  td_next[NB_TASK1];
+byte  td_prev[NB_TASK1];
+byte  left_brother[NB_TASK1];
+byte  right_brother[NB_TASK1];
+byte  left_son[NB_TASK1];
+byte  right_son[NB_TASK1];
+byte  correspondent[NB_TASK1];
+byte  state[NB_TASK1];
+byte  processor[NB_TASK1];
+byte  request_msg[MALENGTH];
+byte  reply_msg[MALENGTH];
+byte  father[NB_TASK1];
+byte  hd_send_q[NB_TASK1];
+byte  tl_send_q[NB_TASK1];
+byte  hd_rcv_q[NB_TASK1];
+byte  tl_rcv_q[NB_TASK1];
+byte  hd_rply_q[NB_TASK1];
+byte  tl_rply_q[NB_TASK1];
+bit   td_flags[NB_TASK1];
+bit   killed[NB_TASK1];
+bit   valid[NB_TASK1];
+byte  index[NB_TASK1];
+bool  masked[NB_TASK1];
+short pc[NB_TASK1];
+byte  my_queue_type[NB_TASK1];
+byte  my_queue_owner[NB_TASK1];
+byte  priority[NB_TASK1];
+byte  _Ltm_for_template[NB_TASK1];
+byte  template_priority[NB_TASK1];
+
+#define _Get_td(rid)\
+  atomic{\
+    if\
+    :: (_Avail_task_number >= _Max_task_number) ->\
+         rid = 0\
+    :: (_Avail_task_number < _Max_task_number) ->\
+         _Avail_task_number = _Avail_task_number + 1;\
+         rid =  _Avail_task_number;\
+         state[rid]=UND;\
+         td_flags[rid]=FALSE\
+    fi\
+  }
+
+#define _Convert_to_td(td,id)\
+  atomic{\
+    if\
+    :: ((id>0) && (id<=_Max_task_number) && valid[id]) ->\
+         td=id\
+    :: ((id<=0) || (id>_Max_task_number) || !valid[id]) ->\
+         td=0\
+    fi\
+  }
+
+#define _Invalidate_td(id)\
+  valid[id]=FALSE
+
+#define _I_td(id,proc,req,prio,ind)\
+  atomic{\
+    correspondent[id]=0;\
+    msgref(request_msg,id,SIZE)=UND;\
+    msgref(reply_msg,id,SIZE)=UND;\
+    hd_send_q[id]=NIL;\
+    tl_send_q[id]=NIL;\
+    hd_rcv_q[id]=NIL;\
+    tl_rcv_q[id]=NIL;\
+    hd_rply_q[id]=NIL;\
+    tl_rply_q[id]=NIL;\
+    father[id]=req;\
+    left_son[id]=NIL;\
+    right_son[id]=NIL;\
+    left_brother[id]=NIL;\
+    right_brother[id]=NIL;\
+    index[id]=ind;\
+    valid[id]=TRUE;\
+    masked[id]=FALSE;\
+    priority[id]=prio;\
+    processor[id]=proc\
+  }
+
+#define _Free_td(id)\
+  atomic{\
+    td_next[id]=NIL;\
+    td_prev[id]=NIL;\
+    left_brother[id]=NIL;\
+    right_brother[id]=NIL;\
+    left_son[id]=NIL;\
+    right_son[id]=NIL;\
+    correspondent[id]=UND;\
+    state[id]=UND;\
+    processor[id]=UND;\
+    msgref(request_msg,id,SIZE)=UND;\
+    msgref(reply_msg,id,SIZE)=UND;\
+    father[id]=UND;\
+    hd_send_q[id]=NIL;\
+    tl_send_q[id]=NIL;\
+    hd_rcv_q[id]=NIL;\
+    tl_rcv_q[id]=NIL;\
+    hd_rply_q[id]=NIL;\
+    tl_rply_q[id]=NIL;\
+    td_flags[id]=FALSE;\
+    killed[id]=FALSE;\
+    valid[id]=FALSE;\
+    index[id]=UND;\
+    masked[id]=FALSE;\
+    pc[id]=UND;\
+    my_queue_type[id]=UND;\
+    my_queue_owner[id]=UND;\
+    priority[id]=UND;\
+    _Ltm_for_template[id]=UND\
+  }

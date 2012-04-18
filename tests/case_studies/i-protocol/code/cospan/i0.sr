@@ -1,0 +1,520 @@
+/* $Header: /home/stufs1/vicdu/ra/journalIP/cos/version0/RCS/i0.sr,v 1.1 1999/11/06 21:41:54 vicdu Exp vicdu $ */
+
+/* Version: Window size W,    (on command line define W for winsize);
+   define FULL and FIXED if want to run full, fixed version.
+*/
+#define WINSIZE W       /* window size */
+#define dbl_WINSIZE (2*WINSIZE)
+#define MAX_SEQ (2*WINSIZE - 1)
+#define diff(x, y)  ((x - y) mod (2*WINSIZE) )
+
+type catagory : (ack, nak, data)   /* types of pakets */
+
+#include "QRY.h"
+
+proc s:NoDet(5) /* asynchronous scheduler for interleaving semantics */
+/* 0: sender write to med 0 or sync with sndr_u;
+   1: sender read from med 1
+   2: sender time out
+   3: receiver read from 0
+   4: receiver write to 1 or timeout */
+
+proc drop:NoDet(1)
+
+/***********************************************************************/
+
+proc sndr_u_seq_val: NAT(dbl_WINSIZE-1,1, ($+1) mod dbl_WINSIZE ? 
+                                             (sndr_u.#= ready) | $)
+  /* Used for keeping the value of the seq. The initial val of 
+     seq is 1 */
+
+proc sndr_u  
+/* user on the sender side */
+  import s, sender, sndr_u_seq_val
+  selvar seq: (0.. MAX_SEQ)
+  selvar # := $
+  stvar $: (ready, waiting)
+
+  init $:= waiting
+  asgn seq :=  sndr_u_seq_val.#
+  asgn $-> ready ? (sender.#=beginning)*(s:0)
+             /* ($=waiting) not needed in the above trans as I can
+	       go from ready to ready if sender is ready to communicate !*/
+     | waiting
+
+end sndr_u
+
+/***********************************************************************/
+proc sendseq_val : NAT(dbl_WINSIZE-1,1, (($+1) mod dbl_WINSIZE) ? (sender.#:transmit)*sender.sync_medium0 | $)
+proc rack_val  : NAT(dbl_WINSIZE-1,0, 
+		     sender.ak 
+                        ? (sender.# = s_getdata)*(sender.hck=1)*
+                          ( (sender.pty=ack)+(sender.pty=nak) ) *
+			  ( ~ ( (sender.ak=sender.sendseq)+
+			        (diff(sender.ak, sender.rack)>WINSIZE )+
+			        (diff(sender.sendseq, sender.ak)>WINSIZE)
+			      )  
+ 			  )  
+                        | $
+		     )
+
+/****************************/
+
+proc sender
+  import s, sndr_u, medium[0], medium[1], sendseq_val, rack_val
+  selvar sendseq, rack: (0.. MAX_SEQ)
+  stvar seq_st, ak_st: (0.. MAX_SEQ) 
+  selvar seq, outseq, ak, outak: (0.. MAX_SEQ)
+  selvar pty, outpty: catagory
+  stvar pty_st : catagory
+  stvar hck_st: boolean  /* dck is useless in sender, so no dck_st */
+  selvar hck: boolean 
+  stvar $: (beginning, exam_win, transmit, s_getdata, stable_rack, 
+          s_timeout, nak_sent )
+  selvar #:= $
+  selvar sender_ready0, sync_medium0, sync_medium1: boolean 
+  /* sender_ready0 is introduced only to be exported to
+	the monitor process */
+  /* return_state is used to store the state to return to after a call
+   to s_timeout or getdata. Notice I should have a state variable storing
+   the return state for each type of "procedure call", but it just happens
+   that the return state of a call to s_timeout and a call to getdata
+   is always the same */
+  stvar return_state: (beginning, exam_win)
+
+  init $ :=beginning, return_state := beginning,
+	seq_st := 0, ak_st :=0,
+	pty_st := ack,
+	hck_st :=0 
+
+  asgn sendseq := sendseq_val.#
+  asgn rack := rack_val.#
+  /* signals that sender is ready to sync with medium 0 */
+  asgn sender_ready0 := ( (#: transmit)+
+                     (#: nak_sent)*(sendseq ~= ((rack+1) mod dbl_WINSIZE)) +
+                     (#: stable_rack)* 
+		         ~( (seq=sendseq)+( diff(seq, rack)>WINSIZE )+
+				      ( diff(sendseq, seq) > WINSIZE) ) +
+	             (#: s_timeout))
+  asgn sync_medium0 := 1 ? sender_ready0*(s:0)*(medium[0].#:empty) | 0
+  /* signals that sender is ready to sync with medium 1 */
+  asgn sync_medium1 :=  1 ? 
+           ( (#:beginning) +
+             (#:exam_win)*((diff(sendseq, rack)>WINSIZE)+(sendseq=rack)) +
+	     (#:s_timeout)
+           )*(s:1)*(medium[1].#:full) | 0
+  asgn seq := seq_st
+  asgn ak := ak_st
+  asgn hck := hck_st
+  asgn pty := pty_st
+
+  /* by using sync_medium0 in the conditions below, I save
+     some typing of complicated conditions  :-) */
+  asgn outpty := data ? 
+                   (sync_medium0=1)*(~(#:s_timeout))
+                | nak ? (sync_medium0=1)*(#: s_timeout)
+                | data
+  asgn outak := 0
+  asgn outseq :=   ( sendseq ? (#: transmit)
+                     | seq ?  (#: stable_rack)
+                     | 1 ?  (#: s_timeout)
+                     | (rack+1) mod dbl_WINSIZE ? (#: nak_sent) 
+                     | 0 /* default value */
+                   )
+                 ? (sync_medium0=1) 
+                 | 0  /* default value */
+
+case{(sync_medium1= 1):{
+  seq_st -> medium[1].seq 
+  ,ak_st -> medium[1].ak 
+  ,hck_st ->  medium[1].hck 
+  ,pty_st -> medium[1].pty
+    }}
+
+  asgn return_state -> beginning ? (#: beginning)
+                        | exam_win ? (#: exam_win)
+			| return_state
+       /* repeated assignments to a value when sender stays in
+          the same state is ok */
+
+/*  recur $: beginning -> s_timeout */
+  trans
+    beginning
+    -> exam_win : (s:0)
+       /* synchronized comm with sndr_u */
+    -> s_getdata : (s:1)*(medium[1].#:full)
+       /* synchronized comm with medium[1] */
+    -> s_timeout : (s:2)
+    -> $:else;
+
+    exam_win
+    -> s_getdata :(s:1)*(medium[1].#:full)*
+                  ((diff(sendseq, rack)>WINSIZE)+(sendseq=rack))
+    -> s_timeout: (s:2)*((diff(sendseq, rack)>WINSIZE)+(sendseq=rack))
+       /* in the condition on the next line, I can't just use else*(s:1) !
+	  That will allow "transmit" to be reached even when there
+	  is no opening in the window. 
+	  See the comments before the state r_getdata for more */
+       /* Also, the state transmit is not required. I can try to send the data
+	 packet here. But to be consistent with the other tools, I keep it. */
+    -> transmit: ((diff(sendseq, rack)<=WINSIZE)*~(sendseq=rack))
+    ->$:else;
+
+    /* I don't need two states transmit and update. sendseq is
+       read by medium at transmit, while in the mean time, I can
+       update the state variable sendseq_val, whose change won't be
+       reflected to sendseq until the next cycle.  Thus an extra
+       state "update" is not needed just to update the sendseq_val.
+    */
+    transmit
+    -> beginning: (s:0)*(medium[0].#:empty)
+       /* synchronized comm with medium[0] */
+    -> $ : else;
+
+    s_getdata
+    -> return_state: (hck=1)*(pty=ack)
+    -> stable_rack: (hck=1)*(pty=nak)
+       /* since the next state of stable_rack uses the value of rack,
+	I have to wait for rack_val to be updated properly in s_getdata; 
+	Thus this state is needed */
+    -> return_state: else;
+       /* pty cannot be "data".If hck bad,ignore pak*/
+
+    /* stable_rack also atomicized statements that include a communication
+       statement. Weakly bisimilar, again. */
+    stable_rack
+    -> return_state: (s:0)*~( (seq=sendseq)+( diff(seq, rack)>WINSIZE )+
+				      ( diff(sendseq, seq) > WINSIZE) )
+                             * (medium[0].#:empty)
+     /* sync communication with medium 0 */
+    -> $:   else*(~( (seq=sendseq)+( diff(seq, rack)>WINSIZE )+
+				      ( diff(sendseq, seq) > WINSIZE) ))
+     /* if the 3rd conjunct of the condition above is true,
+	a retransimission of the data is required. However, if medium 0
+	is not ready to communication, we wait in the same state */
+    -> return_state: else;
+
+    s_timeout
+    -> s_getdata: (s:1)*(medium[1].#:full)
+    -> nak_sent  : (s:0)*(medium[0].#:empty)
+    -> $: else;
+
+    nak_sent
+    -> return_state: (s:0)*(sendseq ~= ((rack+1) mod dbl_WINSIZE))
+                               *(medium[0].#:empty)
+     /* re-send data and return */
+    -> $: else*(sendseq ~= ((rack+1) mod dbl_WINSIZE))
+     /* wait to re-send data */
+    -> return_state: else
+
+end  sender
+/************************************************************************/
+proctype medium_type(inpak: catagory; inseq, inak: (0.. MAX_SEQ);
+		      push, pop: boolean)
+  import inak, inseq, inpak, push, pop  /* push and pop should be mutex */
+
+  stvar $: (full, empty)
+  selvar hck, dck: boolean  /* for header and data checksum */
+  stvar seq_st, ak_st: (0.. MAX_SEQ)
+  stvar pty_st: catagory
+  selvar pty: catagory
+  selvar seq, ak: (0.. MAX_SEQ)
+  selvar # := $
+  init  $:=empty, pty_st := data, seq_st := 1, ak_st := 0
+  
+  asgn pty := pty_st
+  asgn seq := seq_st
+  asgn ak := ak_st
+#ifdef FULL
+  asgn dck := {*}
+  asgn hck := {*}
+#else
+  asgn hck := 1
+  asgn dck := 1
+#endif
+  
+  asgn pty_st -> inpak ? push | pty_st
+  asgn seq_st -> inseq     ? push | seq_st
+  asgn ak_st -> inak       ? push | ak_st
+
+  asgn $ -> empty ? pop | full ? push | $
+  end  medium_type()
+
+/***********************************************************************/
+
+proc medium[i<2]: medium_type (sender.outpty ? (i=0) | receiver.outpty,
+		  sender.outseq ? (i=0) | receiver.outseq,
+		  sender.outak ? (i=0) | receiver.outak,
+		  ((sender.sync_medium0)*(drop:0)) ? (i=0) 
+			       | (receiver.sync_medium1*(drop:0)),
+		  receiver.sync_medium0 ? (i=0) | sender.sync_medium1)
+
+/**********************************************************************/
+
+proc recseq_val: NAT(dbl_WINSIZE-1,0, 
+                     receiver.seq ? (receiver.#: data_received)*
+                           (receiver.seq= (receiver.recseq+1) mod dbl_WINSIZE)
+                   | receiver.tmp ? (receiver.#: in_order)*
+                           (receiver.recbuf[receiver.tmp]=1)
+                   | $)
+
+proc lack_val : 
+NAT(dbl_WINSIZE-1,0, 
+    ( receiver.recseq ? 
+      ( (receiver.#: r_timeout)+
+#ifdef FIXED
+        (receiver.#: r_getdata)*(receiver.pty=nak) /*bug fix*/ +
+#endif
+        (receiver.#: r_getdata)*(receiver.pty=data) +
+        (receiver.#: in_order) +
+        (receiver.#: out_of_order)
+      ) | $
+    ) ? (receiver.sync_medium1=1)
+ | $ )
+
+proc tmp_val  : 
+NAT(dbl_WINSIZE-1,0,  
+    (receiver.seq+1) mod dbl_WINSIZE ? (receiver.#: data_received)*
+          (receiver.seq= (receiver.recseq+1) mod dbl_WINSIZE)
+
+  | (receiver.recseq+1) mod dbl_WINSIZE ? (receiver.#: data_received)*
+          (~(receiver.seq= (receiver.recseq+1) mod dbl_WINSIZE) )
+          *(receiver.seq~=receiver.recseq)*(receiver.recbuf[receiver.seq]~=1)
+            /* *** */
+
+  | ($+1) mod dbl_WINSIZE ? (receiver.#: in_order)*
+       (receiver.recbuf[receiver.tmp]=1)
+
+  | ($+1) mod dbl_WINSIZE ? (receiver.#: out_of_order)*
+       (receiver.sync_medium1=1)
+
+  | ($+1) mod dbl_WINSIZE ? (receiver.#: out_of_order)*
+       (receiver.tmp~=receiver.seq)*~((receiver.nakd[receiver.tmp]~=1)*
+                                           (receiver.recbuf[receiver.tmp]~=1))
+  | $ )
+
+/**********************************************************************/
+
+proc receiver
+  import s, rcvr_u, medium[0], medium[1], recseq_val, lack_val, tmp_val
+
+  stvar recbuf_val[dbl_WINSIZE]: boolean
+  stvar nakd_val[dbl_WINSIZE]: boolean
+
+  selvar recbuf[dbl_WINSIZE]: boolean
+  selvar nakd[dbl_WINSIZE]: boolean
+  stvar $: (beginning, r_timeout,  r_getdata,  data_received,
+	    in_order, out_of_order)
+  selvar #:= $
+  selvar outpty, pty: catagory
+  stvar pty_st: catagory
+  selvar outseq, seq, outak, ak, recseq, lack, tmp: (0.. MAX_SEQ)
+  stvar seq_st, ak_st: (0.. MAX_SEQ)
+  selvar rcvr_ready1, sync_medium0, sync_medium1, hck, dck: boolean
+  stvar hck_st, dck_st: boolean
+
+  init $:= beginning, 
+	   [i in 0.. MAX_SEQ ] { recbuf_val[i] :=0, nakd_val[i] := 0 },
+	   pty_st:= data,
+	   seq_st :=1, ak_st := 0, hck_st := 1, dck_st :=1
+
+  asgn nakd[] := nakd_val[]
+  asgn recbuf[] := recbuf_val[]
+  asgn recseq := recseq_val.#
+  asgn lack := lack_val.#
+  asgn tmp := tmp_val.#
+  asgn sync_medium0 := 1 ? ((#:beginning)+(#: r_timeout))
+                           *(s:3)*(medium[0].#:full)
+                         | 0
+  asgn rcvr_ready1 := ((#: r_timeout) +
+#ifdef FIXED
+                            (#: r_getdata)*(hck=1)*(pty=nak) + /*bug fix!*/
+#endif
+                            (#: r_getdata)*(hck=1)*(pty=data)*(dck=0)*
+                                ~((seq=lack)+(diff(seq, lack)>WINSIZE))*
+                                ~( (seq=recseq)+(recbuf[seq]=1)+
+                                   (diff(seq, recseq)>WINSIZE) )  +
+                            (#: in_order)*
+                                (recbuf[tmp]=0)*(diff(seq, lack)>=WINSIZE/2) +
+                            (#: out_of_order)*
+                                (tmp~=seq)*(nakd[tmp]~=1)*(recbuf[tmp]~=1)
+                           )
+  asgn sync_medium1 := 1 ? rcvr_ready1*(s:4)*(medium[1].#:empty) | 0
+  asgn seq := seq_st
+  asgn ak := ak_st
+  asgn hck := hck_st
+  asgn dck := dck_st
+  asgn pty := pty_st
+
+  asgn [i in 0.. MAX_SEQ ]  { nakd_val[i] ->
+	      1?  (i=seq)*(#: r_getdata)*(pty=data)*(sync_medium1=1) +
+	           /* used sync_medium1 to save some typing */
+
+	          (i= (recseq+1)mod dbl_WINSIZE)* (#: r_timeout)*
+                    (sync_medium1=1) +
+
+	          (i= tmp)* (#: out_of_order)*(sync_medium1=1)
+
+           | 0?  (#: beginning)*(s:4) +
+                 (i=seq)* (#: r_getdata)*(hck=1)*(pty=data)*(dck=1)*
+                 ~((seq=lack)+(diff(seq, lack)>WINSIZE))
+           | nakd_val[i] }
+
+  asgn [i in 0.. dbl_WINSIZE-1 ] 
+      		{ recbuf_val[i] -> 0 ? (i=tmp)*(#: in_order)*
+		                       (recbuf[tmp]=1) |
+		  		   1 ? (i=seq)*(#: data_received)*
+		                       (~(seq=(recseq+1)mod dbl_WINSIZE))
+                                       *(seq~=recseq)*(recbuf[seq]~=1)/* *** */
+                                 | recbuf_val[i] }
+case{(sync_medium0=1):{
+  seq_st -> medium[0].seq
+  ,ak_st -> medium[0].ak 
+  ,hck_st -> medium[0].hck
+  ,dck_st -> medium[0].dck
+  ,pty_st -> medium[0].pty
+    }}
+
+  asgn outpty := ( nak ? (#: r_getdata)*(pty=data) +
+	                     (#: r_timeout) +
+	                     (#: out_of_order)
+                     | ack ? 
+#ifdef FIXED 
+                             (#: r_getdata)*(pty=nak) /*bug fix */ +
+#endif
+                             (#: in_order)
+                     | ack /* default ack; this value not important */
+                     ) ? (sync_medium1=1)
+                       |  ack /* default ack; this value not important */
+
+  asgn outseq := (  (recseq+1) mod dbl_WINSIZE ? (#: r_timeout) |
+		    seq ? (#: r_getdata)*(pty=data) + (#: in_order) |
+		    tmp ? (#: out_of_order) 
+#ifdef FIXED
+                  | recseq ? (#: r_getdata)*(pty=nak) /*bug fix */
+#endif
+		  | 0 /* unimportant default value */
+                 ) ? (sync_medium1=1)
+                 | 0 /* unimportant default value */
+
+  asgn outak := ( recseq ? (#: r_timeout) + 
+                           (#: r_getdata)*(pty=data) + 
+                           (#: out_of_order) 
+#ifdef FIXED
+                           + (#: r_getdata)*(pty=nak)  /*bug fix */
+#endif
+                | seq ? (#: in_order) 
+                | 0 /* unimportant default value */
+                ) ? (sync_medium1=1)
+                | 0 /* unimportant default value */
+
+/*  recur $:*->r_timeout */
+  trans  
+
+  beginning
+  -> r_getdata: (s:3)*(medium[0].#:full)
+  -> r_timeout: (s:4) /* reset nakd array if this trans selected */
+  -> $: else;
+
+  r_timeout  
+  -> r_getdata: (s:3)*(medium[0].#:full)
+     /* send nak and go back to beginning */
+  -> beginning: (s:4)*(medium[1].#:empty)
+  -> $: else;
+
+  /* Notice that I have to be careful in constructing the conditions
+     below, as I am merging multiple layers of if-then-else statements
+     into this one state-transition structure. For example, in
+     the Promela code, whenenver hck=0, I should ignore the packet
+     and go back to the state "beginning". However, notice that I
+     have to specifically add the condition "hck=1" in some of the
+     transitions. In particular, if I don't have "hck=1" in the condition
+     of the second transition, then when s=3 and hck=0, the second transition
+     may be taken, which would be wrong. Notice also where the "else" 
+     keyword is used! In general, use "else" as sparsely as possible to
+     avoid confusion.
+  */
+  r_getdata
+  -> beginning: (hck=0)   /* bad hck, do nothing */
+#ifdef FIXED
+  -> beginning: (hck=1)*(pty=nak)*
+                (s:4)*(medium[1].#:empty)
+                /* resends an ack and updates lack ; this is the bug fix */
+#else
+  -> beginning: (hck=1)*(pty=nak)
+     /* go back to beginning and ignore the packet */
+#endif
+     /* pty= data below */
+  -> beginning: (hck=1)*(pty=data)*
+                ((seq=lack)+(diff(seq, lack)>WINSIZE))
+  		  /* out of receive window, do nothing; */
+  -> beginning: (hck=1)*(pty=data)*(dck=0)*
+                ~((seq=lack)+(diff(seq, lack)>WINSIZE))*
+                ((seq=recseq)+(recbuf[seq]=1)+(diff(seq, recseq)>WINSIZE) )
+                 /* in window but bad dck; if already delivered, or already 
+		    correctly received, then go back to beginning */
+  -> beginning: (hck=1)*(pty=data)*(dck=0)*
+                ~((seq=lack)+(diff(seq, lack)>WINSIZE))*
+                ~((seq=recseq)+(recbuf[seq]=1)+(diff(seq, recseq)>WINSIZE) )*
+                (s:4)*(medium[1].#:empty)
+                 /*in receive window,not nakd,not received: so sendnak*/
+  -> data_received: (hck=1)*(pty=data)*(dck=1)*
+                 ~((seq=lack)+(diff(seq, lack)>WINSIZE))
+     /* data_received state is not required; but to merge all transitions
+	from data_received into this state will make the conditions
+	two complicated and un-readable */
+  -> $: else;
+
+  data_received  /* In-window correct data; set nakd_val[seq] to 0 */
+  -> in_order: (seq= (recseq+1) mod dbl_WINSIZE)
+       /* in order pak; update recseq_val, set tmp_val and deliver
+	  (rcvr_u is passive, and always ready to sync with receiver*/
+  -> out_of_order: (~(seq= (recseq+1) mod dbl_WINSIZE) )
+              *(seq~=recseq)*(recbuf[seq]~=1)  /* *** */
+     /* out of order new packet. set recbuf[seq] to true and set tmp_val */
+     /* notice out_of_order is needed for two reasons: 1. wait for tmp_val
+	to stablize; 2. there is a loop on out_of_order! */
+  -> beginning: (~(seq= (recseq+1) mod dbl_WINSIZE) )
+                   *~((seq~=recseq)*(recbuf[seq]~=1));
+     /* out of order packet that had previously been received  *** */
+
+  in_order
+  -> $: (recbuf[tmp]=1)
+     /* deliver; reset recbuf[tmp] and increment tmp_val  */
+  -> beginning: (recbuf[tmp]=0)*(diff(seq, lack)<WINSIZE/2)
+     /* no need to send ack; return! */
+  -> beginning: (s:4)*(recbuf[tmp]=0)*(diff(seq, lack)>=WINSIZE/2)
+                       *(medium[1].#:empty)
+     /* send ack at half window boundary and update lack. Then return. *** */
+  -> $: else;     /* medium 1 not ready to communicate, so wait here */
+
+  out_of_order
+  -> beginning: (tmp=seq)
+  -> out_of_order: (tmp~=seq)*~((nakd[tmp]~=1)*(recbuf[tmp]~=1))
+     /* current packet indexed by tmp already received or nakd. 
+        so just increment tmp_val */
+  -> out_of_order: (tmp~=seq)*(nakd[tmp]~=1)*(recbuf[tmp]~=1)
+                *(s:4)*(medium[1].#:empty)
+     /* send nak, update lack, nakd and tmp_val and come back*/
+  -> $: else; /* medium 1 not ready. wait here */
+
+end receiver
+/***********************************************************************/
+
+proc rcvr_u_seq_val: NAT(dbl_WINSIZE-1,0, ($+1) mod dbl_WINSIZE ? 
+                                             (rcvr_u.#: ready) | $ )
+
+proc rcvr_u
+import s, receiver
+selvar #:= $
+stvar $: ( reading, ready)
+init $:= reading
+/* recur $:*->ready */
+asgn $-> ready ?   ((receiver.#:data_received)*
+		       (receiver.seq= (receiver.recseq+1) mod dbl_WINSIZE) +
+                     (receiver.#: in_order)*(receiver.recbuf[receiver.tmp]=1))
+        | reading
+end
+
+/***********************************************************************/
+

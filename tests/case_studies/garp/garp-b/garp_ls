@@ -1,0 +1,53 @@
+/*
+ * PROMELA Validation Model
+ * GARP(main1)
+ * by T.Nakatani
+ */
+
+#include "defines1"
+#include "macuser1"
+#include "macuser2"
+#include "llc1"
+#include "applicant"
+#include "registrar"
+byte pid;
+
+init
+{	atomic {
+	  pid = (run macuser1(0));
+	  run macuser2(1);
+	  run applicant(0);
+	  run applicant(1);
+	  run llc1();
+	  run registrar(0)
+	}
+}
+
+	/*
+	 * Formula As Typed: [](p-><>([]q))
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([](p-><>([]q)))
+	 * (formalizing violations of the original)
+	 */
+#define p	(macuser1[pid]@user1_end)
+#define q	(r_state != out_reg)
+
+never {    /* !([](p-><>([]q))) */
+T0_init:
+	if
+	:: (1) -> goto T0_init
+	:: ((p)) -> goto T0_S3
+	:: (! ((q)) && (p)) -> goto accept_S3
+	fi;
+accept_S3:
+	if
+	:: (1) -> goto T0_S3
+	fi;
+T0_S3:
+	if
+	:: (1) -> goto T0_S3
+	:: (! ((q))) -> goto accept_S3
+	fi;
+accept_all:
+	skip
+}

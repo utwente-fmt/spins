@@ -1,0 +1,35 @@
+/* 
+Harmony Validation
+File :              taskstates
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 20 Jul 94
+Description :       
+- task states
+*/
+
+#define TRANSFERRED            128
+#define READY                  1
+#define SENDING                ( 2 | TRANSFERRED )  /* 130 */
+#define SEND_BLOCKED           ( 3 | TRANSFERRED )  /* 131 */
+#define REPLYING               4
+#define REPLY_BLOCKED          ( 5 | TRANSFERRED )  /* 133 */
+#define Q_RECEIVER             ( 6 | TRANSFERRED )  /* 134 */
+#define ACK_Q_RECEIVER         ( 7 | TRANSFERRED )  /* 135 */
+#define UNQ_RECEIVER           8
+#define ACK_UNQ_RECEIVER       9
+#define RCV_SPECIFIC_BLOCKED   ( 10 | TRANSFERRED ) /* 138 */
+#define RCV_BLOCKED            11
+#define COPYING_MSG            12
+#define ABORT_COPY_MSG         13
+
+#define ATTACH_OFFSPRING       14
+#define FIRST_READY            15
+#define RETRIEVING             16
+#define ACK_RETRIEVE           17
+#define RETRIEVED              18
+#define DETACH_OFFSPRING       19
+#define ACK_DETACH_OFFSPRING   20
+#define INFANTICIDE            21
+#define AWAIT_INTERRUPT        22
+

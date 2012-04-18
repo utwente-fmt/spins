@@ -1,0 +1,93 @@
+/*
+ * Copyright (c) 1996 The University of Utah and
+ * the Computer Systems Laboratory at the University of Utah (CSL).
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify and distribute this software is hereby
+ * granted provided that (1) source code retains these copyright, permission,
+ * and disclaimer notices, and (2) redistributions including binaries
+ * reproduce the notices in supporting documentation, and (3) all advertising
+ * materials mentioning features or use of this software display the following
+ * acknowledgement: ``This product includes software developed by the
+ * Computer Systems Laboratory at the University of Utah.''
+ *
+ * THE UNIVERSITY OF UTAH AND CSL ALLOW FREE USE OF THIS SOFTWARE IN ITS "AS
+ * IS" CONDITION.  THE UNIVERSITY OF UTAH AND CSL DISCLAIM ANY LIABILITY OF
+ * ANY KIND FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+ *
+ * CSL requests users of this software to return to csl-dist@cs.utah.edu any
+ * improvements that they make and grant CSL redistribution rights.
+ */
+/*
+ * Fluke-syntax.pr - Tests syntax of operations on Fluke type, just
+ *                   by instantiation on compilation.  Doesn't actually
+ *                   do anything useful.
+ */
+
+#define INCLUDE_IPC_PAYLOAD
+#define INCLUDE_CLIENT_SEND_OVER_RECEIVE
+#define INCLUDE_CLIENT_ACK_SEND_OVER_RECEIVE
+#define INCLUDE_CLIENT_CONNECT_SEND
+#define INCLUDE_CLIENT_ACK_SEND
+#define INCLUDE_CLIENT_SEND 
+#define INCLUDE_CLIENT_CONNECT_SEND_OVER_RECEIVE
+#define INCLUDE_CLIENT_RECEIVE
+#define INCLUDE_CLIENT_DISCONNECT
+#define INCLUDE_WAIT_RECEIVE
+#define INCLUDE_SERVER_ACK_SEND
+#define INCLUDE_SERVER_SEND
+#define INCLUDE_SERVER_ACK_SEND_WAIT_RECEIVE
+#define INCLUDE_SERVER_ACK_SEND_OVER_RECEIVE
+#define INCLUDE_SERVER_SEND_WAIT_RECEIVE
+#define INCLUDE_SERVER_SEND_OVER_RECEIVE
+#define INCLUDE_SERVER_RECEIVE
+#define INCLUDE_SERVER_DISCONNECT
+
+#include "../../fluke/Fluke.pr"
+#include "../../fluke/Thread.pr"
+#include "../../fluke/ResultCode.pr"
+
+mtype = {
+  FLUKE_MESSAGES
+}
+
+threadDefineInstances(1);
+wqDefineInstances(1);
+mutexDefineInstances(1);
+
+#include "../../support/Proctypes.pr"
+
+proctype syntaxTest() {
+  Fluke kernel;
+  Thread aThread;
+  ResultCode rc;
+  IpcPayload payload;
+
+  flukeVersion(kernel);
+  flukeNop(kernel);
+
+  flukeClientConnectSend(kernel,aThread,payload);
+  flukeClientAckSend(kernel,payload);
+  flukeClientSend(kernel,payload);
+  flukeClientConnectSendOverReceive(kernel,aThread,payload,/*out*/payload);
+  flukeClientAckSendOverReceive(kernel, payload, payload);
+  flukeClientSendOverReceive(kernel,payload,payload);
+  flukeClientReceive(kernel,payload);
+  flukeClientDisconnect(kernel);
+
+  flukeWaitReceive(kernel,payload);
+  flukeServerAckSend(kernel,payload);
+  flukeServerSend(kernel,payload);
+  flukeServerAckSendWaitReceive(kernel,payload,payload);
+  flukeServerAckSendOverReceive(kernel,payload,payload);
+  flukeServerSendWaitReceive(kernel,payload,payload);
+  flukeServerSendOverReceive(kernel,payload,payload);
+  flukeServerReceive(kernel,payload);
+  flukeServerDisconnect(kernel);
+}
+
+init {
+  threadInitInstances(1);
+  wqInitInstances(1);
+  mutexInitInstances(1);
+}

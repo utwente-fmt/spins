@@ -1,0 +1,59 @@
+/* 
+Harmony Validation
+File :              tryreceive
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 12 April 94
+Description :       
+- non blocking msg reception
++ reabstraction from complete kernel
+*/
+
+#define _Try_receive(rid,id)\
+  if\
+  :: (id) ->\
+       /* Try receive specific */\
+         _Disable();\
+         correspondent[_Active]=id;\
+         _Convert_to_td(sender,correspondent[_Active]);\
+         if\
+         :: (!sender ||\
+            (state[sender]!=SEND_BLOCKED) ||\
+            (correspondent[sender]!=_Active)) ->\
+              _Enable();\
+              rid=0\
+         :: (sender &&\
+            (state[sender]==SEND_BLOCKED) &&\
+            (correspondent[sender]==_Active)) ->\
+              state[sender] = REPLY_BLOCKED;\
+              state[_Active] = COPYING_MSG;\
+              _Enable();\
+              _Copy_msg();\
+              state[_Active] = READY;\
+              rid=correspondent[_Active]\
+         fi\
+  :: (!id) ->\
+       /* Try receive any */\
+try_try_again:\
+       _Disable();\
+       if\
+       :: empty_send_q(_Active) ->\
+            _Enable();\
+            rid = 0\
+       :: !empty_send_q(_Active) ->\
+            hdel_send_q(_Active,sender);\
+            state[sender] = REPLY_BLOCKED;\
+            correspondent[_Active]=sender;\
+            state[_Active] = COPYING_MSG;\
+            _Enable();\
+            _Copy_msg();\
+            if\
+            :: (state[_Active]==ABORT_COPY_MSG) ->\
+                 goto try_try_again\
+            :: (state[_Active]!=ABORT_COPY_MSG) ->\
+                 state[_Active] = READY;\
+                 rid = correspondent[_Active]\
+            fi\
+       fi\
+  fi
+

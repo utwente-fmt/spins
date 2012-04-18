@@ -1,0 +1,50 @@
+o need to prepare the NPM bibtex file somewhere
+
+o thread_cancel in list of functions (at the top of Fluke.pr, and
+	whereever in the doc.)
+
+o list of functions/entrypoints -- a list of what entrypoints we
+	model, perhaps how they're related, and a list of what
+	functions we modeled?
+
+o mutex section should desc. both flavors. (simple & safe), it should
+	also explain that we abstracted spin_locks() [they're just
+	a performance hack.]
+
+o describe the idea of scaling the granularity with well-placed atomic/d_step
+	blocks.
+
+X the multiprocessor-ness of this simulation.  Ie that it is effectively
+	one processor per thread.
+	[DONE (sort of) in model-thread.tex]
+
+o "Promela" is a proper noun; first letter should always be capitalized.
+
+o our cool-ass tools (scripts, makefile, abstractions, etc.)
+
+X the fact that the compile takes longer than the verification
+	[DONE (sort of) in results.tex]
+
+X describe failed experiment with separate thread state and control
+	[DONE (sort of) in model-thread.tex]
+
+o We also need to give a complete description of the thread state.. may be
+	in one of the files on thread.  What mutexes.  What is actually
+	from the code, and what we made up ourselves (I think only the
+	rendevous bit and the ipc payload stuff.)
+
+o describe the notion of our user-level driver programs also loosely(?)
+called as test-cases.
+
+o Courier-ize all ref's to d_step in-text
+
+o Update the description of ports in portsEtc.tex
+
+o Add the wait.c function descriptions to the appendix.
+
+o Add the list of entrypoints to the appendix.
+
+o intro is way out-of-date (paper structure forecast).
+
+o We're still missing description of the large-scale structure of the
+  besasie.  How about swapping 2&3, and adding a new 2?  Some other time?

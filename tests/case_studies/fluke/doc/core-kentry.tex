@@ -1,0 +1,56 @@
+\subsection{Kernel Entry Layer Model}
+
+A thread performing kernel operations is ``controlled'' by the kernel
+entry point and the return code. 
+All kernel entry points are ``clean.''  A thread that gets canceled
+will never reveal itself to be in the middle of a kernel operation;
+it will always appear to the canceling thread that it is about to
+begin a kernel operation, or that it is in user mode.  To prevent
+long or complicated kernel functions from becoming a bottleneck, these
+operations are broken into sub-sequences.  
+
+For example the long 
+{\tt fluke_ipc_client_connect_send_over_receive()} operation that
+connects to a server, sends a request, waits for a reply and receives
+it into a buffer, can take quite a while.  As portions of the
+operation are completed the kernel entrypoint is advanced.  So, in 
+this example, after the ``connect'' phase is completed, the kernel
+sets the thread's entrypoint to be {\tt
+fluke_ipc_send_over_receive().}
+
+\begin{figure}
+{\small
+\begin{enumerate}
+\item {\tt KR_USER_EXCEPTION} A processor exception occurred which
+should be blamed on the user (e.g. because the exception was generated
+while accessing user space). The current thread's exception_state
+contains the details.
+
+\item {\tt KR_PAGE_FAULT} Page fault occurred.
+This gets turned into a real KR_USER_EXCEPTION by the kentry layer
+if the page fault cannot be resolved in the kernel
+and no appropriate region keeper can be found to handle the fault
+
+\item {\tt KR_CANCEL} Another thread is trying to manipulate us and
+has asynchronously canceled us,  e.g. due to thread_interrupt(),
+thread_get_state(), thread_set_state().
+
+\item {\tt KR_NO_MEMORY} Ran out of kernel memory.
+
+\item {\tt KR_RESTART} This return code indicates that we have context
+switched due to a wait, and we need to restart execution in user mode
+before doing anything else in case dependent things have changed.
+
+\end{enumerate}
+}
+\caption{The set of return codes used within the kernel}
+\label{ReturnCodes-fig}
+\end{figure}
+
+All of the major functions within the kernel return one of a small,
+well defined set of error codes.  See Figure~\ref{ReturnCodes-fig}
+for a complete list.
+The return code is used to signal special conditions. By convention,
+any function returning a non-zero return code signals that the
+kernel operation in progress has been canceled or must be restarted.
+

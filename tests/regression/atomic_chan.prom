@@ -1,0 +1,28 @@
+/* Author: Alfons Laarman
+ * SPIN: 0.9.2
+ * Description: RunExpression with arguments
+ */
+
+chan c1 = [0] of { byte };
+
+proctype test_proc() {
+    int num;
+    atomic {
+        num = 3; //enabled
+        c1?num; //blocked -> loss of atomicity
+        num = num + 1; // should be atomic with next
+        num = num + 3; //
+        printf ("%d", num);
+    }
+}
+
+init {
+    int num;
+    run test_proc();
+    atomic {
+        c1!1; // blocked
+        num = 3; // should be atomic with next
+        num = num + 2;
+        printf ("%d", num);
+    }
+}

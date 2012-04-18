@@ -1,0 +1,40 @@
+/* 
+Harmony Validation
+File :              td
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 April 94
+Description :       
+- task descripteurs data and functions
++ reabstraction from complete kernel
+*/
+
+/* task descriptors */
+byte correspondent[NB_TASK1];
+byte state[NB_TASK1];
+byte processor[NB_TASK1];
+byte hd_send_q[NB_TASK1];
+
+#define _Convert_to_td(td,id)\
+  atomic{\
+    if\
+    :: ((id>0) && (id<=_Max_task_number)) ->\
+         td=id\
+    :: ((id<=0) || (id>_Max_task_number)) ->\
+         td=0\
+    fi\
+  }
+
+#define _I_td(id,proc)\
+  atomic{\
+    state[id]=0;\
+    processor[id]=proc\
+  }
+
+#define _Free_td(id)\
+  atomic{\
+    state[id]=UND;\
+    processor[id]=UND;\
+    correspondent[id]=UND;\
+    hd_send_q[id]=NIL\
+  }

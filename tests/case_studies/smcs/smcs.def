@@ -1,0 +1,6 @@
+#define true 		1
+#define false 		0
+#define NODOS 		2
+#define LTL			1
+#define OBS			2
+#define NOTACION 	LTL

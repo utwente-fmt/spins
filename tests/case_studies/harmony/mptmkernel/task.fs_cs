@@ -1,0 +1,81 @@
+/* 
+Harmony Validation
+File :              task
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 6 Aout 94
+Description :       
+- general skeleton of application task with fine grain control
+for task destruction
+*/
+
+proctype Task(byte _Active){
+  byte  ltm_id,rid,requestor,child,child1,child2;
+  byte  leng,burst,replyee,sender,i,corr_id,lson;
+  short level;
+  message(request);message(response);message(reply);
+  
+START:
+  (state[_Active]==READY && valid[_Active]) ->
+end:
+progress:
+    do
+    :: atomic{
+         ( _Active==running[processor[_Active]] &&
+           !treatment[processor[_Active]] &&
+           (!len(fifo[processor[_Active]]) || masked[_Active]))
+         ->
+         if
+         :: killed[_Active] ->
+
+            /* _Infanticides() */
+            assert(valid[_Active]);
+            if
+            :: SEQI(0,  _Disable())
+            :: COND(1,  (left_son[_Active]==NIL),2,4)
+            :: SEQI(2,  _Enable())
+            :: GOTO(3,  23)
+            :: SEQI(4,  lson=left_son[_Active];_Enable())
+            :: CAL1(5,  _Destroys,lson)
+            :: GOTO(22, 0)
+            :: SEQI(23, request[SIZE]=MAXMSGLENGTH)
+            :: SEQI(24, request[TYPE]=SUICIDE)
+            :: CAL4(25, _Sends,rid,request,request,_Ltm_id[processor[_Active]])
+            :: SEQI(38, printf("_Infanticide ERROR\n") /*;assert(0)*/)
+            :: GOTO(39,  39)
+            fi
+
+         :: !killed[_Active] ->
+              if
+              :: index[_Active]==TASK1 -> /* Task1 */
+
+                 /* father1suicide */
+                 if
+                 :: CAL2(0,  _Creates,child,TASK2)
+#if TRACE
+                    ;printf("T%d creation of child%d\n",_Active,child)
+#endif
+                 :: COND(20, child==0,38,21)
+                 :: CAL0(21, _Suicides)
+                 :: SEQI(39, printf("ERROR _Suicide returns\n");assert(0))
+                 :: GOTO(40, 40)
+                 fi
+
+              :: index[_Active]==TASK2 -> /* Task2 */
+
+                 /* suicide */
+                 if
+                 :: CAL0(0,  _Suicides)
+                 :: SEQI(18, printf("ERROR _Suicide returns\n");assert(0))
+                 :: GOTO(19, 19)
+                 fi
+
+              :: index[_Active]>TASK2 ->  
+
+                 assert(0)
+
+            fi
+         fi
+       }
+    od
+}

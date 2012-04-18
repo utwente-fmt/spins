@@ -1,0 +1,25 @@
+/* 
+Harmony Validation
+File :              taskstates
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 Avril 94
+Description :       
+- task states
++ reabstraction from complete kernel
+*/
+
+#define TRANSFERRED            128
+#define READY                  1
+#define SENDING                ( 2 | TRANSFERRED )
+#define SEND_BLOCKED           ( 3 | TRANSFERRED )
+#define REPLYING               4
+#define REPLY_BLOCKED          ( 5 | TRANSFERRED )
+#define Q_RECEIVER             ( 6 | TRANSFERRED )
+#define ACK_Q_RECEIVER         ( 7 | TRANSFERRED )
+#define UNQ_RECEIVER           8
+#define ACK_UNQ_RECEIVER       9
+#define RCV_SPECIFIC_BLOCKED   ( 10 | TRANSFERRED )
+#define RCV_BLOCKED            11
+#define COPYING_MSG            12
+#define ABORT_COPY_MSG         13

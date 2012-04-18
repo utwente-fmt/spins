@@ -1,0 +1,19 @@
+/* 
+Harmony Validation
+File :              creates
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 22 Jun 94
+Description :       
+- task creation
+*/
+
+#define _Creates(rid,task_index,pc)\
+     SEQI(pc+0,  request[SIZE]=MAXMSGLENGTH)\
+  :: SEQI(pc+1,  request[TYPE]=CREATE)\
+  :: SEQI(pc+2,  request[TEMPLATE]=task_index)\
+  :: SEQI(pc+3,  response[SIZE]=MAXMSGLENGTH)\
+  :: SEQI(pc+4,  response[RESULT]=0)\
+  :: CAL4(pc+5,  _Sends,rid,request,response,_Ltm_for_template[task_index])\
+  :: SEQI(pc+18, rid=response[RESULT])\
+  :: RETS(pc+19)

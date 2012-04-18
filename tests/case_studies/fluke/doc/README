@@ -1,0 +1,41 @@
+
+Fluke IPC in Promela
+--------------------
+
+A postscript version of the paper published in HOTOS-VI is available in
+the papers subdirectory.
+
+The doc directory doesn't contain the sort of documentation that
+you're hoping for.  This is a collection of 3 documents, the original
+project proposal, a status report half way through the project (that's
+half-way through time wise, not results wise...), and a final project
+report.  There is also an out-of-date, but still interesting/useful
+simulation specification describing what we were planning to do in
+Promela and how.
+
+	Docs
+	----
+
+	proposal: The project proposal.
+
+	progress: A progress report.
+
+	ipc-outline:  A description of many of the C structures and
+		functions used in Fluke IPC.  Probably too low-level
+		for those that don't already understand the basics
+		of Fluke IPC.  (Most everyone outside of the U. of
+		Utah...)
+
+	sim-spec:  A start at a specification detailing the
+		way were planning to model Fluke in Promela.
+		Quite divorced from reality now.
+
+	report: Our "final" report on the project.
+
+The Makefile should be able to crate any of the above by typing 
+'make <name>.ps'
+
+Also, project presentations are available on the web site:
+http://www.cs.utah.edu/~tullmann/flux/verify.html
+
+

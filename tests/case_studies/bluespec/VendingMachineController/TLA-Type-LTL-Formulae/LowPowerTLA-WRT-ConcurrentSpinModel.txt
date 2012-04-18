@@ -1,0 +1,193 @@
+#define monBk money_back
+#define gmDsp gum_dispensed
+#define rlFrd action_fired
+#define oneRlFrd one_action_fired
+
+#define eqTo0 count == 0
+#define gEq50 count >= 50
+#define gt10  count > 10
+
+#define inc10 count_old == (count - 10)
+#define inc50 count_old == (count - 50)
+#define dec10 count_old == (count + 10)
+#define dec50 count_old == (count + 50)
+
+#define ins10 ten_cent_in
+#define ins50 fifty_cent_in
+#define mbbtn money_back_button
+
+#define dsp10 (dec10 && monBk)
+#define noMon (eqTo0 && !monBk)
+#define dspGm (dec50 && gmDsp)
+
+#define rlEq1 action == 1
+#define rlEq2 action == 2
+#define rlEq3 action == 3
+#define rlEq4 action == 4
+#define rlEq5 action == 5
+#define rlEq6 action == 6
+
+#define rlEq12 (rlEq1 || rlEq2)
+#define rlEq56 (rlEq5 || rlEq6)
+#define rlEq3456 (rlEq3 || rlEq4 || rlEq5 || rlEq6)
+
+#define cnd1 (monBk && gt10)
+#define act1 dsp10
+#define cnd2 (monBk && !gt10)
+#define act2 noMon
+
+#define cnd3 (!monBk && ins10 && rlEq1)
+#define act3 inc10
+
+#define cnd4 (!monBk && !ins10 && ins50 && rlEq12)
+#define act4 inc50
+
+#define cnd5 (!monBk && gEq50 && !ins10 && !ins50 && !rlEq5 && !rlEq6)
+#define act5 dspGm
+
+#define cnd6 (!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && !oneRlFrd)
+#define act6 monBk
+
+#define cnd7 (!monBk && gEq50 && !ins10 && !ins50 && rlEq56)
+#define act7 (inc10 || inc50 || dspGm)
+
+#define cnd81 (!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && oneRlFrd)
+#define cnd82 (!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && !mbbtn)
+#define cnd83 (!monBk && !gEq50 && !ins10 && !ins50 &&  rlEq6)
+#define cnd8 (cnd81 || cnd82 || cnd83)
+#define act8 (inc10 || inc50 || monBk)
+
+#define cnd91 (!monBk && ins10 && !rlEq1)
+#define cnd92 (!monBk && !ins10 && ins50 && rlEq3456)
+#define cnd9 (cnd91 || cnd92)
+#define act9 (inc10 || inc50 || monBk || dspGm)
+
+---------------------------------------------------------------------------------------------------------
+// Low Power TLA Version 5 - 
+(The following property led to violation wrt Conc Spin Model - (cnd7 -> X (!rlFrd U act7) - 
+Reason explained below in the last version)
+---------------------------------------------------------------------------------------------------------
+[] ( (cnd1 -> X (!rlFrd U act1)) && (cnd2 -> X (!rlFrd U act2)) && (cnd3 -> X (!rlFrd U act3)) && (cnd4 -> X (!rlFrd U act4)) && (cnd5 -> X (!rlFrd U act5)) && (cnd6 -> X (!rlFrd U act6)) && (cnd7 -> X (!rlFrd U act7)) && (cnd8 -> X (!rlFrd U act8)) && (cnd9 -> X (!rlFrd U act9)) )
+
+
+---------------------------------------------------------------------------------------------------------
+// Low Power TLA - Version 4
+---------------------------------------------------------------------------------------------------------
+[] ( ((monBk &&  gt10) -> X (!rlFrd U (dec10 && monBk))) && 
+     ((monBk && !gt10) -> X (!rlFrd U (eqTo0 && !monBk))) && 
+
+     ((!monBk && ins10 && rlEq1) -> X (!rlFrd U inc10)) &&
+
+     ((!monBk && !ins10 && ins50 && rlEq12) -> X (!rlFrd U inc50)) 
+
+     ((!monBk && gEq50 && !ins10 && !ins50 && !rlEq5 && !rlEq6) -> X (!rlFrd U dspGm)) &&
+
+     ((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && !oneRlFrd) -> X (!rlFrd U monBk)) &&
+
+     ((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq56) -> X (!rlFrd U (inc10 || inc50 || dspGm))) &&      
+
+     (((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && oneRlFrd) ||
+       (!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && !mbbtn) ||
+       (!monBk && !gEq50 && !ins10 && !ins50 &&  rlEq6)) -> X (!rlFrd U (inc10 || inc50 || monBk))) &&        
+
+     (((!monBk && ins10 && !rlEq1) ||
+       (!monBk && !ins10 && ins50 && rlEq3456)) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm)))
+   )
+
+
+---------------------------------------------------------------------------------------------------------
+// Low Power TLA - modeled wrt Concurrent spin model - version 3 (version 2's commmon implication 
+expressions combined and simplified)
+---------------------------------------------------------------------------------------------------------
+[] ( ((monBk &&  gt10) -> X (!rlFrd U (dec10 && monBk))) && 
+     ((monBk && !gt10) -> X (!rlFrd U (eqTo0 && !monBk))) && 
+
+     ((!monBk && gEq50 && !ins10 && !ins50 && !rlEq5 && !rlEq6) -> X (!rlFrd U dspGm)) &&
+
+     ((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq56) -> X (!rlFrd U (inc10 || inc50 || dspGm))) &&      
+
+     (((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && oneRlFrd) ||
+       (!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && !mbbtn) ||
+       (!monBk && !gEq50 && !ins10 && !ins50 &&  rlEq6)) -> X (!rlFrd U (inc10 || inc50 || monBk))) &&        
+
+     ((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && !oneRlFrd) -> X (!rlFrd U monBk)) &&
+
+     ((!monBk && ins10 && rlEq1) -> X (!rlFrd U inc10)) &&
+
+     ((!monBk && !ins10 && ins50 && rlEq12) -> X (!rlFrd U inc50)) 
+
+     (((!monBk && ins10 && !rlEq1) ||
+       (!monBk && !ins10 && ins50 && rlEq3456)) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm)))
+
+
+   )
+
+---------------------------------------------------------------------------------------------------------
+// Low Power TLA - modeled wrt Concurrent spin model - version 2 (version 1 unrolled
+and common implication expression brought together)
+---------------------------------------------------------------------------------------------------------
+[] ( ((monBk &&  gt10) -> X (!rlFrd U (dec10 && monBk))) && 
+     ((monBk && !gt10) -> X (!rlFrd U (eqTo0 && !monBk))) && 
+
+     ((!monBk && gEq50 && !ins10 && !ins50 && !rlEq5 && !rlEq6) -> X (!rlFrd U dspGm)) &&
+
+     ((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq56) -> X (!rlFrd U (inc10 || inc50 || dspGm))) &&      
+
+     ((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && oneRlFrd) -> X (!rlFrd U (inc10 || inc50 || monBk))) && 
+     ((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || monBk))) &&
+     ((!monBk && !gEq50 && !ins10 && !ins50 &&  rlEq6) -> X (!rlFrd U (inc10 || inc50 || monBk))) &&        
+
+     ((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && !oneRlFrd) -> X (!rlFrd U monBk)) &&
+
+     ((!monBk && ins10 && !ins50 && rlEq1) -> X (!rlFrd U inc10)) &&
+     ((!monBk && ins10 && ins50 && rlEq1) -> X (!rlFrd U inc10)) &&
+
+     ((!monBk && !ins10 && ins50 && rlEq12) -> X (!rlFrd U inc50)) 
+
+     ((!monBk && ins10 && !ins50 && !rlEq1) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm))) &&       
+     ((!monBk && !ins10 && ins50 && rlEq3456) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm))) &&
+     ((!monBk && ins10 && ins50 && !rlEq1) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm))) &&   
+
+
+   )
+---------------------------------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------------------------------------
+// Low Power TLA - modeled wrt Concurrent spin model (version 1) - CHECKED
+(This TLA doesnt pass verification test against concurrent spin model. 
+This is because of following violating property (VIO-PROP) -
+
+((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq56) -> X (!rlFrd U (inc10 || inc50 || (dec50 && gmDsp))))
+
+Note that if we compare below TLA with ConcurrentBSC-VM-LTL (concurrent TLA wrt its implementation), then
+in most cases, below TLA has extra behaviors (because cycle boundaries arrive just after firing one cycle).
+
+Only, for above property VIO-PROP, it might happen that when ((count > 100) and mbttn is enabled) then in 
+concurrent scheule both rules do_dispense_gum and money_back_button will fire (followed by do_dispense_money
+in next clock cycle). However, in below TLA, this behavior wont be seen since it will only fire do_dispense_gum
+(and not mbbtn) in that cycle which leads to a diff behavior.
+---------------------------------------------------------------------------------------------------------
+[] ( ( (monBk &&  gt10) -> X (!rlFrd U (dec10 && monBk)) 
+     ) && 
+     ( (monBk && !gt10) -> X (!rlFrd U (eqTo0 && !monBk)) 
+     ) && 
+     ( ((!monBk && gEq50 && !ins10 && !ins50 && !rlEq5 && !rlEq6) -> X (!rlFrd U (dec50 && gmDsp))) &&
+       ((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq56) -> X (!rlFrd U (inc10 || inc50 || (dec50 && gmDsp))))
+     ) &&
+     ( ((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && oneRlFrd) -> X (!rlFrd U (inc10 || inc50 || monBk))) && 
+       ((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && mbbtn && !oneRlFrd) -> X (!rlFrd U monBk)) &&
+       ((!monBk && !gEq50 && !ins10 && !ins50 && !rlEq6 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || monBk))) &&       
+       ((!monBk && !gEq50 && !ins10 && !ins50 &&  rlEq6) -> X (!rlFrd U (inc10 || inc50 || monBk)))         
+     ) &&
+     ( ((!monBk && ins10 && !ins50 && rlEq1) -> X (!rlFrd U inc10)) &&
+       ((!monBk && ins10 && !ins50 && !rlEq1) -> X (!rlFrd U (inc10 || inc50 || monBk || (dec50 && gmDsp)))) &&       
+
+       ((!monBk && !ins10 && ins50 && rlEq12) -> X (!rlFrd U inc50)) &&
+       ((!monBk && !ins10 && ins50 && rlEq3456) -> X (!rlFrd U (inc10 || inc50 || monBk || (dec50 && gmDsp)))) &&
+
+       ((!monBk && ins10 && ins50 && rlEq1) -> X (!rlFrd U inc10)) &&
+       ((!monBk && ins10 && ins50 && !rlEq1) -> X (!rlFrd U (inc10 || inc50 || monBk || (dec50 && gmDsp))))    
+
+     )
+   )
+---------------------------------------------------------------------------------------------------------

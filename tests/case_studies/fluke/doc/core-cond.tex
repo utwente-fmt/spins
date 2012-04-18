@@ -1,0 +1,25 @@
+\subsection{Condition Variable Model}
+
+The C implementation of condition variables
+makes use of POSIX-like condition
+variables. In addition the interface provides a call which allows a
+thread to place another (captured) thread asleep on a condition
+variable. Unlike POSIX conditions variables, the associated mutex
+is not re-acquired before returning from a wait operation.
+
+A condition variable is modeled using a {\bf wait queue} of the
+threads waiting on the condition variable. There is no extra state
+required to be maintained as the wait queues implement all the
+required features.
+
+\com {
+% Not any more, Pat ``fixed'' this.
+One change had to be made in the implementation of the condWait()
+function because of the way our wait queues were implemented. The
+Promela implementation of waitQueueAdd() blocks where as the C
+implementation does not. So we had to place some of the statements that
+should actually have been executed after the waitQueueAdd(), before it
+and place the whole sequence in an atomic block. This leads to a
+slight difference in semantics whereby some of the interesting
+interleavings are ignored.
+}

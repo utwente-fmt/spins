@@ -1,0 +1,34 @@
+/*
+ * PROMELA Validation Model
+ * GARP(LLC Service 1)
+ * by T.Nakatnai
+ */
+
+proctype llc1()
+{	byte type;
+
+endIDLE:
+	do
+	:: appl_to_llc[0]?type ->
+		if
+		:: llc_to_appl[1]!type; llc_to_regist[0]!type
+		:: llc_to_appl[1]!type
+		:: llc_to_regist[0]!type
+		:: skip	/* lose message */
+		fi
+	:: appl_to_llc[1]?type ->
+		if
+		:: llc_to_appl[0]!type; llc_to_regist[0]!type
+		:: llc_to_appl[0]!type
+		:: llc_to_regist[0]!type
+		:: skip	/* lose message */
+		fi
+	:: regist_to_llc[0]?type ->
+		if
+		:: llc_to_appl[0]!type; llc_to_appl[1]!type
+		:: llc_to_appl[0]!type
+		:: llc_to_appl[1]!type
+		:: skip	/* lose message */
+		fi
+	od
+}

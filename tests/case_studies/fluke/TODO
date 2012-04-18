@@ -1,0 +1,16 @@
+
+- Reimplement the handling of mutexes.  They should be closely 
+associated with thread objects.  Right now an extra one is
+included, of each type, because of poor organization.
+
+- Pass over the code looking for state reductions.
+
+- The wait queue declaration is poor.  It should take
+the number of threads (not twice the number of threads, as it
+does now.) and declare two per thread.
+
+- Cancel test still doesn't work.
+
+- The web page should have more text in it (take stuff from the
+docs.)
+

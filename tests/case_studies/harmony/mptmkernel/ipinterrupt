@@ -1,0 +1,259 @@
+/* 
+Harmony Validation
+File :              ipinterrupt
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          Jan 94
+Last modification : 6 Aug 94
+Description :       
+- hardware fifo
+- inter processor interrupt handling
+- signal primitives
+- processor initialisation
+*/
+
+chan fifo[NB_PROC] = [FIFO_LENGTH] of {byte};
+
+#define _Signal_processor(id)\
+    fifo[processor[id]]!id
+
+#define _Block()\
+    del_ready_q(processor[_Active],priority[_Active],_Active);\
+    _Redispatch(processor[_Active]) 
+
+#define _Block_signal_processor(id)\
+    del_ready_q(processor[_Active],priority[_Active],_Active);\
+    fifo[processor[id]]!_Active;\
+    _Redispatch(processor[_Active]) 
+
+proctype Int_handling(byte p){
+  byte candidate,sender,receiver,id,victim;
+  short level;
+end:
+  do
+  :: (fifo[p]?[candidate] && !masked[running[p]]) ->
+       /* _IP_int(p) */
+       treatment[p]=TRUE;
+       fifo[p]?candidate;
+
+       /* _Td_service(candidate) */
+#if DEBUG
+       printf("_Td_s %d >> %d state %d\n",p,candidate,state[candidate]);
+#endif
+       if
+       :: (candidate==_Victim_id[p]) ->
+            skip
+       :: (candidate!=_Victim_id[p]) ->
+            _Convert_to_td(candidate,candidate);
+            if
+            :: (!candidate) ->
+                 skip
+            :: (candidate) ->
+                 if
+                 :: (state[candidate]==READY & ~TRANSFERRED) ->
+                 skip
+                 :: (state[candidate]==Q_RECEIVER & ~TRANSFERRED) ->
+                      _Convert_to_td(sender,correspondent[candidate]);
+                      if
+                      :: (!sender) ->
+                           state[candidate] = ACK_UNQ_RECEIVER;
+                           _Signal_processor(candidate)
+                      :: (sender) ->
+                           tins_rcv_q(sender,candidate);
+                           state[candidate] = ACK_Q_RECEIVER;
+                           _Signal_processor(candidate)
+                      fi
+                 :: (state[candidate]==ACK_Q_RECEIVER & ~TRANSFERRED) ->
+                      state[candidate] = RCV_SPECIFIC_BLOCKED;
+                      _Convert_to_td(sender,correspondent[candidate]);
+                      if
+                      :: (sender && (state[sender]==SEND_BLOCKED) &&
+                         (correspondent[sender]==candidate)) ->
+                           del_send_q(candidate,sender);
+                           state[sender] = UNQ_RECEIVER;
+                           _Signal_processor(sender)
+                      :: (!sender || (state[sender]!=SEND_BLOCKED) ||
+                         (correspondent[sender]!=candidate)) ->
+                           skip
+                      fi
+                 :: (state[candidate]==UNQ_RECEIVER & ~TRANSFERRED) ->
+                      _Convert_to_td(receiver,correspondent[candidate]);
+                      if
+                      :: (receiver && (state[receiver]==RCV_SPECIFIC_BLOCKED)) ->
+                           del_rcv_q(candidate,receiver);
+                           state[receiver] = ACK_UNQ_RECEIVER;
+                           _Signal_processor(receiver)
+                      :: (!receiver || (state[receiver]!=RCV_SPECIFIC_BLOCKED)) ->
+                           correspondent[candidate] = 0;
+                           _Add_ready(candidate)
+                      fi
+                 :: (state[candidate]==ACK_UNQ_RECEIVER & ~TRANSFERRED) ->
+                      _Convert_to_td(sender,correspondent[candidate]);
+                      if
+                      :: (!sender) ->
+                           correspondent[candidate] = 0
+                      :: (sender) ->
+                           tins_rply_q(candidate,sender);
+                           state[sender] = REPLY_BLOCKED
+                      fi;
+                      _Add_ready(candidate)
+                 :: (state[candidate]==SENDING & ~TRANSFERRED) ->
+                      state[candidate] = SEND_BLOCKED;
+                      _Convert_to_td(receiver,correspondent[candidate]);
+                      if
+                      :: (!receiver) ->
+                           correspondent[candidate] = 0;
+                           state[candidate] = REPLYING;
+                           _Signal_processor(candidate)
+                      :: (receiver) ->
+                           if
+                           :: ((state[receiver]==RCV_SPECIFIC_BLOCKED) &&
+                              (correspondent[receiver]==candidate)) ->
+                                state[candidate] = UNQ_RECEIVER;
+                                _Signal_processor(candidate)
+                           :: ((state[receiver]!=RCV_SPECIFIC_BLOCKED) ||
+                              (correspondent[receiver]!=candidate)) ->
+                                tins_send_q(receiver,candidate);
+                                if
+                                :: (state[receiver]==RCV_BLOCKED) ->
+                                     correspondent[receiver]=candidate;
+                                     _Add_ready(receiver)
+                                :: (state[receiver]!=RCV_BLOCKED)->
+                                     skip
+                                fi
+                           fi
+                      fi
+                 :: (state[candidate]==REPLYING & ~TRANSFERRED) ->
+                      _Add_ready(candidate)
+                 :: (state[candidate]==ACK_DETACH_OFFSPRING & ~TRANSFERRED) ->
+                      _Add_ready(candidate)
+                 :: (state[candidate]==ACK_RETRIEVE & ~TRANSFERRED) ->
+                      _Add_ready(candidate)
+                 :: (state[candidate]==INFANTICIDE & ~TRANSFERRED) ->
+                      _Add_ready(candidate)
+                 :: (state[candidate]==ATTACH_OFFSPRING & ~TRANSFERRED) ->
+                      _Convert_to_td(id,correspondent[candidate]);
+                      _Convert_to_td(father,father[id]);
+                      if
+                      :: (!father) ->
+                           correspondent[candidate]=0
+                      :: (father) ->
+                           ins_son(father,id)
+                      fi;
+                      state[candidate]=FIRST_READY;
+                      _Signal_processor(candidate)
+                 :: (state[candidate]==FIRST_READY & ~TRANSFERRED) ->
+                      if
+                      :: (correspondent[candidate]) ->
+                           _Add_ready(correspondent[candidate])
+                      :: (!correspondent[candidate]) ->
+                           skip
+                      fi;
+                      _Add_ready(candidate)
+                 :: (state[candidate]==DETACH_OFFSPRING & ~TRANSFERRED) ->
+                      _Convert_to_td(id,correspondent[candidate]);
+                      del_son(id);
+                      state[candidate]=ACK_DETACH_OFFSPRING;
+                      _Signal_processor(candidate)
+                 :: (state[candidate]==RETRIEVING & ~TRANSFERRED) ->
+                      _Convert_to_td(victim,correspondent[candidate]);
+                      if
+                      :: ((state[victim]==SEND_BLOCKED) ||
+                         (state[victim]==REPLY_BLOCKED) ||
+                         (state[victim]==RCV_SPECIFIC_BLOCKED) ||
+                         (state[victim]==ACK_Q_RECEIVER)) ->
+                           /* remove victim from its queue */
+                           if
+                           :: (my_queue_type[victim]==SEND) ->
+                               del_send_q(my_queue_owner[victim],victim)
+                           :: (my_queue_type[victim]==RECV) ->
+                                 del_rcv_q(my_queue_owner[victim],victim)
+                           :: (my_queue_type[victim]==RPLY) ->
+                                 del_rply_q(my_queue_owner[victim],victim)
+                           :: ((my_queue_type[victim]!=SEND) &&
+                              (my_queue_type[victim]!=RECV) &&
+                              (my_queue_type[victim]!=RPLY)) ->
+                                printf("_Td_s %d ERROR(RETRIEVING victim%d) %d state%d\n",p,victim,candidate,state[candidate])
+                                /*;assert(0)*/
+                           fi;
+                           _Convert_to_td(receiver,correspondent[victim]);
+                           if
+                           :: ((state[receiver]==COPYING_MSG) &&
+                              (correspondent[receiver]==victim))->
+                                state[receiver]=ABORT_COPY_MSG;
+                                correspondent[receiver]=0
+                           :: ((state[receiver]!=COPYING_MSG) ||
+                              (correspondent[receiver]!=victim))->
+                                skip
+                           fi
+                      :: ((state[victim]!=SEND_BLOCKED) &&
+                         (state[victim]!=REPLY_BLOCKED) &&
+                         (state[victim]!=RCV_SPECIFIC_BLOCKED) &&
+                         (state[victim]!=ACK_Q_RECEIVER)) ->
+                           skip
+                      fi;
+                      state[victim]=RETRIEVED;
+                      correspondent[victim]=0;
+                      state[candidate]=ACK_RETRIEVE;
+                      _Signal_processor(candidate)
+                 :: /* other cases */
+                     atomic{
+                      (state[candidate] != READY &&
+                      state[candidate] != Q_RECEIVER &&
+                      state[candidate] != ACK_Q_RECEIVER &&
+                      state[candidate] != UNQ_RECEIVER &&
+                      state[candidate] != ACK_UNQ_RECEIVER &&
+                      state[candidate] != SENDING &&
+                      state[candidate] != REPLYING &&
+                      state[candidate] != ACK_DETACH_OFFSPRING &&
+                      state[candidate] != ACK_RETRIEVE &&
+                      state[candidate] != INFANTICIDE &&
+                      state[candidate] != ATTACH_OFFSPRING &&
+                      state[candidate] != FIRST_READY &&
+                      state[candidate] != DETACH_OFFSPRING &&
+                      state[candidate] != RETRIEVING ) ->
+                        printf("_Td_s %d ERROR(default) %d state%d\n",p,candidate,state[candidate])
+                        ;
+                        if
+                        :: (state[candidate] == 138)
+                           ;assert(0)
+                        :: (state[candidate] != 138)
+                        fi
+                     }
+                 fi
+            fi
+       fi
+#if DEBUG
+       ;printf("_Td_s %d << %d state %d\n",p,candidate,state[candidate])
+#endif
+
+       ;_Dispatch(p);
+       treatment[p]=FALSE
+  od
+}
+
+#define Proc_init()\
+   p=0;\
+   do\
+   :: (p <  NB_PROC) ->\
+        /*treatment[p]=FALSE;\
+        running[p]=NIL;\
+        l=0;\
+        do\
+        :: (l <  NB_PRIO_LEVEL) ->\
+             readyqref(hd_ready_q,p,l)=NIL;\
+             readyqref(tl_ready_q,p,l)=NIL;\
+             l=l+1\
+        :: (l >= NB_PRIO_LEVEL) ->\
+             break\
+        od;\
+        _Victim_id[p]=0;*/\
+        run Int_handling(p);\
+        _I_td(p+1,p,0,5,0);\
+        _Add_ready(p+1);\
+        _Ltm_id[p]=p+1;\
+        run _Local_task_manager(p+1);\
+        p=p+1\
+   :: (p >= NB_PROC) ->\
+        break\
+   od\
+

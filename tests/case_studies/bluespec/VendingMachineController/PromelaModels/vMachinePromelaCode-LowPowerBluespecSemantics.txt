@@ -1,0 +1,156 @@
+/*we can not use "else" (as used in vmachine-BSC2-old.txt) instead of "unless" construct 
+because then spin simulator can always select a particular process's "else" branch 
+(an else statement is always executable) infinitely without any progress being
+made by the system. */
+
+#define dummy(x)  x
+
+
+int count, count_old;
+byte action;
+bool money_back, gum_dispensed, ten_cent_in, fifty_cent_in, money_back_button, action_fired, one_action_fired;
+
+proctype IFC_ten_cent_in() {
+	do
+	:: atomic { { (action == 1) -> {action=2; action_fired = false;} }
+		      unless
+  		    { (action == 1 && ten_cent_in == 1) -> { count_old = count;
+							     count = count + 10;
+	 	 		                             printf("Inserting ten cents");  
+						             one_action_fired = true;
+							     action_fired = true;
+							     action = 6;
+				  		           } 
+		    } 
+		  }
+	od
+}
+
+proctype IFC_fifty_cent_in() {
+	do
+	:: atomic { { (action == 2) -> {action = 3; action_fired = false;} }
+		      unless
+  		    { (action == 2 && fifty_cent_in == 1) -> { count_old = count;
+							       count = count + 50;
+	 	 		                               printf("Inserting fifty cents");  
+						               one_action_fired = true;
+							       action_fired = true;
+							       action = 6;
+				  		             } 
+		    } 
+		  }
+	od
+}
+
+proctype RL_do_dispense_money()
+{	
+  	do
+	:: atomic { { action == 3 -> { action = 4; action_fired = false; } }
+		    unless
+		    { (action == 3 && money_back) -> { count_old = count;
+						     if
+			                             :: (count == 0) -> money_back = false;
+				                     :: else -> { count = count - 10;
+                                                                  if
+                                                                  :: (count == 0) -> money_back = false;
+							          :: else -> skip;
+                                                                  fi;
+                                                                } 
+				                     fi;
+
+ 		                                     printf("Trying to dispense ten cents");
+                                                     one_action_fired = true;
+						     action_fired = true;
+                                                     action = 6;                                                      
+		        	                   }
+                    }
+                  }
+	od
+}
+
+
+proctype RL_do_dispense_gum()
+{
+  	do
+	:: atomic { { (action == 4) -> { action = 5; action_fired = false; } }
+		    unless                    	
+                    { (action == 4 && ten_cent_in == 0 && fifty_cent_in == 0 && !money_back && count >= 50) -> { count_old = count;
+												 count = count - 50;  
+                      										 printf("RL_do_dispense_gum executed");
+                      										 gum_dispensed = true;
+					                                                         one_action_fired = true;
+                                                                                                 action_fired = true;  
+												 action = 6;
+                    									       }
+              	    }
+                  }
+	od
+}
+
+
+proctype IFC_money_back_button() {
+	do
+	:: atomic { { (action == 5) -> {action = 6; action_fired = false;} }
+	            unless
+		    { (action == 5 && money_back_button == 1) -> { count_old = count;
+							           money_back = true;
+		  	 	  	                           printf("Pressing money back button");
+							           one_action_fired = true;
+							           action_fired = true;
+						  	           action=6;
+							         }
+		    } 
+		  }
+	od
+}
+
+
+proctype start_of_cycle()
+{
+	do
+	:: atomic { if 
+                    :: (action == 6) -> { 
+                                        if
+					:: money_back -> { ten_cent_in = 0; fifty_cent_in = 0; money_back_button = 0; }
+                                        :: else -> if
+                                                   :: { ten_cent_in = 1; fifty_cent_in = 0; money_back_button = 1; } 
+                                                   :: { ten_cent_in = 1; fifty_cent_in = 0; money_back_button = 0; } 
+                                                   :: { ten_cent_in = 0; fifty_cent_in = 1; money_back_button = 1; } 
+                                                   :: { ten_cent_in = 0; fifty_cent_in = 1; money_back_button = 0; } 
+                                                   :: { ten_cent_in = 0; fifty_cent_in = 0; money_back_button = 1; } 
+                                                   :: { ten_cent_in = 0; fifty_cent_in = 0; money_back_button = 0; } 
+                                                   fi;
+                                        fi; 
+			                
+                                        gum_dispensed = false;
+                                        one_action_fired = false;
+					action_fired = false;
+					action = 1; 			        							
+				      }	
+                    fi
+		  }
+        od
+}
+
+
+
+init{
+	atomic{
+		count = 0;
+		count_old = 0;
+                money_back  = false;
+		gum_dispensed = false;
+
+		action  = 6;
+		ten_cent_in = 0;
+		fifty_cent_in = 0;
+                money_back_button = 0;              
+ 
+		run IFC_ten_cent_in();
+		run IFC_fifty_cent_in();
+		run RL_do_dispense_money();
+		run RL_do_dispense_gum();	
+		run IFC_money_back_button();
+		run start_of_cycle();
+	      }
+}

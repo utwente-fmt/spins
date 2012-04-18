@@ -1,0 +1,114 @@
+%
+%
+%
+
+\subsection{Threads in Fluke}
+
+Threads are a conventional execution context in Fluke.
+They run in an address space and access system services through
+a defined system call interface.  The interface is object-based.
+Threads not only manipulate mutexes or other kernel objects
+through that interface, but also each other. For example, a thread
+may stop another thread simply by setting its state to {\tt STOPPED}.
+
+% XXX threads have two halves, kernel and user mode
+
+Threads in kernel space can directly access the state of other threads, 
+provided they obey the locking protocol.  
+Thus a client thread in an IPC operation
+can directly manipulate the state of the server thread when sending
+data to it.  Another example is when a thread needs to cancel another
+thread -- stopping its current execution and making it roll back to a
+clean entry point.  First it locks the thread object, then it sets the
+target thread's ``cancel pending'' bit, and blocks.  When the target
+thread undoes its current operation and enters the code to handle the
+cancel, it will notice the blocked thread and wake it up.
+
+\subsubsection{Thread State}
+There are four relevant sections of the Fluke thread state to our
+model, each of which is protected by an associated mutex.  First 
+is the generic state that all objects in Fluke have, this identifies
+the type of the object, whether it is active, etc.  Second is
+the state associated with any outstanding IPC connections.  Next
+is the state describing a blocked thread (the wait state).  Last
+is the mis-named exception state which contains the state of the
+thread's user-kernel boundary. 
+
+% XXX say something about the exc.ip !
+
+\subsubsection{Scheduling}
+Threads may be blocked, ready or running. At any time, at most
+$n$ threads may be running, where $n$ is the number of processors
+in the system. Unblocking a thread is accomplished by putting it
+on the ready queue. A dispatcher is then invoked which will
+eventually schedule that thread.  The kernel is designed to
+run on SMP machines and have multiple threads executing
+concurrently.
+
+\subsection{Promela Implementation of Threads}
+
+Threads are modeled using Promela's {\it proctype} construct.
+Each thread is represented by a proctype which calls a
+particular function (implemented using a macro) 
+corresponding to the kernel entrypoint. 
+All thread state is stored in a global array of
+structures, one element per thread.
+The specific state modeled is described below.
+
+Initially we experimented with using two separate 
+proctypes to encapsulate the state and control portions of the
+thread. We expected this to hide a lot of information in local
+variables and thereby enable SPIN to optimize better. However, this
+approach involved a lot of communication between the state and control
+proctypes and so disabled extensive use of SPIN's {\it d_step}
+construct which allows {\em us} to optimize the control states.
+Since specifying liveness conditions using SPIN's never
+automaton requires access to global variables, we decided to take the
+approach of using one proctype per thread and made all thread
+state global.
+
+\subsubsection{Thread State}
+In our paradigm of translation of C into Promela, we kept much of the
+structure of the thread state in our models.  Each thread is comprised
+of some 4 parts.  There are is the wait queue information (next, and
+prev pointers); the IPC state information; information about the
+thread's current wait state; and the exception information.  
+
+The IPC state contains both explicit ``pointers'' to the active client
+and server threads, and models of pickled ``links''.  It includes some
+flags of the current state of the IPC.  The wait state includes a
+value indicating the current state the thread is in, if it is blocked,
+the condition variable it is blocked on (if it is blocked on one.)  The
+cancel pending flag and the resume return code to use after
+unblocking.  The somewhat mis-named exception state includes all of
+the data used for communicating with user mode--additionally it stores
+the ``instruction pointer'' reference used in rollback--See the
+Kernel Entry Layer section below.
+
+The only state which does not have a direct correspondence from the 
+C code to the Promela code is the rendezvous point and
+the data payload, both in the IPC section of the thread state.
+
+% -- this has already been said
+% The rendezvous is used in our simplification of establishing a
+% connection (see the section on Ports and Port Sets below.)  The
+% data payload is used in the simulated data transfer--we restrict
+% the data transferred to a single byte.
+
+\subsubsection{Scheduling}
+We make use of SPIN's interleaving of the proctypes to model the
+thread scheduling. So by default any of the threads is runnable. If a
+thread has to {\it block} (for example while waiting on a condition 
+variable), it
+sets a particular bit in its global state and waits for some other
+thread to reset this bit. The thread which resets the bit
+{\it unblocks} this thread. 
+
+Since SPIN tries all possible interleavings of the code during
+verification, we model an SMP scenario in which each of the runnable
+threads gets a processor to run. This also means that the results
+obtained by this approach do not depend on any scheduling algorithm. 
+Modeling the single-processor case would actually be more difficult(!)\@
+since we would have to come up with a mechanism where by only one thread
+could run until it explicitly gave up control of the processor.
+

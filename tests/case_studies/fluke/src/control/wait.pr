@@ -1,0 +1,320 @@
+/* 
+ * Copyright (c) 1996 The University of Utah and
+ * the Computer Systems Laboratory at the University of Utah (CSL).
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify and distribute this software is hereby
+ * granted provided that (1) source code retains these copyright, permission,
+ * and disclaimer notices, and (2) redistributions including binaries
+ * reproduce the notices in supporting documentation, and (3) all advertising
+ * materials mentioning features or use of this software display the following
+ * acknowledgement: ``This product includes software developed by the
+ * Computer Systems Laboratory at the University of Utah.''
+ *
+ * THE UNIVERSITY OF UTAH AND CSL ALLOW FREE USE OF THIS SOFTWARE IN ITS "AS
+ * IS" CONDITION.  THE UNIVERSITY OF UTAH AND CSL DISCLAIM ANY LIABILITY OF
+ * ANY KIND FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+ *
+ * CSL requests users of this software to return to csl-dist@cs.utah.edu any
+ * improvements that they make and grant CSL redistribution rights.
+ *
+ *      Author: Bryan Ford, University of Utah CSL
+ */
+
+#ifndef _PROMELA_CONTROL_WAIT_PR_
+#define _PROMELA_CONTROL_WAIT_PR_
+
+#include "../fluke/WaitQueue.pr"
+#include "../fluke/Mutex.pr"
+#include "interrupts.pr"
+#include "dispatch.pr"
+
+
+#define threadWait(cur_th, state, other_th, other_state)            \
+  assert(state != WAIT_NONE);                                       \
+  assert(state != WAIT_ON_COND);                                    \
+  assert(cur_th == currentThread);                                  \
+  assert(cur_th != other_th);                                       \
+                                                                    \
+  disableInterrupts();                                              \
+                                                                    \
+  /* Lock both threads */                                           \
+  if                                                                \
+  :: cur_th < other_th ->                                           \
+       mutexLock(waitStateMutexes[cur_th], cur_th);                 \
+       mutexLock(waitStateMutexes[other_th], cur_th);               \
+  :: else ->                                                        \
+       mutexLock(waitStateMutexes[other_th], cur_th);               \
+       mutexLock(waitStateMutexes[cur_th], cur_th);                 \
+  fi; /* lock both threads */                                       \
+                                                                    \
+  assert(threadWaitVal(cur_th) == WAIT_NONE);			    \
+                                                                    \
+  /*								    \
+   * Perform the request operation on the other thread.  Note	    \
+   * that we re-order this so that the block that returns is	    \
+   * first, and use an "else" to jump around it.		    \
+   */								    \
+  if								    \
+  :: ((other_state != 0)					    \
+     && (other_state != -1)					    \
+     && ((threadWaitVal(other_th) & other_state) == other_state)) ->\
+       mutexUnlock(waitStateMutexes[other_th], currentThread);	    \
+       mutexUnlock(waitStateMutexes[cur_th], currentThread);	    \
+       enableInterrupts();                                          \
+       /* RETURN */ rc = KR_RESTART;                                \
+  :: else ->                                                        \
+     assert((other_state == 0)					    \
+       || (other_state == -1)					    \
+       || ((threadWaitVal(other_th) & other_state) != other_state));\
+     if								    \
+     :: other_state == 0 ->                                         \
+         /* Just cancel the other thread atomically                 \
+          * with the sleep. */                                      \
+         idThreadCancelLocked(other_th);                            \
+                                                                    \
+     :: other_state == -1 ->                                        \
+         /* XXX (Bryan's) horrible hack for ipc unpickle */         \
+         mutexUnlock(sobMutexes[other_th], currentThread);          \
+     :: else ->							    \
+	  assert(other_state != 0 && other_state != -1);	    \
+     fi;							    \
+                                                                    \
+     mutexUnlock(waitStateMutexes[other_th], currentThread);        \
+                                                                    \
+     /* By default, when we wake up, just                           \
+      * restart from user space. */                                 \
+     threadSetWaitResumeRc(cur_th, KR_RESTART);			    \
+								    \
+     /*                                                             \
+      * If a cancel was already pending,                            \
+      * return an error immediately without                         \
+      * switching threads.                                          \
+      */                                                            \
+     if                                                             \
+     /* cancel pending & in cancelable wait */                      \
+     :: ((threadWaitCancelPending(cur_th) != 0)			    \
+        && (!((state & WAIT_CANCELABLE)                             \
+              != WAIT_CANCELABLE))) ->                              \
+          mutexUnlock(waitStateMutexes[cur_th], currentThread);	    \
+          enableInterrupts();                                       \
+          /* RETURN */ rc = KR_CANCEL;                              \
+     :: else ->                                                     \
+        if                                                          \
+        /* cancel pending & in uncancelabe wait */                  \
+        :: (threadWaitCancelPending(cur_th) != 0)                   \
+          && ((state & WAIT_CANCELABLE) != WAIT_CANCELABLE) ->      \
+            /*                                                      \
+             * This is an uncancelable wait,                        \
+             * used when actually handling a cancellation.          \
+             * Go ahead and sleep, but when we wake up,             \
+             * restart the cancellation handling                    \
+             * rather than restarting normal execution.             \
+             */                                                     \
+	    threadSetWaitResumeRc(cur_th, KR_CANCEL);		    \
+								    \
+        /* no cancel pending */                                     \
+        :: else ->                                                  \
+             assert(threadWaitCancelPending(cur_th) == 0);          \
+        fi;                                                         \
+                                                                    \
+        /*                                                          \
+         * We don't need to add the current thread                  \
+         * to any wait queue,                                       \
+         * because the wait state itself defines                    \
+         * the "ownership" of the thread.                           \
+         */                                                         \
+	threadSetWaitVal(cur_th, state);			    \
+	threadSetWaitWaitingOn(cur_th, THREAD_ID_INVALID);	    \
+                                                                    \
+        idThreadDispatch(cur_th, waitStateMutexes[cur_th]);         \
+        enableInterrupts();                                         \
+                                                                    \
+	/* RETURN */rc = threadWaitResumeRc(cur_th);		    \
+     fi;                                                            \
+  fi
+
+
+/*
+ * Returns wait val of thread.  Also sets thread's wait val to
+ * WAIT_NONE. So, thread is "captured".  Returns zero if
+ * thread could not be found/wokenup.
+ */
+#define idThreadWakeupLocked(thread, requiredState)			\
+  assert(requiredState != WAIT_NONE);					\
+  assert(requiredState != WAIT_ON_COND);				\
+									\
+  if									\
+  :: ((threadWaitVal(thread) & requiredState)				\
+      == requiredState) ->						\
+       if								\
+       :: ((threadWaitVal(thread) & WAIT_ON_COND)			\
+	   == WAIT_ON_COND) ->						\
+            assert(threadWaitWaitingOn(thread) != nil);			\
+									\
+            wqRemoveSpecific(threadWaitWaitingOn(thread),		\
+		            thread);					\
+            /* sets rc */						\
+            if								\
+            :: rc != THREAD_ID_INVALID ->				\
+                rc = threadWaitVal(thread);				\
+		threadSetWaitVal(thread, WAIT_NONE);			\
+                threadSetWaitWaitingOn(thread, THREAD_ID_INVALID);	\
+		/* return rc, ie old wait val */			\
+            :: else ->							\
+	        assert(rc == THREAD_ID_INVALID);			\
+		rc = 0;							\
+            fi;								\
+       :: else ->							\
+            if 								\
+	    :: (threadWaitVal(thread) != WAIT_NONE) ->			\
+	         rc = threadWaitVal(thread);				\
+		 assert(threadWaitWaitingOn(thread) == nil);		\
+		 threadSetWaitVal(thread, WAIT_NONE);			\
+		 /* return rc --ie old wait val */			\
+            :: else ->							\
+	         rc = 0;						\
+            fi;								\
+       fi;								\
+  :: else ->								\
+       assert((threadWaitVal(thread) & requiredState)			\
+              != requiredState);					\
+       rc = 0;								\
+  fi									\
+  /* RETURN rc */
+
+
+#define threadWakeup(thread, requiredState)                 \
+  disableInterrupts();                                      \
+  mutexLock(waitStateMutexes[thread], currentThread);       \
+                                                            \
+  idThreadWakeupLocked(thread, requiredState);              \
+  /* sets rc */                                             \
+                                                            \
+  mutexUnlock(waitStateMutexes[thread], currentThread);     \
+  /* XXX mutex better not fuck with rc */		    \
+  enableInterrupts()                                        \
+  /* RETURN rc */
+
+  
+
+/*
+ * Doesn't touch rc
+ */
+#define threadWaitOther(thread, state)				\
+  assert(thread != currentThread);				\
+								\
+  disableInterrupts();						\
+  mutexLock(waitStateMutexes[thread], currentThread);		\
+								\
+  assert(threadWaitVal(thread) == WAIT_NONE);			\
+								\
+  if								\
+  :: threadWaitCancelPending(thread) != 0 ->			\
+       threadSetWaitResumeRc(thread, KR_CANCEL);		\
+       if							\
+       :: ((state & WAIT_CANCELABLE) != WAIT_CANCELABLE) ->	\
+	    threadSetWaitVal(thread, state);			\
+	    threadSetWaitWaitingOn(thread, THREAD_ID_INVALID);	\
+       :: else ->						\
+            idThreadReady(thread);				\
+       fi;							\
+  :: else ->							\
+       assert(threadWaitCancelPending(thread) == 0);		\
+       threadSetWaitResumeRc(thread, KR_RESTART);		\
+       threadSetWaitVal(thread, state);				\
+       threadSetWaitWaitingOn(thread, THREAD_ID_INVALID);	\
+  fi;								\
+								\
+  mutexUnlock(waitStateMutexes[thread], currentThread);		\
+  enableInterrupts()
+
+
+
+#define threadHandoff(cur_th, state, other_th)				\
+  assert(cur_th == currentThread);					\
+  assert(cur_th != other_th);						\
+  assert(state != WAIT_NONE);						\
+  assert(state != WAIT_ON_COND);					\
+									\
+  disableInterrupts();							\
+									\
+  /* Lock both thread's wait state */					\
+  if									\
+  :: cur_th < other_th ->						\
+       mutexLock(waitStateMutexes[cur_th], cur_th);			\
+       mutexLock(waitStateMutexes[other_th], cur_th);			\
+  :: else								\
+       mutexLock(waitStateMutexes[other_th], cur_th);			\
+       mutexLock(waitStateMutexes[cur_th], cur_th);			\
+  fi;									\
+									\
+  assert(threadWaitVal(cur_th) == WAIT_NONE);				\
+									\
+  /* We can ready the destination thread now that it's locked. */	\
+  idThreadReady(other_th);						\
+  mutexUnlock(waitStateMutexes[other_th], currentThread);		\
+									\
+  /* By default, when we wake up, just restart from user space. */	\
+  threadSetWaitResumeRc(cur_th, KR_RESTART);				\
+									\
+  if									\
+  /* if cancel pending and we want to wait in a cancelable state */	\
+  :: (threadWaitCancelPending(cur_th) != 0)				\
+     && (!((state & WAIT_CANCELABLE) != WAIT_CANCELABLE)) ->		\
+       mutexUnlock(waitStateMutexes[cur_th], currentThread);		\
+       enableInterrupts();						\
+       /* RETURN */ rc = KR_CANCEL;					\
+  :: else ->								\
+       if								\
+       /* cancel pending and its not cancelable */			\
+       :: (threadWaitCancelPending(cur_th) != 0)			\
+          && ((state & WAIT_CANCELABLE) != WAIT_CANCELABLE) ->		\
+	    threadSetWaitResumeRc(cur_th, KR_CANCEL);			\
+       :: else ->							\
+            /* no cancel pending */					\
+            assert(threadWaitCancelPending(cur_th) == 0);		\
+       fi;								\
+       /*								\
+        * We don't need to add the current thread			\
+        * to any wait queue,						\
+        * because the wait state itself defines the			\
+        * "ownership" of the thread.					\
+        */								\
+       threadSetWaitVal(cur_th, state);					\
+       threadSetWaitWaitingOn(cur_th, THREAD_ID_INVALID);		\
+									\
+       idThreadDispatch(cur_th, waitStateMutexes[cur_th]);		\
+       enableInterrupts();						\
+									\
+       /* RETURN */ rc = threadWaitResumeRc(cur_th);			\
+  fi
+
+
+#define idThreadCancelLocked(thread)			\
+  assert((!threadWaitCancelPending(thread))		\
+         || ((threadWaitVal(thread) & WAIT_CANCELABLE)	\
+            != WAIT_CANCELABLE));			\
+							\
+  threadSetWaitCancelPending(thread, TRUE);		\
+							\
+  idThreadWakeupLocked(thread, WAIT_CANCELABLE);	\
+  /* sets rc */						\
+							\
+  if							\
+  :: (rc != 0) -> /* XXX ??? */				\
+       threadSetWaitResumeRc(thread, KR_CANCEL);	\
+       idThreadReady(thread);				\
+  :: else ->						\
+       assert(rc == 0);					\
+  fi
+
+
+#define threadCancel(thread)                                \
+  disableInterrupts();                                      \
+  mutexLock(waitStateMutexes[thread], currentThread);       \
+  idThreadCancelLocked(thread);                             \
+  mutexUnlock(waitStateMutexes[thread], currentThread);     \
+  enableInterrupts()
+
+#endif

@@ -1,0 +1,31 @@
+/* 
+Harmony Validation
+File :              scheduling-nodebug
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 25 Jul 94
+Description :       
+- priority premptive scheduling
+*/
+
+#define _Dispatch(p)\
+ atomic{/* atomic necessary ?*/\
+  running[p] = 0;\
+  level = NB_PRIO_LEVEL-1;\
+  do\
+  :: (level <  0) -> break\
+  :: (level >= 0) -> \
+       if\
+       :: empty_ready_q(p,level) ->\
+            level=level-1\
+       :: !empty_ready_q(p,level) ->\
+            head_ready_q(running[p],p,level);\
+            break\
+       fi\
+  od\
+ }
+
+#define _Redispatch(p) _Dispatch(p)
+
+#define _Add_ready(id) state[id]=READY;\
+                       tins_ready_q(processor[id],priority[id],id)

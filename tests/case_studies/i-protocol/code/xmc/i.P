@@ -1,0 +1,87 @@
+%%=============================================================================
+%%	 system configuration
+
+config(WS,Full,Fix) :-
+	abolish_all_tables,
+	retractall(window_size(_)),
+	retractall(seq(_)),
+	retractall(fixed(_)),
+	retractall(full(_)),
+	S is 2*WS,
+	assert(window_size(WS)),
+	assert(seq(S)),
+	assert(fixed(Fix)),
+	assert(full(Full)).
+
+
+%%=============================================================================
+%%	Some arithmetic
+
+:- import ground/1 from basics.
+
+eval(X = Y)  :- !, X = Y.
+eval(X == Y) :- !, eval(X, U), eval(Y, V), modulus(U, Ua), modulus(V, Va), Ua == Va.
+eval(X := Y) :- !, eval(Y, U), modulus(U, X).
+eval(X is Y) :- !, eval(Y, U), modulus(U, X).
+eval(X > Y)  :- !, eval(X, U), eval(Y, V), modulus(U, Ua), modulus(V, Va), Ua > Va.
+eval(X < Y)  :- !, eval(X, U), eval(Y, V), modulus(U, Ua), modulus(V, Va), Ua < Va.
+eval(X >= Y) :- !, eval(X, U), eval(Y, V), modulus(U, Ua), modulus(V, Va), Ua >= Va.
+eval(X =< Y) :- !, eval(X, U), eval(Y, V), modulus(U, Ua), modulus(V, Va), Ua =< Va.
+eval(not(E)) :- !, not(eval(E)).
+
+eval(A+B, V) :- !, eval(A, Va), eval(B, Vb), V is Va+Vb.
+eval(A-B, V) :- !, eval(A, Va), eval(B, Vb), V is Va-Vb.
+eval(A*B, V) :- !, eval(A, Va), eval(B, Vb), V is Va*Vb.
+eval(A/B, V) :- !, eval(A, Va), eval(B, Vb), V is Va/Vb.
+eval(A//B, V) :- !, eval(A, Va), eval(B, Vb), V is Va//Vb.
+eval(hwin, V) :- !, window_size(V).
+eval(qwin, V) :- !, window_size(W), V is W//2.
+eval(E, V) :- V is E.
+
+modulus(E, V) :- seq(Seq), X is E mod Seq, abs(X, V).
+abs(X, V) :- ( X < 0 -> (seq(Seq), V is X+Seq) ; V = X).
+
+%% Now, some interval stuff
+
+in_interval(X, open(L,U)) :- 
+	X =\= L,
+	eval((L-X) =< hwin),
+	eval((X-U) =< hwin).
+
+in_open_interval(X, L,U) :- 
+	X =\= L,
+	eval((L-X) =< hwin),
+	eval((X-U) =< hwin).
+
+in_interval(X, upper_closed(L, U)) :-
+	(L > U -> (X > L; X =< U)
+		; (X > L, X =< U)).
+in_interval(X, closed(L, U)) :-
+	(L > U -> (X >= L; X =< U)
+		; (X >= L, X =< U)).
+
+% implement set as bit-string
+
+in_set(Element, Set) :-
+	1 is ((Set >> Element) mod 2).
+
+add_to_set(Element, Set, NewSet) :- 
+	in_set(Element, Set)
+	->	NewSet = Set
+	;	NewSet is Set + (1 << Element).
+
+remove_from_set(Element, Set, NewSet) :-
+	in_set(Element, Set)
+	->	NewSet is Set - (1 << Element)
+	;	NewSet = Set.
+
+%%---------------------------------------------------------------------------
+%%	internal procedure
+do_exp(Tmp, RecSeq, Recbuf, NewRecSeq, NewRecbuf) :-
+	in_set(Tmp, Recbuf)
+	->	(remove_from_set(Tmp, Recbuf, Recbuf1),
+		eval(T is Tmp+1),
+		do_exp(T, Tmp, Recbuf1, NewRecSeq, NewRecbuf))
+	;	(NewRecSeq = RecSeq ,
+		NewRecbuf = Recbuf).
+

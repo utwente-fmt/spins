@@ -1,0 +1,20 @@
+/* 
+Harmony Validation
+File :              scheduling
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 18 April 94
+Description :       
+- nondeterministic scheduling
++ reabstraction from complete kernel
+*/
+
+#define _Dispatch(p)\
+ skip
+
+#define _Redispatch(p)\
+/*end:*/\
+   state[_Active] == READY
+
+#define _Add_ready(id)\
+  state[id]=READY

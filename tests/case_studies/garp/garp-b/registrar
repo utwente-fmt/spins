@@ -1,0 +1,59 @@
+/*
+ * PROMELLA Validation Model
+ * Registrar
+ * by T.Nakatani
+ */
+
+proctype registrar(byte n)
+{	bool leavetimer, member_exist;
+	byte type;
+
+	r_state = out_reg;
+endIDLE:
+	do
+	:: llc_to_regist[n]?type ->	/* event from llc */
+		if
+		:: (type == join) ->
+			if
+			:: (r_state == out_reg) ->
+				member_exist = true;
+				r_state = in_reg
+			:: (r_state == awt_rjin) ->
+				leavetimer = false;
+				r_state = in_reg
+			:: (r_state == lv_imm) ->
+				leavetimer = false;
+				r_state = in_reg
+			:: (r_state == in_reg)	/* ignore */
+			:: else -> assert(0)	/* protocol violation */
+			fi
+		:: (type == leave) ->
+			if
+			:: (r_state == out_reg)	/* ignore */
+			:: (r_state == awt_rjin) ->
+				leavetimer = true
+			:: (r_state == lv_imm) ->
+				leavetimer = true
+			:: (r_state == in_reg) ->
+				leavetimer = true;
+				r_state = awt_rjin
+			:: else -> assert(0)	/* protocol violation */
+			fi
+		:: else		/* ignore */
+		fi
+
+	:: empty(llc_to_regist[n]) &&
+		(leavetimer == true) ->		/* leavetimer expired */
+		if
+		:: (r_state == awt_rjin) ->
+			regist_to_llc[n]!leave;
+			r_state = lv_imm
+		:: (r_state == lv_imm) ->
+			leavetimer = false;
+			member_exist = false;
+			r_state = out_reg
+		:: else -> assert(0)	/* protocol violation */
+		fi
+
+	od
+}

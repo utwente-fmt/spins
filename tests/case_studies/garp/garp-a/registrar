@@ -1,0 +1,57 @@
+/*
+ * PROMELLA Validation Model
+ * GARP(Registrar)
+ */
+
+proctype registrar(byte n)
+{	bool leavetimer, member_exist;
+	byte type, state;
+
+	state = out_reg;
+endIDLE:
+	do
+	:: llc_to_regist[n]?type ->	/* event from llc */
+		if
+		:: (type == join) ->
+			if
+			:: (state == out_reg) ->
+				member_exist = true;
+				state = in_reg
+			:: (state == awt_rjin) ->
+				leavetimer = false;
+				state = in_reg
+			:: (state == lv_imm) ->
+				leavetimer = false;
+				state = in_reg
+			:: (state == in_reg)	/* ignore */
+			:: else -> assert(0)	/* protocol violation */
+			fi
+		:: (type == leave) || (type == leaveall) ->
+			if
+			:: (state == out_reg)	/* ignore */
+			:: (state == awt_rjin) ->
+				leavetimer = true
+			:: (state == lv_imm) ->
+				leavetimer = true
+			:: (state == in_reg) ->
+				leavetimer = true;
+				state = awt_rjin
+			:: else -> assert(0)	/* protocol violation */
+			fi
+		:: else		/* ignore */
+		fi
+
+	:: empty(llc_to_regist[n]) &&
+		(leavetimer == true) ->		/* leavetimer expired */
+		if
+		:: (state == awt_rjin) ->
+			regist_to_llc[n]!leave;
+			state = lv_imm
+		:: (state == lv_imm) ->
+			leavetimer = false;
+			member_exist = false;
+			state = out_reg
+		:: else -> assert(0)	/* protocol violation */
+		fi
+	od
+}

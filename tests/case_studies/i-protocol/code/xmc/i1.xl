@@ -1,0 +1,268 @@
+/*
+  Taylor's I-Protocol, as implemented in the GNU UUCP package
+*/
+
+:- import config/3, eval/1, eval/2, eval/3, in_interval/2,
+	in_set/1, add_to_set/3, remove_from_set/3,
+	do_exp/5 from i.
+
+i ::= 
+	( sender(s(1,0)) @ [ user_send/lsend, user_recv/lrecv ]
+	| medium	 @ [ chan_in/s2m, chan_out/m2r ]
+	| medium	 @ [ chan_in/r2m, chan_out/m2s ]
+	| receiver(r(1,0,0,0,0,0))
+			 @ [ user_send/rsend, user_recv/rrecv ]
+	)
+	\ {s2m, m2r, r2m, m2s}.
+
+%%-----------------------------------------------------------------------------
+%%	The data channel
+medium ::=
+	in(chan_in, X)
+	o (
+		out(chan_out, recvpak(true, true, X))
+	#	action(progess)
+	#	full(1) o action(progress) o
+	    (	out(chan_out, recvpak(true, false, X)) 
+	    #	out(chan_out, recvpak(false, false, X))
+	    #	out(chan_out, recvpak(false, true, X))
+	    )
+	)
+	o medium.
+
+%%-----------------------------------------------------------------------------
+%%	The sender
+%%
+%%	SendState == s(SendSeq, Rack) 
+%%	Packet = packet(Pty, Seq, Ack)
+%%
+%%	Sender's active window = open(Rack, SendSeq).
+%%	Receiver's active window = upper_closed(RecSeq, Lack).
+
+sender(In) ::=
+	(
+		s_sendmsg(In, Mid)
+	#	s_getpkt(In, Mid)
+	#	action(progress) o s_timeout(In, Mid)
+	) 
+	o sender(Mid).
+
+s_sendmsg(In, Out) ::=
+	in(user_send)
+	o s_sendmsg_while1(In, Mid)
+	o Mid = s(SendSeq, Rack)
+	o out(s2m, packet(data, SendSeq, /* RecSeq */ 0))
+	o eval(NextSend := SendSeq+1)
+	o Out = s(NextSend, Rack).
+
+s_sendmsg_while1(In, Out) ::=
+	In = s(SendSeq, Rack)
+	o if( (eval(SendSeq-Rack > window_size); SendSeq == Rack)
+		, ( 	( s_getpkt(In, Mid)
+			# action(timeout) o s_timeout(In, Mid)
+			)
+		      o s_sendmsg_while1(Mid, Out))
+		, Out = In
+	).
+
+s_getpkt(In, Out) ::=
+	in(m2s, RecvPak)
+	o RecvPak = recvpak(Hck, _Dck, Pak)
+	o if( Hck == true
+		, ( Pak = packet(Pty, _Seq, Ack)
+		  o s_handle_ack(Ack, In, Mid)
+		  o if( Pty == nak
+			, s_handle_nak(Mid, Out, Pak)
+			, Out = Mid
+		  ))
+		, Out = In
+	).
+
+s_handle_ack(Ack, In, Out) :-
+	In = s(SendSeq, Rack),
+%	((Ack =\= Rack, Ack =\= SendSeq)
+	(in_interval(Ack, open(SendSeq, Rack))
+		-> Out = s(SendSeq, /* Rack = */ Ack)
+		;  Out = In
+	).
+
+s_handle_nak(In, In, Pak) ::=
+	Pak = packet(_Pty, Seq, _Ack)
+	o In = s(SendSeq, Rack)
+	o if(in_interval(Seq, open(SendSeq, Rack))
+		, out(s2m, packet(data, Seq, /* RecSeq */ 0))
+	  )
+	.
+
+s_timeout(In, Out) ::=
+	In = s(SendSeq, Rack)
+	o (
+		s_getpkt(In, Out)
+	    # 
+		(
+		out(s2m, packet(nak, /* PakSeq */ 1, /* RecSeq */ 0))
+		o if( (not(eval(SendSeq == (Rack+1))))
+			, 	( eval(PakSeq1 := Rack + 1)
+				o out(s2m, packet(data, 
+						PakSeq1, /* RecSeq */ 0))
+				)
+		  )
+		o Out = In % (SendSeq, Rack)
+	        )
+	  ).
+
+%%-----------------------------------------------------------------------------
+%%	The receiver
+%%
+%%	State == r(SendSeq, RecSeq, Lack, Rack, Nakd, RecBuf) 
+%%	Packet = packet(Pty, Seq, Ack)
+%%
+%%	Receiver's active window = upper_closed(RecSeq, Lack).
+
+receiver(In) ::=
+	(
+		r_getpkt(In, Mid)
+	#	action(progress) o r_timeout(In, Mid)
+	) 
+	o receiver(Mid).
+
+r_getpkt(In, Out) ::=
+	in(m2r, RecvPak)
+	o RecvPak = recvpak(Hck, Dck, Pak)
+	o if( Hck == true
+		, ( Pak = packet(Pty, _Seq, _Ack)
+%		  o r_handle_ack(Ack, In, Mid)
+		  o if( Pty == data
+			, r_handle_data(In, Out, Pak, Dck)
+			, if( Pty == nak
+				, r_handle_nak(In, Out, Pak)
+				, Out = In
+			)
+		  ))
+		, Out = In
+	).
+
+r_handle_data(In, Out, Pak, Dck) ::=
+	In = r(_SendSeq, _RecSeq, Lack, _Rack, _Nakd, _RecBuf)
+	o Pak = packet(_Pty, Seq, _Ack)
+	o if( (not(eval(Seq-Lack > window_size)), Seq =\= Lack)
+		, r_handle_data_correct(In, Out, Pak, Dck)
+		, Out = In
+	).
+
+r_handle_data_correct(In, Out, Pak, Dck) ::= 
+	In = r(SendSeq, RecSeq, Lack, Rack, Nakd, RecBuf)
+	o Pak = packet(_Pty, Seq, _Ack)
+	o if( Dck == true
+		, ( remove_from_set(Seq, Nakd, MidNakd)
+		  o Mid = r(SendSeq, RecSeq, Lack, Rack, MidNakd, RecBuf)
+		  o if( eval(Seq == RecSeq + 1)
+			, r_handle_data_expected_seqno(Mid, Out, Pak)
+			, r_handle_data_unexpected_seqno(Mid, Out, Pak)
+		  ))
+		% Dck == false
+		, if( /* (Seq =\= RecSeq;
+		       (in_set(Seq, RecBuf));
+		       (in_set(Seq, Nakd))) */
+		       (Seq =\= RecSeq,
+			not(in_set(Seq,RecBuf)), eval(Seq-RecSeq =< hwin))
+			, ( out(r2m, packet(nak, Seq, RecSeq))
+			  o add_to_set(Seq, Nakd, NewNakd)
+			  o Out = r(SendSeq, RecSeq, RecSeq, Rack, NewNakd, RecBuf)
+			  )
+			, Out = In
+		  )
+	).
+
+r_handle_data_expected_seqno(In, Out, Pak) ::= 
+	In = r(SendSeq, RecSeq, Lack, Rack, Nakd, RecBuf)
+	o Pak = packet(_Pty, _Seq, _Ack)
+	o eval(MidRecSeq := RecSeq + 1)
+	o action(progress)
+	o eval(Tmp := MidRecSeq + 1)
+	o r_supply_to_user(Tmp, MidRecSeq, RecBuf, NewRecSeq, NewRecBuf)
+	o if( eval((NewRecSeq-Lack) >= window_size//2)
+		, ( out(r2m, packet(ack, NewRecSeq, NewRecSeq))
+			o NewLack = NewRecSeq)
+		, NewLack = Lack
+		)
+	o Out = r(SendSeq, NewRecSeq, NewLack, Rack, Nakd, NewRecBuf).
+
+
+r_supply_to_user(Tmp, RecSeq, RecBuf, NewRecSeq, NewRecBuf)  ::=
+	if( in_set(Tmp, RecBuf)
+		, ( action(progress)
+			o remove_from_set(Tmp, RecBuf, MidRecBuf)
+			o eval(Next := Tmp + 1)
+			o r_supply_to_user(Next, Tmp, MidRecBuf,
+							NewRecSeq, NewRecBuf))
+		, (NewRecBuf = RecBuf o NewRecSeq = RecSeq)
+	).
+
+r_handle_data_unexpected_seqno(In, Out, Pak) ::=
+	In = r(SendSeq, RecSeq, Lack, Rack, Nakd, RecBuf)
+	o Pak = packet(_Pty, Seq, _Ack)
+	o if( (Seq =\= RecSeq,
+		not(in_set(Seq, RecBuf)))
+		, ( add_to_set(Seq, RecBuf, NewRecBuf)
+			o eval(Tmp := RecSeq + 1)
+			o r_send_naks(Tmp, Seq, RecSeq, Nakd, NewRecBuf, Lack,
+							NewNakd, NewLack)
+			o Out = r(SendSeq, RecSeq, NewLack, Rack,
+							NewNakd, NewRecBuf))
+		, Out = In
+	).
+
+r_send_naks(Tmp, Seq, RecSeq, Nakd, RecBuf, Lack, NewNakd, NewLack) ::=
+	if((Tmp =\= Seq)
+		, ( if( (not(in_set(Tmp, Nakd)), not(in_set(Tmp, RecBuf)))
+			, ( out(r2m, packet(nak, Tmp, RecSeq))
+				o add_to_set(Tmp, Nakd, MidNakd)
+				o MidLack = RecSeq)
+			, (MidNakd = Nakd o MidLack = Lack)
+		    )
+		    o eval(Next := Tmp + 1)
+		    o r_send_naks(Next, Seq, RecSeq, MidNakd, RecBuf, MidLack,
+				NewNakd, NewLack)
+		  )
+		, (NewNakd = Nakd o NewLack = Lack)
+	).
+
+
+r_handle_ack(Ack, In, Out) :-
+	In = r(SendSeq, RecSeq, Lack, Rack, Nakd, RecBuf),
+	(in_interval(Ack, open(SendSeq, Rack))
+		-> Out = r(SendSeq, RecSeq, Lack, /* Rack = */ Ack, 
+				Nakd, RecBuf)
+		;  Out = In
+	).
+
+r_handle_nak(In, Out, Pak) ::=
+	if( fixed(1)
+	,
+		Pak = packet(_Pty, _Seq, _Ack)
+		o In = r(SendSeq, RecSeq, _Lack, Rack, Nakd, RecBuf)
+		o out(r2m, packet(ack, RecSeq, RecSeq))
+		o Out = r(SendSeq, RecSeq, RecSeq, Rack, Nakd, RecBuf)
+	,
+		Out = In
+	).
+
+r_timeout(In, Out) ::=
+	  In = r(SendSeq, RecSeq, Lack, Rack, _Nakd, RecBuf)
+	o Mid = r(SendSeq, RecSeq, Lack, Rack, 0, RecBuf)
+	o (
+		r_getpkt(Mid, Out)
+	    #
+		eval(PakSeq := RecSeq + 1)
+		o add_to_set(PakSeq, 0, NewNakd)
+		o out(r2m, packet(nak, PakSeq, RecSeq))
+		o Out = r(SendSeq, RecSeq, /* Lack = */ RecSeq, Rack,
+							NewNakd, RecBuf)
+	  ).
+
+%%=============================================================================
+%%	The livelock property
+
+livelock += nploop \/ diam(-nil, livelock).
+nploop -= diam(-progress, nploop).

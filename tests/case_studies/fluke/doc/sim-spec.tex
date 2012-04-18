@@ -1,0 +1,377 @@
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Fluke verification project simulation specification.
+%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Document setup info
+\documentstyle{article}
+     
+%%%%%%%
+%%%%%%% Some standard \def's 
+
+% We don't need no steenkin' equations - just gimme a working underscore!
+\catcode`\_=\active 
+
+\long\def\com#1{}
+\long\def\xxx#1{{\em {\bf Fix: } #1}}
+%% classHeader args are {class name/number} {assignement name/number} {date}
+\def\classHeader#1#2#3{{\large\noindent {\sc Patrick Tullmann} \hfill #1
+\newline {\bf #2} \hfill #3\newline \hrule}}
+
+%%%%%%%
+%%%%%%%
+
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0.3in  
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6in
+
+\title{{\Large \bf Simulation Specification}}
+
+\author{Ajay Chitturi~~~~John McCorquodale~~~~Patrick Tullmann~~~~\\
+        Jeff Turner~~~~Godmar Back \\[2ex]
+        {\tt veripc@jensen.cs.utah.edu}
+        }
+
+%\date{Nov. 7, 1996}
+
+%BEGIN DOCUMENT--------------------
+\begin{document}
+\maketitle
+
+{\bf {\LARGE 
+This Document is out of date.  The two-threads per 
+proctype was discarded.  Much of the rest has changed, too.
+It is only included because some info is up to date, and someday
+this document might be brought back in synch.  This was our
+initial design document.  The Code Is Always Right.
+}}
+
+This document describes the simulation of core abstractions in the
+Fluke kernel.  We simulate threads, mutexes, wait queues, and
+condition variables.
+
+This should be quite specific.  Specific enough to implement from.
+
+\section{Simulated Threads}
+
+We will simulate Fluke threads with a pair of procs.  One proc will
+encapsulate the ``control flow'' of a thread, the other will enacpsulate
+the ``state'' of a thread.  They are refered to consistently throughout
+all of our documentation as the {\bf thread control proc} and the 
+{\bf thread state proc}. (No acronyms!)
+
+The motiviating reason behind hiding the thread state in a proc is to
+avoid huge global variables.  SPIN should be able to do more
+optimizations with encapsulated local variables, than with arbitrary
+global state.
+Also, by forcing
+all communication to go through channels, an implicit mutex is put
+around many simple accesses.  
+
+Since all threads have access to all other thread's state, an array of
+channels will be global---one channel per thread state proc. 
+
+To minimize false locking (ie, locking that is entirely an artifact of
+the nature of this setup) we will keep all operations done on a
+channel request to a minimum.  They will be on the order of ``lock the
+{\tt wait_state} lock'' or ``set {\tt ipc_state.client == 0}''.
+
+\subsection{Thread Control Proc}
+
+The thread control proc is where all of the logic goes, it should look
+a {\em lot} like the actual C source code.  (Due mostly to the magic
+of the C pre-processor...)
+
+\subsection{Thread State Proc}
+
+The thread state proc will simply be a large {\tt do} {\tt od} block
+that waits for any possible input, twiddles some local variables, and
+replies, if necessary.
+
+Here is a list of the messages a thread state proc can receive, and
+what it does with such a message.
+
+\begin{description}
+
+\item[{\tt waitQueueAddSelf(queueId, replyChannel)}]  This is the
+message a thread control proc sends to its associated thread state
+proc.  It is the only way for a thread to get added to any wait queue. 
+
+\item[{\tt waitQueueChange(oldQueueId, newQueueId)}]  This is sent
+when a thread wants to move a different thread to another wait queue.
+
+\item[{\tt waitQueueRemove(queueId)}]  Send this when a thread removes
+another thread from a specific wait queue.  The target thread is then
+said to be ``captured''--its not on any wait queue, and its not on the
+ready queue.
+
+\item[{\tt threadReady()}]  Send this when a thread is to be put on
+the ``ready queue''
+
+\item[{\tt lock(targetThread, lockName[, callerId])}] 
+Lock the given lock in the target thread.
+Blocks until lock is locked. 
+See section \ref{Locks} for a description of the locks simulated.
+callerId may be appended by the client-side macro implementing this function.
+It will only be used for asserting ownership, etc, and is not
+strictly necessary for ``correctness''.
+On the client-side, this may be called as either {\tt spin_lock()}, or
+{\tt lock()}--just to make translation easier.
+
+\item[{\tt unlock(targetThread, lockName[, callerId])}]
+Just like lock, but differnt in the right way.
+
+\end{description}
+
+This list is by no means complete.
+
+\subsection{Miscellaneous Thread Details}
+
+In the kernel, threads are identified by the address of their
+kernel structure.  We will id threads by the index of the
+global channel array for communicating with the control proc.
+The macro {\tt currentThread()} will evaluate to the id.
+
+%%%% ------------------
+
+\section{Simulated Mutexes}
+
+The kernel differentiates between spin locks, and regular mutexes for
+efficiency reasons.  We provide both interfaces, but both are
+implemented exactly the same.
+
+\xxx{Lots more detailed required.  Just copy out of source comments}
+
+It turns out there there is no easy way to put the mutexes in the
+thread state proc.  We use a strict rendevous channel to communicate
+with between state and control.  The state proc {\em cannot} accept a
+mutex lock message unless the the mutex is unlocked (otherwise the
+{\em state} proc would block, which is wrong.  We've rememdied this by
+making the associated mutexes global.
+
+\subsection{Specific Locks}
+\label{Locks}
+
+\begin{description}
+\item[{\tt s_ob}] 
+The s_ob lock corresponds to a lock over generic parts of the object
+in question.  In the kernel {\tt s_thread_lock()} actually manipulates
+this lock.
+
+\item[{\tt ipc_state.lock}]
+Lock of the ipc state portion of a thread.
+
+\item[{\tt wait_state.lock}]
+Lock of the wait state portion of a thread. 
+
+\end{description} 
+
+%%%% ------------------
+
+\section{Simulated Wait Queues}
+
+\subsection{Issues}
+
+\begin{itemize}
+\item A thread can only move itself from the run state to a wait
+queue.  
+
+\item Only ever add another thread to a wait_queue if its already on some
+wait queue.  (implies what the thread is blocked on can change under
+it.)
+
+\item Must be able to wake up a specific thread on a queue.  (implies either
+that a message is directed to the thread (state??, control??) or that
+the queue structure can direct the message.)
+
+\item Must be able to wake up the ``next'' thread on a queue. (implies message
+is delivered to the queue which knows who is first; or directly to
+``next'' thread which makes ``next next'' thread head of queue; or
+is implicit in Promela (much like a mutex.))  ``next'' does not imply
+a strict FIFO order--Fluke doesn't require it.  Must avoid starvation
+of blocked threads, though.
+
+\item Sleeping thread's control block must be stopped. (it should do a
+wait_queue(foo, self) at some point...)  To me this implies that the
+control block should message to the state block, and the state block
+should take care of which list, etc.  BUT, BUT, BUT, the state proc
+itself CANNOT block, then no one can manipulate its state.  It must
+know that its control proc is blocked on it (so it can wake up the
+control proc when necessary.)
+
+\item A thread can be removed from a wait queue without being added to
+any other queue (this is done a lot in the ipc, where a thread
+is removed from the queue its on, its state is twiddled, and
+then its put on the run queue.  This is called ``capturing'' a thread.
+It is completely under the control of the thread that did the wait
+queue remove operation.
+
+\item There is no run queue in promela, we must fake one by controling
+when a thread control proc blocks and when it wakes up.
+
+\item The _only_ time the wakeup-arbitrary-thread syntax is used is
+in condition variables.  The only condition variable relevant to
+our simulation is the thread-local {\tt stop_cond}.  This greatly
+simplifies things.
+\end{itemize}
+
+\subsection{Simulation details -- Structure of a Wait Queue}
+
+A queue is just a bit vector, one bit per existant thread.  If a
+thread's associated bit it 1, then the thread is on the queue.
+
+When an arbitrary thread is to be awoken, the waker-uper just picks a
+thread from the bit vector.  To prevent starvation, an integer records
+the last thread awoken.  Each time a new thread is to be awoken, start
+with the next thread, and look higher for a new thread to wake
+up.
+
+There is a global array of wait queues.  Wait queue identifiers are
+passed around (simple integers--the index into the global array.)
+
+\subsection{Simulation details -- Using the Wait Queue}
+
+Here's how they work in terms of the messages sent around.
+
+\begin{itemize}
+\item {\bf Being put on a queue (from not being on one)}
+
+Thread control gets to a {\tt wait_queue_add(queue, thread)}
+statement.  There are two cases:
+
+\begin{itemize}
+
+  \item {\tt thread == current_thread()} Send a special message to
+  state proc stating to add self to a queue. (see below) Block until a
+  message is returned.
+
+  \item {\tt thread != current_thread()} See {\bf Moving a thread
+        to a different wait queue} below.
+        
+\end{itemize}
+
+Case 2 is simple, and should work just fine.
+
+Case 1 is not simple.  Thread control sends a message to its
+corresponding thread state, asking to be put on a queue (state should
+{\tt assert()} it is not already on a queue.)  Thread control proc
+blocks until a response comes back from the thread state proc (thread
+control proc sent a channel for the reply with its request.)  Thread
+state proc records the queue being blocked on.  And adds itself to the
+correct queue.
+
+\item {\bf Moving a thread to a different wait queue}
+
+Threads cannot move themself between wait queues (they're on a queue,
+they can't do jack.)  To switch a thread to a different wait queue,
+just send a message to its thread state proc.  The thread state proc
+will remove itself from the old wait queue and put itself on the
+new wait queue.  The target thread state proc should {\tt assert()} it
+is on some wait queue.
+
+NOTE: 'moving' a thread to the run queue isn't obvious in Promela, as
+there is no run queue.  The thread state proc could notice that its
+being asked to get on the run queue and then signal its thread control
+proc.  See {\bf Putting a thread on the run queue} below for more
+details.
+
+\item {\bf Removing a thread from a queue}
+
+If a specific thread is being awoken, go to the next paragraph.
+Otherwise, to find a thread, loop through the bit vector until a
+non-zero entry is found and use that.  (Start at the lastThreadAwoken,
+and reset that field when you're done.)
+
+To do this send a message to the corresponding thread control proc.
+It will unset its bit in the associated wait queue, and reply to the
+thread requesting it to get off the list.  The thread control proc
+should note that it is 'captured'.
+
+\item {\bf Putting a thread on the run queue}
+
+Threads cannot put themselves on the run queue (see above.)  (Well,
+there really isn't an explicit run queue, the thread control proc just
+needs to get a message back and its off and running.)  So, when a
+thread state proc gets a thread_ready() message, it should reply to
+its thread control proc which should wake it up.
+
+\end{itemize}
+
+%%%% ------------------
+\section{Simulated Condition Variables}
+
+\subsection{Issues}
+\xxx{Are there any non-trivial issues}
+
+\subsection{Simulation details - Structure of a Condition Variable}
+
+A Condition Variable is a {\bf wait queue} (refer previous section) of the
+threads waiting on the condition variable. There is no extra state
+required to be maintained as the wait queues implement all the
+required features.
+
+
+\subsection{Simulation details - Using the Condition Variable}
+
+The interface for condition variables as defined in {\tt cond.h} is
+implemented using the wait queue interface.
+
+\xxx{Nothing new being done - should we cover the interface here}
+
+%%%% ------------------
+\section{Miscellaneous Simulations}
+
+\subsection{Local Freaking Variables}
+
+Whilst Promela will let you declare variable inside nested scopes (ie
+within an arbitrary \verb\{,}\ pair.) it won't scope them, and names
+can conflict.  Thus you can't include a macro more than once in the
+same proctype contains a ``local'' definition.  This is, of course,
+braindamaged.  Any reasonable language would support this trivially.
+There is no reason other than laziness and lack of insight not to.
+
+To hack around this obtuse and malformed limit, we propose the
+follwing:  all macros within a given file will use prefixed
+local variables (ie, in {\tt ipcPickle.pr}, all temporaries
+will be prefixed with {\tt ipcPickle_}.)  All of these
+will be defined in a macro that the user of the functions
+must call.  So, {\tt ipcPickle.pr} will define a macro
+{\tt DEFINE_IPC_PICKLE_VARS} that should be expanded at the 
+top of the thread control proc.  In this way, we can do
+some optimal-reuse of local variables, without killing ourselves.
+
+\subsection{Links}
+
+Links are modeled as a single bit.  They may be either {\it passive} 
+or {\it active}.  What the link actually points to is kept in a
+separate variable.  For example, in the IPC state there is a {\tt
+serverLink} and a {\tt server} field.  The link indicates whether the
+associated server index is active or passive.
+
+\xxx{What exactly does this show us?}
+
+\subsection{Interrupts}
+
+{\tt enable_interrupts()} and {\tt disable_interrupts()} are used
+throughout the kernel source.  We do not initially plan to include
+them in our simulations, but we provide empty macros, {\tt
+enableInterrupts()} and {\tt disableInterrupts()}, respectively, that
+can be defined at a later time.
+
+\subsection{Exceptional returns}
+
+In Fluke all kernel functions return one of a small set of error codes
+(the {\tt KR_{\em foo}} codes).  In Promela, we will be using macros
+instead of functions.  As macros have no notion of a return value, we
+will define a global ``return code'' ({\tt rc}) per thread.  Macros
+will set this to indicate their return code.  All of the macros 
+will be written in Pascal-ish single-entry, single-exit style.  
+{\tt if-else} blocks will be used to implement this.
+
+\end{document}

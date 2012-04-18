@@ -1,0 +1,24 @@
+/* 
+Harmony Validation
+File :              send
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 April 94
+Description :       
+- msg emission
++ reabstraction from complete kernel
+*/
+
+#define _Send(rid,id)\
+  _Convert_to_td(rid,id);\
+  if\
+  :: (!rid) ->\
+       rid=0\
+  :: (rid) ->\
+       _Disable();\
+       correspondent[_Active] = id;\
+       state[_Active] = SENDING;\
+       _Enable();\
+       _Block_signal_processor(id);\
+       rid=correspondent[_Active]\
+  fi

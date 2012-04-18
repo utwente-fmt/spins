@@ -1,0 +1,12 @@
+/* 
+Harmony Validation
+File :              fatherid
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 1 Avril 94
+Description :       
+- identifier of task's father
+*/
+
+#define _Father_id()\
+  father[_Active]

@@ -1,0 +1,23 @@
+/* 
+Harmony Validation
+File :              processor-nodebug
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 25 Jul 94
+Description :       
+- variables for each processor
+- interrupt masking
+*/
+
+byte  _Ltm_id[NB_PROC];
+byte  _Victim_id[NB_PROC];
+short running[NB_PROC];
+bool  treatment[NB_PROC];
+byte  hd_ready_q[MQLENGTH]; /*represents 2 dim arrays [processor,plevel]*/
+byte  tl_ready_q[MQLENGTH]; 
+
+byte  _Int_table[MILENGTH]
+bit   interrupt[MILENGTH]
+
+#define _Enable()   masked[_Active]=FALSE
+#define _Disable()  masked[_Active]=TRUE

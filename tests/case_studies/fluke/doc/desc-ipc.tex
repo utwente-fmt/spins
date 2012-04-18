@@ -1,0 +1,171 @@
+\subsection{Overview of Fluke IPC}
+
+This section gives the basics of the Fluke reliable IPC mechanism.
+Two other forms of IPC in Fluke, One-way and Idempotent, are
+described in \cite{Flukedocs:96}.
+
+{\em Reliable IPC} is the mechanism Fluke provides
+for general, high-performance, reliable, protected communication.
+Reliable IPC in Fluke operates in a stream-oriented model,
+in which two threads connect to each other directly
+and can send data to each other as if through a pipe.
+These connections are symmetrical but half-duplex,
+meaning that data can only flow in one direction at a time.
+However, the direction of data flow can be reversed
+without destroying the connection.
+
+Any Fluke thread can be involved in two reliable IPC connections at once:
+any thread may have both a connection to a {\em client}
+thread--a thread that ``called'' it,
+as well as a connection to a {\em server} 
+thread--a thread that it has ``called''.
+
+Either side of a reliable IPC connection
+may be held up arbitrarily long while waiting for the other side.
+%e.g. because of page faults in the other task that need to be handled.
+Thus, there are no guarantees regarding the ``promptness''
+with which a server thread can perform its work and disconnect.
+A server thread is bound to a particular client thread
+for the duration of the IPC operation.
+
+Communication within the kernel is based on unilateral
+synchronization--interacting threads are required to cooperate with
+each other.
+Threads effectively ``ask'' other threads to complete an operation
+on their behalf, blocking until the result is available.  For example,
+during a standard reliable IPC operation, the server thread will
+block waiting for a client to show up.  It blocks in 
+a state labeled as ``waiting to receive''.  The client will 
+grab the server and set up the connection.  Once the connection is
+established, it changes the {\em server's} state to reflect an
+active connection (just in case they get disconnected.) and then
+starts transferring data to the server.  When the transfer is 
+completed, the client puts the server back on the ready queue so
+that it may run.  When the server wakes up it will restart as
+if it had been doing a receive operation. The client will go
+to sleep in a state indicating that it has finished a send.  The
+server wakes up and notices the client is in the right state,
+and then restarts the client, and returns to the user itself.
+
+It is important to note that while the 
+thread is blocked in a specific ``wait state'' it will not
+be restarted until its counterpart in the reliable IPC operation
+restarts it.
+
+The IPC implementation uses {\it wait state values} to keep track of
+the state in which a particular thread is waiting. For example, if a
+thread is currently a server (in an IPC connection) and is waiting to
+send data, its wait state value will be {\tt WAIT_IPC_SRV_SEND}.
+The set of wait states forms a tree whose
+leaves are single states. The leaves are represented in a binary
+encoding such that a single bit test suffices to determine whether
+a state belongs to a certain subtree, i.e. is a member of a subset of 
+states.   See Figure~\ref{waitStates.fig} for the tree of valid
+wait states.
+
+\begin{figure}[th]
+{\small
+\begin{verbatim}
+WAIT_NONE
+WAIT_ANYTHING ->
+     WAIT_IPC_PICKLE
+     WAIT_STOPPED
+     WAIT_CANCELABLE ->
+             WAIT_ON_COND
+             WAIT_IPC_SRV_DSCN
+             WAIT_IPC_SRV_RECEIVER ->
+                     WAIT_IPC_SRV_RECV
+                     WAIT_IPC_SRV_ASEND
+             WAIT_IPC_SRV_SENDER ->
+                     WAIT_IPC_SRV_ORECV
+                     WAIT_IPC_SRV_SEND
+             WAIT_IPC_CLI_DSCN
+             WAIT_IPC_CLI_RECEIVER ->
+                     WAIT_IPC_CLI_RECV
+                     WAIT_IPC_CLI_ASEND
+             WAIT_IPC_CLI_SENDER ->
+                     WAIT_IPC_CLI_ORECV
+                     WAIT_IPC_CLI_SEND
+             WAIT_IPC_UNPICKLE
+             WAIT_IPC_IDEMPOTENT ->
+                     WAIT_IPC_EXCEPTION
+                     WAIT_IPC_CALL
+                     WAIT_IPC_SECURITY
+\end{verbatim}
+} %end \small
+\caption{Valid wait states for blocked threads}
+\label{waitStates.fig}
+\end{figure}
+
+
+% XXX keep?
+\subsection{Promela Implementation of Fluke IPC}
+
+The Promela model of the IPC code resembles the implementation very closely. 
+% Pat, I don't like the phrase "have been abstracted" or even 
+% "have been abstracted away"
+Very few details have been discarded or replaced with implementations
+of equivalent abstract semantics. 
+The majority of functions which model the reliable IPC path are 
+implemented by directly translating the corresponding C functions to 
+Promela. (The C functions are described in some detail in the Appendix.)
+For example, the following is a snippet of C that implements the
+{\tt sys_ipc_client_connect_send_over_receive()} function--the
+kernel interface for that function.
+
+\begin{verbatim}
+        struct s_thread * const client = current_thread();
+        int rc;
+
+        rc = ipc_client_1_connect_send(client,
+                                       fluke_ipc_client_send_over_receive__entry);
+        if (rc) return rc;
+
+        return ipc_client_2_over_receive(client, WAIT_IPC_SRV_RECV);
+\end{verbatim}
+
+Differing naming conventions aside, it can be seen that the 
+``equivalent'' Promela looks almost identical:
+
+\begin{verbatim}
+        ipcClient1ConnectSend(currentThread,
+                              threadExcConnectArg(currentThread),
+                              ENTRYPOINT_CLIENT_SEND_OVER_RECEIVE);
+        if 
+        :: rc==0 ->
+             ipcClient2OverReceive(currentThread, WAIT_IPC_SRV_RECV);
+             /* sets rc, RETURN rc */
+        :: else ->
+             /* RETURN non-zero rc */ skip;
+        fi;
+\end{verbatim}
+
+Since we don't model ports and port sets, the id of the
+server thread is passed as a parameter (this is accomplished by
+{\tt threadExcConnectArg(currentThread)}).
+
+% --this seems obsolete
+% There was one area of the code that was easy and worthwhile to
+% simplify.  The data transfer.
+
+\subsubsection{Transfer of data}
+In the C implementation, the function {\tt ipc_reliable_transfer()}
+copies the data and references from the sender space to the receiver space.  
+This functions implements scatter/gather buffers, the bookkeeping
+needed for reference transfer, and other things -- all of which are
+outside the scope of our verification. 
+
+In our Promela implementation, we simplify the data transfer to its
+essence. Only a single byte of payload (which is part of the thread's 
+exception state) is transferred from the sender to the receiver. 
+%This is made use of in assertions
+%which check if the data received is the same as the data that has been
+%sent.
+
+The possibility of either the sender or the receiver page faulting
+during the transfer is implemented using the non-determinism that
+Promela provides.  Note that the payload is copied only in the case in
+which there is no error.  Additionally, because transfer is isolated to 
+a single function we are able to make the inclusion of page fault
+a configurable option.
+

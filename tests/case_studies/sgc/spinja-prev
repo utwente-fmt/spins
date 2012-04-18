@@ -1,0 +1,48 @@
+spinja2lts-mc: Precompiled spinja module initialized
+spinja2lts-mc: Using 2 cores (lb: combined)
+spinja2lts-mc: loading model from sgc.promela.spinja
+spinja2lts-mc: There are 495 state labels and 0 edge labels
+spinja2lts-mc: State length is 197, there are 3110 groups
+spinja2lts-mc: Using a hash table with 2^20 elements
+spinja2lts-mc: Global bits: 0, count bits: 0, local bits: 0.
+,
+
+spinja2lts-mc[0]: 258 levels ~100000 states ~1630360 transitions
+spinja2lts-mc: [0] saw in 224.370 sec 258 levels 60087 states 978710 transitions
+spinja2lts-mc: [1] saw in 224.370 sec 299 levels 57935 states 958964 transitions
+spinja2lts-mc: mean standard work distribution: 1.8% (states) 1.0% (transitions)
+spinja2lts-mc: 
+spinja2lts-mc: State space has 557 levels 118022 states 1937674 transitions
+spinja2lts-mc: Total exploration time 224.620 real 369.850 user 1.960 sys
+spinja2lts-mc: 
+spinja2lts-mc: Queue width: 8B, total height: 1785, memory: 0.01MB
+spinja2lts-mc: DB: Table, memory: 88.7MB, compr. ratio: 100.0%, fill ratio: 11.0%
+spinja2lts-mc: Est. total memory use: 88.7MB (~788.0MB paged-in)
+spinja2lts-mc: Internal statistics:
+
+Algorithm:
+Work time: 224.62 sec
+User time: 448.74 sec
+Explored: 118022
+Transitions: 1937674
+Deadlocks: 256
+Assertion errors: 0
+Waits: 0
+Rec. calls: 0
+
+Database:
+Elements: 118022
+Nodes: 118022
+Misses: 21
+Eq. tests: 0
+Rehashes: 0
+
+Memory:
+Queue: 0.0 MB
+DB: 88.7 MB
+DB alloc.: 788.0 MB
+Colors: 0.0 MB
+
+Load balancer:
+Splits: 49
+Load transfer: 3713

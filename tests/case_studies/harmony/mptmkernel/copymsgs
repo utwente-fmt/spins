@@ -1,0 +1,112 @@
+/* 
+Harmony Validation
+File :              copymsg
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 22 Jun 94
+Description :       
+- _Copy_msg
+*/
+
+#define PACKETSIZE 32
+#define message(v) byte v[MAXMSGLENGTH1]
+
+#define msgacc(i,j) (i*MAXMSGLENGTH1)+j
+#define msgref(a,i,j) a[msgacc(i,j)]
+
+#define equalmsg1(from, ito)\
+  atomic{\
+    i=0;\
+    do\
+    :: (i <= MAXMSGLENGTH) ->\
+         msgref(request_msg,ito,i)=from[i];i=i+1\
+    :: (i >  MAXMSGLENGTH) ->\
+        break\
+    od\
+  }
+
+#define equalmsg2(ifrom, to)\
+  atomic{\
+    i=0;\
+    do\
+    :: (i <= MAXMSGLENGTH) ->\
+         to[i]=msgref(reply_msg,ifrom,i);i=i+1\
+    :: (i >  MAXMSGLENGTH) ->\
+        break\
+    od\
+  }
+
+#define _Copy_msg1s(ifrom, to ,pc)\
+     SEQI(pc+0,  leng=msgref(request_msg,ifrom,0);\
+                 if\
+                 :: (to[0] < leng) -> leng=to[0]\
+                 :: (to[0] >= leng) -> skip\
+                 fi;\
+                 if\
+                 :: (leng < 4) -> leng=4\
+                 :: (leng >= 4) -> skip\
+                 fi;\
+                 i=1)\
+  :: COND(pc+1,  leng,pc+2,pc+9)\
+  :: SEQI(pc+2,  if\
+                 :: (leng < PACKETSIZE) -> burst=leng\
+                 :: (leng >= PACKETSIZE) -> burst=PACKETSIZE\
+                 fi;\
+                 leng=leng-burst)\
+  :: SEQI(pc+3,  _Disable())\
+  :: COND(pc+4,  (state[_Active]==ABORT_COPY_MSG),pc+5,pc+7)\
+  :: SEQI(pc+5,  _Enable())\
+  :: GOTO(pc+6,  pc+9)\
+  :: SEQI(pc+7,  do\
+                 :: (burst) ->\
+                      to[i]=msgref(request_msg,ifrom,i);i=i+1;burst=burst-1\
+                 :: (!burst) ->\
+                      break\
+                 od)\
+  :: SEQI(pc+8,  _Enable())\
+/*:: GOTO(pc+?, pc+1) should be here, but useless upto msg of length PACKETSIZE */\
+  :: RETS(pc+9) 
+
+#define _Copy_msg2s(from, ito ,pc)\
+     SEQI(pc+0,  leng=from[0];\
+                 if\
+                 :: (msgref(reply_msg,ito,0) < leng) -> leng=msgref(reply_msg,ito,0)\
+                 :: (msgref(reply_msg,ito,0) >= leng) -> skip\
+                 fi;\
+                 if\
+                 :: (leng < 4) -> leng=4\
+                 :: (leng >= 4) -> skip\
+                 fi;\
+                 i=1)\
+  :: COND(pc+1,  leng,pc+2,pc+9)\
+  :: SEQI(pc+2,  if\
+                 :: (leng < PACKETSIZE) -> burst=leng\
+                 :: (leng >= PACKETSIZE) -> burst=PACKETSIZE\
+                 fi;\
+                 leng=leng-burst)\
+  :: SEQI(pc+3,  _Disable())\
+  :: COND(pc+4,  (state[_Active]==ABORT_COPY_MSG),pc+5,pc+7)\
+  :: SEQI(pc+5,  _Enable())\
+  :: GOTO(pc+6,  pc+9)\
+  :: SEQI(pc+7,  do\
+                 :: (burst) ->\
+                      msgref(reply_msg,ito,i)=from[i];i=i+1;burst=burst-1\
+                 :: (!burst) ->\
+                      break\
+                 od)\
+  :: SEQI(pc+8,  _Enable())\
+/*:: GOTO(pc+?, pc+1) should be here, but useless upto msg of length PACKETSIZE */\
+  :: RETS(pc+9) 
+
+#define afficher(t)\
+  atomic{\
+    i=0;\
+    printf("t=");\
+    do\
+    :: (i <=MAXMSGLENGTH) ->\
+         printf("%d ",t[i]);i=i+1\
+    :: (i > MAXMSGLENGTH) ->\
+         printf("\n");\
+         break\
+    od\
+  }

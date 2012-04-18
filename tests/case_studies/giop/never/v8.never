@@ -1,0 +1,113 @@
+#define c	(GIOPAgent[prid[4]]@CloseConnectionSent)
+#define q	(GIOPAgent[prid[4]]@RequestRcvd)
+#define r	(GIOPAgent[prid[4]]@ReplySent1 || GIOPAgent[prid[4]]@ReplySent2)
+#define n	(numRequestsRcvd[1] == numRepliesSent[1])
+
+	/*
+	 * Formula As Typed: []  ( <>  c  ->  (([]  ( q  -> (  ! c U r )))  U c ))  && []  ( c  -> n )
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([]  ( <>  c  ->  (([]  ( q  -> (  ! c U r )))  U c ))  && []  ( c  -> n ))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([]  ( <>  c  ->  (([]  ( q  -> (  ! c U r )))  U c ))  && []  ( c  -> n )) */
+T0_init:
+	if
+	:: (((! ((c)) && (! ((r)) && ((c) && (q)))) || (! ((n)) && (c)))) -> goto accept_all
+	:: (1) -> goto T0_S2
+	:: (! ((c)) && (c)) -> goto T0_S9
+	:: (! ((c)) && ! ((r)) && (c) && (q)) -> goto accept_S69
+	:: (! ((c)) && (c)) -> goto T0_S67
+	:: (! ((c))) -> goto T0_S41
+	:: (! ((c)) && ! ((r)) && (q)) -> goto T0_S72
+	:: (! ((c)) && ! ((r)) && (c) && (q)) -> goto accept_S68
+	:: (! ((c))) -> goto T0_S79
+	:: (1) -> goto T0_S5
+	fi;
+accept_S69:
+	if
+	:: (! ((r))) -> goto T0_S69
+	:: (! ((r)) && (c)) -> goto accept_all
+	fi;
+accept_S68:
+	if
+	:: ((c)) -> goto accept_all
+	:: (1) -> goto T0_S68
+	fi;
+T0_S2:
+	if
+	:: (! ((n)) && (c)) -> goto accept_all
+	:: (1) -> goto T0_S2
+	fi;
+T0_S9:
+	if
+	:: (! ((c))) -> goto T0_S9
+	:: (! ((c)) && ! ((r)) && (q)) -> goto accept_S69
+	:: (! ((c)) && ! ((r)) && (c) && (q)) -> goto accept_all
+	:: (! ((c))) -> goto T0_S67
+	fi;
+T0_S41:
+	if
+	:: (! ((c)) && (c)) -> goto T0_S9
+	:: (! ((c)) && ! ((r)) && (c) && (q)) -> goto accept_all
+	:: (! ((c)) && ! ((r)) && (c) && (q)) -> goto accept_S69
+	:: (! ((c)) && (c)) -> goto T0_S67
+	:: (! ((c))) -> goto T0_S41
+	:: (! ((c)) && ! ((r)) && (q)) -> goto T0_S72
+	:: (! ((c)) && ! ((r)) && (c) && (q)) -> goto accept_S68
+	:: (! ((c))) -> goto T0_S79
+	fi;
+T0_S69:
+	if
+	:: (! ((r))) -> goto accept_S69
+	:: (! ((r)) && (c)) -> goto accept_all
+	fi;
+T0_S72:
+	if
+	:: (! ((r)) && (c)) -> goto accept_all
+	:: (! ((r)) && (c)) -> goto accept_S69
+	:: (! ((r))) -> goto T0_S72
+	:: (! ((r)) && (c)) -> goto accept_S68
+	fi;
+T0_S68:
+	if
+	:: ((c)) -> goto accept_all
+	:: (1) -> goto T0_S68
+	fi;
+T0_S67:
+	if
+	:: (! ((r)) && (q)) -> goto accept_S69
+	:: (! ((r)) && (c) && (q)) -> goto accept_all
+	:: (1) -> goto T0_S67
+	fi;
+T0_S79:
+	if
+	:: (! ((r)) && (c) && (q)) -> goto accept_all
+	:: (! ((r)) && (c) && (q)) -> goto accept_S69
+	:: (! ((r)) && (q)) -> goto T0_S72
+	:: (! ((r)) && (c) && (q)) -> goto accept_S68
+	:: ((c)) -> goto T0_S67
+	:: (1) -> goto T0_S79
+	fi;
+T0_S5:
+	if
+	:: (! ((c)) && (c)) -> goto T0_S9
+	:: (! ((c)) && ! ((r)) && (c) && (q)) -> goto accept_all
+	:: (! ((c)) && ! ((r)) && (c) && (q)) -> goto accept_S69
+	:: (! ((c)) && (c)) -> goto T0_S67
+	:: (! ((c))) -> goto T0_S41
+	:: (! ((c)) && ! ((r)) && (q)) -> goto T0_S72
+	:: (! ((c)) && ! ((r)) && (c) && (q)) -> goto accept_S68
+	:: (! ((c))) -> goto T0_S79
+	:: (1) -> goto T0_S5
+	fi;
+accept_all:
+	skip
+}
+
+#ifdef NOTES
+Use Load to open a file or a template.
+#endif
+#ifdef RESULT
+
+#endif

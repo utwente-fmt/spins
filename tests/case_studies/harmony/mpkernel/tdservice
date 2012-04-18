@@ -1,0 +1,102 @@
+/*
+Harmony Validation
+File :              tdservice
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 Avril 94
+Description :
+- _Td_service FSM
++ reabstraction from complete kernel
+*/
+
+#define _Td_service(candidate)\
+       _Convert_to_td(candidate,candidate);\
+       if\
+       :: (!candidate) ->\
+            skip\
+       :: (candidate) ->\
+            if\
+            :: (state[candidate]==READY & ~TRANSFERRED) ->\
+                 skip\
+            :: (state[candidate]==Q_RECEIVER & ~TRANSFERRED) ->\
+                 _Convert_to_td(sender,correspondent[candidate]);\
+                 if\
+                 :: (!sender) ->\
+                      state[candidate] = ACK_UNQ_RECEIVER;\
+                      _Signal_processor(candidate)\
+                 :: (sender) ->\
+                      state[candidate] = ACK_Q_RECEIVER;\
+                      _Signal_processor(candidate)\
+                 fi\
+            :: (state[candidate]==ACK_Q_RECEIVER & ~TRANSFERRED) ->\
+                 state[candidate] = RCV_SPECIFIC_BLOCKED;\
+                 _Convert_to_td(sender,correspondent[candidate]);\
+                 if\
+                 :: (sender && (state[sender]==SEND_BLOCKED) &&\
+                    (correspondent[sender]==candidate)) ->\
+                      del_send_q(candidate,sender);\
+                      state[sender] = UNQ_RECEIVER;\
+                      _Signal_processor(sender)\
+                 :: (!sender || (state[sender]!=SEND_BLOCKED) ||\
+                    (correspondent[sender]!=candidate)) ->\
+                      skip\
+                 fi\
+            :: (state[candidate]==UNQ_RECEIVER & ~TRANSFERRED) ->\
+                 _Convert_to_td(receiver,correspondent[candidate]);\
+                 if\
+                 :: (receiver && (state[receiver]==RCV_SPECIFIC_BLOCKED)) ->\
+                      state[receiver] = ACK_UNQ_RECEIVER;\
+                      _Signal_processor(receiver)\
+                 :: (!receiver || (state[receiver]!=RCV_SPECIFIC_BLOCKED)) ->\
+                      correspondent[candidate] = 0;\
+                      _Add_ready(candidate)\
+                 fi\
+            :: (state[candidate]==ACK_UNQ_RECEIVER & ~TRANSFERRED) ->\
+                 _Convert_to_td(sender,correspondent[candidate]);\
+                 if\
+                 :: (!sender) ->\
+                      correspondent[candidate] = 0\
+                 :: (sender) ->\
+                      state[sender] = REPLY_BLOCKED\
+                 fi;\
+                 _Add_ready(candidate)\
+            :: (state[candidate]==SENDING & ~TRANSFERRED) ->\
+                 state[candidate] = SEND_BLOCKED;\
+                 _Convert_to_td(receiver,correspondent[candidate]);\
+                 if\
+                 :: (!receiver) ->\
+                      correspondent[candidate] = 0;\
+                      state[candidate] = REPLYING;\
+                      _Signal_processor(candidate)\
+                 :: (receiver) ->\
+                      if\
+                      :: ((state[receiver]==RCV_SPECIFIC_BLOCKED) &&\
+                         (correspondent[receiver]==candidate)) ->\
+                           state[candidate] = UNQ_RECEIVER;\
+                           _Signal_processor(candidate)\
+                      :: ((state[receiver]!=RCV_SPECIFIC_BLOCKED) ||\
+                         (correspondent[receiver]!=candidate)) ->\
+                           tins_send_q(receiver,candidate);\
+                           if\
+                           :: (state[receiver]==RCV_BLOCKED) ->\
+                                correspondent[receiver]=candidate;\
+                                _Add_ready(receiver)\
+                           :: (state[receiver]!=RCV_BLOCKED)->\
+                                skip\
+                           fi\
+                      fi\
+                 fi\
+            :: (state[candidate]==REPLYING & ~TRANSFERRED) ->\
+                 _Add_ready(candidate)\
+            :: /* other cases */\
+                 (state[candidate] != READY &&\
+                 state[candidate] != Q_RECEIVER &&\
+                 state[candidate] != ACK_Q_RECEIVER &&\
+                 state[candidate] != UNQ_RECEIVER &&\
+                 state[candidate] != ACK_UNQ_RECEIVER &&\
+                 state[candidate] != SENDING &&\
+                 state[candidate] != REPLYING) ->\
+                   printf("_TD_service else state %d\n",state[candidate]);\
+                   assert(0)\
+            fi\
+       fi

@@ -1,0 +1,19 @@
+/* 
+Harmony Validation
+File :              ltmmsg
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 11 Jul 94
+Description :       
+- constants for type of msg used in ltm,...
+*/
+
+#define CREATE    1
+#define DESTROY   2
+#define SUICIDE   3
+
+#define SIZE      0
+#define TYPE      1
+#define VICTIM    2
+#define TEMPLATE  2
+#define RESULT    2

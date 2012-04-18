@@ -1,0 +1,6 @@
+never {
+	do
+	:: printf("*spd* 2 %d %d 1 self %d\n",
+		pc_value(0), pc_value(1), self)
+	od
+}

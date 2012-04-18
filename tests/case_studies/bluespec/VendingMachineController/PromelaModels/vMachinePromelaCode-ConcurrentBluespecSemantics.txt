@@ -1,0 +1,116 @@
+int count, count_old; byte action;
+bool moneyBack, gumControl, tenCentIn, fiftyCentIn, moneyBackButton, action_fired, one_action_fired;
+
+proctype IFC_tenCentIn() {
+	do
+	:: atomic { { (action==1) -> {action = 2; action_fired = 0;} }
+				      unless
+						  { (action==1 && tenCentIn) -> 
+								   { count_old = count;
+								     count = count + 10;
+								     one_action_fired = 1; action_fired = 1;
+								     action=2; -FOR MAXIMAL CONCURRENT SCHEDULE
+								     action=6; -FOR ALTERNATIVE CONC SCHEDULE
+								   } 
+						  } }
+	od
+}
+proctype IFC_fiftyCentIn() {
+	do
+	:: atomic { { (action==2) -> {action = 3; action_fired = 0;} }
+				      unless
+						  { (action==2 && fiftyCentIn) -> 
+								   { count_old = count;
+								     count = count + 50;
+								     one_action_fired = 1; action_fired = 1;
+								     action=3; -FOR MAXIMAL CONCURRENT SCHEDULE
+								     action=6; -FOR ALTERNATIVE CONC SCHEDULE
+								   } 
+						  } }
+	od
+}
+proctype doDispenseMoney() {
+	do
+	:: atomic { { (action==3) -> {action = 4; action_fired = 0;} }
+				      unless
+						  { (action==3 && moneyBack) -> 
+								   { count_old = count;
+								     if
+								     :: (count == 0) -> moneyBack = 0;
+								     :: else -> { count = count - 10;
+											            if
+											            :: (count == 0) ->
+											                moneyBack = 0;
+											            :: else -> skip;									 
+											            fi } 
+								     fi
+								     one_action_fired = 1; action_fired = 1;
+								     action=4; -FOR MAXIMAL CONCURRENT SCHEDULE
+								     action=6; -FOR ALTERNATIVE CONC SCHEDULE
+								   } 
+						  } }
+	od
+}
+proctype doDispenseGum() {
+	do
+	:: atomic { { (action==4) -> {action=5; action_fired = 0;} }
+				      unless
+						  { (action==4 && !tenCentIn && !fiftyCentIn  
+						     && !moneyBack && count >= 50) -> 
+								   { count_old = count;
+								     count = count - 50;
+								     gumControl = 1;
+								     one_action_fired = 1; action_fired = 1;
+								     action=5; -FOR MAXIMAL CONCURRENT SCHEDULE
+								     action=6; -FOR ALTERNATIVE CONC SCHEDULE
+								   } 
+						  } }
+	od
+}
+proctype IFC_moneyBackButton() {
+	do
+	:: atomic { { (action==5) -> {action=6; action_fired = 0;} }
+				      unless
+						  { (action==5 && moneyBackButton) -> 
+								   { count_old = count;
+								     moneyBack = 1;
+								     one_action_fired = 1; action_fired = 1;
+								     action = 6;
+								   }
+						  } }
+	od
+}
+
+proctype start_of_cycle() { /*Denotes end of a clock cycle.*/
+	do
+	:: atomic { if
+						  :: (action==6) ->
+						      { if /* Read external stimulus*/
+						        :: moneyBack -> {tenCentIn=0; fiftyCentIn=0; moneyBackButton=0;}
+						        :: else -> if
+						                   ::{tenCentIn=1; fiftyCentIn=0; moneyBackButton=1;}
+						                   ::{tenCentIn=1; fiftyCentIn=0; moneyBackButton=0;}
+						                   ::{tenCentIn=0; fiftyCentIn=1; moneyBackButton=1;}
+						                   ::{tenCentIn=0; fiftyCentIn=1; moneyBackButton=0;}
+						                   ::{tenCentIn=0; fiftyCentIn=0; moneyBackButton=1;}
+						                   ::{tenCentIn=0; fiftyCentIn=0; moneyBackButton=0;}
+						                   fi
+						        fi
+						        gumControl = 0;
+						        one_action_fired = 0; action_fired = 0;
+						        action = 1; }
+	            fi }
+	od
+}
+
+init {
+	atomic {  
+ 		 count = 0; count_old = 0;
+ 		 moneyBack = 0; gumControl = 0;
+ 		 tenCentIn = 0; fiftyCentIn= 0; moneyBackButton = 0;
+ 		 action = 6;
+ 
+		 run IFC_tenCentIn(); run IFC_fiftyCentIn();
+		 run doDispenseMoney(); run doDispenseGum();	
+		 run IFC_moneyBackButton(); run start_of_cycle(); }
+}

@@ -1,0 +1,50 @@
+
+Fluke IPC in Promela 
+--------------------
+
+
+This is the Promela source of our model of the Fluke IPC
+implementation.  It is broken into two basic parts.  
+
+The "control" directory contains basic translations of much of the IPC
+path.  Think of this as a library of core functionality and of the
+Fluke IPC implementation.  It is the control structure of the IPC path.
+The code in this directory maps directly to the C code in Fluke.
+
+The "fluke" directory contains models of various abstractions that the
+control code relies on.  This directory contains abstractions that the
+library relies on, and abstractions at the top level that call into
+the library.  The code in this directory was developed independently
+of the Fluke implementations (to take advantage of SPIN.)
+
+Here's some simple, very rough, ASCII art depicting the situation.  In
+order (top to bottom) of most abstract to most "concrete".
+
+	Fluke.pr                 [ abstractions in /fluke ] 
+	EntryPoint.pr
+	
+	-----------------------
+
+	ipc*.pr sThread.pr       [ control path in /control ] 
+	portsAndPsets.pr 
+	cond.pr wait.pr 
+	interrupts.pr dispatch.pr copyAround.pr 
+
+	-----------------------
+
+	Thread.pr
+	Link.pr  Mutex.pr        [ abstractions in /fluke ]
+	WaitQueue.pr 
+	ResultCode.pr WaitVal.pr
+	Status.pr 	
+
+
+The "support" directory contains miscellaneous stuff that didn't fit
+in either control or fluke.  Its mostly core abstractions that 
+we use throughout the code that should be part of the language.
+
+The "test" directory contains all of the test cases.
+
+NOTE:  There are comments sprinkled throughout with "XXX".  These
+are not particularly juicy revelations, but are things that need
+some attention or should be fixed.

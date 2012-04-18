@@ -1,0 +1,17 @@
+\subsection{Link Model}
+
+Existing, usable IPC connections can be in two states: active, and
+pickled.  Active connections are internally represented as a direct
+pointer from on thread to another. (ie, {\tt client\verb\->\ipc_state.server}
+is the address of the server's s_thread_t object).  Pickled connections
+are represented as {\em links}.  One or the other is accurate, never
+both (the non-active link is 0.)  A direct pointer can be
+thought of as a 'cached' value of the link.
+
+The kernel provides {\bf links} which represent 
+inter-object references.  They are used for
+encapsulating pointers and for reference counting.
+Initially we will model
+these as simply as possible; we may add
+verification of the reference counting later.
+

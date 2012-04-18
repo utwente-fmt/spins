@@ -1,0 +1,85 @@
+#define p	IniCommitA1B
+#define q	ResRunningA1B
+
+	/*
+	 * Formula As Typed: [] ( ([]  !(p))  ||  (!(p) U (q)) )
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([] ( ([]  !(p))  ||  (!(p) U (q)) ))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /*  !([] ( ([]  !(p))  ||  (!(p) U (q)) ))" */
+T0_init:
+	if
+	:: (! ((q)) && (p)) -> goto accept_S11
+	:: (! ((q)) && (p)) -> goto accept_all
+	:: (! ((q))) -> goto T0_S14
+	:: (! ((q)) && (p)) -> goto accept_S2
+	:: (1) -> goto T0_init
+	fi;
+accept_S11:
+	if
+	:: (! ((q))) -> goto accept_S11
+	:: (! ((q)) && (p)) -> goto accept_all
+	fi;
+accept_S2:
+	if
+	:: ((p)) -> goto accept_all
+	:: (1) -> goto T0_S2
+	fi;
+T0_S14:
+	if
+	:: (! ((q)) && (p)) -> goto accept_S11
+	:: (! ((q)) && (p)) -> goto accept_all
+	:: (! ((q))) -> goto T0_S14
+	:: (! ((q)) && (p)) -> goto accept_S2
+	fi;
+T0_S2:
+	if
+	:: ((p)) -> goto accept_all
+	:: (1) -> goto T0_S2
+	fi;
+accept_all:
+	skip
+}
+
+#ifdef NOTES
+q precedes p
+
+
+
+
+#endif
+#ifdef RESULT
+warning: for p.o. reduction to be valid the never claim must be stutter-closed
+(never claims generated from LTL formulae are stutter-closed)
+(Spin Version 3.4.13 -- 31 January 2002)
+	+ Partial Order Reduction
+
+Full statespace search for:
+	never-claim         	+
+	assertion violations	+ (if within scope of claim)
+	acceptance   cycles 	+ (fairness disabled)
+	invalid endstates	- (disabled by never-claim)
+
+State-vector 76 byte, depth reached 43, errors: 0
+     955 states, stored
+    2627 states, matched
+    3582 transitions (= stored+matched)
+    8024 atomic steps
+hash conflicts: 512 (resolved)
+(max size 2^19 states)
+
+2.542 	memory usage (Mbyte)
+
+unreached in proctype PIni
+	(0 of 22 states)
+unreached in proctype PRes
+	(0 of 22 states)
+unreached in proctype PI
+	line 294, state 182, "-end-"
+	(28 of 182 states)
+unreached in proctype :init:
+	(0 of 12 states)
+
+#endif

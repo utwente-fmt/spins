@@ -1,0 +1,6 @@
+This is a model for Harmony Kernel
+with
+- Hard FIFO
+- intertask communication
+- nondet scheduling
+- (validation done only for synchronization)

@@ -1,0 +1,147 @@
+/*
+  Taylor's I-Protocol, as implemented in the GNU UUCP package
+
+  - restructed sender and receiver 
+  - removed source and sink processes (sndr_u and recv_u)
+*/
+
+:- import config/3, eval/1, eval/2, eval/3, in_interval/2,
+	in_set/1, add_to_set/3, remove_from_set/3,
+	do_exp/5 from i.
+
+i ::=
+	( sender(1,0)
+	| medium @ [ chan_in/s2m, chan_out/m2r]
+	| medium @ [ chan_in/r2m, chan_out/m2s]
+	| receiver(0,0,0,0)
+	)
+	\ {s2m, m2r, r2m, m2s}.
+
+medium ::=
+	in(chan_in, P) o
+	(	out(chan_out, recvpak(P,true,true))
+	#	action(progress)
+	#	full(1) o action(progress) o
+		( out(chan_out, recvpak(P,false,true))
+		# out(chan_out, recvpak(P,true,false))
+		# out(chan_out, recvpak(P,false,false))
+		)
+	) o
+	medium.
+
+sender(SendSeq, Rack) ::=
+	(eval(SendSeq-Rack =< hwin), SendSeq \== Rack) o
+	out(s2m, packet(data, SendSeq, 0)) o
+	eval(NewSendSeq := SendSeq + 1) o
+	sender(NewSendSeq, Rack)
+    #
+	in(m2s, recvpak(packet(Pty, Seq, Ack), Hck, Dck)) o
+	if( Hck == true
+	,	if( (Ack \== SendSeq, 
+		     eval(Ack-Rack =< hwin), 
+		     eval(SendSeq-Ack =< hwin))
+		,	NewRack = Ack
+		,	NewRack = Rack
+		) o
+		if( Pty == nak
+		,	if( (Seq \== SendSeq, 
+			     eval(Seq-NewRack =< hwin),
+			     eval(SendSeq-Seq =< hwin))
+			,	out(s2m, packet(data, Seq, 0))
+			)
+		) o
+		sender(SendSeq, NewRack)
+	,	sender(SendSeq, Rack)
+	)
+    #
+	% timeout
+	out(s2m, packet(nak,1,0)) o
+	if( (eval(SendSeq-Rack =< hwin), SendSeq \== Rack), action(progress)) o
+	eval(R is Rack+1) o
+	if( (SendSeq \== R)
+	,	out(s2m, packet(data, R, 0))
+	) o
+	sender(SendSeq, Rack).
+
+receiver(RecSeq, Lack, Recbuf, Nakd) ::=
+    in(m2r, recvpak(packet(Pty, Seq, Ack), Hck, Dck)) o
+    if( Hck == true,
+	if( Pty == nak
+	,	if( fixed(1)
+		,	out(r2m, packet(ack, RecSeq, RecSeq)) o
+			receiver(RecSeq, RecSeq, Recbuf, Nakd)
+		,	receiver(RecSeq, Lack, Recbuf, Nakd)
+		)
+	, % Pty == data
+		if((eval(Seq-Lack > hwin) ; Seq == Lack)
+		,	% not in window
+			receiver(RecSeq, Lack, Recbuf, Nakd)
+		,
+		    if( Dck == false
+		    ,	% corrupted data
+			if( (Seq \== RecSeq
+			     , not(in_set(Seq,Recbuf)), eval(Seq-RecSeq =< hwin))
+			,	r_sendnak(Seq, RecSeq, Nakd, NewLack, NewNakd) o
+				receiver(RecSeq, NewLack, Recbuf, NewNakd)
+			,	receiver(RecSeq, Lack, Recbuf, Nakd)
+			)
+		    ,
+			% good data
+			remove_from_set(Seq, Nakd, Nakd1) o
+			if( not(eval(Seq == RecSeq+1))
+			,	% unexpected sequence number
+				if( (Seq \== RecSeq , not(in_set(Seq, Recbuf)))
+				,	% not received before
+					add_to_set(Seq, Recbuf, NewRecbuf) o
+					eval(Tmp is RecSeq+1) o
+					do_unexp_sendnak(Tmp,Seq,RecSeq,Lack,
+					    NewRecbuf,Nakd1,NewL,NewNakd) o
+					receiver(RecSeq,NewL,NewRecbuf,NewNakd)
+				,	receiver(RecSeq, Lack, Recbuf, Nakd1)
+				)
+			,	% expected sequence number
+				action(progress) o
+				RecSeq1 = Seq o
+				eval(Tmp is Seq+1) o
+				do_exp(Tmp,RecSeq1,Recbuf,NewRecSeq,NewRecbuf) o
+				if( eval(Seq-Lack >= qwin)
+				,	out(r2m, packet(ack, Seq, Seq)) o
+					NewLack = NewRecSeq
+				,	NewLack = Lack
+				) o
+				receiver(NewRecSeq, NewLack, NewRecbuf, Nakd)
+			)
+		    )
+		)
+	)
+    ,   receiver(RecSeq, Lack, Recbuf, Nakd)
+    )
+    #
+	% timeout
+	eval(R is RecSeq+1) o
+	out(r2m, packet(nak, R, RecSeq)) o
+	action(progress) o
+	add_to_set(R, 0, NewNakd) o
+	receiver(RecSeq, RecSeq, Recbuf, NewNakd).
+
+r_sendnak(X, RecSeq, Nakd, NewLack, NewNakd) ::=
+	out(r2m, packet(nak, X, RecSeq)) o
+	NewLack = RecSeq o
+	add_to_set(X, Nakd, NewNakd).
+
+do_unexp_sendnak(Tmp, Seq, RecSeq, Lack, Recbuf, Nakd, NewLack, NewNakd) ::=
+	if( Tmp == Seq
+	,	NewNakd = Nakd  o  NewLack = Lack
+	,	if( (not(in_set(Tmp, Recbuf)), not(in_set(Tmp, Nakd)))
+		,	r_sendnak(Tmp, RecSeq, Nakd, L1, Nakd1)
+		,	Nakd1 = Nakd  o  L1 = Lack
+		) o
+		eval(T is Tmp+1) o
+		do_unexp_sendnak(T,Seq, RecSeq,L1,Recbuf,Nakd1, NewLack,NewNakd)
+	).
+
+%%=============================================================================
+%%	The livelock property
+
+livelock += nploop \/ diam(-nil, livelock).
+nploop -= diam(-progress, nploop).

@@ -1,0 +1,364 @@
+/* TROJKA version:
+ * based on the conf-solo13.trojka; assumed correct specification
+ *
+ * conf-solo14.trojka: Fri Feb 26 13:44:15 MET 1999
+ * changed: no nick change allowed again by receiving an answer/join PDU
+ * from an already joined conference partner, although a join PDU results
+ * always in an answer PDU. written to find other failures in Jan F.
+ * implementation.
+ *
+ */			
+
+
+
+
+
+/* [file: conf-solo.pr, started: 19-May-98]
+ * based on: conference.pr	draft version: Theo C. Ruys
+ *				draft version: Rene G. de Vries
+ *
+ * DESCRIPTION
+ *      The Conference Protocol in Promela. Modelling the PE.
+ *	
+ *
+ *
+ * NOTES
+ *   o  SOURCE. See the reader [Pires 1997], i.e.
+ *          "Protocol Implementation" by Luis Pires, 1995-1997
+ *      for details on the Conference Protocol.
+ *
+ *   o  NUMBER OF USERS. The current default for the number of users N
+ *      is set to 3. The maxium number of users (participating PE is 256)
+ *
+ *
+ *
+ *
+ *
+ * CHANGES
+ *      98.05.19  ruys  Started.
+ *      98.05.26  ruys  First version that can be simulated with Spin v3.2.0.
+ *      98.06.03  ruys  Changes:
+ *                       -  Several errors have been removed.
+ *                       -  The operations on set of addresses (T_AddressSet)
+ *                          are now implemented by macros.
+ *                       -  The specification is heavily parameterized by N,
+ *                          the number of Users.
+ *                          Currently N can be either 2 or 3.
+ *      98.06.xx  ruys  Changes:
+ *                       -  TODO: MOST CHANGES NEEDS SOME COMMENTS
+ *                       -  Various optimizations:
+ *                           -  removed redundant parameters from messages
+ *                           -  added atomic clauses
+ *                           -  added xs/xr declarations
+ *                           -  made User() process finite
+ *                       -  Splitted User() process into 
+ *                          UserSend() and UserRecv() process.
+ *	98.11.27 de Vries Changes:
+ *			 - stripped... modelling only one Protocol Entity (PE)
+ *	98.11.30 de Vries Changes:
+ *			 - TODO: including different conference: include confid			 
+ */
+
+/* ------------------------------ constants ------------------------------- */
+
+#define N                       3       /* MAX Number of participants to CS */
+#define ZZ                      0       /* Null message                     */
+
+/* -------------------------------- macros -------------------------------- */
+
+#define IF                      if ::
+#define FI                      :: else fi
+
+/* -------------------------- user defined types -------------------------- */
+
+#define T_Msg                   byte
+#define T_Address               byte
+
+mtype = {
+  JOIN, LEAVE, DREQ, DIND,              /* Conference Service - SP's        */
+  U_DREQ, U_DIND,                     /* Multicast Service - SP's         */
+  PDU_JOIN, PDU_LEAVE,
+  PDU_DATA, PDU_ANSWER                  /* PDU Types                        */
+} ;
+
+/* NOTE: The distinction between JOIN and PDU_JOIN, etc. only serves to     */
+/*         make the 'Conf_PE' process more readable.                        */
+/* ----------------------------- T_AddressSet ----------------------------- */
+
+/* T_AddressSet
+ *      An T_Address of a SAP (or PE) is modelled by a
+ *      byte (i.e. 0, 1, 2, 3, etc.)
+ *
+ *      A set of addresses is implemented as a bit-set and mapped upon
+ *      a single byte. An address is a member of a set if the position in
+ *      corresponding bit-set is set. The position is counted from the
+ *      right side (least significant bit) of the bit-set.
+ *      So, a set consisting of a single address 'i' is represented
+ *      by 2**i or as a bit-operation: 1<<i.
+ *
+ *      For example, the byte 13 (binary: 1101) represents the set
+ *      that consist of 0, 2 and 3.
+ *
+ * OPERATIONS
+ *      The actual implementation of the TaddressSet as a bit-set is
+ *      hidden from the user. TaddressSet values should be manipulated
+ *      using the macros which are defined below. Note that all
+ *      TaddressSet operations have a "ASET_" prefix.
+ *
+ *      In macros use the following parameters:
+ *          s       T_AddressSet
+ *          x       T_Address
+ *
+ *      Note that the Set operations are not complete (i.e. no union,
+ *      intersection, etc.); only the operations that are needed for
+ *      this protocol are defined.
+ *
+ * NOTES
+ *   o  ARRAY OF BITS. I tried to implement TaddressSet as follows:
+ *          typedef TaddressSet { bit in[N] } ;
+ *      SPIN, however, then returns the follow warning:
+ *          "spin: warning: bit-array in[3] mapped to byte-array"
+ *      For this reason, TaddressSet is implemented as a bit-set.
+ */
+
+#define T_AddressSet(name) byte name[N]
+                 
+#define ASET_RESET(s)                 \
+	i = 0; \
+        do \
+        	:: (i < N) -> s[i]=0; i = i+1 \
+        	:: (i >= N) -> break \
+        od \
+
+
+#define ASET_IS_MEMBER(s,x)             s[x]==1
+#define ASET_REMOVE(s,x)                s[x]=0
+#define ASET_ADD(s,x)                   s[x]=1
+
+#define M_JOIN(arg1,arg2)	PDU_JOIN,arg1,arg2
+#define M_ANSWER(arg1,arg2)	PDU_ANSWER,arg1,arg2
+#define M_LEAVE(arg1,arg2)	PDU_LEAVE,arg1,arg2
+#define M_DATA(arg1,arg2)	PDU_DATA,arg1,arg2
+
+#define GETPDU(Originator, Destination, message) \
+	from_lower?message, Originator,Destination 
+
+#define MULTICAST(originator,peers,message) \
+ 	  i=0; \
+	  do \
+              :: (i < N ) -> if \
+				:: (ASET_IS_MEMBER(peers,i)) -> \
+					run trickproc(message,originator,i) \
+				:: else -> skip \
+			     fi; \
+			     i = i+1 \
+              :: (i >= N) -> break \
+          od
+
+#define BROADCAST(originator, message) \
+	i=0; \
+	  do \
+              :: (i < N) -> if \
+				 :: (i!=originator) -> \
+					run trickproc(message, originator, i) \
+				 :: else  ->  skip \
+			     fi; \
+			     i = i+1 \
+              :: (i >= N) -> break \
+          od
+
+/* ------------------------------- channels ------------------------------- */
+
+/* SAP's. Messages at each SAP:
+
+      csap_down  : (JOIN, nickname, confid_)
+                   (LEAVE, -)
+                   (DREQ, length, message)
+      csap_up    : (DIND, nickname, message)
+      usap_down  : (U_DREQ, PDU_TYPE, message, source, destination)
+      usap_up    : (U_DIND, PDU_TYPE, message, source, destination)
+
+ */
+
+#ifdef TROJKA
+#define OBSERVABLE observable
+#else
+#define OBSERVABLE
+#endif
+
+chan from_upper = [0] of { mtype, T_Msg, T_Msg } OBSERVABLE;      /* CSAP  = upper SAP      */
+chan to_upper   = [0] of { mtype, T_Msg, T_Msg } OBSERVABLE;
+chan from_lower = [0] of { mtype, T_Msg, T_Msg, T_Address, T_Address } OBSERVABLE;   /* UCAP = lower SAP      */
+chan to_lower   = [0] of { mtype, T_Msg, T_Msg, T_Address, T_Address } OBSERVABLE;
+
+byte Nick2Address[256];		/* table for mapping nick to address */
+byte Address2Nick[256];		/* table for mapping address to nick */
+
+#define STORE(nick,address)	Nick2Address[nick]=address; \
+				Address2Nick[address]=nick
+
+#define TO_ADDR(nick) Nick2Address[nick]
+#define TO_NICK(address) Address2Nick[address]
+
+/* --------------------------- proctype Conf_PE --------------------------- */
+
+
+proctype trickproc(byte arg1, arg2, arg3, arg4, arg5)
+
+{ 
+ to_lower!arg1,arg2,arg3,arg4,arg5  
+}
+
+proctype Conf_PE(byte My_Address)		/* Conf_PE (address) */
+
+/* NOTES
+ *   o  FSM. The body of 'Conf_PE' closely follows the FSM definition of
+ *      [Pires 1997]. However, instead of using explicit states, a more
+ *      readable Promela specification is possible by using a 'do' loop.
+ */
+
+{
+  T_AddressSet(partners);               /* set of known partners            */
+  T_Address     p ;                     /* placeholder for source partner   */
+
+/*
+ * parameters for a single protocol entity
+ */
+
+
+  byte		My_Nick;		/* model user title */
+  byte		My_Conf;		/* model participating conference */
+
+
+/*
+ * parameters for serveral service primitives / PDUs
+ */
+
+  byte 		Originator;	/* model originator adress of incomming PDU */
+  byte		Nick;		/* model originator nick of incomming PDU */
+  byte		Conf;		/* model conference id */
+  byte		Length;		/* model length of an incomming message */	
+  byte		Data;		/* model incomming message */
+  byte		Peer;		/* model receiver */
+
+/*
+ * Several variables for supporting
+ */
+
+
+  byte i;	/* help for index for multicast and broadcast trick */
+
+/*
+ * usage of a trick to "multicast in all possible permutations 
+ */
+	chan trick[N] = [1] of { mtype, T_Msg, T_Msg, T_Address, T_Address };
+
+atomic{ASET_RESET(partners)} ;		/* initial set is empty */
+
+Idle:
+  if
+  ::  atomic { from_lower ? _,_ 		-> goto Idle }
+  ::  atomic { from_upper ? JOIN(My_Nick, My_Conf)	-> goto Send_join }
+  fi ;
+
+Send_join:
+  atomic { BROADCAST(My_Address,M_JOIN(My_Nick, My_Conf) ) ; goto Engaged ; }
+
+Leaving:
+  atomic {
+    MULTICAST(My_Address,partners, M_LEAVE(My_Nick,My_Conf));
+    ASET_RESET(partners) ;
+    goto Idle ;
+  }
+
+Engaged:
+  if
+  ::  atomic { from_upper ? LEAVE -> goto Leaving }
+  ::  atomic { from_upper ? DREQ(Length,Data)  -> goto Send_data }
+  ::  atomic { GETPDU(Originator, Peer, M_JOIN(Nick,Conf) ) ->
+	      if 
+		:: (Peer == My_Address && Conf== My_Conf) ->
+		   if
+		    :: ASET_IS_MEMBER(partners, Originator) -> goto Send_answer
+		    :: else -> STORE(Nick, Originator); goto Send_answer
+		   fi
+		:: else -> goto Engaged
+	      fi }
+  ::  atomic {
+           GETPDU(Originator, Peer, M_DATA(Length,Data))
+        -> if
+           :: (Peer==My_Address) && (ASET_IS_MEMBER(partners, Originator))	->
+		goto Deliver_data
+           :: else                           		-> goto Send_1_join
+           fi
+      }
+
+      /* The following two options have been added w.r.t. to the FSM. */
+  ::  atomic {
+           GETPDU(Originator, Peer, M_LEAVE(Nick, Conf))
+	-> if
+	   :: (Peer == My_Address && Conf == My_Conf) ->
+				ASET_REMOVE(partners, Originator) ;
+				goto Engaged
+	   :: else		 -> goto Engaged
+	   fi
+      }
+
+  ::  atomic {
+           GETPDU(Originator, Peer, M_ANSWER(Nick, Conf))
+	-> if
+	   :: (Peer == My_Address && Conf == My_Conf) ->
+		if
+		  :: ASET_IS_MEMBER(partners, Originator) -> goto Engaged
+		  :: else -> STORE(Nick, Originator);
+			     ASET_ADD(partners,Originator) ;
+                             goto Engaged
+		fi
+	   :: else		 -> goto Engaged
+	   fi
+      }
+   fi;
+ 
+Send_data:
+	atomic { MULTICAST(My_Address, partners, M_DATA(Length, Data)); goto Engaged ; }
+
+Deliver_data:
+  atomic { to_upper ! DIND(TO_NICK(Originator),Data) ; goto Engaged ; }
+
+Send_answer:
+  atomic {
+  ASET_ADD(partners,Originator) ;
+  to_lower ! M_ANSWER(My_Nick, My_Conf), My_Address, Originator;
+  goto Engaged ;
+  }
+
+Send_1_join:
+  atomic {
+  to_lower ! M_JOIN(My_Nick, My_Conf), My_Address, Originator;
+  goto Engaged ;
+  }
+}
+
+#ifndef TROJKA
+proctype environment() {
+	from_upper!JOIN(1,2);
+	from_upper!LEAVE(2,2);
+	from_upper!JOIN(2,2);
+	to_lower?PDU_JOIN,1,2,1,2;
+	to_lower?PDU_JOIN,2,2,1,2;
+	to_lower?PDU_JOIN,1,2,1,0;
+	to_lower?PDU_JOIN,2,2,1,0;
+
+}
+#endif
+
+/* --------------------------------- init --------------------------------- */
+init	{
+atomic {
+	run Conf_PE(1)
+#ifndef TROJKA
+	; run environment()
+#endif
+	}
+}
+

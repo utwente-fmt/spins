@@ -1,0 +1,9 @@
+garp-a/:
+ This set of sources represents the model described in 4.2 1) of
+the paper. File 'garp' is the main module. Some result files are
+also contained.
+
+grap-b/:
+ This set of sources represents the models described in 4.3 of
+the paper. File 'garp_nl' is the main module. Some result files and
+unnecessary files used on the process are also contained.

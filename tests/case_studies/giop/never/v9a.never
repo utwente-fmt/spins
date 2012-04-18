@@ -1,0 +1,52 @@
+#define si	(GIOPClient[prid[3]]@RequestSent && (request_reqId == 0))
+#define ri	(GIOPClient[prid[3]]@ReplyRecvd && (reply_reqId == 0))
+#define sj	(GIOPClient[prid[3]]@RequestSent && (request_reqId != 0))
+
+	/*
+	 * Formula As Typed: []  (( si  &&  <>  ri )  ->  (  ! sj U ri ))
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([]  (( si  &&  <>  ri )  ->  (  ! sj U ri )))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([]  (( si  &&  <>  ri )  ->  (  ! sj U ri ))) */
+T0_init:
+	if
+	:: (! ((ri)) && (ri) && (si)) -> goto accept_S11
+	:: (! ((ri)) && (ri) && (si) && (sj)) -> goto accept_all
+	:: (! ((ri)) && (si)) -> goto T0_S14
+	:: (! ((ri)) && (si) && (sj)) -> goto T0_S2
+	:: (1) -> goto T0_init
+	fi;
+accept_S11:
+	if
+	:: (! ((ri))) -> goto T0_S11
+	:: (! ((ri)) && (sj)) -> goto accept_all
+	fi;
+T0_S11:
+	if
+	:: (! ((ri))) -> goto accept_S11
+	:: (! ((ri)) && (sj)) -> goto accept_all
+	fi;
+T0_S14:
+	if
+	:: (! ((ri)) && (ri)) -> goto accept_S11
+	:: (! ((ri)) && (ri) && (sj)) -> goto accept_all
+	:: (! ((ri))) -> goto T0_S14
+	:: (! ((ri)) && (sj)) -> goto T0_S2
+	fi;
+T0_S2:
+	if
+	:: ((ri)) -> goto accept_all
+	:: (1) -> goto T0_S2
+	fi;
+accept_all:
+	skip
+}
+
+#ifdef NOTES
+Use Load to open a file or a template.
+#endif
+#ifdef RESULT
+
+#endif

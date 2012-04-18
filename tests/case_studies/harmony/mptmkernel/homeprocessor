@@ -1,0 +1,12 @@
+/* 
+Harmony Validation
+File :              homeprocessor
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 1 Avril 94
+Description :       
+- processor number of task
+*/
+
+#define _Home_processor(id)\
+  processor[id]

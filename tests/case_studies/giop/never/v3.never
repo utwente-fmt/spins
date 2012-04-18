@@ -1,0 +1,27 @@
+#define p (User[7]@URequestSent)
+#define q (User[7]@UReplyReceived)
+	/*
+	 * Formula As Typed: [](p -> <> q)
+	 * The Never Claim Below Corresponds
+	 * To The Negated Formula !([](p -> <> q))
+	 * (formalizing violations of the original)
+	 */
+
+never {    /* !([](p -> <> q)) */
+T0_init:
+	if
+	:: (1) -> goto T0_init
+	:: (! ((q)) && (p)) -> goto accept_S4
+	fi;
+accept_S4:
+	if
+	:: (! ((q))) -> goto T0_S4
+	fi;
+T0_S4:
+	if
+	:: (! ((q))) -> goto accept_S4
+	fi;
+accept_all:
+	skip
+}
+

@@ -1,0 +1,15 @@
+/* 
+Harmony Validation
+File :              copymsg
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          12 April 94
+Last modification : 15 April 94
+Description :       
+- _Copy_msg
++ reabstraction from complete kernel
+*/
+
+#define _Copy_msg()\
+  if\
+  :: skip\
+  fi

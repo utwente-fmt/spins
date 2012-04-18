@@ -1,0 +1,62 @@
+---------------------------------------------------------------------------
+
+                           GIOP Promela Models
+
+                                M. Kamel
+                           m2kamel@uwaterloo.ca
+                            Oct. 4, 1999.
+
+---------------------------------------------------------------------------
+
+***************************************************************************
+
+Remark: This directory and its supdirectory never contain slightly modified 
+versions of the original GIOP model. The current version of the SPIN parser
+does not tolerate the use of a variable called "pid", as it was used in the
+original model and never claims. We have replaced this variable name 
+consistently by the name "prid", both in the Promela models and the never 
+claims. These are the only changes made to the models and never claims 
+in this collection.
+
+Stefan Leue, December 2008, Stefan.Leue@uni-konstanz.de
+
+***************************************************************************
+
+
+Included files:
+
+giop1.pr	- Scaled down GIOP model with 2 User, 2 Server, 1 Client, 2 Agent,
+			0 Transport.  Transport functionality is in Client and Agent.
+giop2.pr	- Scaled down GIOP model with 2 User, 2 Server, 1 Client, 2 Agent,
+			3 Transport.  No validation code or variables.
+giop3.pr	- Baseline GIOP model with 2 User, 2 Server, 1 Client, 2 Agent,
+			3 Transport.
+giop4.pr	- Scaled up GIOP model with 5 User, 2 Server, 1 Client, 2 Agent,
+			3 Transport.
+giop5.pr	- Scaled up GIOP model with 5 User, 10 Server, 1 Client, 2 Agent,
+			3 Transport.
+
+giop*.nomig.pr	- GIOP models without server migration functionality
+
+giop.v10.*	- GIOP models modified for HLR-10 so that URequests are made in
+			a predefined order instead of a random order.
+
+never/*		- never claims (generated from LTL formulas)
+
+	v3.never	- HLR-3: URequest/UReply response
+	v4_long.never	- HLR-4: Initial formulation of HLR-4. Long version.
+	v4a.never	- HLR-4(a): SRequest serviced exactly once
+	v4b.never	- HLR-4(b): SRequest serviced at-most-once
+	v5.never	- HLR-5: Client must not re-use request_ids
+	v6a.never	- HLR-6(a): SRequest/SReply response
+	v6b.never	- HLR-6(b): SRequest/SReply precedence
+	v7.never	- HLR-7: Reply absence
+	v8.never	- HLR-8: CloseConnection with response & correspondence
+	v9a.never	- HLR-9(a): Multiple pending requests.
+	v9b.never	- HLR-9(b): Multiple pending requests; (converse clause)
+	v10.never	- HLR-10: Ordered Requests; (test both servers)
+	v10.nomig.never	- HLR-10: Ordered Requests; no migration (both servers)
+	v10b.never	- HLR-10: Ordered Requests; (test only one server)
+	v10b.nomig.never - HLR-10: Ordered Requests; no migration (one server)
+
+

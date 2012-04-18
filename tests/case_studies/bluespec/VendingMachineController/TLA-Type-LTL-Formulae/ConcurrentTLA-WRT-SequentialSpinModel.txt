@@ -1,0 +1,154 @@
+#define monBk money_back
+#define gmDsp gum_dispensed
+#define rlFrd action_fired
+
+#define eqTo0 count == 0
+#define gEq50 count >= 50
+#define gt10  count > 10
+
+#define inc10 count_old == (count - 10)
+#define inc50 count_old == (count - 50)
+#define dec10 count_old == (count + 10)
+#define dec50 count_old == (count + 50)
+
+#define ins10 ten_cent_in
+#define ins50 fifty_cent_in
+#define mbbtn money_back_button
+
+#define dsp10 (dec10 && monBk)
+#define noMon (eqTo0 && !monBk)
+#define dspGm (dec50 && gmDsp)
+
+#define rlEq6 action == 6
+
+#define cnd1 (monBk && gt10)
+#define act1 dsp10
+#define cnd2 (monBk && !gt10)
+#define act2 noMon
+
+#define cnd3 (!monBk && gEq50 && !ins10 && !ins50 && !rlEq6)
+#define act3 dspGm
+
+#define cnd41 (!monBk && gEq50 && !ins10 && !ins50 &&  rlEq6 && !mbbtn)
+#define cnd42 (!monBk && !gEq50 && !ins10 && !ins50 && !mbbtn)
+#define cnd4 (cnd41 || cnd42) 
+#define act4 (inc10 || inc50 || monBk)
+
+#define cnd51 (!monBk && gEq50 && !ins10 && !ins50 &&  rlEq6 &&  mbbtn)
+#define cnd52 (!monBk && !gEq50 && !ins10 && !ins50 && mbbtn)
+#define cnd53 (!monBk && !ins10 && ins50 && rlEq6 && mbbtn)
+#define cnd54 (!monBk && ins10 && rlEq6 && mbbtn)
+#define cnd5 (cnd51 || cnd52 || cnd53 || cnd54)
+#define act5 monBk
+
+#define cnd6 (!monBk && ins10 && !rlEq6)
+#define act6 inc10
+
+#define cnd7 (!monBk && !ins10 && ins50 && !rlEq6)
+#define act7 inc50
+
+#define cnd81 (!monBk && ins10 && rlEq6 && !mbbtn) 
+#define cnd82 (!monBk && !ins10 && ins50 && rlEq6 && !mbbtn)
+#define cnd8 (cnd81 || cnd82 )
+#define act8 (inc10 || inc50 || monBk || dspGm)
+
+---------------------------------------------------------------------------------------------------------
+// Concurrent - Version 2.7 - Verion 2.6 written in terms of above definitions.
+---------------------------------------------------------------------------------------------------------
+[] ( (cnd1 -> X (!rlFrd U act1)) && (cnd2 -> X (!rlFrd U act2)) &&    
+
+     (cnd3 -> X (!rlFrd U act3)) && (cnd4 -> X (!rlFrd U act4)) && (cnd5 -> X (!rlFrd U act5)) && (cnd6 -> X (!rlFrd U act6)) &&
+
+     (cnd7 -> X (!rlFrd U act7)) && (cnd8 -> X (!rlFrd U act8)) 
+   )
+
+
+---------------------------------------------------------------------------------------------------------
+// Version 3 - unrolled Version 2 and changed it to bring common expressions together
+---------------------------------------------------------------------------------------------------------
+[] ( ((monBk &&  gt10) -> X (!rlFrd U (dec10 && monBk))) &&
+     ((monBk && !gt10) -> X (!rlFrd U (eqTo0 && !monBk))) &&
+
+     ((!monBk && gEq50 && !ins10 && !ins50 && !rlEq6) -> X (!rlFrd U dspGm)) &&
+  
+     (((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq6 && !mbbtn) ||
+       (!monBk && !gEq50 && !ins10 && !ins50 && !mbbtn)) -> X (!rlFrd U (inc10 || inc50 || monBk)))         
+
+     (((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq6 &&  mbbtn) ||
+       (!monBk && !gEq50 && !ins10 && !ins50 && mbbtn) ||         
+       (!monBk && !ins10 && ins50 && rlEq6 && mbbtn) ||       
+       (!monBk && ins10 && rlEq6 && mbbtn)) -> X (!rlFrd U monBk)) &&       
+    
+     ((!monBk && ins10 && !rlEq6) -> X (!rlFrd U inc10)) &&
+
+     ((!monBk && !ins10 && ins50 && !rlEq6) -> X (!rlFrd U inc50)) &&
+
+     (((!monBk && ins10 && rlEq6 && !mbbtn) ||
+       (!monBk && !ins10 && ins50 && rlEq6 && !mbbtn)) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm))) 
+
+   )
+
+
+---------------------------------------------------------------------------------------------------------
+// Version 2 - simplified version 1
+---------------------------------------------------------------------------------------------------------
+[] ( ( (monBk &&  gt10) -> X (!rlFrd U (dec10 && monBk)) 
+     ) && 
+     ( (monBk && !gt10) -> X (!rlFrd U (eqTo0 && !monBk)) 
+     ) && 
+     ( ((!monBk && gEq50 && !ins10 && !ins50 && !rlEq6) -> X (!rlFrd U dspGm)) &&
+       ((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq6 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || dspGm))) &&
+       ((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq6 &&  mbbtn) -> X (!rlFrd U monBk)) &&
+     ) &&
+     ( 
+       ((!monBk && !gEq50 && !ins10 && !ins50 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || monBk)))         
+       ((!monBk && !gEq50 && !ins10 && !ins50 && mbbtn) -> X (!rlFrd U monBk))         
+     ) &&
+     ( ((!monBk && ins10 && !rlEq6) -> X (!rlFrd U inc10)) &&
+       ((!monBk && !ins10 && ins50 && !rlEq6) -> X (!rlFrd U inc50)) &&
+
+       ((!monBk && !ins10 && ins50 && rlEq6 && mbbtn) -> X (!rlFrd U monBk)) &&       
+       ((!monBk && ins10 && rlEq6 && mbbtn) -> X (!rlFrd U monBk)) &&       
+
+       ((!monBk && ins10 && rlEq6 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm))) &&       
+       ((!monBk && !ins10 && ins50 && rlEq6 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm))) &&
+
+     )
+   )
+
+
+
+---------------------------------------------------------------------------------------------------------
+// Version 1 - Conc TLA wrt sequential spin model.
+Spin highlighted a behavior occuring in sequential execution which wasnt occurring in conc..
+
+This occured when ins10 and mbbtn were true for large no of cycles, but only ten_cent_in was allowed to fire..
+such a behavior wont occur in concurent because money_back_button will also fire there..
+
+---------------------------------------------------------------------------------------------------------
+[] ( ( (monBk &&  gt10) -> X (!rlFrd U (dec10 && monBk)) 
+     ) && 
+     ( (monBk && !gt10) -> X (!rlFrd U (eqTo0 && !monBk)) 
+     ) && 
+     ( ((!monBk && gEq50 && !ins10 && !ins50 && !rlEq6) -> X (!rlFrd U dspGm)) &&
+       ((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq6 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || dspGm))) &&
+       ((!monBk && gEq50 && !ins10 && !ins50 &&  rlEq6 &&  mbbtn) -> X (!rlFrd U monBk)) &&
+     ) &&
+     ( 
+       ((!monBk && !gEq50 && !ins10 && !ins50 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || monBk)))         
+       ((!monBk && !gEq50 && !ins10 && !ins50 && mbbtn) -> X (!rlFrd U monBk))         
+     ) &&
+     ( ((!monBk && ins10 && !ins50 && !rlEq6) -> X (!rlFrd U inc10)) &&
+       ((!monBk && ins10 && !ins50 && rlEq6 && mbbtn) -> X (!rlFrd U monBk)) &&       
+       ((!monBk && ins10 && !ins50 && rlEq6 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm))) &&       
+
+       ((!monBk && !ins10 && ins50 && !rlEq6) -> X (!rlFrd U inc50)) &&
+       ((!monBk && !ins10 && ins50 && rlEq6 && mbbtn) -> X (!rlFrd U monBk)) &&       
+       ((!monBk && !ins10 && ins50 && rlEq6 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm))) &&
+
+       ((!monBk && ins10 && ins50 && !rlEq6) -> X (!rlFrd U inc10)) &&
+       ((!monBk && ins10 && ins50 && rlEq6 && mbbtn) -> X (!rlFrd U monBk)) &&       
+       ((!monBk && ins10 && ins50 && rlEq6 && !mbbtn) -> X (!rlFrd U (inc10 || inc50 || monBk || dspGm))) &&       
+
+     )
+   )

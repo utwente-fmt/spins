@@ -1,0 +1,32 @@
+/**
+ * Test If defs
+ */
+
+
+#define X 1
+
+
+#if X==1
+
+#if X==0
+SYNTAX_ERROR
+#else
+init {
+    int i = 0;
+    i++;
+}
+#endif
+
+#else
+
+SYNTAX_ERROR
+#if 1 //should be skipped
+SYNTAX_ERROR
+#else
+SYNTAX_ERROR
+#endif
+SYNTAX_ERROR
+
+#endif
+
+//#if 1

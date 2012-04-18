@@ -1,0 +1,24 @@
+/* 
+Harmony Validation
+File :              sends
+Author :            T.Cattel cattel@iit.nrc.ca
+Creation :          3 Jan 94
+Last modification : 22 Jun 94
+Description :       
+- msg emission
+*/
+
+#define _Sends(rid,rqst_msg,rply_msg,id,pc)\
+     SEQI(pc+0,  _Convert_to_td(rid,id))\
+  :: COND(pc+1,  rid==0,pc+2,pc+4)\
+  :: SEQI(pc+2,  rid=0)\
+  :: GOTO(pc+3,  pc+12)\
+  :: SEQI(pc+4,  _Disable())\
+  :: SEQI(pc+5,  correspondent[_Active] = id)\
+  :: SEQI(pc+6,  state[_Active] = SENDING)\
+  :: SEQI(pc+7,  equalmsg1(rqst_msg,_Active))\
+  :: SEQI(pc+8,  _Block_signal_processor(id))\
+  :: SEQI(pc+9,  equalmsg2(_Active,rply_msg))\
+  :: SEQI(pc+10, _Enable())\
+  :: SEQI(pc+11, rid=correspondent[_Active])\
+  :: RETS(pc+12)
