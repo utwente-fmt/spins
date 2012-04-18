@@ -37,4 +37,11 @@ public class ProcInstance extends Proctype {
 	public String getTypeName() {
 		return super.getName();
 	}
+
+	public boolean equals(Object o) {
+		if (o == null || !(o instanceof ProcInstance))
+			return false;
+		ProcInstance p = (ProcInstance)o;
+		return p.getName().equals(name) && instance == p.instance;
+	}
 }
