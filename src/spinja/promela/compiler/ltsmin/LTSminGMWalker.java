@@ -552,7 +552,7 @@ public class LTSminGMWalker {
             		sp.add(new SimplePredicate(e.getToken().kind, id, c));
         		} catch (ParseException pe2) {}
     		}
-		} else if (e instanceof ChannelReadExpression) {
+		} else if (e instanceof ChannelReadExpression) { //TODO: isRandom (disjunction of conjunctions)
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
 			extract_predicates(sp, chanContentsGuard(id), strict, conj);

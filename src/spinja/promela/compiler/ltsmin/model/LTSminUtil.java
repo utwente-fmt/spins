@@ -113,6 +113,18 @@ public class LTSminUtil {
 		return new BooleanExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
 	}
 
+	public static BooleanExpression and(Expression e1, Expression e2) {
+		int m = PromelaConstants.LAND;
+		String name = PromelaConstants.tokenImage[m];
+		return new BooleanExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
+	}
+
+	public static CompareExpression eq(Expression e1, Expression e2) {
+		int m = PromelaConstants.EQ;
+		String name = PromelaConstants.tokenImage[m];
+		return new CompareExpression(new Token(m,name.substring(1,name.length()-1)), e1, e2);
+	}
+
 	public static Expression compare(int m, Expression e1, int nr) {
 		return compare(m, e1, constant(nr));
 	}
@@ -163,13 +175,17 @@ public class LTSminUtil {
 	}
 
 	public static Expression chanContentsGuard(Identifier id) {
+		return chanContentsGuard(id, 0);
+	}
+
+	public static Expression chanContentsGuard(Identifier id, int i) {
 		Expression left;
 		try {
 			left = new ChannelLengthExpression(null, id);
 		} catch (ParseException e1) {
 			throw new AssertionError(e1);
 		}
-		Expression e = compare(PromelaConstants.GT, left, constant(0));
+		Expression e = compare(PromelaConstants.GT, left, constant(i));
 		return e;
 	}
 
@@ -185,10 +201,10 @@ public class LTSminUtil {
 	}
 
 	public static String printVar(Variable var, LTSminPointer out) {
-		return printId(new Identifier(var), out);
+		return print(new Identifier(var), out);
 	}
 
-	public static String printId(Identifier id, LTSminPointer out) {
+	public static String print(Expression id, LTSminPointer out) {
 		ExprPrinter printer = new ExprPrinter(out);
 		return printer.print(id);
 	}

@@ -29,10 +29,13 @@ public class ChannelReadExpression extends Expression implements CompoundExpress
 	private final Identifier id;
 
 	private final List<Expression> exprs;
+	
+	private final boolean random; 
 
-	public ChannelReadExpression(final Token token, final Identifier id) {
+	public ChannelReadExpression(final Token token, final Identifier id, boolean random) {
 		super(token);
 		this.id = id;
+		this.random = random;
 		exprs = new ArrayList<Expression>();
 	}
 
@@ -83,5 +86,9 @@ public class ChannelReadExpression extends Expression implements CompoundExpress
 			rv.addAll(e.readVariables());
 		rv.addAll(id.readVariables());
 		return rv;
+	}
+
+	public boolean isRandom() {
+		return random;
 	}
 }

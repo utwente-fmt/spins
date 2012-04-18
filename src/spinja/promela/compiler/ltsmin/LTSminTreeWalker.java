@@ -1,11 +1,14 @@
 package spinja.promela.compiler.ltsmin;
 
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.and;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanEmptyGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.dieGuard;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.eq;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.getOutTransitionsOrNullSet;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
@@ -381,7 +384,7 @@ public class LTSminTreeWalker {
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			Identifier id = (Identifier)instantiate(cra.getIdentifier(), p);
-			ChannelReadAction newcra = new ChannelReadAction(cra.getToken(), id, cra.isPoll());
+			ChannelReadAction newcra = new ChannelReadAction(cra.getToken(), id, cra.isPoll(), cra.isRandom());
 			for (Expression e : cra.getExprs()) {
 				newcra.addExpression(instantiate(e, p));
 				if (e instanceof Identifier) {
@@ -440,7 +443,7 @@ public class LTSminTreeWalker {
 		} else if (e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = (Identifier)instantiate(cre.getIdentifier(), p);
-			ChannelReadExpression res = new ChannelReadExpression(cre.getToken(), id);
+			ChannelReadExpression res = new ChannelReadExpression(cre.getToken(), id, cre.isRandom());
 			for (Expression expr : cre.getExprs())
 				res.addExpression(instantiate(expr, p));
 			return res;
@@ -771,7 +774,7 @@ public class LTSminTreeWalker {
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
-			if(!var.getType().isRendezVous()) {
+			if (!var.getType().isRendezVous()) {
 				lt.addGuard(chanEmptyGuard(csa.getIdentifier()));
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous send before all others! "+ var);
@@ -791,18 +794,38 @@ public class LTSminTreeWalker {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			Identifier id = cra.getIdentifier();
 			ChannelVariable cv = (ChannelVariable)id.getVariable();
-			if(cv.getType().getBufferSize()>0) {
+			if (cv.getType().getBufferSize()>0) {
 				List<Expression> exprs = cra.getExprs();
-				lt.addGuard(chanContentsGuard(id));
-				// Compare constant arguments with channel content
-				for (int i = 0; i < exprs.size(); i++) {
-					final Expression expr = exprs.get(i);
-					if (!(expr instanceof Identifier)) {
-						Identifier elem = id(elemVar(i));
-						Identifier buf = id(bufferVar(cv), constant(0), elem);
-						Identifier next = new Identifier(id, buf);
-						lt.addGuard(compare(PromelaConstants.EQ,next,expr));
+				if (!cra.isRandom()) {
+					// Compare constant arguments with channel content
+					lt.addGuard(chanContentsGuard(id));
+					for (int i = 0; i < exprs.size(); i++) {
+						final Expression expr = exprs.get(i);
+						if (!(expr instanceof Identifier)) {
+							Identifier elem = id(elemVar(i));
+							Identifier buf = id(bufferVar(cv), constant(0), elem);
+							Identifier next = new Identifier(id, buf);
+							lt.addGuard(compare(PromelaConstants.EQ,next,expr));
+						}
 					}
+				} else {
+					LTSminGuardOr or = new LTSminGuardOr();
+					// Compare constant arguments with channel content
+					Expression g = null;
+					for (int b = 0 ; b < cv.getType().getBufferSize(); b++) {
+						g = chanContentsGuard(id, b);
+						for (int i = 0; i < exprs.size(); i++) {
+							final Expression expr = exprs.get(i);
+							if (!(expr instanceof Identifier)) {
+								Identifier elem = id(elemVar(i));
+								Identifier buf = id(bufferVar(cv), constant(0), elem);
+								Identifier next = new Identifier(id, buf);
+								g = and(g, eq(next, expr));
+							}
+						}
+						or.addGuard(g);
+					}
+					lt.addGuard(or);
 				}
 			} else {
 				throw new AssertionError("Trying to actionise rendezvous receive before all others!");

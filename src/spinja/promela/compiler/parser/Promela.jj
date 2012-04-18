@@ -1168,22 +1168,32 @@ State channel_statement(State start, State breakNode, boolean inAtomic): {
 	  send_args(null)
 	| t=<CH_READ>
 	  ( {
-	  	  ChannelReadAction read = new ChannelReadAction(t, (Identifier)expr);
+	  	  ChannelReadAction read = new ChannelReadAction(t, (Identifier)expr, false, false);
 	  	  Transition trans = start.newTransition(read, end);
           addReadAction(read, trans);
 	    }
 	    recv_args(read)
 	  | {
-	  	  ChannelReadAction read2 = new ChannelReadAction(t, (Identifier)expr, true);
+	  	  ChannelReadAction read2 = new ChannelReadAction(t, (Identifier)expr, true, false);
           Transition trans2 = start.newTransition(read2, end);
           addReadAction(read2, trans2);
 	    }
 	    <LT> recv_args(read2) <GT>
 	  )
 	| t=<CH_READ_RAND>
-	  { throw new MyParseException("Random receive from channels is not yet supported!", t); }
-	  ( recv_args(null)
-	  | <LT> recv_args(null) <GT>
+	  {
+          ChannelReadAction read3 = new ChannelReadAction(t, (Identifier)expr, false, true);
+          Transition trans3 = start.newTransition(read3, end);
+          addReadAction(read3, trans3);
+      }
+	  ( recv_args(read3)
+	  | 
+      {
+          ChannelReadAction read4 = new ChannelReadAction(t, (Identifier)expr, true, true);
+          Transition trans4 = start.newTransition(read4, end);
+          addReadAction(read4, trans4);
+      }
+	  <LT> recv_args(read4) <GT>
 	  )
 	)
 	{ return end; }
@@ -1312,15 +1322,23 @@ void dstep_channel_statement(ActionContainer cont): {
         }
         recv_args(read)
       | {
-          ChannelReadAction read2 = new ChannelReadAction(t, (Identifier)expr, true);
+          ChannelReadAction read2 = new ChannelReadAction(t, (Identifier)expr, true, false);
           cont.addAction(read2);
         }
         <LT> recv_args(read2) <GT>
       )
     | t=<CH_READ_RAND>
-      { throw new MyParseException("Random receive from channels is not yet supported!", t); }
-      ( recv_args(null)
-      | <LT> recv_args(null) <GT>
+      {
+          ChannelReadAction read3 = new ChannelReadAction(t, (Identifier)expr, false, true);
+          cont.addAction(read3);
+      }
+      ( recv_args(read3)
+      | 
+      {
+          ChannelReadAction read4 = new ChannelReadAction(t, (Identifier)expr, false, true);
+          cont.addAction(read4);
+      }
+      <LT> recv_args(null) <GT>
       )
     )
 }
@@ -1457,12 +1475,15 @@ Expression base_expr(): {
 |	ex1=varref()
 	  ( t=<CH_READ>
            {
-               ChannelReadExpression read = new ChannelReadExpression(t, (Identifier)ex1);
+               ChannelReadExpression read = new ChannelReadExpression(t, (Identifier)ex1, false);
            }
            <LBRACK> recv_args(read) <RBRACK>
            { return read; }
-	  | t=<CH_READ_RAND> <LBRACK> recv_args(null) <RBRACK>
-	  { throw new MyParseException("Channel random read with brackets are not yet supported!", t); }
+	  | t=<CH_READ_RAND> 
+           {
+               ChannelReadExpression read2 = new ChannelReadExpression(t, (Identifier)ex1, true);
+           }
+	  <LBRACK> recv_args(read2) <RBRACK>
 	  )?
 	{ return ex1; }
 |	ex1=onlyconstant()

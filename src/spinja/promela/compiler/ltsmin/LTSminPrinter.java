@@ -1,6 +1,6 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.*;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelBottom;
@@ -12,12 +12,14 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.decr;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.incr;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printId;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.print;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPC;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPID;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_STATE;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
+import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_BOOL;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT16;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT32;
@@ -662,8 +664,6 @@ public class LTSminPrinter {
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			Identifier id = csa.getIdentifier();
-			if (csa.isRendezVous())
-				throw new AssertionError("Trying to actionise rendezvous send!");
 			List<Expression> exprs = csa.getExprs();
 			for (int e = 0; e < exprs.size(); e++) {
 				final Expression expr = exprs.get(e);
@@ -675,10 +675,23 @@ public class LTSminPrinter {
 			Identifier id = cra.getIdentifier();
 			ChannelVariable var = (ChannelVariable)id.getVariable();
 			int bufferSize = var.getType().getBufferSize();
-			if (cra.isRendezVous())
-				throw new AssertionError("Trying to actionise rendezvous receive!");
 			List<Expression> exprs = cra.getExprs();
-			for (int e = 0; e < exprs.size(); e++) {
+			String len = print(chanLength(id), out(model));
+			Identifier jndex = new LTSminIdentifier(model.jndex);
+			if (cra.isRandom()) {
+				w.appendLine("for (j = 0; j < ", len, "; j++) {");
+				w.indent();
+	 			for (int e = 0; e < exprs.size(); e++) {
+					final Expression expr = exprs.get(e);
+					if (expr instanceof Identifier) continue;
+					Expression m = channelIndex(id, jndex, e);
+					String cond = print(not(eq(m, expr)), out(model));
+					w.appendLine("if ("+ cond +") continue;");
+				}
+			} else {
+				w.appendLine("j = 0;");
+			}
+ 			for (int e = 0; e < exprs.size(); e++) {
 				final Expression expr = exprs.get(e);
 				if (expr instanceof Identifier) {
 					Identifier p = (Identifier)expr;
@@ -686,13 +699,17 @@ public class LTSminPrinter {
 					generateAction(w, assign(p, m), model);
 				}
 			}
+			if (cra.isRandom()) {
+				w.appendLine("break;");
+				w.outdent();
+				w.appendLine("}");
+			} 
 			if (!cra.isPoll()) {
-				generateAction(w, decr(chanLength(id)), model);
-				String len = printId(chanLength(id), out(model));
+				String j = print(jndex, out(model));
 				Identifier index = new LTSminIdentifier(model.index);
 				Expression pp = calc(PromelaConstants.PLUS, index, constant(1));
 				if (bufferSize > 1) { // replacement for canonical state vector (sym. red.)
-					w.appendLine("for (i = 0; i < ", len, "; i++) {");
+					w.appendLine("for (i = "+ j +"; i < ", len, " - 1; i++) {");
 					w.indent();
 					for (int e = 0; e < exprs.size(); e++) {
 						Identifier m = channelIndex(id, index, e);
@@ -702,6 +719,7 @@ public class LTSminPrinter {
 					w.outdent();
 					w.appendLine("}");
 				}
+				generateAction(w, decr(chanLength(id)), model);
 				for (int e = 0; e < exprs.size(); e++) {
 					generateAction(w, assign(channelNext(id,e), constant(0)), model);
 				}
@@ -753,7 +771,7 @@ public class LTSminPrinter {
 				w.append(id.getVariable().getName());
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
-			w.append(printId(id, state));
+			w.append(print(id, state));
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
 			Expression ex1 = ae.getExpr1();
@@ -817,25 +835,33 @@ public class LTSminPrinter {
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
-			if (((ChannelType)id.getVariable().getType()).isRendezVous())
+			ChannelType ct = (ChannelType)id.getVariable().getType();
+			if (ct.isRendezVous())
 				throw new AssertionError("ChannelReadAction on rendez-vous channel.");
-			Expression size = chanLength(id);
+			
 			w.append("((");
-			generateExpression(w, size, state);
-			w.append(" > 0)");
-			List<Expression> exprs = cre.getExprs();
-			for (int i = 0; i < exprs.size(); i++) {
-				final Expression expr = exprs.get(i);
-				if (expr instanceof Identifier) // always matches
-					continue;
-				w.append(" && (");
-				Expression read = channelBottom(id, i);
-				generateExpression(w, read, state);
-				w.append(" == ");
-				generateExpression(w, expr, state);
+			int max = cre.isRandom() ? ct.getBufferSize() : 1;
+			for (int b = 0 ; b < max; b++) {
+				if (b > 0) w.append(")||(");
+				Expression size = chanLength(id);
+				w.append("((");
+				generateExpression(w, size, state);
+				w.append(" > "+ b +")");
+				List<Expression> exprs = cre.getExprs();
+				for (int i = 0; i < exprs.size(); i++) {
+					final Expression expr = exprs.get(i);
+					if (expr instanceof Identifier) // always matches
+						continue;
+					w.append(" && (");
+					Expression read = channelIndex(id, constant(b), i);
+					generateExpression(w, read, state);
+					w.append(" == ");
+					generateExpression(w, expr, state);
+					w.append(")");
+				}
 				w.append(")");
 			}
-			w.append(")");
+			w.append("))");
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			String name = co.getToken().image;

@@ -34,16 +34,18 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 	private final List<Expression> exprs;
 
 	private final boolean poll;
+	private final boolean random;
 	
-	public ChannelReadAction(final Token token, final Identifier id, boolean poll) {
+	public ChannelReadAction(final Token token, final Identifier id, boolean poll, boolean random) {
 		super(token);
 		this.id = id;
 		exprs = new ArrayList<Expression>();
 		this.poll = poll;
+		this.random = random;
 	}
 
 	public ChannelReadAction(final Token token, final Identifier id) {
-		this(token, id, false);
+		this(token, id, false, false);
 	}
 
 	public void addExpression(final Expression expr) {
@@ -207,5 +209,9 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 		if (!(v instanceof ChannelVariable)) throw new AssertionError("Channel operation on non-channel "+ id);
 		ChannelVariable cv = (ChannelVariable)v;
 		return cv.getType().isRendezVous();
+	}
+
+	public boolean isRandom() {
+		return random;
 	}
 }

@@ -242,11 +242,13 @@ public class LTSminDMWalker {
 			int m = 0;
 			// the read action itself:
 			for (Expression e : cra.getExprs()) {
-				Expression read = channelBottom(id, m++);
+				Expression read = cra.isRandom() ? channelIndex(id, STAR, m) :
+									channelBottom(id, m);
 				if (e instanceof Identifier) { // otherwise it is a guard!
 					walkExpression(params, e, MarkAction.WRITE);
 					walkExpression(params, read, MarkAction.READ);
 				}
+				m++;
 			}
 			if (!cra.isPoll()) {
 				walkExpression(params, chanLength(id), MarkAction.BOTH);
@@ -374,9 +376,11 @@ public class LTSminDMWalker {
 			// mark variables as read
 			int m = 0;
 			for (Expression expr : cre.getExprs()) {
-				Expression read = channelBottom(id, m++);
+				Expression read = cre.isRandom() ? channelIndex(id, STAR, m) :
+													channelBottom(id, m);
 				walkExpression(params, read, mark);
 				walkExpression(params, expr, mark);
+				m++;
 			}
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;

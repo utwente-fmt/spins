@@ -41,7 +41,8 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 	private GuardInfo guardInfo;
 	private List<String> mtypes;
 	public final Variable index = new Variable(VariableType.INT, "i", -1);
-	private List<Variable> locals = Arrays.asList(index);
+	public final Variable jndex = new Variable(VariableType.INT, "j", -1);
+	private List<Variable> locals = Arrays.asList(index, jndex);
 	Map<LTSminState, LTSminState> states = new HashMap<LTSminState, LTSminState>();
 
 	private int highestGroup = -1;
