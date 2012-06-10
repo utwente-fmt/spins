@@ -1,6 +1,7 @@
 package spinja.promela.compiler.ltsmin.state;
 
 import spinja.promela.compiler.variable.ChannelVariable;
+import spinja.promela.compiler.variable.CustomVariableType;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
 
@@ -32,8 +33,11 @@ public class LTSminTypeChanStruct extends LTSminTypeStruct {
 		super(wrapName(cv.getName()));
 		addMember(new LTSminVariable(CHAN_FILL_VAR, this));
 		LTSminTypeStruct buf = new LTSminTypeStruct(CHAN_BUF_PREFIX + cv.getName());
-		for (Variable var : cv.getType().getVariableStore().getVariables())
+		for (Variable var : cv.getType().getVariableStore().getVariables()) {
+			if (var instanceof ChannelVariable || var.getType() instanceof CustomVariableType)
+				throw new AssertionError("Channels and user defined types not supported in channel buffer.");
 			buf.addMember(new LTSminVariable(new LTSminTypeNative(var), var, elemName(), this));
+		}
 		addMember(new LTSminVariable(buf, CHAN_BUF, cv.getType().getBufferSize(), this));
 	}
 
