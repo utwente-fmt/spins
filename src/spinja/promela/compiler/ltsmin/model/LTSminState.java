@@ -63,7 +63,8 @@ public class LTSminState {
 	}
 
 	public Proctype getProc() {
-		return state.getAutomaton().getProctype();
+		if (null == state) return null;
+ 		return state.getAutomaton().getProctype();
 	}
 
 	private final List<LTSminTransition> out, in;

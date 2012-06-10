@@ -16,7 +16,6 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.incr;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.not;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.print;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPC;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPID;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_STATE;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
@@ -201,7 +200,6 @@ public class LTSminPrinter {
 		w.appendLine("int* label;");
 		w.appendLine("int  group;");
 		w.appendLine("int  dummy;"); // just to make sure we don't overwrite POR info
-		w.appendLine("int  next_atomic;");
 		w.outdent();
 		w.appendLine("} transition_info_t;");
 		w.appendLine("");
@@ -258,6 +256,7 @@ public class LTSminPrinter {
 		w.appendLine("extern inline int reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
 		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
+		w.appendLine("extern void atomic_cb(void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
 		w.appendLine("static const int numbers[50] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49};");
 		w.appendLine("static int "+ SCRATCH_VARIABLE +";");
 		w.appendLine("");
@@ -312,7 +311,7 @@ public class LTSminPrinter {
 		w.appendLine("++states_emitted;");
 	}
 
-	private static void generateLeavesAtomic (StringWriter w, LTSminModel model) {
+	private static void generateLeavesAtomic(StringWriter w, LTSminModel model) {
 		List<LTSminTransition> ts = model.getTransitions();
 		w.appendLine("char leaves_atomic["+ ts.size() +"] = {");
 		w.indent();
@@ -330,20 +329,68 @@ public class LTSminPrinter {
 		w.appendLine("};");
 		w.appendLine("");
 	}
-	
-	private static void generateGetAll(StringWriter w, LTSminModel model) {
-		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+
+	public static void generateAnAtomicTransition(StringWriter w, LTSminTransition t,
+										   LTSminModel model) {
+		w.appendLine("// "+ t.getName());
+		w.appendPrefix().append("if (true");
+		for(LTSminGuardBase g: t.getGuards()) {
+			w.appendPostfix().appendPrefix().append("&&");
+			generateGuard(w, model, g, in(model));
+		}
+		w.append(") {").appendPostfix();
 		w.indent();
-		w.appendLine("state_t out;");
-		w.appendLine("int atomic_process = -1;");
-		w.appendLine("spinja_get_successor_all_real(model, in, callback, arg, &out, &atomic_process);");
+		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
+		List<Action> actions = t.getActions();
+		for(Action a: actions)
+			generateAction(w,a,model);
+		w.appendLine("transition_info.group = "+ t.getGroup() +";");
+		w.appendLine("atomic_cb(arg,&transition_info,tmp,"+ t.getEndId() +");");
+		w.appendLine("++states_emitted;");
 		w.outdent();
 		w.appendLine("}");
-		w.appendLine("");
-		w.appendLine("int spinja_get_successor_all_real( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, state_t *tmp, int *atomic) {");
+	}
+	
+	private static void generateGetAll(StringWriter w, LTSminModel model) {
+		/* PROMELA specific per-proctype code */
+		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
+			w.appendLine("int spinja_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *tmp) {");
+			w.indent();
+			w.appendLine("transition_info_t transition_info = { (int *)&numbers[0], -1 };");
+			w.appendLine("int states_emitted = 0;");
+			for (Variable local : model.getLocals()) {
+				w.appendLine("int "+ local.getName() +";");
+			}
+			w.appendLine();
+			List<LTSminTransition> transitions = model.getTransitions();
+			for(LTSminTransition t : transitions) {
+				if (t.getProcess() != p) continue;
+				generateAnAtomicTransition(w, t, model);
+			}
+			w.appendLine("return states_emitted;");
+			w.outdent();
+			w.appendLine("}");
+			w.appendLine();
+		}
+		w.appendLine("int spinja_get_successor_sid( void* model, state_t *in, void *arg, state_t *tmp, int atomic) {");
+		w.indent();
+		w.appendLine("switch (atomic) {");
+		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
+			w.appendLine("case "+ p.getID() +": return spinja_get_successor_sid"+ p.getID() +"(model, in, arg, tmp); break;");
+		}
+		w.appendLine("default: printf(\"Wrong structural ID\"); exit(-1);");
+		w.appendLine("}");
+		w.outdent();
+		w.appendLine("}");
+		w.appendLine();
+		/* END PROMELA specific code */
+
+		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 		w.appendLine("transition_info_t transition_info = { (int *)&numbers[0], -1 };");
 		w.appendLine("int states_emitted = 0;");
+		w.appendLine("state_t out;");
+		w.appendLine("state_t *tmp = &out;");
 		for (Variable local : model.getLocals()) {
 			w.appendLine("int "+ local.getName() +";");
 		}
@@ -373,19 +420,9 @@ public class LTSminPrinter {
 		for(Action a: actions)
 			generateAction(w,a,model);
 		if (t.isAtomic()) {
-			String atomic_pid = printPID(t.getEnd().getProc(), out(model));
-			w.appendLine("if (-1 != *atomic) {");
-			w.indent();
-			w.appendLine("transition_info.next_atomic = "+ atomic_pid +";");
-			generateACallback(w,t.getGroup());
-			w.outdent();
-			w.appendLine("} else {");
-			w.indent();
 			w.appendLine("transition_info.group = "+ t.getGroup() +";");
-			w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ atomic_pid +");");
+			w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ t.getEndId() +");");
 			w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
-			w.outdent();
-			w.appendLine("}");
 		} else {
 			generateACallback(w,t.getGroup());
 		}

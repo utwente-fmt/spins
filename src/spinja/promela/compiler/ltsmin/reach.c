@@ -11,7 +11,7 @@ typedef struct spinja_args_s {
 	void 			   *arg;
 	size_t 				outs;
 	state_db_t 		   *seen;
-	int 				pid;
+	int 				sid;
 	int 				real_group;
 	pthread_key_t 	   *key;
 } spinja_args_t;
@@ -19,7 +19,7 @@ typedef struct spinja_args_s {
 extern void dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state, int atomic);
 
 void
-dfs_cb(void* arg, transition_info_t *transition_info, state_t *out)
+atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic)
 {
 	spinja_args_t *args = (spinja_args_t *)arg;
 	if (leaves_atomic[transition_info->group]) {
@@ -27,7 +27,7 @@ dfs_cb(void* arg, transition_info_t *transition_info, state_t *out)
 		args->callback (args->arg, transition_info, out);
 		args->outs++;
 	} else {
-		dfs (args, transition_info, out, transition_info->next_atomic);
+		dfs (args, transition_info, out, atomic);
 	}
 }
 
@@ -38,7 +38,7 @@ dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state, in
 	switch ( result ) {
 	case false: { // new state
 		state_t out;
-		int count = spinja_get_successor_all_real (args->model, state, dfs_cb, args, &out, &atomic);
+		int count = spinja_get_successor_sid (args->model, state, args, &out, atomic);
 		if (count == 0) {
 		    transition_info->group = args->real_group;
 			args->callback (args->arg, transition_info, state);
@@ -93,16 +93,16 @@ get_tls ()
 inline int
 reach (void* model, transition_info_t *transition_info, state_t *in,
 	   void (*callback)(void* arg, transition_info_t *transition_info, state_t *out),
-	   void *arg, int pid) {
+	   void *arg, int sid) {
 	spinja_args_t *args = get_tls ();
 	args->model = model;
 	args->callback = callback;
 	args->arg = arg;
 	args->outs = 0;
-	args->pid = pid;
+	args->sid = sid;
 	args->real_group = transition_info->group;
 	state_db_clear (args->seen);
-	dfs (args, transition_info, in, pid);
+	dfs (args, transition_info, in, sid);
 	return args->outs;
 }
 

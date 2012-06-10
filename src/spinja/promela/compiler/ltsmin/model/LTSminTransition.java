@@ -231,4 +231,10 @@ public class LTSminTransition implements LTSminGuardContainer {
 		this.begin = s;
 		begin.addOut(this);
 	}
+
+	public int getEndId() {
+		return null == end.getProc() ?
+			begin.getProc().getID() :
+			end.getProc().getID();
+	}
 }

@@ -12,7 +12,6 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.eq;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.getOutTransitionsOrNullSet;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.inAtomicGuard;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.isRendezVousReadAction;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.isRendezVousSendAction;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
@@ -122,10 +121,10 @@ public class LTSminTreeWalker {
 		LTSminStateVector sv = new LTSminStateVector();
 		instantiate();
 		sv.createVectorStructs(spec, debug);
+		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
 		for (Pair p : pairs)
 			spec.addReadAction(p.cra, p.t);
-		model = new LTSminModel(name, sv, spec);
 		addAcceptingConditions();
 		createModelTransitions();
 		LTSminDMWalker.walkModel(model, debug);
@@ -260,6 +259,8 @@ public class LTSminTreeWalker {
 		instance.setEnabler(e);
 		for (Variable var : p.getVariables()) {
 			Variable newvar = instantiate(var, instance);
+			if (newvar.getName().equals(Promela.C_STATE_PROC_COUNTER))
+				newvar.setAssignedTo(); // Process counter is always assigned to
 			instance.addVariable(newvar, p.getArguments().contains(var));
 		}
 		instance.lastArgument();
@@ -500,6 +501,7 @@ public class LTSminTreeWalker {
 			}
 			if (rr.size() == 1 && p.getInstances().size() > 1) {
 				for (ProcInstance target : p.getInstances()) {
+					model.sv.getPID(target).setAssignedTo(); // dynamic procs may get a new PID
 					bindArguments(rr.get(0), target, true);
 				}
 			} else if (rr.size() == p.getInstances().size()) {
@@ -513,6 +515,7 @@ public class LTSminTreeWalker {
 			} else {
 				for (ProcInstance target : p.getInstances()) {
 					bindArguments(rr.get(0), target, true);
+					model.sv.getPID(target).setAssignedTo(); // dynamic procs may get a new PID
 				}
 			}
 		}
@@ -680,7 +683,6 @@ public class LTSminTreeWalker {
 			lt.addGuard(p.getEnabler()); // process enabler (provided keyword)
 		if (t.getTo() == null)
 			lt.addGuard(dieGuard(model, p)); // allowed to die (stack order)
-		lt.addGuard(inAtomicGuard(model, p)); // atomic
 
 		// Create actions of the transition, iff never is absent, dying or not atomic
 		if  (n == null || null == n.getTo() || !n.getTo().isInAtomic()) {
@@ -901,8 +903,6 @@ public class LTSminTreeWalker {
 		// Change process counter of receiver
 		lt.addAction(assign(model.sv.getPC(ra.p), ra.t.getTo().getStateId()));
 
-		lt.addGuard(inAtomicGuard(model, sa.p));
-		
 		for (int i = 1; i < ra.t.getActionCount(); i++)
 			lt.addAction(ra.t.getAction(i));
 		if (sa.t.getActionCount() > 1) throw new AssertionError("Rendez-vous send action in d_step.");

@@ -11,7 +11,6 @@ import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 
 import java.util.List;
 
-import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.actions.AssertAction;
@@ -128,11 +127,6 @@ public class LTSminDMWalker {
 			for(Action a : atomic.getActions()) {
 				walkAction(params,a);
 			}
-		}
-		if (t.isAtomic())
-		for (ProcInstance instance : t.getSpecification()) {
-			Variable pid = params.sv.getPID(instance);
-			walkExpression(params, id(pid), MarkAction.READ); //the PID is READ! TODO: separate atomic getAll function
 		}
 	}
 
