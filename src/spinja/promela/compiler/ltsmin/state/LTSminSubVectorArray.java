@@ -54,7 +54,7 @@ public class LTSminSubVectorArray extends LTSminSubVector {
 				first = last = arrayExpr.getConstantValue();
 			} catch(ParseException pe) {}
 		}
-		for (int i = first; i < last + 1; i++) {
+		for (int i = first; i <= last; i++) {
 			LTSminSubVector sub = follow(i);
 			sub.mark(idMarker, id.getSub());
 		}

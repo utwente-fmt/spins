@@ -123,7 +123,6 @@ public class LTSminTreeWalker {
 		instantiate();
 		sv.createVectorStructs(spec, debug);
 		bindByReferenceCalls();
-		createProcessConstantVars();
 		for (Pair p : pairs)
 			spec.addReadAction(p.cra, p.t);
 		model = new LTSminModel(name, sv, spec);
@@ -488,6 +487,8 @@ public class LTSminTreeWalker {
 	 */
 	private void bindByReferenceCalls() {
 		debug.say(MessageKind.DEBUG, "");
+		if (spec.runs.size() > 0)
+			LTSminStateVector._NR_PR.setAssignedTo();
 		for (Proctype p : spec.getProcs()) {
 			if (p.getNrActive() > 0) continue;
 			List<RunExpression> rr = new ArrayList<RunExpression>();
@@ -566,28 +567,6 @@ public class LTSminTreeWalker {
 				Expression init = v.getInitExpr();
 				v.unsetInitExpr();
 				re.addAction(new AssignAction(new Token(PromelaConstants.ASSIGN), id(v), init));
-			}
-		}
-	}
-
-	/**
-	 * Run expressions usually pass constants to channel variables. If these
-	 * variables are never assigned to elsewhere, we can safely mark them
-	 * constant.
-	 */
-	private void createProcessConstantVars() {
-		for (RunExpression re : spec.runs){
-			for (Proctype p : re.getInstances()) {
-				Iterator<Expression> rei = re.getExpressions().iterator();
-				for (Variable v : p.getArguments()) {
-					Expression next = rei.next();
-					if (v.getType() instanceof ChannelType) continue; //passed by reference
-					if (v.isNotAssignedTo()) {
-						try {
-							v.setConstantValue(next.getConstantValue());
-						} catch (ParseException e) {} // expected
-					}
-				}
 			}
 		}
 	}

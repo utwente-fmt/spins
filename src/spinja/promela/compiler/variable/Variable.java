@@ -116,6 +116,7 @@ public class Variable {
 
 	public void unsetInitExpr() {
 		this.initExpr = null;
+		this.constant = null;
 	}
 	
 	public void setInitExpr(final Expression initExpr) throws ParseException {
@@ -123,6 +124,7 @@ public class Variable {
 			throw new ParseException("Can not convert initializing expression to desired type for "+ this);
 		}
 		this.initExpr = initExpr;
+		this.constant = initExpr.getConstantValue();
 	}
 
 	public void setRead(final boolean isRead) {
@@ -166,7 +168,7 @@ public class Variable {
 	}
 	
 	public int getConstantValue() throws ParseException {
-		if (constant == null)
+		if (constant == null || assignedTo)
 			throw new ParseException("Variable "+ this +" is not a constant in process "+ owner);
 		return constant;
 	}

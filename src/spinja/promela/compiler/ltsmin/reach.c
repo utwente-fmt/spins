@@ -143,11 +143,33 @@ print_state(state_t *state)
 	}
 }
 
+void
+dm()
+{
+	int i, j;
+	int k = spinja_get_transition_groups();
+	int n = spinja_get_state_size();
+	for (i = 0; i < k; i++) {
+		printf("%d)\t%s\t", i, spinja_get_group_name(i));
+		const int *write = spinja_get_transition_write_dependencies(i);
+		const int *read = spinja_get_transition_read_dependencies(i);
+		for (j = 0; j < n; j++) {
+			if (read[j]) printf("R(%s), ", spinja_get_state_variable_name(j));
+			if (write[j]) printf("W(%s), ", spinja_get_state_variable_name(j));
+		}
+		printf("\n");
+	}
+}
+
 int
 main(int argc, char **argv)
 {
 	if (argc > 1) {
-		printf("Use %s without arguments to simulate the model behavior.\n", argv[0]);
+		if (0 == strcmp(argv[1], "--dm")) {
+			dm();
+			return 0;
+		}
+		printf("Use %s without arguments to simulate the model behavior. Or use --dm.\n", argv[0]);
 		return 0;
 	}
 	int trans = 0;
@@ -157,12 +179,12 @@ main(int argc, char **argv)
 	printf("\t-2 to change input to group number instead of choice number and back.\n");
 	printf("\t-3 to turn on/off the auto pilot (it detects loops).\n");
 	printf("\n");
-	state_db_t *seen = state_db_create (spinja_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
+	state_db_t *seen = state_db_create(spinja_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
 	state_t state;
 	spinja_get_initial_state(&state);
 	int k = spinja_get_transition_groups();
 	while (true) {
-		int result = state_db_lookup (seen, (const int*)&state);
+		int result = state_db_lookup(seen, (const int*)&state);
 		if (STATE_DB_FULL == result) {
 			printf ("ERROR: state database is filled (max size = 2^%zu). Increase DB_MAX_SIZE.", DB_MAX_SIZE);
 			exit(-10);
@@ -170,7 +192,7 @@ main(int argc, char **argv)
 		printf("Select a statement(%d)\n", trans++);
 		to_get = -1;
 		choice = 0;
-		int count = spinja_get_successor_all (NULL, &state, sim_cb, NULL);
+		int count = spinja_get_successor_all(NULL, &state, sim_cb, NULL);
 		if (0 == count) {
 			printf("no executable choices\n\n");
     		print_state(&state);
@@ -182,7 +204,7 @@ main(int argc, char **argv)
 			match_tid = false;
 			to_get = 1;
 			choice = 0;
-			spinja_get_successor_all (NULL, &state, sim_cb, &state);
+			spinja_get_successor_all(NULL, &state, sim_cb, &state);
 			//print_state(&state);
 			match_tid = match_tid_old;
 		} else {
@@ -202,7 +224,7 @@ main(int argc, char **argv)
 	        	}
 	        } while (to_get < (match_tid?0:1) ||(match_tid ? to_get > k : to_get > choice));
 			choice = 0;
-			spinja_get_successor_all (NULL, &state, sim_cb, &state);
+			spinja_get_successor_all(NULL, &state, sim_cb, &state);
 		}
 	}
 }
