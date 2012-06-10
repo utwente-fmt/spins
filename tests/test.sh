@@ -134,7 +134,7 @@ function check {
     fi
     
     # explore
-    EXPLORE=`$LTSMIN --strategy=dfs --state=$STORAGE --threads=$THREADS -s$STORAGE_SIZE -v $FILE.spinja 2>&1`
+    EXPLORE=`$LTSMIN --strategy=dfs --ref --state=$STORAGE --threads=$THREADS -s$STORAGE_SIZE -v $FILE.spinja 2>&1`
     if [ $? -ne 0 ]; then
         echo -e "${RED}FAILED"
         echo "ERROR in exploration of $FILE"
@@ -184,7 +184,6 @@ fi
 
 function comment { echo ""
 }
-
 test "brp" "brp.prm" 3280269 7058556 -o3
 test "dbm" "dbm.prm" 5112 20476
 test "fgs" "fgs.promela" 242 3388
@@ -216,6 +215,7 @@ test "Samples" "p117.pml" 354 828 # 1 deadlock
 test "Samples" "p312.pml" 160 185 -o3 # 5 assertion errors
 test "Samples" "p319.pml" 1203 3017 
 test "Samples" "p320.pml" 81 116
+test "phils" "philo.pml" 1640881 16091905
 test "SystemC-TLM/chain_assert0" "chain17.spin" 188 193 #170 deadlocks
 test "SystemC-TLM/chain_assert1" "chain13.spin" 148 153 #130 deadlocks
 test "x509" "X.509.prm" 9028 35999
