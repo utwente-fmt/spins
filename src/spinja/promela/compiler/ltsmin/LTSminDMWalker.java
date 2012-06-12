@@ -376,6 +376,7 @@ public class LTSminDMWalker {
 				walkExpression(params, expr, mark);
 				m++;
 			}
+			walkExpression(params, chanLength(id), mark);
 		} else if(e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
 			Identifier id = (Identifier)co.getExpression();
