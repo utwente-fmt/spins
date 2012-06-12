@@ -78,6 +78,7 @@ get_tls ()
 		if (!cas(&local_key, NULL, key)) {
 			pthread_key_delete (*key);
 			free (key);
+			key = NULL;
 		}
 	}
 	spinja_args_t      *args = pthread_getspecific (*local_key);
