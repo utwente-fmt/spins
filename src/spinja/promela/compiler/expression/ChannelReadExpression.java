@@ -52,7 +52,7 @@ public class ChannelReadExpression extends Expression implements CompoundExpress
 
 	@Override
 	public String getBoolExpression() throws ParseException {
-		return "_channels[SPINJA].length()"; //TODO: SpinJa semantics
+		return "_channels[SPINJA].length()"; //SJTODO: SpinJa semantics
 	}
 
 	@Override

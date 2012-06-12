@@ -205,7 +205,7 @@ public class Proctype implements VariableContainer {
 		generateGetChannelCount(w);
 
 		if (enabler != null) {
-			// TODO
+			// SJTODO
 		}
 
 		w.outdent();

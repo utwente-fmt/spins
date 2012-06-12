@@ -714,21 +714,10 @@ public class LTSminGMWalker {
 		}
 	}
 
-	static void walkTransition(Params params, LTSminTransition transition) {
-		/*if (transition instanceof LTSminTransitionCombo) {
-			LTSminTransitionCombo t = (LTSminTransitionCombo)transition;
-			for(LTSminTransition tb : t.transitions)
-				for(LTSminGuardBase g : tb.getGuards())
-					walkGuard(params, tb, g);
-		} else*/
-		if(transition instanceof LTSminTransition) {
-			LTSminTransition t = (LTSminTransition)transition;
-			for (LTSminGuardBase g : t.getGuards())
-				walkGuard(params, t, g);
-			
-		} else {
-			throw new AssertionError("UNSUPPORTED: " + transition.getClass().getSimpleName());
-		}
+	static void walkTransition(Params params, LTSminTransition t) {
+		for (LTSminGuardBase g : t.getGuards()) {
+			walkGuard(params, t, g);
+		} // we do not have to handle atomic actions since the first guard only matters
 	}
 
 	static void walkGuard(Params params, LTSminTransition t, LTSminGuardBase guard) {
