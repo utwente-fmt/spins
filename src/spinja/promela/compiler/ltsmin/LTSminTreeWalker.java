@@ -501,13 +501,14 @@ public class LTSminTreeWalker {
 			}
 			if (rr.size() == 1 && p.getInstances().size() > 1) {
 				for (ProcInstance target : p.getInstances()) {
-					model.sv.getPID(target).setAssignedTo(); // dynamic procs may get a new PID
+					model.sv.getPID(target).setAssignedTo(); // PID is changed
 					bindArguments(rr.get(0), target, true);
 				}
 			} else if (rr.size() == p.getInstances().size()) {
 				Iterator<ProcInstance> it = p.getInstances().iterator();
 				for (RunExpression re : rr) {
 					ProcInstance target = it.next();
+					model.sv.getPID(target).setAssignedTo(); // PID is changed
 					re.setInstance(target);
 					debug.say(MessageKind.NORMAL, "Statically binding chans of procinstance "+ target +" to run expression at l."+ re.getToken().beginLine);
 					bindArguments(re, target, false);
@@ -515,7 +516,7 @@ public class LTSminTreeWalker {
 			} else {
 				for (ProcInstance target : p.getInstances()) {
 					bindArguments(rr.get(0), target, true);
-					model.sv.getPID(target).setAssignedTo(); // dynamic procs may get a new PID
+					model.sv.getPID(target).setAssignedTo(); // PID is changed
 				}
 			}
 		}
@@ -555,6 +556,12 @@ public class LTSminTreeWalker {
 				v.setOwner(varParameter.getOwner());
 				v.setName(varParameter.getName());
 				//if (null != ras) spec.addReadActions(v.ras);
+			} else if (!dynamic) {
+				try {
+					v.setInitExpr(param);
+				} catch (ParseException e) {
+					throw new AssertionError("Wrong type in run parameter." + e);
+				}
 			} else if (dynamic) {
 				v.setAssignedTo();
 			}

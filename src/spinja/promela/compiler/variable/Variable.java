@@ -124,7 +124,9 @@ public class Variable {
 			throw new ParseException("Can not convert initializing expression to desired type for "+ this);
 		}
 		this.initExpr = initExpr;
-		this.constant = initExpr.getConstantValue();
+		try {
+			this.constant = initExpr.getConstantValue();
+		} catch (ParseException e) {}
 	}
 
 	public void setRead(final boolean isRead) {
