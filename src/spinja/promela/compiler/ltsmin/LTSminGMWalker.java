@@ -258,7 +258,8 @@ public class LTSminGMWalker {
 				Iterator<Expression> rei = re.getExpressions().iterator();
 				for (Variable v : p.getArguments()) {
 					Expression param = rei.next();
-					if (v.getType() instanceof ChannelType) continue; //passed by reference
+					if (v.getType() instanceof ChannelType || v.isStatic())
+						continue; //passed by reference or already in state vector
 					try {
 						int val = param.getConstantValue();
 						if (!is_nxs_guard(model, sp2, assign(v, val), enabling)) {

@@ -68,7 +68,18 @@ public class Variable {
 	public Expression getInitExpr() {
 		return initExpr;
 	}
-	
+
+	public boolean isStatic() {
+		if (null == initExpr)
+			return false;
+		try {
+			initExpr.getConstantValue();
+		} catch (ParseException e) {
+			return false;
+		}
+		return true;
+	}
+
 	public boolean equals(Object o) {
 		if (o == null)
 			return false;

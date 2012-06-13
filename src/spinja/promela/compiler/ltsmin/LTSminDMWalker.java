@@ -198,7 +198,8 @@ public class LTSminDMWalker {
 				DMIncWritePID(params, p);
 				//write to the arguments of the target process
 				for (Variable v : p.getArguments()) {
-					if (v.getType() instanceof ChannelType) continue; //passed by reference
+					if (v.getType() instanceof ChannelType || v.isStatic())
+						continue; //passed by reference or in initial state 
 					DMIncWrite(params, v);
 				}
 			}

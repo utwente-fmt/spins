@@ -639,7 +639,7 @@ public class LTSminPrinter {
 			for (Variable v : args) {
 				Expression e = eit.next();
 				// channels are passed by reference: TreeWalker.bindByReferenceCalls 
-				if (!(v.getType() instanceof ChannelType)) {
+				if (!(v.getType() instanceof ChannelType) && !v.isStatic()) {
 					Action aa = assign(v, e);
 					generateAction(w2, aa, model);
 				}
