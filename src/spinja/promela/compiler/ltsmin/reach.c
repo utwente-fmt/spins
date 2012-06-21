@@ -162,12 +162,31 @@ dm()
 	}
 }
 
+void
+mce()
+{
+	int i, j;
+	int g = spinja_get_guard_count();
+	for (i = 0; i < g; i++) {
+		printf("!%d)\t", i);
+		const int *mce = spinja_get_guard_may_be_coenabled_matrix(i);
+		for (j = i+1; j < g; j++) {
+			if (!mce[j]) printf("%d, ", j);
+		}
+		printf("\n");
+	}
+}
+
 int
 main(int argc, char **argv)
 {
 	if (argc > 1) {
 		if (0 == strcmp(argv[1], "--dm")) {
 			dm();
+			return 0;
+		}
+		if (0 == strcmp(argv[1], "--mce")) {
+			mce();
 			return 0;
 		}
 		printf("Use %s without arguments to simulate the model behavior. Or use --dm.\n", argv[0]);
