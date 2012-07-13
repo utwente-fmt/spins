@@ -195,6 +195,8 @@ public class LTSminPrinter {
 		w.appendLine("#include <stdlib.h>");
 		w.appendLine("#include <assert.h>");
 		w.appendLine("");
+		w.appendLine("#define skip true");
+		w.appendLine("");
 		w.appendLine("typedef struct transition_info {");
 		w.indent();
 		w.appendLine("int* label;");
@@ -931,13 +933,13 @@ public class LTSminPrinter {
 			ConstantExpression ce = (ConstantExpression)e;
 			switch (ce.getToken().kind) {
 				case TRUE:
-					w.append("1");
+					w.append("true");
 					break;
 				case FALSE:
-					w.append("0");
+					w.append("false");
 					break;
 				case SKIP_:
-					w.append("1");
+					w.append("skip");
 					break;
 				case NUMBER:
 					w.append(Integer.toString(ce.getNumber()));
@@ -1102,7 +1104,7 @@ public class LTSminPrinter {
 		List<String> mtypes = model.getMTypes();
 		for (String s : types) {
 			if (s.equals("mtype")) {
-				w.appendLine(mtypes.size(),",");				
+				w.appendLine(mtypes.size() + 1,","); // add "uninitialized"				
 			} else {
 				w.appendLine("0,");
 			}
@@ -1116,7 +1118,7 @@ public class LTSminPrinter {
 			w.appendLine("static const char* const var_type_",s,"[] = {");
 			if (s.equals("mtype")) {
 				w.indent();
-				w.appendLine("\"\",");
+				w.appendLine("\"uninitialized\",");
 				ListIterator<String> it = mtypes.listIterator(mtypes.size());
 				while (it.hasPrevious()) {
 					String mtype = it.previous();
