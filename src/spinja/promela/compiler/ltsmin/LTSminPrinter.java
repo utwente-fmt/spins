@@ -117,6 +117,8 @@ public class LTSminPrinter {
 	public static final int    STATE_ELEMENT_SIZE = 4;
 	public static final String SCRATCH_VARIABLE = "__spinja_scratch";
 
+	static int n_active = 0;
+
 	// first value of assertions indicates a passed assertion
 	static List<String> assertions = new ArrayList<String>(Arrays.asList("PASS"));
 
@@ -577,10 +579,11 @@ public class LTSminPrinter {
 					}
 				}
 				String activeStr = generateExpression(model, activeExpr);
-				w.appendLine("int __active = "+ activeStr +";");
+				++n_active;
+				w.appendLine("int __active_" + n_active + " = "+ activeStr +";");
 
-				w.appendLine("if (__active >= "+ re.getProctype().getInstances().size() +") {");
-				w.appendLine("	printf (\"Error, too many instances for  "+ instance.getTypeName() +": %d.\\n\", __active);");
+				w.appendLine("if (__active_" + n_active + " >= "+ re.getProctype().getInstances().size() +") {");
+				w.appendLine("	printf (\"Error, too many instances for  "+ instance.getTypeName() +": %d.\\n\", __active_" + n_active + ");");
 				w.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
 				w.appendLine("	exit (1);");
 				w.appendLine("}");
@@ -589,7 +592,7 @@ public class LTSminPrinter {
 			StringWriter w2 = new StringWriter();
 			//only one dynamic process supported atm
 			w2.appendLine("if (-1 != "+ printPC(instance, out(model)) +") {");
-			w2.appendLine("	printf (\"Instance %d of process "+ instance.getTypeName() +" was already started.\\n\", __active);");
+			w2.appendLine("	printf (\"Instance %d of process "+ instance.getTypeName() +" was already started.\\n\", __active_" + n_active + ");");
 			w2.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
 			w2.appendLine("	exit (1);");
 			w2.appendLine("}");
@@ -624,7 +627,7 @@ public class LTSminPrinter {
 			if (re.getInstances().size() > 1) {
 				String struct = model.sv.getMember(instance.getName()).getType().toString();
 				ccode = ccode.replaceAll(Matcher.quoteReplacement(OUT_VAR +"->"+ instance.getName()), 
-					"(("+ struct +"*)&"+ OUT_VAR +"->"+ instance.getName() +")[__active]");
+					"(("+ struct +"*)&"+ OUT_VAR +"->"+ instance.getName() +")[__active_" + n_active + "]");
 			}
 			w.append(ccode);
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
