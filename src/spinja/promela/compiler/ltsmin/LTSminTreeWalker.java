@@ -64,7 +64,9 @@ import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.ltsmin.LTSminDebug.MessageKind;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
@@ -103,13 +105,17 @@ public class LTSminTreeWalker {
 	
 	private final Specification spec;
 	static boolean NEVER;
+	static boolean LTSMIN_LTL = false;
 
 	private LTSminDebug debug;
 
 	private LTSminModel model = null;
 
-	public LTSminTreeWalker(Specification spec) {
+	LTSminGuardAnd deadlock = new LTSminGuardAnd();
+
+	public LTSminTreeWalker(Specification spec, boolean ltsmin_ltl) {
 		this.spec = spec;
+		LTSMIN_LTL = ltsmin_ltl;
 		NEVER = null != spec.getNever();
 	}
 
@@ -595,14 +601,26 @@ public class LTSminTreeWalker {
 			createCrossProduct(state, ns);
 		}
 
-		// let never automata continue on deadlock FIXME: all deadlocks
-		if (NEVER) {
+		for (LTSminTransition lt : model) {
+			LTSminGuardNand tg = new LTSminGuardNand();
+			for (LTSminGuardBase g : lt) {
+				tg.guards.add(g);
+			}
+			deadlock.guards.add(tg);
+		}
+		deadlock.setDeadlock();
+		
+		// let never automata continue on deadlock
+		if (NEVER && !LTSMIN_LTL) {
 			Automaton never = spec.getNever().getAutomaton();
+			NEVER = false;
 			createCrossProduct(never.getStartState(), null);
-			for (State s : never) {
+			NEVER = true;
+			for (State s : never) { // add guards:
 				LTSminState ns = model.getOrAddState(new LTSminState(s, null));
 				for (LTSminTransition lt : ns.getOut()) {
-					lt.addGuard(compare(PromelaConstants.EQ, id(_NR_PR), 0));
+					lt.buchi = true;
+					lt.addGuard(deadlock);
 				}
 			}
 		}
@@ -632,7 +650,7 @@ public class LTSminTreeWalker {
 					State to = lt.getSync().getTo(); // pass control to read
 					model.addTransition(lt);
 					LTSminState end = createCrossProduct(to, nto);
-					addAtomics(lt, begin, end);
+					annotate(lt, begin, end);
 					createCrossProduct(out.getTo(), nto);
 				}
 			} else if (isRendezVousReadAction(a)) {
@@ -641,7 +659,7 @@ public class LTSminTreeWalker {
 				LTSminTransition lt = createStateTransition(out, nout);
 				model.addTransition(lt);
 				LTSminState end = createCrossProduct(out.getTo(), nto);
-				addAtomics(lt, begin, end);
+				annotate(lt, begin, end);
 			}
 		}}
 		return begin;
@@ -659,7 +677,7 @@ public class LTSminTreeWalker {
 	 * Executed in the edge backtrack of the DFS to collect reachable atomic
 	 * transitions .
 	 */
-	private void addAtomics(LTSminTransition lt, LTSminState begin,
+	private void annotate(LTSminTransition lt, LTSminState begin,
 							LTSminState end) {
 		lt.setBegin(begin);
 		lt.setEnd(end);

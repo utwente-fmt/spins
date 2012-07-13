@@ -11,7 +11,6 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.decr;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.incr;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.not;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.or;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.INCR;
@@ -44,6 +43,7 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
@@ -721,42 +721,27 @@ public class LTSminGMWalker {
 		} // we do not have to handle atomic actions since the first guard only matters
 	}
 
+	/* Split guards */
 	static void walkGuard(Params params, LTSminTransition t, LTSminGuardBase guard) {
-		if (guard instanceof LTSminLocalGuard) { //Nothing
+		if (guard instanceof LTSminLocalGuard) { // Nothing
 		} else if (guard instanceof LTSminGuard) {
-			LTSminGuard g = (LTSminGuard)guard;
-			params.guardMatrix.addGuard(t.getGroup(), g);
+			params.guardMatrix.addGuard(t.getGroup(), (LTSminGuard)guard);
 		} else if (guard instanceof LTSminGuardAnd) {
-			LTSminGuardContainer g = (LTSminGuardContainer)guard;
-			for(LTSminGuardBase gb : g) {
+			for(LTSminGuardBase gb : (LTSminGuardContainer)guard)
 				walkGuard(params, t, gb);
-			}
-		} else if (guard instanceof LTSminGuardNor) {
-			LTSminGuardContainer g = (LTSminGuardContainer)guard;
-			LTSminGuardAnd and = new LTSminGuardAnd();
-			for (LTSminGuardBase gb : g) {
-				if (gb instanceof LTSminGuard) {
-					and.addGuard(not(((LTSminGuard) gb).getExpr()));
-				} else {
-					throw new AssertionError("UNSUPPORTED2: " + guard.getClass().getSimpleName());					
-				}
-			}
-			walkGuard(params, t, and);
+        } else if (guard instanceof LTSminGuardNand) {
+            LTSminGuardNand g = (LTSminGuardNand)guard;
+            if (!g.iterator().hasNext()) return;
+            Expression e = g.getExpression();
+            params.guardMatrix.addGuard(t.getGroup(), not(e));
+		} else if (guard instanceof LTSminGuardNor) { // DeMorgan
+			for (LTSminGuardBase gb : (LTSminGuardContainer)guard)
+                walkGuard(params, t, gb.negate());
 		} else if (guard instanceof LTSminGuardOr) {
-			LTSminGuardContainer g = (LTSminGuardContainer)guard;
-			Expression e = null;
-			for (LTSminGuardBase gb : g) {
-				if (gb instanceof LTSminGuard) {
-					if (null == e) {
-						e = ((LTSminGuard) gb).getExpr();
-					} else {
-						e = or(e, ((LTSminGuard) gb).getExpr());
-					}
-				} else {
-					throw new AssertionError("UNSUPPORTED3: " + guard.getClass().getSimpleName());					
-				}
-			}
-			walkGuard(params, t, new LTSminGuard(e));
+		    LTSminGuardOr g = (LTSminGuardOr)guard;
+			if (!g.iterator().hasNext()) return;
+			Expression e = g.getExpression();
+			params.guardMatrix.addGuard(t.getGroup(), e);
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());
 		}

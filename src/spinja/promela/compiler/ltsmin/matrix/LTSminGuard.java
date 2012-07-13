@@ -8,7 +8,7 @@ import spinja.util.StringWriter;
  *
  * @author Freark van der Berg
  */
-public class LTSminGuard implements LTSminGuardBase {
+public class LTSminGuard extends LTSminGuardBase {
 	public Expression expr;
 
 	public LTSminGuard(Expression expr) {

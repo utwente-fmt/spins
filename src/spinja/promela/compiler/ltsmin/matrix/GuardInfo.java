@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import spinja.promela.compiler.expression.Expression;
+
 
 public class GuardInfo implements Iterable<LTSminGuard> {
 	/**
@@ -57,6 +59,10 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 			trans_matrix.add(new ArrayList<Integer>());
 		}
 	}
+
+    public void addGuard(int trans, Expression e) {
+        addGuard(trans, new LTSminGuard(e));
+    }
 
 	public void addGuard(int trans, LTSminGuard g) {
 		int idx = getGuard(g);

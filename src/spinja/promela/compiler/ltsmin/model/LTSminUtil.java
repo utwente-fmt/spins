@@ -127,6 +127,10 @@ public class LTSminUtil {
 		return compare(m, e1, constant(nr));
 	}
 
+    public static ConstantExpression bool(boolean b) {
+        return new ConstantExpression(new Token(PromelaConstants.BOOL, ""+b), b?1:0);
+    }
+	
 	public static ConstantExpression constant(int nr) {
 		return new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+nr), nr);
 	}

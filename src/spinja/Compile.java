@@ -236,8 +236,16 @@ public class Compile {
 		parser.addOption(dot);
 		
 		final StringOption ltsmin = new StringOption('l',
-			"sets output to ltsmin \n");
+			"sets output to LTSmin \n");
 		parser.addOption(ltsmin);
+
+		final StringOption ltsmin_ltl = new StringOption('L',
+			"sets output to LTSmin with LTSmin LTL semantics \n");
+		parser.addOption(ltsmin_ltl);
+
+        final StringOption textbook_ltl = new StringOption('t',
+            "sets output to LTSmin with textbook LTL semantics \n");
+        parser.addOption(textbook_ltl);
 		
 		final StringOption preprocessor = new StringOption('I',
 			"prints output of preprocessor\n");
@@ -278,6 +286,15 @@ public class Compile {
 			System.out.println("File " + file.getName() + " does not exist or is not a valid file!");
 			parser.printUsage();
 		}
+
+		if (ltsmin.isSet() && ltsmin_ltl.isSet()) {
+			System.err.println("Choose -l or -L.");
+			System.exit(-1);
+		}
+        if (textbook_ltl.isSet()) {
+            System.err.println("Textbook LTL semantics not yet implemented.");
+            System.exit(-1);
+        }
 
 		String name = null;
 		if (modelname.isSet()) {
@@ -334,12 +351,12 @@ public class Compile {
 
 //		System.out.println("ltsmin: " + ltsmin.isSet());
 
-		if (ltsmin.isSet()) {
+		if (ltsmin.isSet() || ltsmin_ltl.isSet()) {
 			if (dot.isSet()) {
-				Compile.writeLTSminDotFile(spec, file.getName(), outputDir, verbose.isSet());
+				Compile.writeLTSminDotFile(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
 				System.out.println("Written DOT file to " + outputDir + "/" + file.getName()+".spinja.dot");
 			} else {
-				Compile.writeLTSMinFiles(spec, file.getName(), outputDir, verbose.isSet());
+				Compile.writeLTSMinFiles(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
 				System.out.println("Written C model to " + outputDir + "/" + file.getName()+".spinja.c");
 			}
 		} else {
@@ -395,10 +412,12 @@ public class Compile {
 		}
 	}
 	
-	private static void writeLTSminDotFile (final Specification spec, final String name, final File outputDir, boolean verbose) {
+	private static void writeLTSminDotFile (final Specification spec,
+										final String name, final File outputDir,
+										boolean verbose, boolean ltsmin_ltl) {
 		final File dotFile = new File(outputDir, name + ".spinja.dot");
 
-		LTSminTreeWalker walker = new LTSminTreeWalker(spec);
+		LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
 		LTSminModel model = walker.createLTSminModel(name, verbose);
 		String out = "digraph {\n";
 		for (LTSminTransition t : model.getTransitions()) {
@@ -449,11 +468,13 @@ public class Compile {
 		}
 	}
 
-	private static void writeLTSMinFiles(final Specification spec, final String name, final File outputDir, boolean verbose) {
+	private static void writeLTSMinFiles(final Specification spec,
+										 final String name, final File outputDir,
+										 boolean verbose, boolean ltsmin_ltl) {
 		final File javaFile = new File(outputDir, name + ".spinja.c");
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
-			LTSminTreeWalker walker = new LTSminTreeWalker(spec);
+			LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
 			LTSminModel model = walker.createLTSminModel(name, verbose);
 			fos.write(LTSminPrinter.generateCode(model).getBytes());
 			fos.flush();

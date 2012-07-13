@@ -1,5 +1,6 @@
 package spinja.promela.compiler.ltsmin.model;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -42,11 +43,9 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 	private List<String> mtypes;
 	public final Variable index = new Variable(VariableType.INT, "i", -1);
 	public final Variable jndex = new Variable(VariableType.INT, "j", -1);
+	private List<LTSminTransition> transitions = new ArrayList<LTSminTransition>();
 	private List<Variable> locals = Arrays.asList(index, jndex);
 	Map<LTSminState, LTSminState> states = new HashMap<LTSminState, LTSminState>();
-
-	private int highestGroup = -1;
-	private int transCount;
 
 	public LTSminModel(String name, LTSminStateVector sv, Specification spec) {
 		this.name = name;
@@ -103,34 +102,17 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 		}
 	}
 
-	/**
-	 * Inlined custom Array class: 
-	 */
-	private static final int MAX_TRANS = 10000;
-	private LTSminTransition transitions[] = new LTSminTransition[MAX_TRANS];
-	private List<LTSminTransition> list = null;
 	public List<LTSminTransition> getTransitions() {
-		if (highestGroup != transCount - 1)
-			throw new AssertionError("Inconsequetive transitions found.");
-		if (list == null)
-			list = Arrays.asList(transitions).subList(0, transCount);
-		return list;
+		return transitions;
 	}
 
 	@Override
 	public Iterator<LTSminTransition> iterator() {
-		return getTransitions().iterator();
+		return transitions.iterator();
 	}
 
 	public void addTransition(LTSminTransition lt) {
-		if (list != null)
-			throw new AssertionError("Adding transitions to fixed model.");
-		if (lt.getGroup() >= MAX_TRANS)
-			throw new AssertionError("Enlarge LTSminModel.MAX_TRANS.");
-		transCount++;
-		if (lt.getGroup() > highestGroup)
-			highestGroup = lt.getGroup();
-		transitions[lt.getGroup()] = lt;
+	    lt.setGroup(transitions.size());
+		transitions.add(lt);
 	}
-
 }

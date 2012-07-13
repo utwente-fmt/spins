@@ -24,14 +24,13 @@ import spinja.util.StringWriter;
  */
 public class LTSminTransition implements LTSminGuardContainer {
 
-	static int next_num = 0;
-	private int group;
+	private int group = -1;
 	
-	public LTSminTransition() {
-		group = next_num++;
-	}
+	public LTSminTransition() {}
 
 	public int getGroup() {
+	    if (group == -1)
+	        throw new AssertionError("Transition index requested before added to the model.");
 		return group;
 	}
 
@@ -47,6 +46,7 @@ public class LTSminTransition implements LTSminGuardContainer {
 	private Transition sync;
 	private LTSminState begin;
 	private LTSminState end;
+	public boolean buchi = false;
 	
 	public Set<LTSminTransition> getTransitions() {
 		return null == end ? new HashSet<LTSminTransition>() : end.getTransitions();

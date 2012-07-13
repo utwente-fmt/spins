@@ -77,10 +77,6 @@ import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
-import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
-import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
-import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
-import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
@@ -399,7 +395,7 @@ public class LTSminPrinter {
 		w.appendLine();
 		List<LTSminTransition> transitions = model.getTransitions();
 		for(LTSminTransition t : transitions) {
-			generateATransition(w, t, model);
+			generateATransition(w, t, model, true);
 		}
 		w.appendLine("return states_emitted;");
 		w.outdent();
@@ -408,12 +404,13 @@ public class LTSminPrinter {
 	}
 
 	public static void generateATransition(StringWriter w, LTSminTransition t,
-										   LTSminModel model) {
+										   LTSminModel model, boolean many) {
 		w.appendLine("// "+ t.getName());
 		w.appendPrefix().append("if (true");
 		for(LTSminGuardBase g: t.getGuards()) {
 			w.appendPostfix().appendPrefix().append("&&");
-			generateGuard(w, model, g, in(model));
+			if (many) generateGuardMany(w, model, g, in(model));
+			else      generateGuard(w, model, g, in(model));
 		}
 		w.append(") {").appendPostfix();
 		w.indent();
@@ -451,7 +448,7 @@ public class LTSminPrinter {
 		for(LTSminTransition t : transitions) {
 			w.appendLine("case ",trans,": {");
 			w.indent();
-			generateATransition(w, t, model);
+			generateATransition(w, t, model, false);
 			w.appendLine("return states_emitted;");
 			w.outdent();
 			w.appendLine("}");
@@ -464,44 +461,18 @@ public class LTSminPrinter {
 		w.appendLine();
 	}
 
+    private static void generateGuardMany(StringWriter w, LTSminModel model,
+                                      LTSminGuardBase guard, LTSminPointer state) {
+        if (guard.isDeadlock()) {
+            w.append("0 == states_emitted");
+        } else {
+            generateExpression(w, guard.getExpression(), state);
+        }
+    }
+
 	private static void generateGuard(StringWriter w, LTSminModel model,
 								      LTSminGuardBase guard, LTSminPointer state) {
-		if(guard instanceof LTSminGuard) {
-			LTSminGuard g = (LTSminGuard)guard;
-			generateExpression(w, g.expr, state);
-		} else if(guard instanceof LTSminGuardContainer) {
-			LTSminGuardContainer g = (LTSminGuardContainer)guard;
-			if (0 == g.guardCount()){
-				w.append("true"); // vacuously true
-				return;
-			}
-			String negation;
-			String junction;
-			if(guard instanceof LTSminGuardNand) {
-				negation = "!";
-				junction = " && ";
-			} else if(guard instanceof LTSminGuardNor) {
-				negation = "!";
-				junction = " || ";
-			} else if(guard instanceof LTSminGuardAnd) {
-				negation = "";
-				junction = " && ";
-			} else if(guard instanceof LTSminGuardOr) {
-				negation = "";
-				junction = " || ";
-			} else {
-				throw new AssertionError("Unimplemented: "+guard.getClass().getSimpleName());
-			}
-			w.append(negation +"(");
-			int i = 0;
-			for(LTSminGuardBase gb : g) {
-				if (0 != i++) w.append(junction);
-				generateGuard(w, model, gb, state);
-			}
-			w.append(")");
-		} else {
-			throw new AssertionError("Unimplemented: "+guard.getClass().getSimpleName());
-		}
+        generateExpression(w, guard.getExpression(), state);
 	}
 
 	private static void generateAction(StringWriter w, Action a, LTSminModel model) {

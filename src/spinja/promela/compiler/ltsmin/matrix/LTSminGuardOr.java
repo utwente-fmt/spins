@@ -11,7 +11,7 @@ import spinja.util.StringWriter;
  *
  * @author FIB
  */
-public class LTSminGuardOr implements LTSminGuardBase, LTSminGuardContainer {
+public class LTSminGuardOr extends LTSminGuardBase implements LTSminGuardContainer {
 	public List<LTSminGuardBase> guards;
 
 	public LTSminGuardOr() {
