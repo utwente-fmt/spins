@@ -297,7 +297,7 @@ public class LTSminPrinter {
 		w.indent();
 		w.appendLine("if("+ model.sv.size() +"*",STATE_ELEMENT_SIZE," != sizeof(" + C_STATE + "))");
 		w.indent();
-		w.appendLine("printf(\"state_t SIZE MISMATCH!: state: %i != %i\",sizeof("+ C_STATE +"),"+ model.sv.size() +"*",STATE_ELEMENT_SIZE,");");
+		w.appendLine("printf(\"state_t SIZE MISMATCH!: state: %zu != %i\",sizeof("+ C_STATE +"),"+ model.sv.size() +"*",STATE_ELEMENT_SIZE,");");
 		w.outdent();
 		w.appendLine("memcpy(to, (char*)&",INITIAL_VAR,", sizeof(" + C_STATE + "));");
 		w.outdent();

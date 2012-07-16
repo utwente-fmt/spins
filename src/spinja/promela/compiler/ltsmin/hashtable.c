@@ -75,9 +75,9 @@ align (size_t align, size_t size)
         case ENOMEM:
             printf ("Out of memory - ");
         case EINVAL:
-            printf ("Invalid alignment %d - ", align);
+            printf ("Invalid alignment %zu - ", align);
         default:
-            printf("error allocating %zu bytes aligned at %d\n", size, align);
+            printf("error allocating %zu bytes aligned at %zu\n", size, align);
             exit (1);
     }}
     return ret;
@@ -254,7 +254,7 @@ test ()
             state[j] = i;
         int seen = state_db_lookup (dbs, state);
         if (seen && !x) {
-            printf("seen = %d at x=%d i=%d load=%zu size=%zu\n", seen, x, i, dbs->load, dbs->size);
+            printf("seen = %d at x=%zu i=%zu load=%zu size=%zu\n", seen, x, i, dbs->load, dbs->size);
             assert (false);
         }
     }

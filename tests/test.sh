@@ -134,7 +134,7 @@ function check {
     fi
     
     # explore
-    EXPLORE=`$LTSMIN --strategy=dfs --ref --state=$STORAGE --threads=$THREADS -s$STORAGE_SIZE -v $FILE.spinja 2>&1`
+    EXPLORE=`$LTSMIN --strategy=dfs --state=$STORAGE --threads=$THREADS -s$STORAGE_SIZE -v $FILE.spinja 2>&1`
     if [ $? -ne 0 ]; then
         echo -e "${RED}FAILED"
         echo "ERROR in exploration of $FILE"
@@ -204,7 +204,7 @@ test "Tests" "peterson2" 55 98
 test "Tests" "peterson3" 45915 128653 -o3
 test "Tests" "peterson4" 12645068 47576805 -o3
 test "Tests" "snoopy" 81013 273781
-test "Tests" "zune.pml" 1050  1829 #TODO: 1831 missing deadlock (2) transitions
+test "Tests" "zune.pml" 1050  1831
 test "Tests" "sort-copies" 659683 3454988 -o3
 test "Samples" "p96.2.pml" 48 65
 test "Samples" "p104.2.pml" 1594 3109 
