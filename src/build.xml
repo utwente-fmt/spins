@@ -26,7 +26,9 @@
 	</target>
 
 	<target name="compile" description="Compiles all java files" depends="javacc">
-		<javac destdir="${build}/classes" source="1.5" debug="on" debuglevel="lines,vars,source" srcdir="${spinja}" includeantruntime="false"/>
+		<javac destdir="${build}/classes"  source="1.5" debug="on" debuglevel="lines,vars,source" srcdir="${spinja}" includeantruntime="false">
+			  <compilerarg line="-XDignore.symbol.file" />	
+		</javac>
 		<copy file="${spinja}/promela/compiler/ltsmin/reach.c"  todir="${build}/classes/${spinja}/promela/compiler/ltsmin/" />
 		<copy file="${spinja}/promela/compiler/ltsmin/hashtable.c"  todir="${build}/classes/${spinja}/promela/compiler/ltsmin/" />
 	</target>
