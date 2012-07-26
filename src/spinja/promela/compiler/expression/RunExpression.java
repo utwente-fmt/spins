@@ -87,7 +87,7 @@ public class RunExpression extends Expression implements CompoundExpression {
 
 	@Override
 	public String getIntExpression() throws ParseException {
-		return "addProcess(new " + getId() + "(" + getArgs() + "))";
+		return "run (new " + getId() + "(" + getArgs() + "))";
 	}
 
 	@Override
@@ -96,8 +96,12 @@ public class RunExpression extends Expression implements CompoundExpression {
 	}
 
 	@Override
-	public String getSideEffect() throws ParseException {
-		return getIntExpression();
+	public String getSideEffect() {
+	    try {
+	        return getIntExpression();
+	    } catch (ParseException e) {
+	        throw new AssertionError();
+	    }
 	}
 
 	@Override

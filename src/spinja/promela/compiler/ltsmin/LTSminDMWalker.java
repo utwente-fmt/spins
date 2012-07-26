@@ -50,7 +50,6 @@ import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminSlot;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.ltsmin.state.LTSminSubVector;
-import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.Variable;
@@ -180,13 +179,7 @@ public class LTSminDMWalker {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
-			String sideEffect = null;
-			try {
-				sideEffect = expr.getSideEffect();
-			} catch (ParseException e) {
-				e.printStackTrace();
-			}
-			if (sideEffect == null) return; // simple expressions are guards
+			if (expr.getSideEffect() == null) return; // simple expressions are guards
 			//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
 			assert (expr instanceof RunExpression);
 			DMIncWrite(params, _NR_PR);

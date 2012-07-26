@@ -237,11 +237,7 @@ public class LTSminGMWalker {
 			return is_nxs_guard(model, sp2, decr(id(LTSminStateVector._NR_PR)), enabling);
 		} else if (a instanceof ExprAction) {
 			Expression expr = ((ExprAction)a).getExpression();
-			String sideEffect = null;
-			try {
-				sideEffect = expr.getSideEffect();
-			} catch (ParseException e) { e.printStackTrace(); }
-			if (sideEffect == null) return true; // simple expressions are guards
+			if (expr.getSideEffect() == null) return true; // simple expressions are guards
 			RunExpression re = (RunExpression)expr;
 			
 			if (!is_nxs_guard(model, sp2, incr(id(LTSminStateVector._NR_PR)), enabling))

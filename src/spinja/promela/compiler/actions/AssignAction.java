@@ -65,14 +65,9 @@ public class AssignAction extends Action {
 
 	@Override
 	public boolean isLocal(final Proctype proc) {
-		if (expr != null) {
-			for (final VariableAccess va : expr.readVariables()) {
-				if (!proc.hasVariable(va.getVar().getName())) {
-					return false;
-				}
-			}
-		}
-		return proc.hasVariable(id.getVariable().getName()) && super.isLocal(proc);
+		if (expr != null && !(new ExprAction(expr)).isLocal(proc))
+		    return false;
+        return proc.hasVariable(id.getVariable().getName()) && super.isLocal(proc);
 	}
 
 	@Override

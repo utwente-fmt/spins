@@ -17,7 +17,6 @@ package spinja.promela.compiler.expression;
 import java.util.HashSet;
 import java.util.Set;
 
-import spinja.promela.compiler.parser.MyParseException;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.Token;
@@ -214,22 +213,16 @@ public class AritmicExpression extends Expression {
 	}
 
 	@Override
-	public String getSideEffect() throws ParseException {
+	public String getSideEffect() {
 		String effect = ex1.getSideEffect();
 		if (ex2 != null) {
-			if ((effect == null) || (ex2.getSideEffect() == null)) {
+			if ((effect == null) || (ex2.getSideEffect() != null)) {
 				effect = ex2.getSideEffect();
-			} else {
-				throw new MyParseException("More than one side-effect found in a single expression!",
-					getToken());
 			}
 		}
 		if (ex3 != null) {
-			if ((effect == null) || (ex3.getSideEffect() == null)) {
+			if ((effect == null) || (ex3.getSideEffect() != null)) {
 				effect = ex3.getSideEffect();
-			} else {
-				throw new MyParseException("More than one side-effect found in a single expression!",
-					getToken());
 			}
 		}
 		return effect;

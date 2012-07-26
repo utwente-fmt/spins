@@ -54,7 +54,7 @@ public class EvalExpression extends Expression {
 	}
 
 	@Override
-	public String getSideEffect() throws ParseException {
+	public String getSideEffect() {
 		return expr.getSideEffect();
 	}
 

@@ -114,9 +114,9 @@ public class BooleanExpression extends Expression {
 	}
 
 	@Override
-	public String getSideEffect() throws ParseException {
+	public String getSideEffect() {
 		if ((ex1.getSideEffect() != null) || ((ex2 != null) && (ex2.getSideEffect() != null))) {
-			throw new MyParseException("No sideeffects allowed in a boolean expression!", getToken());
+			return "Boolean expression has some side effect!";
 		}
 		return null;
 	}

@@ -555,12 +555,7 @@ public class LTSminPrinter {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
-			try {
-				String sideEffect = expr.getSideEffect();
-				if (sideEffect == null) return; // Simple expressions are guards
-			} catch (ParseException e) {
-				e.printStackTrace();
-			}
+			if (expr.getSideEffect() == null) return; // Simple expressions are guards
 			//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
 			assert (expr instanceof RunExpression);
 			RunExpression re = (RunExpression)expr;

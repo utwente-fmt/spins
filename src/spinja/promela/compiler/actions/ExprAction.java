@@ -50,6 +50,8 @@ public class ExprAction extends Action {
 				return false;
 			}
 		}
+        if (null != expr.getSideEffect())
+            return false;
 		return super.isLocal(proc);
 	}
 

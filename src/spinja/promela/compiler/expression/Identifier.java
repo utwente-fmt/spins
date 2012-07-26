@@ -127,7 +127,7 @@ public class Identifier extends Expression {
 	}
 
 	@Override
-	public String getSideEffect() throws ParseException {
+	public String getSideEffect() {
 		if (arrayExpr != null) {
 			return arrayExpr.getSideEffect();
 		} else {

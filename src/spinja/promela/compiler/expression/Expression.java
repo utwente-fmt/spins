@@ -97,9 +97,8 @@ public abstract class Expression {
 	 * @return The java code which represents the action for the side effect of the expression or
 	 *         null if there is none. Note: currently only the run expression can give a side-effect
 	 *         and it is advised that future addition should not have any side-effect.
-	 * @throws ParseException
 	 */
-	public String getSideEffect() throws ParseException {
+	public String getSideEffect() {
 		return null;
 	}
 

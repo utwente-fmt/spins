@@ -102,9 +102,9 @@ public class CompareExpression extends Expression {
 	}
 
 	@Override
-	public String getSideEffect() throws ParseException {
+	public String getSideEffect() {
 		if ((ex1.getSideEffect() != null) || (ex2.getSideEffect() != null)) {
-			throw new MyParseException("No sideeffect allowed in a comparison!", getToken());
+			return "size effect!";
 		}
 		return null;
 	}
