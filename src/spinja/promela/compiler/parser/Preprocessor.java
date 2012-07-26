@@ -35,7 +35,7 @@ public class Preprocessor {
 			return parameters.size();
 		}
 		public String toString() {
-			String str = "#define "+ name;
+			String str = "#define@"+ line +" "+ name;
 			if (inline || size() > 0) {
 				str += "(";
 				int i = 0;
@@ -91,7 +91,7 @@ public class Preprocessor {
 		Preprocessor.fileName = fileName;
 	}
 
-	public static void addDefine(String text, boolean inline) {
+	public static DefineMapping addDefine(String text, boolean inline) {
 		try {
 			define.inline = inline;
 			define.defineText = text;
@@ -100,11 +100,13 @@ public class Preprocessor {
 				System.err.println("Redefining preprocessor define "+ define.name +" --> '"+ put.defineText +"' with '"+ text +"'");
 			//System.out.println("< "+ define.toString());
 			define = new DefineMapping();
+			return put;
 		} catch(NoSuchElementException e) {
 			System.out.println("error parsing '"+ text +"'\n"+e);
 		} catch(IllegalStateException e) {
 			System.out.println("error parsing '"+ text +"'\n"+e);
 		}
+		return null;
 	}
 
 	public static void pushDefines() {
@@ -148,4 +150,19 @@ public class Preprocessor {
 		} catch(IllegalStateException e) {
 		}
 	}
+
+    public static void backup(SimpleCharStream input_stream, StringBuilder image) {
+        Preprocessor.define.name = image.toString().trim();
+        Preprocessor.define.line = input_stream.getEndLine();
+        Preprocessor.define.column = input_stream.getEndColumn();
+        Preprocessor.define.length = 0; // backup length if parsing fails
+        image.setLength(0);
+    }
+
+    public static void restore(SimpleCharStream input_stream, StringBuilder image) {
+        Preprocessor.define.length += image.length();
+        input_stream.backup(Preprocessor.define.length);
+        image.setLength(0);
+        Preprocessor.define.parameters.clear();
+    }
 }

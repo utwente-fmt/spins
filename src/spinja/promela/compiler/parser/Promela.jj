@@ -250,7 +250,7 @@ SKIP : {
     	image.setLength(0);
     } : PREPROCESSOR_DEFINED
 |   " " : PREPROCESSOR_DEFINED
-|   < ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+|   < ["a"-"z","A"-"Z","_"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         String defined = image.toString().trim();
 		while (0 != Preprocessor.level) {
 			Preprocessor.level--;
@@ -276,7 +276,7 @@ SKIP : {
         image.setLength(0);
     } : PREPROCESSOR_NDEFINED
 |   " " : PREPROCESSOR_NDEFINED
-|   < ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+|   < ["a"-"z","A"-"Z","_"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         defined = image.toString().trim();
         while (0 != Preprocessor.level) {
             Preprocessor.level--;
@@ -295,11 +295,12 @@ SKIP : {
 }
 
 TOKEN : { /* Identifiers and numbers OR preprocessor defines */
-	<IDENTIFIER: ("_")* ["a"-"z","A"-"Z","_"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
+	<IDENTIFIER: ["a"-"z","A"-"Z","_"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* >
 	{
         Preprocessor.DefineMapping current = Preprocessor.defines(image.toString());
         if (null != current) { // Identifier is defined in preprocessor
             Preprocessor.current.push(current);
+            Preprocessor.preprocessing.push(input_stream);
             // parse arguments (or only parantheses for inline)
             if (current.size() > 0 || current.inline) {
                 int level = 0;
@@ -321,13 +322,15 @@ loop:           while (true) {
 		        if (current.size() > 0) // arguments need to be bound on a new scope
 		        	Preprocessor.pushDefines();
 		        for (String param : current.parameters) {
-		            if (param.equals(split[i])) continue; // avoid inf. recursion
+		            if (param.equals(split[i])) { // no rename required here
+		                i++;
+		                continue; // avoid inf. recursion
+		            } 
 		            Preprocessor.define.name = param;
 		            Preprocessor.addDefine(split[i++], false);
 		        }
             }
             // switch to a virtual stream and push the previous stream on a stack
-		    Preprocessor.preprocessing.push(input_stream);
 		    ByteArrayInputStream is = new ByteArrayInputStream(current.defineText.getBytes());
 		    ReInit(new SimpleCharStream(is, current.line, current.column));
             // override TOKEN result with next token after id (+ arguments).
@@ -560,11 +563,20 @@ SKIP : { // Skip whitespace and comments
 /**
  * PREPROCESSOR IN-LEXER PARSING OF INLINE PARAMETERS
  * Could be moved to the parser with a new InlineAction class.
+ *
+ *              \s          \s          \s           \s            \s
+ *              /-\         /-\         /-\          /-\     ID    /-\
+ * 'inline'     v |   ID    v |   '('   v |    ID    v |    <--    v |
+ * --------> |INLINE| --> |PARAM| --> |PARAM0| --> |PARAM2|     |PARAM1|
+ *                                       |             |    -->
+ *                                   ')'  \        ')' |    ','
+ *                                         \           v
+ *                                          \------> |TEXT| 
  */
 
 <PREPROCESSOR_INLINE> SKIP:
 {
-    " "|"\t" : PREPROCESSOR_INLINE
+    " "|"\t"|"\n"|"\r"|"\r\n" : PREPROCESSOR_INLINE
 |   < ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.define.name = image.toString();
     } : PREPROCESSOR_INLINE_PARAM
@@ -572,15 +584,15 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_INLINE_PARAM> SKIP: // parse parameters
 {
-    " "|"\t" : PREPROCESSOR_INLINE_PARAM
+    " "|"\t"|"\n"|"\r"|"\r\n" : PREPROCESSOR_INLINE_PARAM
 |   < "(" > : PREPROCESSOR_INLINE_PARAM0
 |   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.define.name);} }
 }
 
 <PREPROCESSOR_INLINE_PARAM0> SKIP: // parse parameters
 {
-    " "|"\t" : PREPROCESSOR_INLINE_PARAM0
-|   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+    " "|"\t"|"\n"|"\r"|"\r\n" : PREPROCESSOR_INLINE_PARAM0
+|   <["a"-"z","A"-"Z","_"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.define.parameters.add(image.toString().trim());
     } : PREPROCESSOR_INLINE_PARAM2
 |   < ")" > : PREPROCESSOR_INLINE_TEXT
@@ -589,8 +601,8 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_INLINE_PARAM1> SKIP: // parse parameters
 {
-    " "|"\t" : PREPROCESSOR_INLINE_PARAM1
-|   <["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+    " "|"\t"|"\n"|"\r"|"\r\n" : PREPROCESSOR_INLINE_PARAM1
+|   <["a"-"z","A"-"Z","_"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.define.parameters.add(image.toString().trim());
     } : PREPROCESSOR_INLINE_PARAM2
 |   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.define.name);} }
@@ -598,7 +610,7 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_INLINE_PARAM2> SKIP: // parse parameters
 {
-    " "|"\t" : PREPROCESSOR_INLINE_PARAM2
+    " "|"\t"|"\n"|"\r"|"\r\n" : PREPROCESSOR_INLINE_PARAM2
 |   < "," > : PREPROCESSOR_INLINE_PARAM1
 |   < ")" > : PREPROCESSOR_INLINE_TEXT
 |   < ~[] > { if (true){throw new AssertionError("Parsing of inline parameters failed for inline: "+ Preprocessor.define.name);} }
@@ -610,27 +622,32 @@ SKIP : { // Skip whitespace and comments
 
 <PREPROCESSOR_INLINE_TEXT> SKIP: // parse inline text
 {
-    < " "|"\n"|"\r"|"\r\n" > : PREPROCESSOR_INLINE_TEXT
+    < " "|"\t"|"\n"|"\r"|"\r\n" > : PREPROCESSOR_INLINE_TEXT
 |   < "{" >
 	{
+	    if (Preprocessor.level != 0) throw new AssertionError("Unexpected");
+	    Preprocessor.level++;
 	    Preprocessor.define.line = input_stream.getEndLine();
 	    Preprocessor.define.column = input_stream.getEndColumn();
 	} : PREPROCESSOR_INLINE_REST
 }
 
-<PREPROCESSOR_INLINE_REST> SKIP: // end parse inline text
+<PREPROCESSOR_INLINE_REST> MORE: // end parse inline text
 {
-    < "}" >
+    < "{" > { Preprocessor.level++; }
+|   < "}" >
 	{
-        image.setLength(image.length() - 1);
-        // add inline to preprocessor defines
-        Preprocessor.addDefine(image.toString(), true);
-    } : DEFAULT
-}
-    
-<PREPROCESSOR_INLINE_REST> MORE:
-{
-    < ~[] >
+        Preprocessor.level--;
+        if (0 == Preprocessor.level) {
+	        image.setLength(image.length() - 1); // remove '}'
+	        // add inline to preprocessor defines
+	        Preprocessor.addDefine(image.toString(), true);
+            SwitchTo(PromelaConstants.DEFAULT);
+        } else {
+            SwitchTo(PromelaConstants.PREPROCESSOR_INLINE_REST);
+        }
+    }
+|   < ~[] >
 }
 
 /**
@@ -639,50 +656,40 @@ SKIP : { // Skip whitespace and comments
  
 <PREPROCESSOR_DEFINE> MORE: // parse define name
 {
-    " " : PREPROCESSOR_DEFINE
-|   <DEFINE: ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
-        Preprocessor.define.name = image.toString().trim();
-        Preprocessor.define.line = input_stream.getEndLine();
-        Preprocessor.define.column = input_stream.getEndColumn();
-        Preprocessor.define.length = 0; // backup length if parsing fails
-        image.setLength(0);
+    < " "|"\t" > : PREPROCESSOR_DEFINE
+|   <DEFINE: ["a"-"z","A"-"Z","_"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+        Preprocessor.backup(input_stream, image);
     } : PREPROCESSOR_DEFINE_PARAM
 }
 
 <PREPROCESSOR_DEFINE_PARAM> MORE: // parse define parameters
 {
-    " " : PREPROCESSOR_DEFINE_PARAM
+    < " "|"\t" > : PREPROCESSOR_DEFINE_PARAM
 |   < "(" > {
         Preprocessor.define.length += image.length();
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_PARAM1
 |   < ~[] > { // parsing failed, restore input_stream to initial state
-        Preprocessor.define.length += image.length();
-        input_stream.backup(Preprocessor.define.length);
-        image.setLength(0);
-        Preprocessor.define.parameters.clear();
+        Preprocessor.restore(input_stream, image);
      } : PREPROCESSOR_DEFINE_REST
 }
 
 <PREPROCESSOR_DEFINE_PARAM1> MORE: // parse define parameters
 {
-    " " : PREPROCESSOR_DEFINE_PARAM1
-|    <PARAM: ("_")* ["a"-"z","A"-"Z"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
+    < " "|"\t" > : PREPROCESSOR_DEFINE_PARAM1
+|   <PARAM: ["a"-"z","A"-"Z","_"] (["a"-"z","A"-"Z"] | ["0"-"9"] | "_")* > {
         Preprocessor.define.parameters.add(image.toString().trim());
         Preprocessor.define.length += image.length();
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_PARAM2
 |   < ~[] > { // parsing failed, restore input_stream to initial state
-        Preprocessor.define.length += image.length();
-        input_stream.backup(Preprocessor.define.length);
-        image.setLength(0);
-        Preprocessor.define.parameters.clear();
+        Preprocessor.restore(input_stream, image);
      } : PREPROCESSOR_DEFINE_REST
 }
 
 <PREPROCESSOR_DEFINE_PARAM2> MORE: // parse define parameters
 {
-    " " : PREPROCESSOR_DEFINE_PARAM2
+    < " "|"\t" > : PREPROCESSOR_DEFINE_PARAM2
 |   < "," > {
         Preprocessor.define.length += image.length();
         image.setLength(0);
@@ -691,10 +698,7 @@ SKIP : { // Skip whitespace and comments
         image.setLength(0);
     } : PREPROCESSOR_DEFINE_REST
 |   < ~[] > { // parsing failed, restore input_stream to initial state
-        Preprocessor.define.length += image.length();
-        input_stream.backup(Preprocessor.define.length);
-        image.setLength(0);
-        Preprocessor.define.parameters.clear();
+        Preprocessor.restore(input_stream, image);
      } : PREPROCESSOR_DEFINE_REST
 }
 
