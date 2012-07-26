@@ -63,6 +63,7 @@ public class Promela {
 	private Automaton automaton;
 	private int procNr = 0;
 	private VariableType type;
+	private boolean declarations;
 
 	private Map<String, State> labels = new HashMap<String, State>();
 
@@ -800,7 +801,7 @@ Specification spec(String name): {
 void module(): {
 }{
     LOOKAHEAD(2) proctype()
-|	one_decl(specification.getVariableStore())
+|	one_decl(specification.getVariableStore(), null, false)
 |	init()
 |	never()
 |	<SEMICOLON>
@@ -830,6 +831,7 @@ void proctype(): {
 		specification.addProc(currentProc);
         addPC(currentProc);
         addPID(currentProc);
+        declarations = true;
 	}
 	<LPAREN> (decl_list(currentProc))? <RPAREN>
 	{
@@ -873,6 +875,7 @@ void init(): {
 		currentProc.lastArgument();
         addPC(currentProc);
 		addPID(currentProc);
+		declarations = true;
 	}
 	(priority())?
 	<LCURLY> s=sequence(currentProc.getStartState(), null, false) <RCURLY>
@@ -895,6 +898,7 @@ void never(): {
 		specification.setNever(currentProc);
 		currentProc.lastArgument();
 		addPC(currentProc);
+		declarations = true;
 	}
 	<LCURLY> s=sequence(currentProc.getStartState(), null, false) <RCURLY>
 	{
@@ -906,28 +910,32 @@ void never(): {
 	}
 }
 
-
 /*** Here the declarations start ***/
 
 void decl_list(VariableContainer store): {
 }{
-	one_decl(store) (LOOKAHEAD(<SEMICOLON> one_decl(store)) <SEMICOLON> one_decl(store))*
+	one_decl(store, null, false)
+	   (LOOKAHEAD(<SEMICOLON> one_decl())
+	              <SEMICOLON> one_decl(store, null, false) )*
 }
 
 
-void one_decl(VariableContainer store): {
+State one_decl(VariableContainer store, State start, boolean inAtomic): {
     boolean hidden = false;
+    State end = start;
 }{
-(<HIDDEN> { hidden = true; })?
+(<HIDDEN> { hidden = true; })? (<SHOW>)?
 (
-    LOOKAHEAD(2) (<SHOW>)? <TYPEDEF> utype(hidden) (<COMMA> utype(hidden))*
-|   LOOKAHEAD(3) (<SHOW>)? <MTYPE> mtype(hidden) (<COMMA> mtype(hidden))*
-|	LOOKAHEAD(2) (<SHOW>)? type=typename()
+    <TYPEDEF> utype(hidden) (<COMMA> utype(hidden))*
+|   LOOKAHEAD(3) <MTYPE> mtype(hidden) (<COMMA> mtype(hidden))*
+|	type=typename()
     (LOOKAHEAD( {type instanceof ChannelType} )
 	   ivar_chan(store, hidden) (<COMMA> ivar_chan(store, hidden))*
-	|  ivar(store, type, hidden) (<COMMA> ivar(store, type, hidden))*
+	|  end = ivar(store, type, hidden, end, inAtomic)
+	   (<COMMA>  end = ivar(store, type, hidden, end, inAtomic))*
 	)
 )
+{ return end; }
 }
 
 void utype(boolean hidden): {
@@ -950,8 +958,10 @@ void mtype(boolean hidden): {
     )* (<COMMA>)? <RCURLY>
 }
 
-void ivar(VariableContainer store, VariableType type, boolean hidden): {
-	Token id;
+State ivar(VariableContainer store, VariableType type, boolean hidden,
+          State start, boolean inAtomic): {
+	Token id, assign;
+	State end = start;
 	int arraySize = -1;
 	Expression expr = null;
 	ConstantExpression c = null;
@@ -959,11 +969,21 @@ void ivar(VariableContainer store, VariableType type, boolean hidden): {
 	id=<IDENTIFIER> 
 	(<LBRACK> c=constant() <RBRACK> { arraySize = c.getNumber(); })? 
 	{ Variable var = new Variable(type, id.image, arraySize,currentProc); var.setHidden(hidden); }
-	(<ASSIGN> 
-	  expr=lor_expr()
-	  {	var.setInitExpr(expr); }
+	(assign=<ASSIGN> 
+	   expr=lor_expr()
+	   {
+	       if (declarations || start == null) {
+	           var.setInitExpr(expr);
+	       } else {
+               end = new State(automaton, inAtomic);
+               Identifier ident = new Identifier(id, var, null);               start.newTransition(new AssignAction(assign, ident, expr), end);
+	       }
+	   }
 	)?
-	{ store.addVariable(var); }
+	{
+	    store.addVariable(var);
+        return end;
+	}
 }
 
 void ivar_chan(VariableContainer store, boolean hidden): {
@@ -1037,29 +1057,33 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 	State end = start;
 	Transition trans;
 }{
-(	delim() (end=sequence(end, breakNode, inAtomic))?
-|	LOOKAHEAD(one_decl())
-	one_decl(currentProc)
+(   delim() (end=sequence(end, breakNode, inAtomic))?
+| LOOKAHEAD(one_decl())
+(
+	end = one_decl(currentProc, start, inAtomic)
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	<XR> expr=varref()
+)
+|  { declarations = false; } // the first declarations are assumed to be constant
+(
+ 	<XR> expr=varref()
 	{ currentProc.addXR((Identifier)expr); } 
 	(<COMMA> expr=varref() { currentProc.addXR((Identifier)expr); })*
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	<XS> expr=varref()
+ |	<XS> expr=varref()
 	{ currentProc.addXS((Identifier)expr); } 
 	(<COMMA> expr=varref() { currentProc.addXS((Identifier)expr); })*
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	<IF> 
+ |	<IF> 
 	{ end = new State(automaton, inAtomic); }
 	(option(start, end, breakNode, inAtomic))+
 	<FI>
 	(end=sequence(end, breakNode, inAtomic))?
-|	<DO> 
+ |	<DO> 
 	{ end = new State(automaton, inAtomic); }
 	(option(start, start, end, inAtomic))+
 	<OD>
 	(end=sequence(end, breakNode, inAtomic))?
-|	LOOKAHEAD(<IDENTIFIER> <COLON>)
+ |	LOOKAHEAD(<IDENTIFIER> <COLON>)
 	id=<IDENTIFIER> <COLON>
 	{
 		if(labels.containsKey(id.image)) {
@@ -1069,32 +1093,32 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 		start.addLabel(id.image);
 	}
 	end=sequence(end, breakNode, inAtomic)
-|	LOOKAHEAD(channel_statement())
+ |	LOOKAHEAD(channel_statement())
 	end=channel_statement(start, breakNode, inAtomic)
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	LOOKAHEAD(assign())
+ |	LOOKAHEAD(assign())
 	end=assign(start, breakNode, inAtomic)
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	expr=expr()
+ |	expr=expr()
 	{
 		end = new State(automaton, inAtomic);
 		start.newTransition(new ExprAction(expr), end);
 	}
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	t=<ELSE>
+ |	t=<ELSE>
 	{
 		end = new State(automaton, inAtomic);
 		//start.newTransition(new ElseAction(t), end);
 		new ElseTransition(start, end);
 	}
 	(end=sequence(end, breakNode, inAtomic))?
-|	t=<GOTO> id=<IDENTIFIER>
+ |	t=<GOTO> id=<IDENTIFIER>
 	{
 		gotos.put(start, id);
 		end = new State(automaton, inAtomic);
 	}
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	t=<PRINT> <LPAREN> id=<STRING>
+ |	t=<PRINT> <LPAREN> id=<STRING>
 	{ PrintAction pa = new PrintAction(t, id.image); }
 	(<COMMA> arg_lst(pa))? <RPAREN>
 	{	
@@ -1102,13 +1126,13 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 		start.newTransition(pa, end);
 	}
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	t=<ASSERT> expr=expr()
+ |	t=<ASSERT> expr=expr()
 	{
 		end = new State(automaton, inAtomic);
 		start.newTransition(new AssertAction(t, expr), end);
 	}
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	t=<BREAK>
+ |	t=<BREAK>
 	{
 		if(breakNode == null) {
 			throw new MyParseException("Breakstatement found without a do-loop to break out of!", t);
@@ -1117,7 +1141,7 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 		end = new State(automaton, inAtomic);
 	}
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
-|	t=<ATOMIC>
+ |	t=<ATOMIC>
 	{
 		end = new State(automaton, true);
 		new UselessTransition(start, end, "ATOMIC");
@@ -1127,16 +1151,16 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 		end.setInAtomic(false);
 	}
 	(end=sequence(end, breakNode, inAtomic))?
-|	t=<D_STEP>
+|   t=<D_STEP>
 	{ 
 		end = new State(automaton, inAtomic);
 		trans = start.newTransition(end); 
 	}
 	<LCURLY> dstep_sequence(trans, null) <RCURLY>
 	(end=sequence(end, breakNode, inAtomic))?
-|	<LCURLY> end=sequence(start, breakNode, inAtomic) <RCURLY>
+ |	<LCURLY> end=sequence(start, breakNode, inAtomic) <RCURLY>
 	(end=sequence(end, breakNode, inAtomic))?
-)	{ return end; }
+))	{ return end; }
 }
 
 void delim(): {}{
@@ -1237,8 +1261,7 @@ void dstep_sequence(ActionContainer cont, OptionAction loop): {
 	delim() (dstep_sequence(cont, loop))?
 |	LOOKAHEAD(one_decl())
 	{ throw new ParseException("Variables can not be declared inside a d_step"); }
-	one_decl(null)
-	(delim() (dstep_sequence(cont, loop))?)?
+	one_decl(null, null, false) delim()
 |	(t=<XR> | t=<XS>) expr=varref()
 	{ throw new MyParseException("Can not declare exclusive reads or writes in a d_step", t); } 
 	(<COMMA> expr=varref())*
