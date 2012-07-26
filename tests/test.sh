@@ -189,12 +189,12 @@ test "dbm" "dbm.prm" 5112 20476
 test "fgs" "fgs.promela" 242 3388
 off "garp/garp-a" "garp" 48363145 247135869 #2636 deadlocks, large
 test "i-protocol/code/spin" "i0" 9798465 45932747 #846 deadlocks
-test "i-protocol/code/spin" "i2" 14309427 48024048 -o3 #41436 deadlocks
+test "i-protocol/code/spin" "i2" 14309427 48024048 -o3 #41436 deadlocks (states in spin -o1 13276960/44568068)\
 test "i-protocol/code/spin" "i3" 388929 1161274 -o3 #0 deadlocks
 test "i-protocol/code/spin" "i4" 95756 204405 -o3 #501 deadlocks
 test "jspin-examples" "frogs.pml" 81 91
-test "needham" "model_2init_fixed_types.spin" 3552 9570 -o3 #error in deadlocks due to undoc die behavior spin
-test "needham" "model_2init_original.spin" 4047 10575 -o3 #error in deadlocks due to undoc die behavior spin
+test "needham" "model_2init_fixed_types.spin" 3597 9654 #error in deadlocks due to unimplemented valid end states
+test "needham" "model_2init_original.spin" 4143 10751 #error in deadlocks due to unimplemented valid end states
 test "relay" "LOGICAL" 1026 3715
 test "relay" "SMALL1" 36970 163058
 test "relay" "SMALL2" 7496 32276
