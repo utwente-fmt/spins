@@ -20,6 +20,7 @@ import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.actions.ElseAction;
 import spinja.promela.compiler.actions.ExprAction;
+import spinja.promela.compiler.actions.GotoAction;
 import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.actions.PrintAction;
 import spinja.promela.compiler.actions.Sequence;
@@ -213,6 +214,8 @@ public class LTSminDMWalker {
 		} else if(a instanceof BreakAction) {
 			// noop
 		} else if(a instanceof ElseAction) {
+			// noop
+		} else if(a instanceof GotoAction) { // only in d_steps (not a transition)
 			// noop
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;			

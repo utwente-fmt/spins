@@ -53,6 +53,8 @@ import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.actions.ElseAction;
 import spinja.promela.compiler.actions.ExprAction;
+import spinja.promela.compiler.actions.GotoAction;
+import spinja.promela.compiler.actions.LabelAction;
 import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.actions.PrintAction;
 import spinja.promela.compiler.actions.Sequence;
@@ -120,7 +122,7 @@ public class LTSminPrinter {
 	static int n_active = 0;
 
 	// first value of assertions indicates a passed assertion
-	static List<String> assertions = new ArrayList<String>(Arrays.asList("PASS"));
+	static List<String> assertions = new ArrayList<String>(Arrays.asList("", "assert"));
 
 	public static String generateCode(LTSminModel model) {
 		StringWriter w = new StringWriter();
@@ -257,7 +259,6 @@ public class LTSminPrinter {
 		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
 		w.appendLine("extern void atomic_cb(void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
-		w.appendLine("static const int numbers[50] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49};");
 		w.appendLine("static int "+ SCRATCH_VARIABLE +";");
 		w.appendLine("");
 	}
@@ -356,7 +357,8 @@ public class LTSminPrinter {
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
 			w.appendLine("int spinja_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *tmp) {");
 			w.indent();
-			w.appendLine("transition_info_t transition_info = { (int *)&numbers[0], -1 };");
+			w.appendLine("int assertAction = 0;");
+			w.appendLine("transition_info_t transition_info = { &assertAction, -1 };");
 			w.appendLine("int states_emitted = 0;");
 			for (Variable local : model.getLocals()) {
 				w.appendLine("int "+ local.getName() +";");
@@ -387,7 +389,8 @@ public class LTSminPrinter {
 
 		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-		w.appendLine("transition_info_t transition_info = { (int *)&numbers[0], -1 };");
+		w.appendLine("int assertAction = 0;");
+		w.appendLine("transition_info_t transition_info = { &assertAction, -1 };");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("state_t out;");
 		w.appendLine("state_t *tmp = &out;");
@@ -434,7 +437,8 @@ public class LTSminPrinter {
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
 		w.appendLine("int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-		w.appendLine("transition_info_t transition_info = { (int *)&numbers[0], t };");
+		w.appendLine("int assertAction = 0;");
+		w.appendLine("transition_info_t transition_info = { &assertAction, t };");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("int minus_one = -1;");
 		w.appendLine("int *atomic = &minus_one;");
@@ -527,19 +531,20 @@ public class LTSminPrinter {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
 			String expression = generateExpression(model, e);
+			/*
 			int index = assertions.indexOf(expression);
 			if (-1 == index) {
 				assertions.add(expression);
 				index = assertions.size() - 1;
-				assert (index < 50); // enlarge 'numbers' otherwise
 			}
+			*/
 			w.appendPrefix();
 			w.append("if(!");
 			w.append(expression);
 			w.append(") {");
 			w.appendPostfix();
 			w.indent();
-			w.appendLine("transition_info.label = (int *)&numbers["+ index  +"];");
+			w.appendLine("assertAction = 1;"); // index
 			w.outdent();
 			w.appendLine("}");
 		} else if(a instanceof PrintAction) {
@@ -669,6 +674,10 @@ public class LTSminPrinter {
 			// noop
 		} else if(a instanceof ElseAction) {
 			// noop
+		} else if(a instanceof LabelAction) {
+			w.appendLine(((LabelAction)a).getId() +":");
+		} else if(a instanceof GotoAction) {
+			w.appendLine("goto "+ ((GotoAction)a).getId() +";");
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			Identifier id = csa.getIdentifier();
@@ -1369,7 +1378,7 @@ public class LTSminPrinter {
 			w.appendPrefix();
 			w.append("case ").append(g).append(": return ");
 			generateGuard(w, model, guards.get(g), in(model));
-			w.append(";");
+			w.append(" != 0;");
 			w.appendPostfix();
 		}
 		w.outdent();
@@ -1386,7 +1395,7 @@ public class LTSminPrinter {
 			w.appendPrefix();
 			w.append("guard[").append(g).append("] = ");
 			generateGuard(w, model, guards.get(g), in(model));
-			w.append(";");
+			w.append(" != 0;");
 			w.appendPostfix();
 		}
 		w.outdent();

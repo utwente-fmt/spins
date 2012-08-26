@@ -66,6 +66,14 @@ import spinja.promela.compiler.variable.VariableType;
  */
 public class LTSminGMWalker {
 
+	public enum Aggressivity {
+		Weak,
+		Low,
+		Normal,
+		High
+	}
+
+	static Aggressivity aggressiveness = Aggressivity.High;
 	static final boolean NO_NES = false;
 	static final boolean NO_NDS = false;
 
@@ -145,10 +153,19 @@ public class LTSminGMWalker {
 		return notNDS;
 	}
 
-
 	private static boolean is_nds_guard(LTSminModel model, LTSminGuard guard,
 										LTSminTransition transition) {
-		return is_nds_guard_stronger(model, guard.getExpr(), transition);
+		switch (aggressiveness) {
+		case Weak:
+		case Low:
+			return is_nds_guard(model, guard.getExpr(), transition);
+		case Normal:
+			return is_nds_guard_strong(model, guard.getExpr(), transition);
+		case High:
+			return is_nds_guard_stronger(model, guard.getExpr(), transition);
+		default:
+			throw new AssertionError("Unimplemented aggressivity level: "+ aggressiveness);
+		}
 	}
 
 	/**
@@ -331,7 +348,17 @@ public class LTSminGMWalker {
 
 	private static boolean is_nes_guard(LTSminModel model, LTSminGuard guard,
 										LTSminTransition transition) {
-		return is_nes_guard_stronger(model, guard.getExpr(), transition);
+		switch (aggressiveness) {
+		case Weak:
+		case Low:
+			return is_nes_guard(model, guard.getExpr(), transition);
+		case Normal:
+			return is_nes_guard_strong(model, guard.getExpr(), transition);
+		case High:
+			return is_nes_guard_stronger(model, guard.getExpr(), transition);
+		default:
+			throw new AssertionError("Unimplemented aggressivity level: "+ aggressiveness);
+		}
 	}
 
 	/**

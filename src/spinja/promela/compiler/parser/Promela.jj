@@ -1209,12 +1209,13 @@ State channel_statement(State start, State breakNode, boolean inAtomic): {
 	    <LT> recv_args(read2) <GT>
 	  )
 	| t=<CH_READ_RAND>
-	  {
+	  (
+      {
           ChannelReadAction read3 = new ChannelReadAction(t, (Identifier)expr, false, true);
           Transition trans3 = start.newTransition(read3, end);
           addReadAction(read3, trans3);
       }
-	  ( recv_args(read3)
+      recv_args(read3)
 	  | 
       {
           ChannelReadAction read4 = new ChannelReadAction(t, (Identifier)expr, true, true);
@@ -1277,9 +1278,9 @@ void dstep_sequence(ActionContainer cont, OptionAction loop): {
 	<OD>
 	( dstep_sequence(cont, loop) { opt.hasSuccessor(true); } )?
 |	LOOKAHEAD(<IDENTIFIER> <COLON>)
-	<IDENTIFIER> t=<COLON>
-	{ throw new MyParseException("Goto-labels are not supported in a d_step", t); }
-	dstep_sequence(cont, loop)
+	id=<IDENTIFIER> <COLON>
+    { cont.addAction(new LabelAction(id, id.image)); }
+    dstep_sequence(cont, loop)
 |	LOOKAHEAD(dstep_channel_statement())
 	dstep_channel_statement(cont)
 	(delim() (dstep_sequence(cont, loop))?)?
@@ -1292,8 +1293,8 @@ void dstep_sequence(ActionContainer cont, OptionAction loop): {
 |	t=<ELSE>
 	{ cont.addAction(new ElseAction(t)); }
 	(dstep_sequence(cont, loop))?
-|	t=<GOTO> <IDENTIFIER>
-	{ throw new MyParseException("Goto-statements are not supported in a d_step", t); }
+|	t=<GOTO> id=<IDENTIFIER>
+    { cont.addAction(new GotoAction(t, id.image)); }
 	(delim() (dstep_sequence(cont, loop))?)?
 |	t=<PRINT> <LPAREN> id=<STRING>
 	{ PrintAction pa = new PrintAction(t, id.image); }
@@ -1355,11 +1356,12 @@ void dstep_channel_statement(ActionContainer cont): {
         <LT> recv_args(read2) <GT>
       )
     | t=<CH_READ_RAND>
+      (
       {
           ChannelReadAction read3 = new ChannelReadAction(t, (Identifier)expr, false, true);
           cont.addAction(read3);
       }
-      ( recv_args(read3)
+      recv_args(read3)
       | 
       {
           ChannelReadAction read4 = new ChannelReadAction(t, (Identifier)expr, false, true);

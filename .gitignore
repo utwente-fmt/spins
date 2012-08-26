@@ -2,7 +2,7 @@
 .project
 .settings
 bin
-spinja
+/spinja/
 *.spinja
 *.spinja.c
 *.diff

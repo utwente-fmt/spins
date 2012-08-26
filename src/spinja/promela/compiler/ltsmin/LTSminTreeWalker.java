@@ -87,6 +87,7 @@ import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
+import spinja.promela.compiler.actions.GotoAction;
 
 /**
  * Constructs the LTSminModel by walking over the SpinJa {@link Specification}.
@@ -379,6 +380,8 @@ public class LTSminTreeWalker {
 			BreakAction newba = new BreakAction(ba.getToken(), loop);
 			return newba;
 		} else if(a instanceof ElseAction) {
+			return a; // readonly, hence can be shared
+		} else if(a instanceof GotoAction) {
 			return a; // readonly, hence can be shared
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
@@ -798,6 +801,7 @@ public class LTSminTreeWalker {
 			}
 			lt.addGuard(orc);
 		} else if(a instanceof ElseAction) {
+		} else if(a instanceof GotoAction) { //only in d_step
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			Identifier id = cra.getIdentifier();
