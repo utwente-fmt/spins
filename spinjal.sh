@@ -1,60 +1,51 @@
-#!/bin/bash
-# Simple bash shell script to launch SpinJa using the LTSmin backend
+#!/bin/sh
+# Simple bash shell script to launch SpinJa and generate a PINS binary
+# for the LTSmin tool set.
 
-script_dir=`dirname $0`
+script_dir=`dirname "$0"`
 if [ "${script_dir:0:1}" != "/" ]; then
     script_dir=$(pwd)/$script_dir
 fi
 
 CP="$script_dir/spinja.jar"
-#CP="$script_dir/build/classes"
-show_usage=
+CP="$script_dir/build/classes"
 promela_file=
-gcc_options=
+no_compile=0
 
-if [ $# -eq 0 ] ; then
-    echo "usage: spinja [gcc_options] promela_file" ;
+for option in ${1+"$@"}; do
+    if [ "${option:0:2}" == "-I" ]; then
+        no_compile=1
+    elif [ "${option:0:1}" != "-" ]; then
+		promela_file="$option"
+    fi
+done
+
+if [ -z "$promela_file" ]; then
+    echo "usage: spinja [options] promela_file" ;
     echo "options will be passed to GCC"
     exit 1
 fi
 
-
-promela_file=
-while (( $# > 0 )); do
-    if [ "$1" == "-s" ]; then
-        SKIP_SPINJA="1";
-    elif [ "${1:0:1}" == "-" ]; then
-        OPTIONS="$OPTIONS $1"
-    else
-		promela_file=$1
-    fi
-    shift;
-done
-
-#while [ $# -gt 1 ] ; do
-#    gcc_options="$gcc_options $1"
-#    shift
-#done
-
 promela_name=`basename $promela_file`
 output_file="${promela_name}.spinja.c"
 
-if [ "$SKIP_SPINJA" != "1" ]; then
-	if [ -f "$output_file" ]; then
-		rm -f "$output_file";
-	fi
-	
-	java -Xms120m -Xmx2048m -cp $CP spinja.Compile $OPTIONS -l $promela_file
-	ERROR=$?
-	if [ $ERROR -ne 0 ]; then
-		echo "Compilation of $promela_file failed"
-		exit $ERROR;
-	fi
-else
-	echo "Skipping compilation...";
+if [ -f "$output_file" ]; then
+	rm -f "$output_file";
 fi
 
-gcc -fPIC -gstabs -shared $output_file -o $promela_name.spinja -O2 -gstabs $gcc_options
+java -Xms120m -Xmx2048m -cp $CP spinja.Compile -l ${1+"$@"}
+ERROR=$?
+if [ $ERROR -ne 0 ]; then
+	echo "Compilation of $promela_file failed"
+	exit $ERROR;
+fi
+
+if [ $no_compile == 1 ]; then
+    echo
+    exit 0
+fi
+
+gcc -fPIC -shared -O2 -ggdb $CFLAGS $output_file -o $promela_name.spinja
 if [ ! $? -eq 0 ]; then
 	echo "Compilation of $output_file failed"
 else

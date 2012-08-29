@@ -53,40 +53,31 @@ public class OptionParser {
 	public void parse(final String[] args) {
 		System.out.println(shortDescr + "\n");
 
-		int nr = 0;
-		while (nr < args.length) {
+		for (int nr = 0; nr < args.length; nr++) {
 			final String arg = args[nr];
+//			System.out.println(arg);
 			if (!(arg.startsWith("-") && (arg.length() > 1))) {
-				break;
-			}
-			final char c = arg.charAt(1);
-
-			final Option option = options.get(c);
-			if (option == null) {
-				if (c != '?') {
-					System.out.println("Option not recognized: " + arg);
-				}
-				printUsage();
-			}
-
-			option.parseOption(arg.substring(2));
-			nr++;
-		}
-
-		if (nr < args.length) {
-			if (acceptsOtherOptions) {
-				for (; nr < args.length; nr++) {
-					files.add(args[nr]);
-				}
-			} else {
-				System.out.print("Extra arguments are given, but none are suspected: ");
-				for (; nr < args.length; nr++) {
-					System.out.print(args[nr]);
-					System.out.print(" ");
-				}
-				System.out.println();
-				printUsage();
-			}
+	            if (acceptsOtherOptions) {
+	                files.add(args[nr]);
+	            } else {
+	                System.out.print("Extra arguments are given, but none are suspected: ");
+	                System.out.print(args[nr]);
+	                System.out.print(" ");
+	                System.out.println();
+	                printUsage();
+	            }
+    		} else {
+    			final char c = arg.charAt(1);
+    
+    			final Option option = options.get(c);
+    			if (option == null) {
+    				if (c != '?') {
+    					System.out.println("Option not recognized: " + arg);
+    				}
+    				printUsage();
+    			}
+    			option.parseOption(arg.substring(2));
+    		}
 		}
 	}
 
