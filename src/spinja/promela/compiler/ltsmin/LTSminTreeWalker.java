@@ -14,6 +14,7 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.getOutTransitionsO
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.isRendezVousReadAction;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.isRendezVousSendAction;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.or;
 import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
@@ -38,6 +39,7 @@ import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.actions.ElseAction;
 import spinja.promela.compiler.actions.ExprAction;
+import spinja.promela.compiler.actions.GotoAction;
 import spinja.promela.compiler.actions.OptionAction;
 import spinja.promela.compiler.actions.PrintAction;
 import spinja.promela.compiler.actions.Sequence;
@@ -87,7 +89,6 @@ import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
-import spinja.promela.compiler.actions.GotoAction;
 
 /**
  * Constructs the LTSminModel by walking over the SpinJa {@link Specification}.
@@ -97,11 +98,11 @@ import spinja.promela.compiler.actions.GotoAction;
  */
 public class LTSminTreeWalker {
 
-	public List<Pair> pairs = new ArrayList<Pair>();
-	public static class Pair {
-		public ChannelReadAction cra; public Transition t;
-		public Pair(ChannelReadAction cra, Transition t)
-		{ this.cra = cra; this.t = t; }
+	public List<Pair<ChannelReadAction,Transition>> pairs =
+	        new ArrayList<Pair<ChannelReadAction,Transition>>();
+	public static class Pair<L,R> {
+		public L left; public R right;
+		public Pair(L l, R r) { this.left = l; this.right = r; }
 	}
 	
 	private final Specification spec;
@@ -130,16 +131,30 @@ public class LTSminTreeWalker {
 		sv.createVectorStructs(spec, debug);
 		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
-		for (Pair p : pairs)
-			spec.addReadAction(p.cra, p.t);
+		for (Pair<ChannelReadAction,Transition> p : pairs)
+			spec.addReadAction(p.left, p.right);
 		addAcceptingConditions();
 		createModelTransitions();
+		createModelAssertions();
 		LTSminDMWalker.walkModel(model, debug);
 		LTSminGMWalker.walkModel(model, debug);
 		return model;
 	}
 
-	/**
+	private void createModelAssertions() {
+        for (RemoteRef ref : spec.remoteRefs) {
+            ProcInstance instance = ref.getInstance();
+            Expression pid = id(model.sv.getPID(instance));
+            Expression left = eq(pid, constant(-1));
+            Expression right = eq(pid, constant(instance.getID()));
+            Expression condition = or(left, right);
+            model.assertions.add(new Pair<Expression,String>(condition,
+                    "Statically computed PID ("+ instance.getID()+ ") of process "+
+                    instance.getName() +" differs from actual PID"));
+        }
+    }
+
+    /**
 	 * Set accepting state conditions for this model. 
 	 * Accepting condition semantics are overloaded with valid end state semantics.
 	 */
@@ -400,7 +415,7 @@ public class LTSminTreeWalker {
 					((Identifier)e).getVariable().setAssignedTo();
 				}
 			}
-			pairs.add(new Pair(newcra, t));
+			pairs.add(new Pair<ChannelReadAction, Transition>(newcra, t));
 			return newcra;
 		} else { // Handle not yet implemented action
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
@@ -486,7 +501,9 @@ public class LTSminTreeWalker {
 			Expression ex = instantiate(rr.getExpr(), p);
 			Proctype proc = spec.getProcess(rr.getProcessName());
 			if (null == proc) throw new AssertionError("Wrong process: "+ rr);
-			return new RemoteRef(rr.getToken(), proc, rr.getLabel(), ex);
+			RemoteRef ref = new RemoteRef(rr.getToken(), proc, rr.getLabel(), ex);
+			spec.remoteRefs.add(ref);
+	        return ref;
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}

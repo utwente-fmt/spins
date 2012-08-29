@@ -73,6 +73,7 @@ import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
+import spinja.promela.compiler.ltsmin.LTSminTreeWalker.Pair;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.DepRow;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
@@ -193,9 +194,26 @@ public class LTSminPrinter {
 		w.appendLine("#include <stdint.h>");
 		w.appendLine("#include <stdbool.h>");
 		w.appendLine("#include <stdlib.h>");
-		w.appendLine("#include <assert.h>");
 		w.appendLine("");
 		w.appendLine("#define skip true");
+		w.appendLine("#define EXPECT_FALSE(e) __builtin_expect(e, 0)\n");
+		w.appendLine("#define EXPECT_TRUE(e) __builtin_expect(e, 1)");
+		w.appendLine(
+    		"#ifdef DNDEBUG\n" + 
+    		"#define assert(e,...)    ((void)0);\n" + 
+    		"#else\n" + 
+    		"#define assert(e,...) \\\n" + 
+    		"    if (EXPECT_FALSE(!(e))) {\\\n" + 
+    		"        char buf[4096];\\\n" + 
+    		"        if (#__VA_ARGS__[0])\\\n" + 
+    		"            snprintf(buf, 4096, \": \" __VA_ARGS__);\\\n" + 
+    		"        else\\\n" + 
+    		"            buf[0] = '\\0';\\\n" + 
+    		"        printf(\"assertion \\\"%s\\\" failed%s\", #e, buf);\\\n" + 
+    		"        exit(-1);\\\n" +
+    		"    }\n" + 
+    		"#endif"
+		);
 		w.appendLine("");
 		w.appendLine("typedef struct transition_info {");
 		w.indent();
@@ -351,7 +369,7 @@ public class LTSminPrinter {
 		w.outdent();
 		w.appendLine("}");
 	}
-	
+
 	private static void generateGetAll(StringWriter w, LTSminModel model) {
 		/* PROMELA specific per-proctype code */
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
@@ -397,6 +415,7 @@ public class LTSminPrinter {
 		for (Variable local : model.getLocals()) {
 			w.appendLine("int "+ local.getName() +";");
 		}
+        generateAssertions(w, model);
 		w.appendLine();
 		List<LTSminTransition> transitions = model.getTransitions();
 		for(LTSminTransition t : transitions) {
@@ -408,7 +427,17 @@ public class LTSminPrinter {
 		w.appendLine();
 	}
 
-	public static void generateATransition(StringWriter w, LTSminTransition t,
+	private static void generateAssertions(StringWriter w, LTSminModel model) {
+        for (Pair<Expression, String> p : model.assertions) {
+            w.appendPrefix();
+            w.append("assert(");
+            generateExpression(w, p.left, in(model));
+            w.append(", \""+ p.right +"\");");
+            w.appendPostfix();
+        }
+    }
+
+    public static void generateATransition(StringWriter w, LTSminTransition t,
 										   LTSminModel model, boolean many) {
 		w.appendLine("// "+ t.getName());
 		w.appendPrefix().append("if (true");
@@ -447,6 +476,7 @@ public class LTSminPrinter {
 		for (Variable local : model.getLocals()) {
 			w.appendLine("int "+ local.getName() +";");
 		}
+        generateAssertions(w, model);
 		w.appendLine();
 		w.appendLine("switch(t) {");
 		List<LTSminTransition> transitions = model.getTransitions();
@@ -1120,7 +1150,7 @@ public class LTSminPrinter {
 		w.appendLine("");
 		w.appendLine("extern const char* spinja_get_state_variable_name(unsigned int var) {");
 		w.indent();
-		w.appendLine("assert(var < ",state_size," && \"spinja_get_state_variable_name: invalid variable\");");
+		w.appendLine("assert(var < ",state_size,", \"spinja_get_state_variable_name: invalid variable index %d\", var);");
 		w.appendLine("return var_names[var];");
 		w.outdent();
 		w.appendLine("}");
@@ -1135,7 +1165,7 @@ public class LTSminPrinter {
 
 		w.appendLine("extern const char* spinja_get_type_name(int type) {");
 		w.indent();
-		w.appendLine("assert(type > -1 && type < ",types.size()," && \"spinja_get_type_name: invalid type\");");
+		w.appendLine("assert(type > -1 && type < ",types.size(),", \"spinja_get_type_name: invalid type index %d\", type);");
 		w.appendLine("return var_types[type];");
 		w.outdent();
 		w.appendLine("}");
@@ -1143,7 +1173,7 @@ public class LTSminPrinter {
 
 		w.appendLine("extern int spinja_get_type_value_count(int type) {");
 		w.indent();
-		w.appendLine("assert(type > -1 && type < ",types.size()," && \"spinja_get_type_value_count: invalid type\");");
+		w.appendLine("assert(type > -1 && type < ",types.size(),", \"spinja_get_type_value_count: invalid type index %d\", type);");
 		w.appendLine("return var_type_value_count[type];");
 		w.outdent();
 		w.appendLine("}");
@@ -1151,8 +1181,8 @@ public class LTSminPrinter {
 
 		w.appendLine("extern const char* spinja_get_type_value_name(int type, int value) {");
 		w.indent();
-		w.appendLine("assert(type > -1 && type < ",types.size()," && \"spinja_get_type_value_name: invalid type\");");
-		w.appendLine("assert(value <= var_type_value_count[type] && \"spinja_get_type_value_name: invalid type\");");
+		w.appendLine("assert(type > -1 && type < ",types.size(),", \"spinja_get_type_value_name: invalid type %d\", type);");
+		w.appendLine("assert(value <= var_type_value_count[type], \"spinja_get_type_value_name: invalid type %d\", value);");
 		w.appendLine("return var_type_values[type][value];");
 		w.outdent();
 		w.appendLine("}");
@@ -1160,7 +1190,7 @@ public class LTSminPrinter {
 
 		w.appendLine("extern int spinja_get_state_variable_type(int var) {");
 		w.indent();
-		w.appendLine("assert(var > -1 && var < ",state_size," && \"spinja_get_state_variable_type: invalid variable\");");
+		w.appendLine("assert(var > -1 && var < ",state_size,", \"spinja_get_state_variable_type: invalid variable %d\", var);");
 		w.appendLine("return var_type[var];");
 		w.outdent();
 		w.appendLine("}");
@@ -1191,7 +1221,7 @@ public class LTSminPrinter {
 
 		w.appendLine("extern const char* spinja_get_group_name(int type) {");
 		w.indent();
-		w.appendLine("assert(type < ",model.getTransitions().size()," && \"spinja_get_group_name: invalid type\");");
+		w.appendLine("assert(type < ",model.getTransitions().size(),", \"spinja_get_group_name: invalid type index %d\", type);");
 		//String pid = printPID(transition.passesControlAtomically(), out(model));
 		//w.appendLine("snprintf(buf, 1024, group_names[type], "+ pid +");");
 		w.appendLine("return group_names[type];");
@@ -1227,7 +1257,7 @@ public class LTSminPrinter {
 
 		w.appendLine("extern const char* spinja_get_edge_name(int type) {");
 		w.indent();
-		w.appendLine("assert(type < ",assertions.size()," && \"spinja_get_edge_name: invalid type\");");
+		w.appendLine("assert(type < ",assertions.size(),", \"spinja_get_edge_name: invalid type index %d\", type);");
 		w.appendLine("return edge_names[type];");
 		w.outdent();
 		w.appendLine("}");
@@ -1323,7 +1353,7 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guards(int t) {");
 		w.indent();
-		w.appendLine("assert(t < ",gm.getTransMatrix().size()," && \"spinja_get_guards: invalid transition\");");
+		w.appendLine("assert(t < ",gm.getTransMatrix().size(),", \"spinja_get_guards: invalid transition index %d\", t);");
 		w.appendLine("return "+ GM_TRANS_NAME +"[t];");
 		w.outdent();
 		w.appendLine("}");
@@ -1338,7 +1368,7 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guard_may_be_coenabled_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guard_may_be_coenabled_matrix: invalid guard\");");
+		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guard_may_be_coenabled_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ CO_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
@@ -1346,7 +1376,7 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guard_nes_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guard_nes_matrix: invalid guard\");");
+		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guard_nes_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NES_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
@@ -1354,7 +1384,7 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guard_nds_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guard_nds_matrix: invalid guard\");");
+		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guard_nds_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NDS_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
@@ -1362,7 +1392,7 @@ public class LTSminPrinter {
 		
 		w.appendLine("const int* spinja_get_guard_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
+		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guards: invalid guard index %d\", g);");
 		w.appendLine("return "+ GM_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
@@ -1370,7 +1400,7 @@ public class LTSminPrinter {
 		
 		w.appendLine("bool spinja_get_guard(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size()," && \"spinja_get_guards: invalid guard\");");
+		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guards: invalid guard index %d\", g);");
 		w.appendLine("(void)model;");
 		w.appendLine("switch(g) {");
 		w.indent();

@@ -63,6 +63,15 @@ public class RemoteRef extends Expression {
 		return processName +"["+ expr.toString() +"]@"+ label;
 	}
 
+	public boolean equals(Object o) {
+	    if (!(o instanceof RemoteRef))
+	        return false;
+	    RemoteRef other = (RemoteRef)o;
+	    return processName.equals(other.processName) &&
+	           label.equals(other.label) &&
+	           expr.equals(other.expr);
+	}
+
 	@Override
 	public VariableType getResultType() {
 		return VariableType.BOOL;
@@ -117,7 +126,7 @@ public class RemoteRef extends Expression {
 	}
 
 	ProcInstance instance = null;
-	private ProcInstance getInstance() {
+	public ProcInstance getInstance() {
 		if (null != instance)
 			return instance;
 		if (1 == process.getInstances().size()) {
@@ -142,7 +151,9 @@ public class RemoteRef extends Expression {
 		getInstance();
 		for (State s : instance.getAutomaton())
 			if (s.hasLabel(getLabel())) num = s.getStateId();
-		if (-1 == num) throw new AssertionError("Wrong label: "+ this);
+		if (-1 == num)
+			throw new AssertionError("Wrong label: "+ this +
+								     " not found in proc "+ instance);
 		return num;
 	}
 }

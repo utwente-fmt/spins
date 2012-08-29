@@ -17,12 +17,15 @@ package spinja.promela.compiler;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import spinja.promela.compiler.actions.ChannelReadAction;
 import spinja.promela.compiler.automaton.Transition;
+import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.ltsmin.model.LTSminUtil;
 import spinja.promela.compiler.ltsmin.model.ReadAction;
@@ -453,6 +456,8 @@ public class Specification implements Iterable<ProcInstance> {
 
 
 	private List<ProcInstance> instances = null;
+
+    public Set<RemoteRef> remoteRefs = new HashSet<RemoteRef>();
 	
 	@Override
 	public Iterator<ProcInstance> iterator() {

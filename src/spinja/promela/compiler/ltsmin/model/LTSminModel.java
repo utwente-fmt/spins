@@ -4,10 +4,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
 import spinja.promela.compiler.Specification;
+import spinja.promela.compiler.expression.Expression;
+import spinja.promela.compiler.ltsmin.LTSminTreeWalker.Pair;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
@@ -46,6 +49,7 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 	private List<LTSminTransition> transitions = new ArrayList<LTSminTransition>();
 	private List<Variable> locals = Arrays.asList(index, jndex);
 	Map<LTSminState, LTSminState> states = new HashMap<LTSminState, LTSminState>();
+    public List<Pair<Expression,String>> assertions = new LinkedList<Pair<Expression,String>>();
 
 	public LTSminModel(String name, LTSminStateVector sv, Specification spec) {
 		this.name = name;
