@@ -14,31 +14,60 @@
 
 package spinja.options;
 
-public class StringOption extends Option {
-	private String value;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 
-	public StringOption(final char letter, final String description) {
-		super(letter, description);
+public class StringOption extends Option implements Iterable<String> {
+	private String value = null;
+	private List<String> values;
+	private boolean allowMultiple;
+
+	public StringOption(final char letter, final String description,
+						boolean allowMultiple) {
+	    super(letter, allowMultiple ? description +" (multiple allowed)" : description);
 		value = null;
+		this.allowMultiple = allowMultiple;
+		if (allowMultiple) {
+			values = new LinkedList<String>();
+		}
 	}
 
 	public String getValue() {
+		if (allowMultiple)
+			throw new AssertionError("wrong use, allowMultiple on, iterate this class");
 		return value;
 	}
 
 	@Override
 	public boolean isSet() {
-		return value != null;
+		if (allowMultiple) {
+			return !values.isEmpty();
+		} else {
+			return value != null;
+		}
 	}
 
 	@Override
 	public void parseOption(final String rest) {
-		value = rest;
+		if (allowMultiple) {
+			values.add(rest);
+		} else {
+			if (value != null)
+				throw new AssertionError("Only one -"+ letter +" option allowed.");
+			value = rest;
+		}
 	}
 
 	@Override
 	public String toString() {
-		return toString("[text]");
+		return super.toString("[text]");
 	}
 
+    @Override
+    public Iterator<String> iterator() {
+        if (!allowMultiple)
+            throw new AssertionError("wrong use, allowMultiple off. Use getValue");
+        return values.iterator();
+    }
 }

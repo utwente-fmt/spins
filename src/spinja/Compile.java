@@ -228,26 +228,30 @@ public class Compile {
 
 		final StringOption modelname = new StringOption('n',
 			"sets the name of the model \n" +
-			"(default: " + defaultname + ")");
+			"(default: " + defaultname + ")", false);
 		parser.addOption(modelname);
 
-		final StringOption dot = new StringOption('d',
+		final StringOption define = new StringOption('D',
+			"sets preprocessor macro define value", true);
+		parser.addOption(define);
+
+		final BooleanOption dot = new BooleanOption('d',
 			"only write dot output (ltsmin/spinja) \n");
 		parser.addOption(dot);
 		
-		final StringOption ltsmin = new StringOption('l',
+		final BooleanOption ltsmin = new BooleanOption('l',
 			"sets output to LTSmin \n");
 		parser.addOption(ltsmin);
 
-		final StringOption ltsmin_ltl = new StringOption('L',
+		final BooleanOption ltsmin_ltl = new BooleanOption('L',
 			"sets output to LTSmin with LTSmin LTL semantics \n");
 		parser.addOption(ltsmin_ltl);
 
-        final StringOption textbook_ltl = new StringOption('t',
+        final BooleanOption textbook_ltl = new BooleanOption('t',
             "sets output to LTSmin with textbook LTL semantics \n");
         parser.addOption(textbook_ltl);
 		
-		final StringOption preprocessor = new StringOption('I',
+		final BooleanOption preprocessor = new BooleanOption('I',
 			"prints output of preprocessor\n");
 		parser.addOption(preprocessor);
 
@@ -258,7 +262,7 @@ public class Compile {
 
 		final StringOption srcDir = new StringOption('s',
 			"sets the output directory for the sourcecode \n" +
-			"(default: spinja)");
+			"(default: spinja)", false);
 		parser.addOption(srcDir);
 
 		final MultiStringOption optimalizations = new MultiStringOption('o',
@@ -307,6 +311,18 @@ public class Compile {
 			// name = Compile.getName(file);
 		}
 
+		for (String def : define) {
+		    int indexEq = def.indexOf('=');
+		    String defName = def;
+		    String defArg = "";
+		    if (indexEq != -1) {
+		        defName = def.substring(0, indexEq).trim();
+		        defArg = def.substring(indexEq + 1);
+		    }
+		    Preprocessor.define.name = defName;
+		    Preprocessor.addDefine(defArg, false);
+		}
+
 		if (preprocessor.isSet()) {
 			Preprocessor.setFilename(file.getName());
 			String path = file.getAbsolutePath();
@@ -321,6 +337,7 @@ public class Compile {
 				try {
 					Token t = tm.getNextToken();
 					System.out.print(t.image);
+					if (t.image == "") break;
 				} catch (TokenMgrError e) {
 					break;
 				}

@@ -29,7 +29,6 @@ import spinja.promela.compiler.actions.*;
 import java.io.*;
 import java.util.*;
 
-@SuppressWarnings("all")
 public class Promela {
 	public static final String C_STATE_PROC_COUNTER = "_pc";
 	public static final String C_STATE_PID = "_pid";
@@ -208,7 +207,7 @@ TOKEN : {	/* Operators */
  *   then we have to switch back to the previous stream (on preprocessing stack).
  * - End of preprocessor #if condition, then we terminate the parsing because a
  *   recursive parser was started (see PREPROCESSOR_IF, new Promela).
- * - Premature end of input if the preprocessor if stack is non-emptym,
+ * - Premature end of input if the preprocessor if stack is non-empty,
  *   erroneous input. 
  */
 <*> TOKEN:
@@ -725,9 +724,14 @@ SKIP : { // Skip whitespace and comments
     < ~[] >
 }
 
-<PREPROCESSOR_INCLUDE> SKIP: // launch virtual input stream for include
+<PREPROCESSOR_INCLUDE> MORE:
+{    < " "|"\t" > : PREPROCESSOR_INCLUDE
+|   < "\"" > : PREPROCESSOR_INCLUDE_FILE
+}
+
+<PREPROCESSOR_INCLUDE_FILE> SKIP: // launch virtual input stream for include
 {
-    < "\n"|"\r"|"\r\n" > {
+    < "\"" > {
         // create new virtual input stream and push the previous one to a stack
         Preprocessor.preprocessing.push(input_stream);
         Preprocessor.current.push(null);
@@ -745,12 +749,9 @@ SKIP : { // Skip whitespace and comments
     } : DEFAULT
 }
 
-<PREPROCESSOR_INCLUDE> MORE:
+<PREPROCESSOR_INCLUDE_FILE> MORE:
 {
-    "\\\n" |
-    "\\\r" |
-    "\\\r\n" |
-    < ~[] >
+    < ~["\""] >
 }
 
 <IN_COMMENT2> SKIP: {

@@ -3,6 +3,7 @@ package spinja.promela.compiler.parser;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
@@ -74,13 +75,15 @@ public class Preprocessor {
 	public static DefineMapping defines(String s) {
 		DefineMapping map = defines.get(s);
 		if (map != null) {
-			//System.out.println("> "+ map.toString());
+//System.out.println("> "+ map.toString());
 			return map;
 		}
-		for (Map<String, DefineMapping> defines : defs) {
+		ListIterator<Map<String, DefineMapping>> li = defs.listIterator(defs.size());
+		while (li.hasPrevious()) { // Java stacks are implemented as Vectors and iterate bottom-up
+		    Map<String, DefineMapping> defines = li.previous();
 			map = defines.get(s);
 			if (map != null) {
-				//System.out.println("> "+ map.toString());
+//System.out.println("> "+ map.toString());
 				return map;
 			}
 		}
@@ -98,7 +101,7 @@ public class Preprocessor {
 			DefineMapping put = defines.put(define.name, define);
 			if (null != put)
 				System.err.println("Redefining preprocessor define "+ define.name +" --> '"+ put.defineText +"' with '"+ text +"'");
-			//System.out.println("< "+ define.toString());
+//System.out.println("< "+ define.toString());
 			define = new DefineMapping();
 			return put;
 		} catch(NoSuchElementException e) {
@@ -119,11 +122,7 @@ public class Preprocessor {
 	}
 
 	public static String parseFile(String s) {
-	    Scanner sc = new Scanner(s);
-	    String text = "";
-	    while (sc.hasNext())
-	        text += sc.nextLine();
-	    text = text.trim();
+	    String text = s.trim();
 	    if (!(text.startsWith("\"") && text.endsWith("\"")))
 	        throw new AssertionError("Wrong include definition:"+ text);
 	    return dirName +"/"+ text.substring(1, text.length()-1);
@@ -137,7 +136,9 @@ public class Preprocessor {
 			input_stream.adjustBeginLineColumn(line-2,0);
 		} catch(NoSuchElementException e) {
 		} catch(IllegalStateException e) {
-		}
+		} finally {
+            sc.close();
+        }
 	}
 
 	public static void file(SimpleCharStream input_stream, String s) {
@@ -148,6 +149,8 @@ public class Preprocessor {
 			fileName = file;
 		} catch(NoSuchElementException e) {
 		} catch(IllegalStateException e) {
+		} finally {
+		    sc.close();
 		}
 	}
 

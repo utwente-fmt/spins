@@ -19,7 +19,7 @@ import java.io.StringReader;
 import spinja.util.StringWriter;
 
 public abstract class Option implements Comparable<Option> {
-	private final char letter;
+	protected final char letter;
 	protected final static int TABPOS = 24;
 
 	private final String description;
