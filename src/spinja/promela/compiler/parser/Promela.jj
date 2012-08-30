@@ -216,6 +216,7 @@ TOKEN : {	/* Operators */
     {
         if (!Preprocessor.preprocessing.empty()) {
             SimpleCharStream scs = Preprocessor.preprocessing.pop();
+            Preprocessor.setFilename(Preprocessor.files.pop());
             if (null == scs) return; // #if, no need to restore, since a recursive parser was launched
             ReInit(scs);
             Token next = getNextToken();
@@ -232,6 +233,18 @@ TOKEN : {	/* Operators */
             if (!Preprocessor.ifs.empty()) {
                 throw new AssertionError("Missing #endif");
             }
+	        Preprocessor.DefineMapping current = Preprocessor.defines("__include_end");
+	        if (null != current) { // Identifier is defined in preprocessor
+	            // switch to a virtual stream and push the previous stream on a stack
+	            ByteArrayInputStream is = new ByteArrayInputStream(current.defineText.getBytes());
+	            ReInit(new SimpleCharStream(is, current.line, current.column));
+	            // override TOKEN result with next token after id (+ arguments).
+	            Token next = getNextToken(); 
+	            matchedToken.image = next.image;
+	            matchedToken.kind = next.kind;
+	            matchedToken.next = next.next;
+	            matchedToken.specialToken = next.specialToken;
+	        }
         }
     }
 }
@@ -263,6 +276,7 @@ SKIP : {
 	    int column = input_stream.getEndColumn();
 	    ByteArrayInputStream is2 = new ByteArrayInputStream(newText.getBytes());
 	    Preprocessor.current.push(null);
+        Preprocessor.files.push(Preprocessor.getFileName());
 	    Preprocessor.preprocessing.push(input_stream);
 		ReInit(new SimpleCharStream(is2, line, column));
     } : DEFAULT
@@ -289,6 +303,7 @@ SKIP : {
         column = input_stream.getEndColumn();
         is2 = new ByteArrayInputStream(newText.getBytes());
         Preprocessor.current.push(null);
+        Preprocessor.files.push(Preprocessor.getFileName());
         Preprocessor.preprocessing.push(input_stream);
         ReInit(new SimpleCharStream(is2, line, column));
     } : DEFAULT
@@ -300,6 +315,7 @@ TOKEN : { /* Identifiers and numbers OR preprocessor defines */
         Preprocessor.DefineMapping current = Preprocessor.defines(image.toString());
         if (null != current) { // Identifier is defined in preprocessor
             Preprocessor.current.push(current);
+	        Preprocessor.files.push(Preprocessor.getFileName());
             Preprocessor.preprocessing.push(input_stream);
             // parse arguments (or only parantheses for inline)
             if (current.size() > 0 || current.inline) {
@@ -400,6 +416,7 @@ SKIP : { // Skip whitespace and comments
     < "\n"|"\r"|"\r\n" > { // constant expression is read
         InputStream is = new ByteArrayInputStream(image.toString().getBytes());
         Preprocessor.preprocessing.push(null);
+        Preprocessor.files.push(Preprocessor.getFileName());
         Promela prom = new Promela(parser, is); // start new parser for condition
         try {
             Expression expr = prom.expr();
@@ -412,7 +429,7 @@ SKIP : { // Skip whitespace and comments
                 SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore if until else/enfi
             }
         } catch (Exception e) {
-            throw new AssertionError("Failed to parse #if "+ image.toString() +": "+ e);
+            throw new AssertionError("Failed to parse #if "+ image.toString(), e);
         }
     }
 }
@@ -732,10 +749,12 @@ SKIP : { // Skip whitespace and comments
 <PREPROCESSOR_INCLUDE_FILE> SKIP: // launch virtual input stream for include
 {
     < "\"" > {
+        String file = Preprocessor.parseFile(image.toString());
         // create new virtual input stream and push the previous one to a stack
         Preprocessor.preprocessing.push(input_stream);
         Preprocessor.current.push(null);
-        String file = Preprocessor.parseFile(image.toString());
+        Preprocessor.files.push(Preprocessor.getFileName());
+        Preprocessor.setFilename(image.toString().trim().replaceAll("^\"|\"$", ""));
         try { // switch input stream
             ReInit(new SimpleCharStream(new FileInputStream(file)));
         } catch (FileNotFoundException fne) { throw new AssertionError(fne); }

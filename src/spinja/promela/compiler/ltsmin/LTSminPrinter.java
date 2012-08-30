@@ -372,6 +372,7 @@ public class LTSminPrinter {
 
 	private static void generateGetAll(StringWriter w, LTSminModel model) {
 		/* PROMELA specific per-proctype code */
+	    if (model.getTransitions().size() == 0) return;
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
 			w.appendLine("int spinja_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *tmp) {");
 			w.indent();

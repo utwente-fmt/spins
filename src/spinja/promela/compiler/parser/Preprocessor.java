@@ -57,6 +57,7 @@ public class Preprocessor {
     public static Stack<SimpleCharStream> preprocessing = new Stack<SimpleCharStream>();
 	public static Stack<DefineMapping> current = new Stack<DefineMapping>();
 	public static Stack<Boolean> ifs = new Stack<Boolean>();
+	public static Stack<String> files = new Stack<String>();
 
 	public static DefineMapping define = new DefineMapping();
 	
