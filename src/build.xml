@@ -49,6 +49,21 @@
 	</target>
 
 	<target name="build" depends="jar">
+        <replace file="spinja/promela/compiler/parser/Promela.java">
+            <replacetoken>
+
+public class Promela</replacetoken>
+            <replacevalue>
+@SuppressWarnings("all")
+public class Promela</replacevalue>
+        </replace>
+        <replace file="spinja/promela/compiler/parser/PromelaTokenManager.java">
+            <replacetoken>*/
+public class Promela</replacetoken>
+            <replacevalue>*/
+@SuppressWarnings("all")
+public class Promela</replacevalue>
+        </replace>
 	</target>
 
 	<target name="javadocs" description="Generates the Javadoc of the SpinJa library" depends="prepare">
