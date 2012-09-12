@@ -695,7 +695,7 @@ public class LTSminTreeWalker {
 		if (0 == state.sizeOut())
 			state.newTransition(null);
 		if (null != never && 0 == never.sizeOut()) {
-			never.newTransition(null);
+            never.newTransition(null);
 		}
 	}
 
@@ -726,42 +726,50 @@ public class LTSminTreeWalker {
 		ProcInstance p = (ProcInstance)t.getProc();
 		LTSminTransition lt = new LTSminTransition(t, n);
 
-        addNever(lt, n); // sync with never transition
-
 		lt.addGuard(pcGuard(model, t.getFrom(), p)); // process counter
         createEnabledGuard(t, lt); // enabled action or else transition 
 		if (null != p.getEnabler())
 			lt.addGuard(p.getEnabler()); // process enabler (provided keyword)
-		if (t.getTo() == null)
+		if (t.getTo() == null && t.getProc() != spec.getNever()) // never process may deadlock (accepting loop!)
 			lt.addGuard(dieGuard(model, p)); // allowed to die (stack order)
 
-		// Create actions of the transition, iff never is absent, dying or not atomic
-		if  (n == null || null == n.getTo() || !n.getTo().isInAtomic()) {
-			if (t.getTo()==null) {
-				lt.addAction(new ResetProcessAction(p));
-			} else { // Action: PC counter update
-				lt.addAction(assign(model.sv.getPC(p), t.getTo().getStateId()));
-			}
-			// Actions: transition
-			for (Action action : t) {
-				if (action instanceof AssignAction) {
-					AssignAction aa = (AssignAction)action;
-					if (aa.getExpr() instanceof RunExpression) {
-			            lt.addAction(new ExprAction(aa.getExpr()));
-			            aa.setExpr(calc(PromelaConstants.MINUS, id(_NR_PR), constant(1)));
-					}
-				}
-	            lt.addAction(action);
-	        }
+		// create (accepting) self loop (no actions) if never is dying
+		if  (n != null && n.getTo() == null) {
+		    if (!n.getFrom().isAcceptState())
+		        n.getFrom().addLabel("accept_never_deadlock");
+		    if (lt.getActions().size() != 0) throw new AssertionError("Supposed to have no actions!");
+		    return lt;
 		}
+
+		// sync with never transition
+        addNever(lt, n); 
+
+        // Create actions
+        if (t.getTo()==null) {
+            lt.addAction(new ResetProcessAction(p));
+        } else { // Action: PC counter update
+            lt.addAction(assign(model.sv.getPC(p), t.getTo().getStateId()));
+        }
+
+        // Actions: transition
+        for (Action action : t) {
+            if (action instanceof AssignAction) {
+                AssignAction aa = (AssignAction)action;
+                if (aa.getExpr() instanceof RunExpression) {
+                    lt.addAction(new ExprAction(aa.getExpr()));
+                    aa.setExpr(calc(PromelaConstants.MINUS, id(_NR_PR), constant(1)));
+                }
+            }
+            lt.addAction(action);
+        }
+        
 		return lt;
 	}
 
 	private void addNever(LTSminTransition lt, Transition never_t)
 			throws AssertionError {
         if (never_t != null) {
-        	if (null != never_t.getTo() && (never_t.getTo().isInAtomic()) ||
-        									never_t.getFrom().isInAtomic())
+        	if (never_t.getTo().isInAtomic() || never_t.getFrom().isInAtomic())
         		throw new AssertionError("Atomic in never claim not implemented");
 			lt.addGuard(pcGuard(model, never_t.getFrom(), spec.getNever()));
 	        createEnabledGuard(never_t, lt);
@@ -931,8 +939,6 @@ public class LTSminTreeWalker {
 		LTSminTransition lt = new LTSminTransition(sa.t, n);
 		lt.setSync(ra.t);
 
-        addNever(lt, n); // never executes first
-
 		lt.addGuard(pcGuard(model, sa.t.getFrom(), sa.p));
 		lt.addGuard(pcGuard(model, ra.t.getFrom(), ra.p));
 		if (sendId.getVariable().getArraySize() > -1) { // array of channels
@@ -943,12 +949,29 @@ public class LTSminTreeWalker {
 		for (int i = 0; i < cra_exprs.size(); i++) {
 			final Expression csa_expr = csa_exprs.get(i);
 			final Expression cra_expr = cra_exprs.get(i);
-			if (cra_expr instanceof Identifier) {
-				lt.addAction(assign((Identifier)cra_expr,csa_expr));
-			} else {
+			if (!(cra_expr instanceof Identifier)) {
 				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
 			}
 		}
+
+        // create (accepting) self loop (no actions) if never is dying
+        if  (n != null && n.getTo() == null) {
+            if (!n.getFrom().isAcceptState())
+                n.getFrom().addLabel("accept_never_deadlock");
+            if (lt.getActions().size() != 0) throw new AssertionError("Supposed to have no actions!");
+            return lt;
+        }
+
+        addNever(lt, n); // never executes first
+
+        /* Channel reads */
+        for (int i = 0; i < cra_exprs.size(); i++) {
+            final Expression csa_expr = csa_exprs.get(i);
+            final Expression cra_expr = cra_exprs.get(i);
+            if (cra_expr instanceof Identifier) {
+                lt.addAction(assign((Identifier)cra_expr,csa_expr));
+            }
+        }
 
 		// Change process counter of sender
 		lt.addAction(assign(model.sv.getPC(sa.p), sa.t.getTo().getStateId()));
