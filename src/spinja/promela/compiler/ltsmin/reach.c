@@ -13,7 +13,6 @@ typedef struct spinja_args_s {
 	state_db_t 		   *seen;
 	int 				sid;
 	int 				real_group;
-	pthread_key_t 	   *key;
 } spinja_args_t;
 
 extern void dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state, int atomic);
@@ -54,39 +53,34 @@ dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state, in
 	}
 }
 
-static pthread_key_t *local_key = NULL;
-
 void
 free_args (void *a)
 {
-	spinja_args_t *args = a;
-	if (NULL != args->key) {
-		pthread_key_delete (*args->key);
-		free (args->key);
-	}
-	state_db_free (args->seen);
-	free (args);
+    spinja_args_t *args = a;
+    state_db_free (args->seen);
+    free (args);
+}
+
+static pthread_key_t local_key;
+
+__attribute__((constructor)) void
+initialize_key() {
+    pthread_key_create (&local_key, free_args);
+}
+
+__attribute__((destructor)) void
+destroy_key() {
+    pthread_key_delete (local_key);
 }
 
 spinja_args_t *
 get_tls ()
 {
-	pthread_key_t *key = NULL;
-	if (NULL == local_key) {
-		key = align (CACHE_LINE_SIZE, sizeof(pthread_key_t));
-		pthread_key_create (key, free_args);
-		if (!cas(&local_key, NULL, key)) {
-			pthread_key_delete (*key);
-			free (key);
-			key = NULL;
-		}
-	}
-	spinja_args_t      *args = pthread_getspecific (*local_key);
+	spinja_args_t      *args = pthread_getspecific (local_key);
     if (args == NULL) {
         args = align (CACHE_LINE_SIZE, sizeof(spinja_args_t));
-        args->key = key;
     	args->seen = state_db_create (spinja_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
-        pthread_setspecific (*local_key, args);
+        pthread_setspecific (local_key, args);
     }
     return args;
 }
