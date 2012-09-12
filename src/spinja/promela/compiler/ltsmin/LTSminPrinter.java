@@ -326,6 +326,7 @@ public class LTSminPrinter {
 	
 	private static void generateACallback(StringWriter w, int trans) {
 		w.appendLine("transition_info.group = "+ trans +";");
+        w.appendLine("transitionLabels[1] = "+ trans +";"); // index
 		w.appendLine("callback(arg,&transition_info,tmp);");
 		w.appendLine("++states_emitted;");
 	}
@@ -364,6 +365,7 @@ public class LTSminPrinter {
 		for(Action a: actions)
 			generateAction(w,a,model);
 		w.appendLine("transition_info.group = "+ t.getGroup() +";");
+        w.appendLine("transitionLabels[1] = "+ t.getGroup() +";"); // index
 		w.appendLine("atomic_cb(arg,&transition_info,tmp,"+ t.getEndId() +");");
 		w.appendLine("++states_emitted;");
 		w.outdent();
@@ -376,8 +378,8 @@ public class LTSminPrinter {
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
 			w.appendLine("int spinja_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *tmp) {");
 			w.indent();
-			w.appendLine("int assertAction = 0;");
-			w.appendLine("transition_info_t transition_info = { &assertAction, -1 };");
+			w.appendLine("int transtionLabels[2] = {0, -1};");
+			w.appendLine("transition_info_t transition_info = { transtionLabels, -1 };");
 			w.appendLine("int states_emitted = 0;");
 			for (Variable local : model.getLocals()) {
 				w.appendLine("int "+ local.getName() +";");
@@ -408,8 +410,8 @@ public class LTSminPrinter {
 
 		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-		w.appendLine("int assertAction = 0;");
-		w.appendLine("transition_info_t transition_info = { &assertAction, -1 };");
+        w.appendLine("int transtionLabels[2] = {0, -1};");
+		w.appendLine("transition_info_t transition_info = { transtionLabels, -1 };");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("state_t out;");
 		w.appendLine("state_t *tmp = &out;");
@@ -467,8 +469,8 @@ public class LTSminPrinter {
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
 		w.appendLine("int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-		w.appendLine("int assertAction = 0;");
-		w.appendLine("transition_info_t transition_info = { &assertAction, t };");
+        w.appendLine("int transtionLabels[2] = {0, -1};");
+		w.appendLine("transition_info_t transition_info = { transtionLabels, t };");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("int minus_one = -1;");
 		w.appendLine("int *atomic = &minus_one;");
@@ -575,7 +577,7 @@ public class LTSminPrinter {
 			w.append(") {");
 			w.appendPostfix();
 			w.indent();
-			w.appendLine("assertAction = 1;"); // index
+			w.appendLine("transitionLabels[0] = 1;"); // index
 			w.outdent();
 			w.appendLine("}");
 		} else if(a instanceof PrintAction) {
