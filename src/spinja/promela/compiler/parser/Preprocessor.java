@@ -118,6 +118,15 @@ public class Preprocessor {
 		defines = new HashMap<String, DefineMapping>();
 	}
 
+    public static boolean removeDefine(String name) {
+        if (null != defines.remove(name))
+            return true;
+        for (Map<String, DefineMapping> def : defs) {
+            if (null != def.remove(name)) return true;
+        }
+       return false;
+    }
+
 	public static void removeDefines() {
 		defines = defs.pop();
 	}
