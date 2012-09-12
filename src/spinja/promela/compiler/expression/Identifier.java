@@ -37,6 +37,8 @@ public class Identifier extends Expression {
 
 	private Expression arrayExpr = null;
 
+	private int instanceIndex = -1; // no instance index 
+
 	private Identifier sub = null;
 
 	public Identifier getSub() {
@@ -152,6 +154,21 @@ public class Identifier extends Expression {
 	@Override
 	public String toString() {
 		String res = "";
+        if (getInstanceIndex() != -1) {
+            res += var.getOwner().getName();
+            res += "[" + getInstanceIndex() + "]";
+            res += ":";
+            res += var.getRealName();
+            if (var.getArraySize() > -1) {
+                if (arrayExpr != null) {
+                    res += "[" + arrayExpr.toString() + "]";
+                } else {
+                    assert (false);
+                    res += "[0]";
+                }
+            }
+            return res;
+        }
 		if (var.getArraySize() > -1) {
 			if (arrayExpr != null) {
 				res = var.toString() + "[" + arrayExpr.toString() + "]";
@@ -177,4 +194,16 @@ public class Identifier extends Expression {
 			return arrayExpr == oi.arrayExpr;
 		return arrayExpr.equals(oi.arrayExpr);
 	}
+
+	/**
+	 * Vor remote variable ref
+	 * @return
+	 */
+    public int getInstanceIndex() {
+        return instanceIndex;
+    }
+
+    public void setInstanceIndex(int instanceIndex) {
+        this.instanceIndex = instanceIndex;
+    }
 }

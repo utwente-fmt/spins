@@ -68,8 +68,9 @@ public class RemoteRef extends Expression {
 	        return false;
 	    RemoteRef other = (RemoteRef)o;
 	    return processName.equals(other.processName) &&
-	           label.equals(other.label) &&
-	           expr.equals(other.expr);
+	           label.equals(other.label) && 
+	           (expr == other.expr ||
+	           (expr != null && other.expr != null && expr.equals(other.expr)));
 	}
 
 	@Override

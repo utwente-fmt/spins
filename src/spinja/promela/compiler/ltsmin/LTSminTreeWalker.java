@@ -432,8 +432,14 @@ public class LTSminTreeWalker {
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
 			if (null != var.getOwner()) {
-				if (!p.getTypeName().equals(var.getOwner().getName()))
+			    if (id.getInstanceIndex() != -1) {
+			        for (ProcInstance i : var.getOwner().getInstances() ) {
+			            if (i.getID() == id.getInstanceIndex()) p = i;
+			        }
+			        if (p == null) throw new AssertionError("ProcInstance "+ id.getInstanceIndex() +" not found for remote ref "+ id.toString());
+			    } else if (!p.getTypeName().equals(var.getOwner().getName())) {
 					throw new AssertionError("Expected instance of type "+ var.getOwner().getName() +" not of "+ p.getTypeName());
+				}
 				var = p.getVariable(var.getName()); // load copied variable
 			}
 			Expression arrayExpr = instantiate(id.getArrayExpr(), p);

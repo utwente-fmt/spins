@@ -44,4 +44,18 @@ public class ProcInstance extends Proctype {
 		ProcInstance p = (ProcInstance)o;
 		return p.getName().equals(name) && instance == p.instance;
 	}
+
+    /**
+     * @return the instance
+     */
+    public int getInstance() {
+        return instance;
+    }
+
+    /**
+     * @param instance the instance to set
+     */
+    public void setInstance(int instance) {
+        this.instance = instance;
+    }
 }
