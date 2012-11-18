@@ -1555,6 +1555,7 @@ Expression base_expr(): {
                ChannelReadExpression read2 = new ChannelReadExpression(t, (Identifier)ex1, true);
            }
 	  <LBRACK> recv_args(read2) <RBRACK>
+           { return read2; }
 	  )?
 	{ return ex1; }
 |	ex1=onlyconstant()
