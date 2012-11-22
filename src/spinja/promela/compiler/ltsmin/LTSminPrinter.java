@@ -273,10 +273,10 @@ public class LTSminPrinter {
 	}
 
 	private static void generateForwardDeclarations(StringWriter w) {
-		w.appendLine("extern inline int reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
-		w.appendLine("extern int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
-		w.appendLine("extern int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg );");
-		w.appendLine("extern void atomic_cb(void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
+		w.appendLine("extern inline int spinja_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
+		w.appendLine("extern int spinja_get_successor_all (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
+		w.appendLine("extern int spinja_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
+		w.appendLine("extern void spinja_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
 		w.appendLine("static int "+ SCRATCH_VARIABLE +";");
 		w.appendLine("");
 	}
@@ -366,7 +366,7 @@ public class LTSminPrinter {
 			generateAction(w,a,model);
 		w.appendLine("transition_info.group = "+ t.getGroup() +";");
         w.appendLine("transition_labels[1] = "+ t.getGroup() +";"); // index
-		w.appendLine("atomic_cb(arg,&transition_info,tmp,"+ t.getEndId() +");");
+		w.appendLine("spinja_atomic_cb(arg,&transition_info,tmp,"+ t.getEndId() +");");
 		w.appendLine("++states_emitted;");
 		w.outdent();
 		w.appendLine("}");
@@ -457,7 +457,7 @@ public class LTSminPrinter {
 			generateAction(w,a,model);
 		if (t.isAtomic()) {
 			w.appendLine("transition_info.group = "+ t.getGroup() +";");
-			w.appendLine("int count = reach (model, &transition_info, tmp, callback, arg, "+ t.getEndId() +");");
+			w.appendLine("int count = spinja_reach (model, &transition_info, tmp, callback, arg, "+ t.getEndId() +");");
 			w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
 		} else {
 			generateACallback(w,t.getGroup());
