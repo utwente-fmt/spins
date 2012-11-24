@@ -28,7 +28,11 @@ public class ProcInstance extends Proctype {
 		super(p.getSpecification(), id, p.getNrActive(), p.getName());
 		this.instance = instance;
 	}
-
+	
+	public String getProcName() {
+	    return super.getName();
+	}
+	
 	public String getName() {
 		if (-1 == instance) return super.getName(); 
 		return super.getName() +"_"+ instance;

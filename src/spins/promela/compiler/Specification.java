@@ -495,6 +495,10 @@ public class Specification implements Iterable<ProcInstance> {
 		this.instances = instances;
 	}
 
+    public int instances() {
+        return this.instances.size();
+    }
+	
 	public List<Proctype> getProcs() {
 		return procs;
 	}

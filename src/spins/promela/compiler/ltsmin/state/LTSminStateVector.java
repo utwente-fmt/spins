@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+import spins.promela.compiler.ProcInstance;
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.Specification;
 import spins.promela.compiler.expression.Identifier;
@@ -125,7 +126,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		for (Variable var : globals.getVariables())
 			addVariable(global_t, var, debug);
 		// Add global state struct to main state struct
-		addMember(new LTSminVariable(global_t, C_STATE_GLOBALS, this));
+		//addMember(new LTSminVariable(global_t, C_STATE_GLOBALS, this));
 
 		// Add Never process
 		if (spec.getNever()!=null) {
@@ -133,11 +134,23 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 			Proctype p = spec.getNever();
 			addProcess (state_t, p, debug);
 		}
-
+		int i = 0;
 		// Processes:
 		debug.say(MessageKind.DEBUG, "== Processes");
-		for (Proctype p : spec) {
-			addProcess (state_t, p, debug);
+		String prevName = "";
+		boolean emitted_globals = false;
+		for (ProcInstance p : spec) {
+            if (!emitted_globals && i >= spec.instances() / 2 &&
+                !prevName.equals(p.getProcName())) {
+                addMember(new LTSminVariable(global_t, C_STATE_GLOBALS, this));
+                emitted_globals = true;
+            }
+            prevName = p.getProcName();
+            i++;
+            addProcess (state_t, p, debug);
+		}
+		if (!emitted_globals) {
+            addMember(new LTSminVariable(global_t, C_STATE_GLOBALS, this));
 		}
 	}
 
