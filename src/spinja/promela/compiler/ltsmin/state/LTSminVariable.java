@@ -49,7 +49,7 @@ public class LTSminVariable {
 		this.var = var;
 	}
 
-	public LTSminVariable(LTSminTypeNative type, Variable v,
+	public LTSminVariable(LTSminTypeI type, Variable v,
 			String elemName, LTSminTypeChanStruct parent) {
 		this(type, elemName, v.getArraySize(), parent);
 		this.var = v;
@@ -105,6 +105,8 @@ public class LTSminVariable {
 		String res = ""; 
 		if (null != id.getArrayExpr()) {
 			res = "["+ p.print(id.getArrayExpr()) +"]";
+		} else if (id.getVariable().getArrayIndex() != -1) {
+            res = "["+ id.getVariable().getArrayIndex() +"]";
 		} else {
 			if (size > 1) {
 				throw new AssertionError("No array expression for array: "+ this);

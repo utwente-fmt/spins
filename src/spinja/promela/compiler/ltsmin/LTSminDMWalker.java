@@ -79,6 +79,7 @@ public class LTSminDMWalker {
 		public final LTSminStateVector sv;
 		public final DepMatrix depMatrix;
 		public int trans;
+		public boolean inTimeOut = false;
 
 		public Params(LTSminModel model, DepMatrix depMatrix, int trans) {
 			this.model = model;
@@ -223,8 +224,8 @@ public class LTSminDMWalker {
 			int m = 0;
 			for (Expression e : csa.getExprs()) {
 				Expression top = channelNext(id, m++);
-				walkExpression(params, top, MarkAction.WRITE);
-				walkExpression(params, e, MarkAction.READ);
+				walkExpression(params, top, MarkAction.EWRITE);
+				walkExpression(params, e, MarkAction.EREAD);
 			}
 			walkExpression(params, chanLength(id), MarkAction.BOTH);
 		} else if(a instanceof ChannelReadAction) {
@@ -236,8 +237,8 @@ public class LTSminDMWalker {
 				Expression read = cra.isRandom() ? channelIndex(id, STAR, m) :
 									channelBottom(id, m);
 				if (e instanceof Identifier) { // otherwise it is a guard!
-					walkExpression(params, e, MarkAction.WRITE);
-					walkExpression(params, read, MarkAction.READ);
+					walkExpression(params, e, MarkAction.EWRITE);
+					walkExpression(params, read, MarkAction.EREAD);
 				}
 				m++;
 			}
@@ -247,7 +248,7 @@ public class LTSminDMWalker {
 				m = 0;
 				for (@SuppressWarnings("unused") Expression e : cra.getExprs()) {
 					Expression buf = channelIndex(id, STAR, m++);
-					walkExpression(params, buf, MarkAction.BOTH);
+					walkExpression(params, buf, MarkAction.EBOTH);
 				}
 			}
 		} else { // Handle not yet implemented action
@@ -278,10 +279,8 @@ public class LTSminDMWalker {
 			if (e instanceof LTSminIdentifier) {
 			} else if (e instanceof Identifier) {
 				Identifier id = (Identifier)e;
-				if (id.getVariable().isHidden()) {
-					if (MarkAction.WRITE != mark) throw new AssertionError("Error reading from a hidden variable.");
+				if (id.getVariable().isHidden())
 					return;
-				}
 				LTSminSubVector sub = params.sv.sub(id.getVariable());
 				try {
 					sub.mark(this, id);
@@ -296,27 +295,44 @@ public class LTSminDMWalker {
 		public void doMark(LTSminSubVector sub) {
 			mark.DMIncMark(params, sub);
 		}
+        public boolean isStrict() {
+            return mark.strict;
+        }
 	}
 
 	/**
 	 * A marker for SLOTS in the state vector: READ, WRITE or BOTH.
 	 */
 	public static enum	MarkAction {
-		READ,
-		WRITE,
-		BOTH;
+	    
+		READ(true),
+		WRITE(true),
+		BOTH(true),
+		EREAD(false),
+        EWRITE(false),
+        EBOTH(false);
+
+		boolean strict;
+        MarkAction(boolean strict) {
+            this.strict = strict;
+        }
+        
 		private void DMIncMark(Params params, LTSminSubVector sub) {
 			switch (this) {
+			case EREAD:
 			case READ: DMIncRead (params, sub); break;
+			case EWRITE:
 			case WRITE:DMIncWrite(params, sub); break;
+			case EBOTH:
 			case BOTH: DMIncRead (params, sub);
 					   DMIncWrite(params, sub); break;
+			default: throw new AssertionError("Not implemented "+ this);
 			}
 		}
 	}
 
 	static void walkExpression(Params params, Expression e, MarkAction mark) {
-		if (mark == MarkAction.WRITE && !(e instanceof Identifier))
+		if ((mark == MarkAction.WRITE || mark == MarkAction.EWRITE) && !(e instanceof Identifier))
 			throw new AssertionError("Only identifiers and TopExpressions can be written to!");
 		if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {
@@ -384,6 +400,18 @@ public class LTSminDMWalker {
 			DMIncRead(params, _NR_PR); // only the guard!
 		} else if(e instanceof MTypeReference) {
 		} else if(e instanceof ConstantExpression) {
+        } else if (e instanceof TimeoutExpression) {
+            throw new AssertionError("TimeoutExpression not implemented");
+            /*
+            if (params.inTimeOut) return; // avoid recursion
+            params.inTimeOut = true;
+            for (LTSminTransition t : params.model.getTransitions()) {
+                if (t.getGroup() == params.trans) continue;
+                for (LTSminGuardBase g : t.getGuards()) {
+                    walkGuard(params, g);
+                }
+            }
+            params.inTimeOut = false;*/
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
 			Variable pc = rr.getPC(params.model);

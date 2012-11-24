@@ -520,6 +520,20 @@ public class LTSminPrinter {
 			Identifier id = as.getIdentifier();
 			switch (as.getToken().kind) {
 				case ASSIGN:
+				    /*if (id.getResultType() instanceof CustomVariableType && id.getSub() == null) {
+				        CustomVariableType ct = (CustomVariableType) id.getResultType();
+				        if (!(as.getExpr() instanceof Identifier))
+				            throw new AssertionError("Expected Identifier for struct assignment");
+				        Identifier id2 = (Identifier) as.getExpr();
+				        AssignAction as2;
+				        for (Variable v : ct.getVariableStore().getVariables()) {
+				            Identifier sub = new Identifier(id, v);
+				            Identifier sub2 = new Identifier(id2, v);
+                            as2 = new AssignAction(as.getToken(), sub, sub2);
+				            generateAction(w, as2, model);
+				        }
+				        return;
+				    }*/ // TODO: implement copying of structs (structs in channels)
 					try {
 						int value = as.getExpr().getConstantValue();
 						w.appendPrefix();

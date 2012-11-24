@@ -500,8 +500,10 @@ public class LTSminTreeWalker {
 			EvalExpression eval = (EvalExpression)e;
 			Expression ex = instantiate(eval.getExpression(), p);
 			return new EvalExpression(e.getToken(), ex);
+	    } else if (e instanceof TimeoutExpression) {
+	        throw new AssertionError("Not yet implemented: "+e.getClass().getName());
 		} else if (e instanceof ConstantExpression) {
-			return e; // readonly, hence can be shared
+		    return e; // readonly, hence can be shared
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
 			Expression ex = instantiate(rr.getExpr(), p);
@@ -511,7 +513,7 @@ public class LTSminTreeWalker {
 			spec.remoteRefs.add(ref);
 	        return ref;
 		} else {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+			throw new AssertionError("Not yet implemented: "+e.getClass().getName());
 		}
 	}
 
@@ -577,7 +579,7 @@ public class LTSminTreeWalker {
 				ChannelType ct = (ChannelType)t;
 				if (ct.getBufferSize() == -1)
 					throw error("Could not deduce channel declaration for parameter "+ count +" of "+ re.getId() +".", re.getToken());
-				if (dynamic || varParameter.getArraySize() > -1)
+				if (dynamic/* || varParameter.getArraySize() > -1*/)
 					throw new AssertionError("Cannot dynamically bind "+ target.getTypeName() +" to the run expressions in presence of arguments of type channel.\n" +
 							"Change the proctype's arguments or unroll the loop with run expressions in the model.");
 				String name = v.getName();
@@ -587,6 +589,14 @@ public class LTSminTreeWalker {
 				v.setType(varParameter.getType());
 				v.setOwner(varParameter.getOwner());
 				v.setName(varParameter.getName());
+				if (varParameter.getArraySize() > -1) {
+				    try {
+                        int c = id.getArrayExpr().getConstantValue();
+                        v.setArrayIndex(c);
+                    } catch (ParseException e) {
+                        throw new AssertionError("Cannot () statically bind "+ target.getTypeName() +" to the run expressions without constant channel array index.");
+                    }
+				}
 				//if (null != ras) spec.addReadActions(v.ras);
 			} else if (!dynamic) {
 				try {
@@ -917,8 +927,25 @@ public class LTSminTreeWalker {
 			assert (recvId.getVariable().getArraySize() > -1);
 			array1 = recvId.getArrayExpr();
 			array2 = sendId.getArrayExpr();
-			if (array1 == null) array1 = constant(0);
-			if (array2 == null) array2 = constant(0);
+			if (array1 == null) {
+			    if (recvId.getVariable().getArrayIndex() > -1) {
+			        array1 = constant(recvId.getVariable().getArrayIndex());
+			    } else {
+			        throw new AssertionError("No channel array index for "+ cra);
+			    }
+			} else if (recvId.getVariable().getArrayIndex() > -1) {
+			    throw new AssertionError("Superfluous Array index on "+ cra);
+			}
+			if (array2 == null) {
+                if (sendId.getVariable().getArrayIndex() > -1) {
+                    array1 = constant(sendId.getVariable().getArrayIndex());
+                } else {
+                    throw new AssertionError("No channel array index for "+ csa);
+                }
+            } else if (sendId.getVariable().getArrayIndex() > -1) {
+                throw new AssertionError("Superfluous Array index on "+ csa);
+            }
+			if (array2 == null) throw new AssertionError("To channel array index for "+ ra.cra);
 			try { array1 = constant(array1.getConstantValue());
 			} catch (ParseException e) {}
 			try { array2 = constant(array2.getConstantValue());

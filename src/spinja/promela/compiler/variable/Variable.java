@@ -41,6 +41,8 @@ public class Variable {
 
 	private Integer constant = null;
 
+    private int arrayIndex = -1;
+
 	public Variable(final VariableType type, final String name, final int arraySize) {
 		this(type,name,arraySize,null);
 	}
@@ -193,4 +195,12 @@ public class Variable {
 	public void setHidden(boolean hidden) {
 		this.hidden = hidden;
 	}
+
+    public int getArrayIndex() {
+        return arrayIndex;
+    }
+
+    public void setArrayIndex(int c) {
+        arrayIndex = c;
+    }
 }

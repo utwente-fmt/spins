@@ -41,9 +41,17 @@ public class LTSminSubVectorStruct extends LTSminSubVector {
 
 	@Override
 	public void mark(IdMarker idMarker, Identifier id)  {
-		if (null == id)
-			throw new AssertionError("Inconclusive identifier for: "+ type);
-		LTSminSubVector sub = getSubVector(id.getVariable().getName());
-		sub.mark(idMarker, id);
+		if (null == id) {
+		    if (idMarker.isStrict()) {
+		        throw new AssertionError("Inconclusive identifier for: "+ type);
+		    } else {
+		        for (LTSminSlot slot : this) {
+		            slot.mark(idMarker, id);
+		        }
+		    }
+		} else {
+    		LTSminSubVector sub = getSubVector(id.getVariable().getName());
+    		sub.mark(idMarker, id);
+		}
 	}
 }

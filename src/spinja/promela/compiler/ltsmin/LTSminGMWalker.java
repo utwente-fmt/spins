@@ -521,13 +521,15 @@ public class LTSminGMWalker {
 		public Identifier id;
 		public String ref = null;
 		public int constant;
-		
+
 		public String getRef(LTSminModel model) {
 			if (null!= ref)
 				return ref;
 			LTSminPointer svp = new LTSminPointer(model.sv, "");
 			ExprPrinter p = new ExprPrinter(svp);
-			return ref = p.print(id);
+			ref = p.print(id);
+			assert (!ref.equals(LTSminPrinter.SCRATCH_VARIABLE)); // write-only
+			return ref;
 		}
 	}
 
@@ -681,7 +683,7 @@ public class LTSminGMWalker {
 		    ref1 = p1.getRef(model); // convert to c code string
 			ref2 = p2.getRef(model);
 	    } catch (AssertionError ae) {
-	    	throw new AssertionError("Serializing of expression "+ p1.id +" or "+ p2.id +" failed: "+ ae);
+	    	throw new AssertionError("Serialization of expression "+ p1.id +" or "+ p2.id +" failed: "+ ae);
 	    }
 		if (ref1.equals(ref2)) { // syntactic matching, this suffices if we assume expression is evaluated on the same state vector
 	        switch(p1.comparison) {
