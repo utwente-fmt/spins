@@ -90,9 +90,9 @@ public class LTSminDMWalker {
 	}
 
 	public static void walkOneGuard(LTSminModel model, DepMatrix dm,
-									LTSminGuard g, int num) {
+									LTSminGuardBase g, int num) {
 		Params p = new Params(model, dm, num); 
-		walkExpression(p, g.expr, MarkAction.READ);
+		walkGuard (p, g);
 	}
 	
 	static void walkModel(LTSminModel model, LTSminDebug debug) {

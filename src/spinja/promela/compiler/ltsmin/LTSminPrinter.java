@@ -77,7 +77,6 @@ import spinja.promela.compiler.ltsmin.LTSminTreeWalker.Pair;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.DepRow;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
-import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
@@ -145,8 +144,7 @@ public class LTSminPrinter {
 		generateDepMatrix(w, model.getDepMatrix(), DM_NAME, true);
 		generateDMFunctions(w, model.getDepMatrix());
 		generateGuardMatrices(w, model);
-		generateGuardFunctions(w, model, model.getGuardInfo());
-		generateAcceptingFunction(w, model);
+		generateGuardFunctions(w, model);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
 		generateGroupDescriptors(w, model);
@@ -1055,22 +1053,6 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static void generateAcceptingFunction(StringWriter w, LTSminModel model) {
-		// Function to access the dependency matrix
-		w.appendLine("");
-		w.appendLine("extern const int spinja_buchi_is_accepting(void* model, state_t *in)");
-		w.appendLine("{");
-		w.appendPrefix();
-		w.append("	return ");
-		if (0 == model.getAcceptingConditions().guards.size())
-			throw new AssertionError("Expected at least one accepting state condition (i.e., overloaded valid end state semantics).");
-		generateGuard(w, model, model.getAcceptingConditions(), in(model));
-		w.append(";");
-		w.appendPostfix();
-		w.appendLine("}");
-		w.appendLine("");
-	}
-
 	private static void generateStateDescriptors(StringWriter w, LTSminModel model) {
 		int state_size = model.sv.size();
 
@@ -1286,13 +1268,9 @@ public class LTSminPrinter {
 		if(gm==null) return;
 
 		DepMatrix co_matrix = gm.getCoMatrix();
-		List<List<Integer>> trans_matrix = gm.getTransMatrix();
-		List<LTSminGuard> guards = gm.getGuards();
-		
-		generateGuardList(w, model, guards);
 
 		w.appendLine("");
-		w.appendLine("// Guard-Dependency Matrix:");
+		w.appendLine("// Label(Guard)-Dependency Matrix:");
 		generateDepMatrix(w, gm.getDepMatrix(), GM_DM_NAME, false);
 		w.appendLine("");
 
@@ -1310,32 +1288,13 @@ public class LTSminPrinter {
 		w.appendLine("// Necessary Disabling Matrix:");
 		generateDepMatrix(w, gm.getNDSMatrix(), NDS_DM_NAME, false);
 		w.appendLine("");
-		
-		generateTransGuardMatrix(w, trans_matrix, guards);
-	}
 
-	private static void generateGuardList(StringWriter w, LTSminModel model,
-										  List<LTSminGuard> guards) {
-		w.appendLine("/*");
-		String old_preprefix = w.getPrePrefix();
-		w.setPrePrefix(" * ");
-		w.appendLine("");
-		w.appendLine("Guard list:");
-		for(int g=0; g<guards.size(); ++g) {
-			w.appendPrefix();
-			w.append("  - ");
-			w.append(g);
-			w.append(" - ");
-			generateGuard(w, model, guards.get(g), in(model));
-			w.appendPostfix();
-		}
-		w.setPrePrefix(old_preprefix);
-		w.appendLine(" */");
+        List<List<Integer>> trans_matrix = gm.getTransMatrix();
+		generateTransGuardMatrix(w, trans_matrix);
 	}
 
 	private static void generateTransGuardMatrix(StringWriter w,
-												List<List<Integer>> trans_matrix,
-												List<LTSminGuard> guards) {
+												List<List<Integer>> trans_matrix) {
 		w.appendLine("// Transition-Guard Matrix:");
 		w.appendPrefix().append("int* "+ GM_TRANS_NAME +"[").append(trans_matrix.size()).append("] = {");
 		w.appendPostfix();
@@ -1358,16 +1317,23 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static void generateGuardFunctions(StringWriter w, LTSminModel model, GuardInfo gm) {
-		List<LTSminGuard> guards = gm.getGuards();
+	private static void generateGuardFunctions(StringWriter w, LTSminModel model) {
+	    GuardInfo gm = model.getGuardInfo();
 
-		w.appendLine("int spinja_get_guard_count() {");
+	    w.appendLine("int spinja_get_guard_count() {");
 		w.indent();
-		w.appendLine("return ",gm.getGuards().size(),";");
+		w.appendLine("return ",gm.getNumberOfGuards(),";");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
+        w.appendLine("int spinja_get_label_count() {");
+        w.indent();
+        w.appendLine("return ",gm.getNumberOfLabels(),";");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+		
 		w.appendLine("const int* spinja_get_guards(int t) {");
 		w.indent();
 		w.appendLine("assert(t < ",gm.getTransMatrix().size(),", \"spinja_get_guards: invalid transition index %d\", t);");
@@ -1385,7 +1351,7 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guard_may_be_coenabled_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guard_may_be_coenabled_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfGuards(),", \"spinja_get_guard_may_be_coenabled_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ CO_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
@@ -1393,7 +1359,7 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guard_nes_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guard_nes_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfGuards(),", \"spinja_get_guard_nes_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NES_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
@@ -1401,30 +1367,30 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guard_nds_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guard_nds_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfGuards(),", \"spinja_get_guard_nds_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NDS_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 		
-		w.appendLine("const int* spinja_get_guard_matrix(int g) {");
+		w.appendLine("const int* spinja_get_label_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guards: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ GM_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 		
-		w.appendLine("bool spinja_get_guard(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
+		w.appendLine("bool spinja_get_label(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getGuards().size(),", \"spinja_get_guards: invalid guard index %d\", g);");
-		w.appendLine("(void)model;");
+        w.appendLine("(void)model;");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label: invalid guard index %d\", g);");
 		w.appendLine("switch(g) {");
 		w.indent();
-		for(int g=0; g<guards.size(); ++g) {
+		for(int g=0; g<gm.getNumberOfLabels(); ++g) {
 			w.appendPrefix();
 			w.append("case ").append(g).append(": return ");
-			generateGuard(w, model, guards.get(g), in(model));
+			generateGuard(w, model, gm.getLabel(g), in(model));
 			w.append(" != 0;");
 			w.appendPostfix();
 		}
@@ -1435,13 +1401,30 @@ public class LTSminPrinter {
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("void spinja_get_guard_all(void* model, ",C_STATE,"* ",IN_VAR,", int* guard) {");
+        w.appendLine("const char *spinja_get_label_name(int g) {");
+        w.indent();
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_name: invalid guard index %d\", g);");
+        w.appendLine("switch(g) {");
+        w.indent();
+        for(int g=0; g<gm.getNumberOfLabels(); ++g) {
+            w.appendPrefix();
+            w.append("case "+ g +": return \""+ gm.getLabelName(g) +"\";");
+            w.appendPostfix();
+        }
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("return \"\";");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+		
+		w.appendLine("void spinja_get_labels_all(void* model, ",C_STATE,"* ",IN_VAR,", int* guard) {");
 		w.indent();
 		w.appendLine("(void)model;");
-		for(int g=0; g<guards.size(); ++g) {
+		for(int g=0; g<gm.getNumberOfLabels(); ++g) {
 			w.appendPrefix();
 			w.append("guard[").append(g).append("] = ");
-			generateGuard(w, model, guards.get(g), in(model));
+			generateGuard(w, model, gm.getLabel(g), in(model));
 			w.append(" != 0;");
 			w.appendPostfix();
 		}

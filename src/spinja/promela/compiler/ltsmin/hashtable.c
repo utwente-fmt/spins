@@ -74,8 +74,10 @@ spinja_align (size_t align, size_t size)
     switch (errno) {
         case ENOMEM:
             printf ("Out of memory - ");
+            exit (1);
         case EINVAL:
             printf ("Invalid alignment %zu - ", align);
+            exit (1);
         default:
             printf("error allocating %zu bytes aligned at %zu\n", size, align);
             exit (1);
@@ -205,7 +207,7 @@ spinja_state_db_lookup_hash (spinja_state_db_t *dbs, const int *v, spinja_mem_ha
     }
 }
 
-int
+void
 spinja_state_db_clear (spinja_state_db_t *dbs)
 {
     dbs->load = 0;
@@ -242,7 +244,7 @@ spinja_state_db_free (spinja_state_db_t *dbs)
     free (dbs);
 }
 
-int
+void
 spinja_test ()
 {
     spinja_state_db_t *dbs = spinja_state_db_create (10, 2, 10);

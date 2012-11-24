@@ -61,7 +61,9 @@ import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
 
 /**
- *
+ * A container for boolean state labels (part of which are guards), guard
+ * matrices and state label matrix 
+ * 
  * @author FIB, Alfons Laarman
  */
 public class LTSminGMWalker {
@@ -91,7 +93,12 @@ public class LTSminGMWalker {
 		}
 	}
 
-	static void walkModel(LTSminModel model, LTSminDebug debug) {
+	/**
+	 * Adds all guards labels and generates the guards matrices for POR
+	 * @param model
+	 * @param debug
+	 */
+	static void generateGuardInfo(LTSminModel model, LTSminDebug debug) {
 		debug.say("Generating guard information ...");
 		debug.say_indent++;
 		
@@ -99,20 +106,20 @@ public class LTSminGMWalker {
 			model.setGuardInfo(new GuardInfo(model.getTransitions().size()));
 		GuardInfo guardInfo = model.getGuardInfo();
 		Params params = new Params(model, guardInfo, debug);
-		// extact guards bases
-		walkTransitions(params);
 
-		// generate guard DM
-		generateGuardMatrix(model, guardInfo);
+		// extact guards
+		generateTransitionGuardLabels (params);
+
+		int nguards = guardInfo.getNumberOfGuards();
 		
 		// generate Maybe Coenabled matrix
 		int nmce = generateCoenMatrix (model, guardInfo);
-		int mceSize = guardInfo.size()*guardInfo.size()/2;
+		int mceSize = nguards*nguards/2;
 		params.debug.say("Found "+ nmce +"/"+ mceSize +" !MCE gurads.");
 		
 		// generate NES matrix
 		int nnes = generateNESMatrix (model, guardInfo);
-		int nesSize = guardInfo.size()*model.getTransitions().size();
+		int nesSize = nguards*model.getTransitions().size();
 		params.debug.say("Found "+ nnes +"/"+ nesSize +" !NES guards.");
 
 		// generate NDS matrix
@@ -124,10 +131,12 @@ public class LTSminGMWalker {
 		debug.say("");
 	}
 
-	private static void generateGuardMatrix(LTSminModel model, GuardInfo guardInfo) {
-		DepMatrix dm = new DepMatrix(guardInfo.size(), model.sv.size());
+	public static void generateLabelMatrix(LTSminModel model) {
+        GuardInfo guardInfo = model.getGuardInfo();
+		int nlabels = guardInfo.getNumberOfLabels();
+	    DepMatrix dm = new DepMatrix(nlabels, model.sv.size());
 		guardInfo.setDepMatrix(dm);
-		for (int i = 0; i < guardInfo.size(); i++) {
+		for (int i = 0; i < nlabels; i++) {
 			LTSminDMWalker.walkOneGuard(model, dm, guardInfo.get(i), i);
 		}
 	}
@@ -137,13 +146,15 @@ public class LTSminGMWalker {
 	 * ************/
 
 	private static int generateNDSMatrix(LTSminModel model, GuardInfo guardInfo) {
-		DepMatrix nds = new DepMatrix(guardInfo.size(), model.getTransitions().size());
+        int nguards = guardInfo.getNumberOfGuards();
+		DepMatrix nds = new DepMatrix(nguards, model.getTransitions().size());
 		guardInfo.setNDSMatrix(nds);
 		int notNDS = 0;
 		for (int i = 0; i <  nds.getRows(); i++) {
 			for (int j = 0; j < nds.getRowLength(); j++) {
 				LTSminTransition trans = model.getTransitions().get(j);
-				if (NO_NDS || is_nds_guard(model, guardInfo.get(i), trans)) {
+				LTSminGuard g = (LTSminGuard) guardInfo.get(i);
+				if (NO_NDS || is_nds_guard(model, g, trans)) {
 					nds.incRead(i, j);
 				} else {
 					notNDS++;
@@ -330,13 +341,15 @@ public class LTSminGMWalker {
 	 * ************/
 	
 	private static int generateNESMatrix(LTSminModel model, GuardInfo guardInfo) {
-		DepMatrix nes = new DepMatrix(guardInfo.size(), model.getTransitions().size());
+        int nguards = guardInfo.getNumberOfGuards();
+		DepMatrix nes = new DepMatrix(nguards, model.getTransitions().size());
 		guardInfo.setNESMatrix(nes);
 		int notNES = 0;
 		for (int i = 0; i <  nes.getRows(); i++) {
 			for (int j = 0; j < nes.getRowLength(); j++) {
 				LTSminTransition trans = model.getTransitions().get(j);
-				if (NO_NES || is_nes_guard(model, guardInfo.get(i), trans)) {
+                LTSminGuard g = (LTSminGuard) guardInfo.get(i);
+				if (NO_NES || is_nes_guard(model, g, trans)) {
 					nes.incRead(i, j);
 				} else {
 					notNES++;
@@ -412,15 +425,18 @@ public class LTSminGMWalker {
 	 * MCE
 	 * ************/
 	
-	private static int generateCoenMatrix(LTSminModel model, GuardInfo gm) {
-		DepMatrix co = new DepMatrix(gm.size(), gm.size());
-		gm.setCoMatrix(co);
+	private static int generateCoenMatrix(LTSminModel model, GuardInfo guardInfo) {
+	    int nguards = guardInfo.getNumberOfGuards();
+		DepMatrix co = new DepMatrix(nguards, nguards);
+		guardInfo.setCoMatrix(co);
 		int neverCoEnabled = 0;
-		for (int i = 0; i < gm.size(); i++) {
+		for (int i = 0; i < nguards; i++) {
 			// same guard is always coenabled:
 			co.incRead(i, i);
-			for (int j = i+1; j < gm.size(); j++) {
-				if (mayBeCoenabled(model, gm.get(i),gm.get(j))) {
+			for (int j = i+1; j < nguards; j++) {
+                LTSminGuard g1 = (LTSminGuard) guardInfo.get(i);
+                LTSminGuard g2 = (LTSminGuard) guardInfo.get(j);
+				if (mayBeCoenabled(model, g1, g2)) {
 					co.incRead(i, j);
 					co.incRead(j, i);
 				} else {
@@ -734,7 +750,7 @@ public class LTSminGMWalker {
 	    return !no_conflict;
 	}
 
-	static void walkTransitions(Params params) {
+	static void generateTransitionGuardLabels(Params params) {
 		for(LTSminTransition t : params.model.getTransitions()) {
 			walkTransition(params, t);
 		}

@@ -64,6 +64,7 @@ import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
+import spinja.promela.compiler.expression.TimeoutExpression;
 import spinja.promela.compiler.ltsmin.LTSminDebug.MessageKind;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
@@ -133,11 +134,12 @@ public class LTSminTreeWalker {
 		bindByReferenceCalls();
 		for (Pair<ChannelReadAction,Transition> p : pairs)
 			spec.addReadAction(p.left, p.right);
-		addAcceptingConditions();
 		createModelTransitions();
 		createModelAssertions();
 		LTSminDMWalker.walkModel(model, debug);
-		LTSminGMWalker.walkModel(model, debug);
+		LTSminGMWalker.generateGuardInfo(model, debug);
+        addSpecialStateLabels();
+        LTSminGMWalker.generateLabelMatrix(model);
 		return model;
 	}
 
@@ -155,38 +157,60 @@ public class LTSminTreeWalker {
     }
 
     /**
-	 * Set accepting state conditions for this model. 
+	 * Set accepting state, valid end-state and progress-state conditions for this model. 
 	 * Accepting condition semantics are overloaded with valid end state semantics.
 	 */
-    private void addAcceptingConditions() {
+    private void addSpecialStateLabels() {
 		if (NEVER) {
 			Proctype never = spec.getNever();
-			Variable pc = model.sv.getPC(never);
-			Expression g = compare(PromelaConstants.EQ, id(pc), constant(-1));
-			model.getAcceptingConditions().addGuard(g); // Or
+			LTSminGuardOr or = new LTSminGuardOr();
+			if (never.getStartState().isAcceptState()) {
+	            Variable pc = model.sv.getPC(never);
+			    Expression g = compare(PromelaConstants.EQ, id(pc), constant(-1));
+			    or.addGuard(g); // Or
+			}
 			for (State s : never.getAutomaton()) {
 				if (s.isAcceptState()) {
-					g = pcGuard(model, s, never);
-					model.getAcceptingConditions().addGuard(g);
+				    Expression g = pcGuard(model, s, never);
+					or.addGuard(g);
 				}
 			}
-		} else {
-			Expression e = compare(PromelaConstants.EQ, id(_NR_PR), constant(0));
-			model.getAcceptingConditions().addGuard(e); // Or
-			LTSminGuardAnd and = new LTSminGuardAnd();
-	    	for (ProcInstance instance : spec) {
-	    		LTSminGuardOr or = new LTSminGuardOr();
-				Variable pc = model.sv.getPC(instance);
-				Expression g = compare(PromelaConstants.EQ, id(pc), constant(-1));
-	    		or.addGuard(g);
-		    	for (State s : instance.getAutomaton()) {
-			    	if (s.hasLabelPrefix("end")) {
-			    		or.addGuard(pcGuard(model, s, instance));
-			    	}
-		    	}
-		    	and.addGuard(or);
-	    	}
-			model.getAcceptingConditions().addGuard(and);
+			model.getGuardInfo().addLabel("accept_buchi", or);
+		}
+		
+		{
+            LTSminGuardOr or = new LTSminGuardOr();
+    		for (ProcInstance pi : spec) {
+    		    for (State s : pi.getAutomaton()) {
+    		        if (s.isProgressState()) {
+    		            Expression g = pcGuard(model, s, pi);
+                        or.addGuard(g);
+    		        }
+    		    }
+    		}
+    		if (or.guards.size() != 0)
+    		    model.getGuardInfo().addLabel("progress", or);
+		}
+
+		{
+            LTSminGuardOr end = new LTSminGuardOr();
+    		Expression e = compare(PromelaConstants.EQ, id(_NR_PR), constant(0));
+    		end.addGuard(e); // Or
+    		LTSminGuardAnd and = new LTSminGuardAnd();
+        	for (ProcInstance instance : spec) {
+        		LTSminGuardOr or = new LTSminGuardOr();
+    			Variable pc = model.sv.getPC(instance);
+    			e = compare(PromelaConstants.EQ, id(pc), constant(-1));
+        		or.addGuard(e);
+    	    	for (State s : instance.getAutomaton()) {
+    		    	if (s.hasLabelPrefix("end")) {
+    		    		or.addGuard(pcGuard(model, s, instance));
+    		    	}
+    	    	}
+    	    	and.addGuard(or);
+        	}
+        	end.addGuard(and);
+    		model.getGuardInfo().addLabel("end_valid", end);
 		}
 	}
 

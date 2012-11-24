@@ -3,19 +3,30 @@
  */
 package spinja.promela.compiler.ltsmin.matrix;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map.Entry;
 
 import spinja.promela.compiler.expression.Expression;
 
+/**
+ * Guards are (boolean) state labels
+ * 
+ * @author laarman
+ *
+ */
+public class GuardInfo implements Iterable<Entry<String, LTSminGuardBase>> {
 
-public class GuardInfo implements Iterable<LTSminGuard> {
-	/**
-	 * guards ...
+    /**
+	 * labels ...
 	 *   v    ...
 	 */
-	private List<LTSminGuard> guards;
+	private List<LTSminGuardBase> labels;
+    private List<String> label_names;
+    private int nguards = 0;
+    private boolean fixed = false;
 
 	/**
 	 *        guards >
@@ -43,7 +54,7 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 	 * trans  ...    ...
 	 *   v    ...    ...
 	 */
-	private List< List<Integer> > trans_matrix;
+	private List< List<Integer> > trans_guard_matrix;
 
 	/**
 	 *        state >
@@ -53,10 +64,11 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 	private DepMatrix dm;
 
 	public GuardInfo(int width) {
-		guards = new ArrayList<LTSminGuard>();
-		trans_matrix = new ArrayList< List<Integer> >();
+		labels = new ArrayList<LTSminGuardBase>();
+		label_names = new ArrayList<String>();
+		trans_guard_matrix = new ArrayList< List<Integer> >();
 		for (int i = 0; i < width; i++) {
-			trans_matrix.add(new ArrayList<Integer>());
+			trans_guard_matrix.add(new ArrayList<Integer>());
 		}
 	}
 
@@ -64,19 +76,29 @@ public class GuardInfo implements Iterable<LTSminGuard> {
         addGuard(trans, new LTSminGuard(e));
     }
 
-	public void addGuard(int trans, LTSminGuard g) {
+	public void addGuard(int trans, LTSminGuardBase g) {
+	    if (fixed)
+	        throw new AssertionError("Mixing guards and otgher state labels!");
 		int idx = getGuard(g);
 		if (idx == -1) {
-			guards.add(g);
-			idx = guards.size() - 1;
+			labels.add(g);
+			idx = labels.size() - 1;
+            label_names.add("guard_"+ idx);
+            nguards++;
 		}
-		trans_matrix.get(trans).add(idx);
+		trans_guard_matrix.get(trans).add(idx);
 	}
 
-	public int getGuard(LTSminGuard g) { //TODO: HashSet + equals() + hash()
-		for (int i = 0; i < guards.size(); i++) {
-			LTSminGuard other = get(i);
-			if(other.equals(g))
+    public void addLabel(String name, LTSminGuardBase g) {
+        fixed = true;
+        labels.add(g);
+        label_names.add(name);
+    }
+
+	private int getGuard(LTSminGuardBase g) { //TODO: HashSet + equals() + hash()
+		for (int i = 0; i < labels.size(); i++) {
+			LTSminGuardBase other = get(i);
+			if (other.equals(g))
 				return i;
 		}
 		return -1;
@@ -99,14 +121,26 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 	}
 
 	public List< List<Integer> > getTransMatrix() {
-		return trans_matrix;
+		return trans_guard_matrix;
 	}
 
-	public List<LTSminGuard> getGuards() {
-		return guards;
+	public int getNumberOfGuards() {
+		return nguards;
 	}
 
-	public DepMatrix getNESMatrix() {
+    public int getNumberOfLabels() {
+        return labels.size();
+    }
+
+    public LTSminGuardBase getLabel(int i) {
+        return labels.get(i);
+    }
+
+    public String getLabelName(int i) {
+        return label_names.get(i);
+    }
+
+    public DepMatrix getNESMatrix() {
 		return nes_matrix;
 	}
 
@@ -123,16 +157,29 @@ public class GuardInfo implements Iterable<LTSminGuard> {
 	}
 
 	@Override
-	public Iterator<LTSminGuard> iterator() {
-		return guards.iterator();
+	public Iterator<Entry<String,LTSminGuardBase>> iterator() {
+		return new Iterator<Entry<String,LTSminGuardBase>>() {
+		    Iterator<LTSminGuardBase> it = labels.iterator();
+            Iterator<String> it2 = label_names.iterator();
+		    
+		    @Override
+            public boolean hasNext() {
+                return it.hasNext();
+            }
+
+            @Override
+            public Entry<String,LTSminGuardBase> next() {
+                return new SimpleEntry<String,LTSminGuardBase>(it2.next(), it.next());
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+		};
 	}
 
-	public LTSminGuard get(int i) {
-		return guards.get(i);
+	public LTSminGuardBase get(int i) {
+		return labels.get(i);
 	}
-
-	public int size() {
-		return guards.size();
-	}
-
 }

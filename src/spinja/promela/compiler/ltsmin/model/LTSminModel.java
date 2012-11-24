@@ -13,7 +13,6 @@ import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.ltsmin.LTSminTreeWalker.Pair;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
-import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
@@ -39,7 +38,6 @@ import spinja.promela.compiler.variable.VariableType;
 public class LTSminModel implements Iterable<LTSminTransition> {
 
 	private String name;
-	private LTSminGuardOr accepting_conditions;
 	public LTSminStateVector sv;
 	private DepMatrix depMatrix;
 	private GuardInfo guardInfo;
@@ -55,7 +53,6 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 		this.name = name;
 		mtypes = spec.getMTypes();
 		this.sv = sv;
-		this.accepting_conditions = new LTSminGuardOr();
 	}
 
 	public List<Variable> getLocals() {
@@ -64,10 +61,6 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 
 	public List<String> getMTypes() {
 		return mtypes;
-	}
-
-	public LTSminGuardOr getAcceptingConditions() {
-		return accepting_conditions;
 	}
 
 	public String getName() {

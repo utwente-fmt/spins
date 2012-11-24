@@ -7,7 +7,11 @@ BASE=`pwd`
 STORAGE="tree";
 STORAGE_SIZE="26";
 THREADS="2"
-LTSMIN="spinja2lts-mc"
+LTSMIN="$BASE/../../src/pins2lts-mc/prom2lts-mc"
+if [ ! -e $LTSMIN ]; then
+    echo "$LTSMIN not found"
+    LTSMIN=prom2lts-mc
+fi
 SPINPOR="$BASE/spinpor.sh"
 SPINJA="$BASE/../spinjal.sh"
 CASESTUDIES="$BASE/case_studies"
