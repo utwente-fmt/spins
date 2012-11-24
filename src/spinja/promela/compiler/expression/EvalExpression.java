@@ -49,7 +49,7 @@ public class EvalExpression extends Expression {
 	}
 
 	@Override
-	public VariableType getResultType() throws ParseException {
+	public VariableType getResultType() {
 		return expr.getResultType();
 	}
 

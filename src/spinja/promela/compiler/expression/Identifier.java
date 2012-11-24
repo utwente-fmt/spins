@@ -124,7 +124,7 @@ public class Identifier extends Expression {
 	}
 
 	@Override
-	public VariableType getResultType() throws ParseException {
+	public VariableType getResultType() {
 		return var.getType();
 	}
 

@@ -88,10 +88,8 @@ public abstract class Expression {
 	/**
 	 * @return The VariableType which determines the normal result type of this expression. Note
 	 *         that many types can be cast to each other.
-	 * @throws ParseException
-	 *             When something went wrong while parsing the expression.
 	 */
-	public abstract VariableType getResultType() throws ParseException;
+	public abstract VariableType getResultType();
 
 	/**
 	 * @return The java code which represents the action for the side effect of the expression or

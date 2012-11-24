@@ -57,7 +57,7 @@ public class ChannelOperation extends Expression {
 	}
 
 	@Override
-	public VariableType getResultType() throws ParseException {
+	public VariableType getResultType() {
 		return VariableType.BOOL;
 	}
 

@@ -75,7 +75,7 @@ public class ChannelReadExpression extends Expression implements CompoundExpress
 	}
 
 	@Override
-	public VariableType getResultType() throws ParseException {
+	public VariableType getResultType() {
 		return VariableType.BOOL;
 	}
 
