@@ -1359,7 +1359,7 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guard_nes_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfGuards(),", \"spinja_get_guard_nes_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_guard_nes_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NES_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
@@ -1367,7 +1367,7 @@ public class LTSminPrinter {
 
 		w.appendLine("const int* spinja_get_guard_nds_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfGuards(),", \"spinja_get_guard_nds_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_guard_nds_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NDS_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");

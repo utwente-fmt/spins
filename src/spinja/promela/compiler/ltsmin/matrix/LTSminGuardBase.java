@@ -97,6 +97,7 @@ public abstract class LTSminGuardBase {
                 throw new AssertionError("UNSUPPORTED " + gb.getClass().getSimpleName());                 
             }
         } catch (NoSuchElementException nse) {}
+        if (e == null) throw new AssertionError();
         return e;
     }
 }

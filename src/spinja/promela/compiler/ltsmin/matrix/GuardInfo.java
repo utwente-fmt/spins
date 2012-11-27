@@ -17,13 +17,13 @@ import spinja.promela.compiler.expression.Expression;
  * @author laarman
  *
  */
-public class GuardInfo implements Iterable<Entry<String, LTSminGuardBase>> {
+public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 
     /**
 	 * labels ...
 	 *   v    ...
 	 */
-	private List<LTSminGuardBase> labels;
+	private List<LTSminGuard> labels;
     private List<String> label_names;
     private int nguards = 0;
     private boolean fixed = false;
@@ -64,7 +64,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuardBase>> {
 	private DepMatrix dm;
 
 	public GuardInfo(int width) {
-		labels = new ArrayList<LTSminGuardBase>();
+		labels = new ArrayList<LTSminGuard>();
 		label_names = new ArrayList<String>();
 		trans_guard_matrix = new ArrayList< List<Integer> >();
 		for (int i = 0; i < width; i++) {
@@ -76,7 +76,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuardBase>> {
         addGuard(trans, new LTSminGuard(e));
     }
 
-	public void addGuard(int trans, LTSminGuardBase g) {
+	public void addGuard(int trans, LTSminGuard g) {
 	    if (fixed)
 	        throw new AssertionError("Mixing guards and otgher state labels!");
 		int idx = getGuard(g);
@@ -89,15 +89,15 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuardBase>> {
 		trans_guard_matrix.get(trans).add(idx);
 	}
 
-    public void addLabel(String name, LTSminGuardBase g) {
+    public void addLabel(String name, LTSminGuard g) {
         fixed = true;
         labels.add(g);
         label_names.add(name);
     }
 
-	private int getGuard(LTSminGuardBase g) { //TODO: HashSet + equals() + hash()
+	private int getGuard(LTSminGuard g) { //TODO: HashSet + equals() + hash()
 		for (int i = 0; i < labels.size(); i++) {
-			LTSminGuardBase other = get(i);
+			LTSminGuard other = get(i);
 			if (other.equals(g))
 				return i;
 		}
@@ -132,7 +132,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuardBase>> {
         return labels.size();
     }
 
-    public LTSminGuardBase getLabel(int i) {
+    public LTSminGuard getLabel(int i) {
         return labels.get(i);
     }
 
@@ -157,9 +157,9 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuardBase>> {
 	}
 
 	@Override
-	public Iterator<Entry<String,LTSminGuardBase>> iterator() {
-		return new Iterator<Entry<String,LTSminGuardBase>>() {
-		    Iterator<LTSminGuardBase> it = labels.iterator();
+	public Iterator<Entry<String,LTSminGuard>> iterator() {
+		return new Iterator<Entry<String,LTSminGuard>>() {
+		    Iterator<LTSminGuard> it = labels.iterator();
             Iterator<String> it2 = label_names.iterator();
 		    
 		    @Override
@@ -168,8 +168,8 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuardBase>> {
             }
 
             @Override
-            public Entry<String,LTSminGuardBase> next() {
-                return new SimpleEntry<String,LTSminGuardBase>(it2.next(), it.next());
+            public Entry<String,LTSminGuard> next() {
+                return new SimpleEntry<String,LTSminGuard>(it2.next(), it.next());
             }
 
             @Override
@@ -179,7 +179,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuardBase>> {
 		};
 	}
 
-	public LTSminGuardBase get(int i) {
+	public LTSminGuard get(int i) {
 		return labels.get(i);
 	}
 }

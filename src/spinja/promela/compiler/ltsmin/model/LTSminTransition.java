@@ -11,11 +11,15 @@ import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.actions.Action;
 import spinja.promela.compiler.automaton.Transition;
+import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
+import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.ltsmin.LTSminTreeWalker;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
+import spinja.promela.compiler.ltsmin.matrix.LTSminPCGuard;
+import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.util.StringWriter;
 
 /**
@@ -97,10 +101,24 @@ public class LTSminTransition implements LTSminGuardContainer {
 	}
 
 	public void addGuard(Expression e) {
+	    if (e instanceof CompareExpression) {
+	        CompareExpression ce = (CompareExpression) e;
+	        if (ce.getToken().equals(PromelaConstants.EQ)) {
+	            if (ce.getExpr1() instanceof Identifier) {
+	                Identifier id = (Identifier) ce.getExpr1();
+	                if (id.isPC())
+	                    throw new AssertionError("Add PCguards using pcGuard function");
+	            }
+	        }
+	    }
 		addGuard(new LTSminGuard(e));
 	}
-	
+
+    private List<LTSminPCGuard> pcGuard = new LinkedList<LTSminPCGuard>();
 	public void addGuard(LTSminGuardBase guard) {
+        if (guard instanceof LTSminPCGuard) {
+            pcGuard.add((LTSminPCGuard) guard);
+        }
 		//if(!guard.isDefinitelyTrue()) {
 			guards.add(guard);
 		//}
@@ -237,4 +255,9 @@ public class LTSminTransition implements LTSminGuardContainer {
 			begin.getProc().getID() :
 			end.getProc().getID();
 	}
+
+    public List<LTSminPCGuard> getPCGuards() {
+        if (pcGuard.size() == 0) throw new AssertionError("No PC guard for "+ this);
+        return pcGuard;
+    }
 }

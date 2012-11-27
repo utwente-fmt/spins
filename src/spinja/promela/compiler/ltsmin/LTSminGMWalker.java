@@ -18,6 +18,7 @@ import static spinja.promela.compiler.parser.PromelaConstants.INCR;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
@@ -47,6 +48,7 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spinja.promela.compiler.ltsmin.matrix.LTSminPCGuard;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
@@ -64,6 +66,8 @@ import spinja.promela.compiler.variable.VariableType;
  * A container for boolean state labels (part of which are guards), guard
  * matrices and state label matrix 
  * 
+ * TODO: assumes that different actions do not cancel each other out!
+ * 
  * @author FIB, Alfons Laarman
  */
 public class LTSminGMWalker {
@@ -75,7 +79,7 @@ public class LTSminGMWalker {
 		High
 	}
 
-	static Aggressivity aggressiveness = Aggressivity.High;
+	static Aggressivity aggressivity = Aggressivity.High;
 	static final boolean NO_NES = false;
 	static final boolean NO_NDS = false;
 
@@ -98,7 +102,9 @@ public class LTSminGMWalker {
 	 * @param model
 	 * @param debug
 	 */
-	static void generateGuardInfo(LTSminModel model, LTSminDebug debug) {
+	static void generateGuardInfo(LTSminModel model,
+	                              Map<String, LTSminGuard> labels,
+	                              LTSminDebug debug) {
 		debug.say("Generating guard information ...");
 		debug.say_indent++;
 		
@@ -110,28 +116,39 @@ public class LTSminGMWalker {
 		// extact guards
 		generateTransitionGuardLabels (params);
 
-		int nguards = guardInfo.getNumberOfGuards();
-		
+		//int nguards = guardInfo.getNumberOfGuards();
+
+		// add the normal labels
+        for (Map.Entry<String, LTSminGuard> label : labels.entrySet())
+            guardInfo.addLabel(label.getKey(), label.getValue());
+
+        // We extend the NES and NDS matrices to include all labels
+        // The special labels, e.g. progress and valid end, can then be used in
+        // LTL properties with precise (in)visibility information.
+        int nlabels = guardInfo.getNumberOfLabels();
+        
 		// generate Maybe Coenabled matrix
 		int nmce = generateCoenMatrix (model, guardInfo);
-		int mceSize = nguards*nguards/2;
+		int mceSize = nlabels*nlabels/2;
 		params.debug.say("Found "+ nmce +"/"+ mceSize +" !MCE gurads.");
-		
+    
 		// generate NES matrix
 		int nnes = generateNESMatrix (model, guardInfo);
-		int nesSize = nguards*model.getTransitions().size();
+		int nesSize = nlabels*model.getTransitions().size();
 		params.debug.say("Found "+ nnes +"/"+ nesSize +" !NES guards.");
 
 		// generate NDS matrix
 		int nnds = generateNDSMatrix (model, guardInfo);
 		params.debug.say("Found "+ nnds +"/"+ nesSize +" !NDS guards.");
+
+        generateLabelMatrix(model);
 		
 		debug.say_indent--;
 		debug.say("Generating guard information done");
 		debug.say("");
 	}
 
-	public static void generateLabelMatrix(LTSminModel model) {
+	private static void generateLabelMatrix(LTSminModel model) {
         GuardInfo guardInfo = model.getGuardInfo();
 		int nlabels = guardInfo.getNumberOfLabels();
 	    DepMatrix dm = new DepMatrix(nlabels, model.sv.size());
@@ -146,8 +163,8 @@ public class LTSminGMWalker {
 	 * ************/
 
 	private static int generateNDSMatrix(LTSminModel model, GuardInfo guardInfo) {
-        int nguards = guardInfo.getNumberOfGuards();
-		DepMatrix nds = new DepMatrix(nguards, model.getTransitions().size());
+        int nlabels = guardInfo.getNumberOfLabels();
+		DepMatrix nds = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNDSMatrix(nds);
 		int notNDS = 0;
 		for (int i = 0; i <  nds.getRows(); i++) {
@@ -166,7 +183,7 @@ public class LTSminGMWalker {
 
 	private static boolean is_nds_guard(LTSminModel model, LTSminGuard guard,
 										LTSminTransition transition) {
-		switch (aggressiveness) {
+		switch (aggressivity) {
 		case Weak:
 		case Low:
 			return is_nds_guard(model, guard.getExpr(), transition);
@@ -175,7 +192,7 @@ public class LTSminGMWalker {
 		case High:
 			return is_nds_guard_stronger(model, guard.getExpr(), transition);
 		default:
-			throw new AssertionError("Unimplemented aggressivity level: "+ aggressiveness);
+			throw new AssertionError("Unimplemented aggressivity level: "+ aggressivity);
 		}
 	}
 
@@ -189,10 +206,10 @@ public class LTSminGMWalker {
         extract_conjunctions (ga_ex, ex1);
         for (Expression e : ga_ex) {
             if (!is_nds_guard_strong(model, e, t)) {
-            	return true;
+            	return false;
             }
         }
-        return false;
+        return true;
 	}
 	
 	/**
@@ -205,10 +222,10 @@ public class LTSminGMWalker {
         extract_disjunctions (ga_ex, ex1);
         for (Expression e : ga_ex) {
             if (is_nds_guard(model, e, t)) {
-            	return false;
+            	return true;
             }
         }
-        return true;
+        return false;
 	}
 
 	private static boolean is_nds_guard(LTSminModel model, Expression guard,
@@ -217,123 +234,19 @@ public class LTSminGMWalker {
 		extract_predicates(sps, guard, true, true); // strict, because we compare future and past state vectors
 												 	// conj, since to disable the guard, one conjunction needs to be disabled
 		for (SimplePredicate sp2 : sps) {
-			for (Action a : transition.getActions()) { // TODO: assumes that actions do not conflict
-				if (!is_nxs_guard(model, sp2, a, false)) {
-					return false;
+		    // PC guards can only be disabled by the next transition
+		    if (sp2.id.isPC()) { // so exclude the others:
+		        for (LTSminPCGuard g : transition.getPCGuards()) {
+		            if (!mayBeCoenabled(model, sp2.e, g.getExpr())) return false;
+		        }
+		    }
+			for (Action a : transition.getActions()) { 
+				if (is_conflicting(model, sp2, a, true /* INVERT */)) {
+					return false; // NOT conflicting!
 				}
 			}
 		}
 		return true;
-	}
-
-	private static boolean is_nxs_guard(LTSminModel model, SimplePredicate sp2,
-										Action a, boolean enabling) {
-		SimplePredicate sp1 = new SimplePredicate();
-		if (a instanceof AssignAction) {
-			AssignAction ae = (AssignAction)a;
-			try {
-				sp1.id = getConstantId(ae.getIdentifier(), true); // strict
-			} catch (ParseException e1) {
-				return true;
-			}
-			switch (ae.getToken().kind) {
-				case ASSIGN:
-					try {
-						sp1.constant = ae.getExpr().getConstantValue();
-					} catch (ParseException e) {
-						return true;
-					}
-					sp1.comparison = enabling ? PromelaConstants.EQ : PromelaConstants.NEQ;
-					if (is_conflict_predicate(model, sp1, sp2))
-						return false;
-					break;
-				case INCR:
-					if (sp1.getRef(model).equals(sp2.getRef(model)))
-						if (enabling ? lt(sp2) : gt(sp2))
-							return false;
-					break;
-				case DECR:
-					if (sp1.getRef(model).equals(sp2.getRef(model)))
-						if (enabling ? gt(sp2) : lt(sp2))
-							return false;
-					break;
-				default:
-					throw new AssertionError("unknown assignment type");
-			}
-		} else if (a instanceof ResetProcessAction) {
-			// ResetProcessAction rpa = (ResetProcessAction)a; //TODO: reset process to init values
-			return is_nxs_guard(model, sp2, decr(id(LTSminStateVector._NR_PR)), enabling);
-		} else if (a instanceof ExprAction) {
-			Expression expr = ((ExprAction)a).getExpression();
-			if (expr.getSideEffect() == null) return true; // simple expressions are guards
-			RunExpression re = (RunExpression)expr;
-			
-			if (!is_nxs_guard(model, sp2, incr(id(LTSminStateVector._NR_PR)), enabling))
-				return false;
-
-			for (Proctype p : re.getInstances()) {
-				for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
-					Variable pc = model.sv.getPC(instance);
-					if (!is_nxs_guard(model, sp2, assign(pc, 0), enabling)) {
-						return false;
-					}
-				}
-				//write to the arguments of the target process
-				Iterator<Expression> rei = re.getExpressions().iterator();
-				for (Variable v : p.getArguments()) {
-					Expression param = rei.next();
-					if (v.getType() instanceof ChannelType || v.isStatic())
-						continue; //passed by reference or already in state vector
-					try {
-						int val = param.getConstantValue();
-						if (!is_nxs_guard(model, sp2, assign(v, val), enabling)) {
-							return false;
-						}
-					} catch (ParseException e) {}
-				}
-			}
-			for (Action rea : re.getActions()) {
-				if (!is_nxs_guard(model, sp2,  rea, enabling)) {
-					return false;
-				}
-			}
-		} else if(a instanceof ChannelSendAction) {
-			ChannelSendAction csa = (ChannelSendAction)a;
-			Identifier id = csa.getIdentifier();
-			for (int i = 0; i < csa.getExprs().size(); i++) {
-				try {
-					int val = csa.getExprs().get(i).getConstantValue();
-					Identifier next = channelNext(id, i);
-					if (!is_nxs_guard(model, sp2, assign(next, constant(val)), enabling)) {
-						return false;
-					}
-				} catch (ParseException e) {}
-			}
-			return is_nxs_guard(model, sp2, incr(chanLength(id)), enabling);
-		} else if(a instanceof OptionAction) { // options in a d_step sequence
-			//OptionAction oa = (OptionAction)a;
-			//for (Sequence seq : oa) {
-				//Action act = seq.iterator().next(); // guaranteed by parser
-				//if (act instanceof ElseAction)
-			//}
-		} else if(a instanceof ChannelReadAction) {
-			ChannelReadAction cra = (ChannelReadAction)a;
-			Identifier id = cra.getIdentifier();
-			if (!cra.isPoll()) {
-				return is_nxs_guard(model, sp2, decr(chanLength(id)), enabling);
-			}
-		}
-		return true;
-	}
-
-	private static boolean lt(SimplePredicate sp2) {
-		return sp2.comparison == PromelaConstants.LT || 
-			sp2.comparison == PromelaConstants.LTE;
-	}
-
-	private static boolean gt(SimplePredicate sp2) {
-		return sp2.comparison == PromelaConstants.GT || 
-			sp2.comparison == PromelaConstants.GTE;
 	}
 
 	/**************
@@ -341,8 +254,8 @@ public class LTSminGMWalker {
 	 * ************/
 	
 	private static int generateNESMatrix(LTSminModel model, GuardInfo guardInfo) {
-        int nguards = guardInfo.getNumberOfGuards();
-		DepMatrix nes = new DepMatrix(nguards, model.getTransitions().size());
+        int nlabels = guardInfo.getNumberOfLabels();
+		DepMatrix nes = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNESMatrix(nes);
 		int notNES = 0;
 		for (int i = 0; i <  nes.getRows(); i++) {
@@ -361,7 +274,7 @@ public class LTSminGMWalker {
 
 	private static boolean is_nes_guard(LTSminModel model, LTSminGuard guard,
 										LTSminTransition transition) {
-		switch (aggressiveness) {
+		switch (aggressivity) {
 		case Weak:
 		case Low:
 			return is_nes_guard(model, guard.getExpr(), transition);
@@ -370,7 +283,7 @@ public class LTSminGMWalker {
 		case High:
 			return is_nes_guard_stronger(model, guard.getExpr(), transition);
 		default:
-			throw new AssertionError("Unimplemented aggressivity level: "+ aggressiveness);
+			throw new AssertionError("Unimplemented aggressivity level: "+ aggressivity);
 		}
 	}
 
@@ -412,8 +325,8 @@ public class LTSminGMWalker {
 		extract_predicates(sps, guard, true, false); // strict, because we compare future and past state vectors
 													 // disj, since to re-enable the guard, one disjunction needs to be re-enabled
 		for (SimplePredicate sp2 : sps) {
-			for (Action a : transition.getActions()) { // TODO: assumes that actions do not conflict
-				if (!is_nxs_guard(model, sp2, a, true)) {
+			for (Action a : transition.getActions()) {
+				if (is_conflicting(model, sp2, a, false)) {
 					return false;
 				}
 			}
@@ -426,14 +339,14 @@ public class LTSminGMWalker {
 	 * ************/
 	
 	private static int generateCoenMatrix(LTSminModel model, GuardInfo guardInfo) {
-	    int nguards = guardInfo.getNumberOfGuards();
-		DepMatrix co = new DepMatrix(nguards, nguards);
+	    int nlabels = guardInfo.getNumberOfLabels();
+		DepMatrix co = new DepMatrix(nlabels, nlabels);
 		guardInfo.setCoMatrix(co);
 		int neverCoEnabled = 0;
-		for (int i = 0; i < nguards; i++) {
+		for (int i = 0; i < nlabels; i++) {
 			// same guard is always coenabled:
 			co.incRead(i, i);
-			for (int j = i+1; j < nguards; j++) {
+			for (int j = i+1; j < nlabels; j++) {
                 LTSminGuard g1 = (LTSminGuard) guardInfo.get(i);
                 LTSminGuard g2 = (LTSminGuard) guardInfo.get(j);
 				if (mayBeCoenabled(model, g1, g2)) {
@@ -448,7 +361,17 @@ public class LTSminGMWalker {
 	}
 	
 	private static boolean mayBeCoenabled(LTSminModel model, LTSminGuard g1, LTSminGuard g2) {
-		return mayBeCoenabledStronger (model, g1.expr, g2.expr);
+        switch (aggressivity) {
+            case Weak:
+            case Low:
+                return mayBeCoenabled(model, g1.expr, g2.expr);
+            case Normal:
+                return mayBeCoenabledStrong(model, g1.expr, g2.expr);
+            case High:
+                return mayBeCoenabledStronger(model, g1.expr, g2.expr);
+            default:
+                throw new AssertionError("Unimplemented aggressivity level: "+ aggressivity);
+        }
 	}
 
 	/**
@@ -527,12 +450,14 @@ public class LTSminGMWalker {
 
 	static class SimplePredicate {
 		public SimplePredicate() {}
-		public SimplePredicate(int kind, Identifier id, int c) {
-			comparison = kind;
+		public SimplePredicate(Expression e, Identifier id, int c) {
+			comparison = e.getToken().kind;
 			this.id = id;
 			this.constant = c;
+			this.e = e;
 		}
 
+		public Expression e;
 		public int comparison;
 		public Identifier id;
 		public String ref = null;
@@ -568,6 +493,132 @@ public class LTSminGMWalker {
         return true;
 	}
 
+    /**
+     * Returns whether an action CONFLICTS with a simple predicate, e.g.:
+     * x := 5 && x == 4
+     * 
+     * This is an under-estimation! Therefore, a negative result is useless. For
+     * For testing on the negation, use the invert flag.
+     * 
+     * @param model
+     * @param sp2 the simple predicate (x == 4)
+     * @param a the action
+     * @param invert if true: the action is inverted: x := 5 --> x := !5
+     * @return true if conflict is found, FALSE IF UNKNOWN
+     */
+    private static boolean is_conflicting(LTSminModel model, SimplePredicate sp2,
+                                          Action a, boolean invert) {
+        SimplePredicate sp1 = new SimplePredicate();
+        if (a instanceof AssignAction) {
+            AssignAction ae = (AssignAction)a;
+            try {
+                sp1.id = getConstantId(ae.getIdentifier(), true); // strict
+            } catch (ParseException e1) {
+                return false;
+            }
+            switch (ae.getToken().kind) {
+                case ASSIGN:
+                    try {
+                        sp1.constant = ae.getExpr().getConstantValue();
+                    } catch (ParseException e) {
+                        return false;
+                    }
+                    sp1.comparison = invert ? PromelaConstants.NEQ : PromelaConstants.EQ;
+                    if (is_conflict_predicate(model, sp1, sp2))
+                        return true;
+                    break;
+                case INCR:
+                    if (sp1.getRef(model).equals(sp2.getRef(model)))
+                        if (invert ? gt(sp2) : lt(sp2))
+                            return true;
+                    break;
+                case DECR:
+                    if (sp1.getRef(model).equals(sp2.getRef(model)))
+                        if (invert ? lt(sp2) : gt(sp2))
+                            return true;
+                    break;
+                default:
+                    throw new AssertionError("unknown assignment type");
+            }
+        } else if (a instanceof ResetProcessAction) {
+            ResetProcessAction rpa = (ResetProcessAction)a;
+            Variable pc = model.sv.getPC(rpa.getProcess());
+            if (is_conflicting(model, sp2, assign(pc, -1), invert))
+                return true;
+            return is_conflicting(model, sp2, decr(id(LTSminStateVector._NR_PR)), invert);
+        } else if (a instanceof ExprAction) {
+            Expression expr = ((ExprAction)a).getExpression();
+            if (expr.getSideEffect() == null) return false; // simple expressions are guards
+            RunExpression re = (RunExpression)expr;
+            
+            if (is_conflicting(model, sp2, incr(id(LTSminStateVector._NR_PR)), invert))
+                return true;
+
+            for (Proctype p : re.getInstances()) {
+                for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
+                    Variable pc = model.sv.getPC(instance);
+                    if (is_conflicting(model, sp2, assign(pc, 0), invert)) {
+                        return true;
+                    }
+                }
+                //write to the arguments of the target process
+                Iterator<Expression> rei = re.getExpressions().iterator();
+                for (Variable v : p.getArguments()) {
+                    Expression param = rei.next();
+                    if (v.getType() instanceof ChannelType || v.isStatic())
+                        continue; //passed by reference or already in state vector
+                    try {
+                        int val = param.getConstantValue();
+                        if (is_conflicting(model, sp2, assign(v, val), invert)) {
+                            return true;
+                        }
+                    } catch (ParseException e) {}
+                }
+            }
+            for (Action rea : re.getActions()) {
+                if (is_conflicting(model, sp2,  rea, invert)) {
+                    return true;
+                }
+            }
+        } else if(a instanceof ChannelSendAction) {
+            ChannelSendAction csa = (ChannelSendAction)a;
+            Identifier id = csa.getIdentifier();
+            for (int i = 0; i < csa.getExprs().size(); i++) {
+                try {
+                    int val = csa.getExprs().get(i).getConstantValue();
+                    Identifier next = channelNext(id, i);
+                    if (is_conflicting(model, sp2, assign(next, constant(val)), invert)) {
+                        return true;
+                    }
+                } catch (ParseException e) {}
+            }
+            return is_conflicting(model, sp2, incr(chanLength(id)), invert);
+        } else if(a instanceof OptionAction) { // options in a d_step sequence
+            //OptionAction oa = (OptionAction)a;
+            //for (Sequence seq : oa) {
+                //Action act = seq.iterator().next(); // guaranteed by parser
+                //if (act instanceof ElseAction)
+            //}
+        } else if(a instanceof ChannelReadAction) {
+            ChannelReadAction cra = (ChannelReadAction)a;
+            Identifier id = cra.getIdentifier();
+            if (!cra.isPoll()) {
+                return is_conflicting(model, sp2, decr(chanLength(id)), invert);
+            }
+        }
+        return false;
+    }
+
+    private static boolean lt(SimplePredicate sp2) {
+        return sp2.comparison == PromelaConstants.LT || 
+            sp2.comparison == PromelaConstants.LTE;
+    }
+
+    private static boolean gt(SimplePredicate sp2) {
+        return sp2.comparison == PromelaConstants.GT || 
+            sp2.comparison == PromelaConstants.GTE;
+    }
+
 	/**
 	 * Collects all simple predicates in an expression e.
 	 * SimplePred ::= cvarref <comparison> constant | constant <comparison> cvarref
@@ -586,12 +637,12 @@ public class LTSminGMWalker {
     		try {
     			id = getConstantId(ce1.getExpr1(), strict);
     			c = ce1.getExpr2().getConstantValue();
-        		sp.add(new SimplePredicate(e.getToken().kind, id, c));
+        		sp.add(new SimplePredicate(e, id, c));
     		} catch (ParseException pe) {
         		try {
         			id = getConstantId(ce1.getExpr2(), strict);
         			c = ce1.getExpr1().getConstantValue();
-            		sp.add(new SimplePredicate(e.getToken().kind, id, c));
+            		sp.add(new SimplePredicate(e, id, c));
         		} catch (ParseException pe2) {}
     		}
 		} else if (e instanceof ChannelReadExpression) { //TODO: isRandom (disjunction of conjunctions)

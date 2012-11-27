@@ -14,6 +14,7 @@
 
 package spinja.promela.compiler.expression;
 
+import static spinja.promela.compiler.parser.Promela.C_STATE_PROC_COUNTER;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -205,5 +206,9 @@ public class Identifier extends Expression {
 
     public void setInstanceIndex(int instanceIndex) {
         this.instanceIndex = instanceIndex;
+    }
+
+    public boolean isPC() {
+        return getVariable().getName().equals(C_STATE_PROC_COUNTER);
     }
 }

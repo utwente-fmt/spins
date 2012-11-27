@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
@@ -66,6 +67,7 @@ import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
 import spinja.promela.compiler.ltsmin.LTSminDebug.MessageKind;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
@@ -137,9 +139,7 @@ public class LTSminTreeWalker {
 		createModelTransitions();
 		createModelAssertions();
 		LTSminDMWalker.walkModel(model, debug);
-		LTSminGMWalker.generateGuardInfo(model, debug);
-        addSpecialStateLabels();
-        LTSminGMWalker.generateLabelMatrix(model);
+		LTSminGMWalker.generateGuardInfo(model, getSpecialStateLabels(), debug);
 		return model;
 	}
 
@@ -160,58 +160,58 @@ public class LTSminTreeWalker {
 	 * Set accepting state, valid end-state and progress-state conditions for this model. 
 	 * Accepting condition semantics are overloaded with valid end state semantics.
 	 */
-    private void addSpecialStateLabels() {
+    private Map<String, LTSminGuard> getSpecialStateLabels() {
+        Map<String, LTSminGuard> labels = new HashMap<String, LTSminGuard>();
 		if (NEVER) {
 			Proctype never = spec.getNever();
-			LTSminGuardOr or = new LTSminGuardOr();
+			Expression or = null;
 			if (never.getStartState().isAcceptState()) {
 	            Variable pc = model.sv.getPC(never);
 			    Expression g = compare(PromelaConstants.EQ, id(pc), constant(-1));
-			    or.addGuard(g); // Or
+			    or = or == null ? g : or(or, g) ; // Or
 			}
 			for (State s : never.getAutomaton()) {
 				if (s.isAcceptState()) {
-				    Expression g = pcGuard(model, s, never);
-					or.addGuard(g);
+				    Expression g = pcGuard(model, s, never).getExpr();
+				    or = or == null ? g : or(or, g) ; // Or
 				}
 			}
-			model.getGuardInfo().addLabel("accept_buchi", or);
+			if (or != null) // maybe a never claim with an invariant (assertion)
+			    labels.put("accept_buchi", new LTSminGuard(or));
 		}
 		
 		{
-            LTSminGuardOr or = new LTSminGuardOr();
+            Expression or = null;
     		for (ProcInstance pi : spec) {
     		    for (State s : pi.getAutomaton()) {
     		        if (s.isProgressState()) {
-    		            Expression g = pcGuard(model, s, pi);
-                        or.addGuard(g);
+    		            Expression g = pcGuard(model, s, pi).getExpr();
+    	                or = or == null ? g : or(or, g) ; // Or
     		        }
     		    }
     		}
-    		if (or.guards.size() != 0)
-    		    model.getGuardInfo().addLabel("progress", or);
+    		if (or != null)
+    		    labels.put("progress", new LTSminGuard(or));
 		}
 
 		{
-            LTSminGuardOr end = new LTSminGuardOr();
-    		Expression e = compare(PromelaConstants.EQ, id(_NR_PR), constant(0));
-    		end.addGuard(e); // Or
-    		LTSminGuardAnd and = new LTSminGuardAnd();
+    		Expression end = compare(PromelaConstants.EQ, id(_NR_PR), constant(0)); // or
+    		Expression and = null;
         	for (ProcInstance instance : spec) {
-        		LTSminGuardOr or = new LTSminGuardOr();
     			Variable pc = model.sv.getPC(instance);
-    			e = compare(PromelaConstants.EQ, id(pc), constant(-1));
-        		or.addGuard(e);
+                Expression labeled = compare(PromelaConstants.EQ, id(pc), constant(-1));
     	    	for (State s : instance.getAutomaton()) {
     		    	if (s.hasLabelPrefix("end")) {
-    		    		or.addGuard(pcGuard(model, s, instance));
+    		    		labeled = or(labeled, pcGuard(model, s, instance).getExpr()); // Or
     		    	}
     	    	}
-    	    	and.addGuard(or);
+    	    	and = and == null ? labeled : and(and, labeled) ; // And
         	}
-        	end.addGuard(and);
-    		model.getGuardInfo().addLabel("end_valid", end);
+        	if (and != null)
+        	    end = or(end, and); // Or
+    		labels.put("end_valid", new LTSminGuard(end));
 		}
+		return labels;
 	}
 
     private List<String> iCount = new ArrayList<String>();

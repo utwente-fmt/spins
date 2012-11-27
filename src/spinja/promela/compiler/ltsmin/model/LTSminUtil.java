@@ -23,6 +23,7 @@ import spinja.promela.compiler.expression.ConstantExpression;
 import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
+import spinja.promela.compiler.ltsmin.matrix.LTSminPCGuard;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.parser.ParseException;
@@ -140,12 +141,12 @@ public class LTSminUtil {
 	}
 	
 	/** Guards **/
-	public static Expression pcGuard(LTSminModel model, State s, Proctype p) {
+	public static LTSminPCGuard pcGuard(LTSminModel model, State s, Proctype p) {
 		Variable pc = model.sv.getPC(p);
 		Expression left = id(pc);
 		Expression right = constant(s.getStateId());
 		Expression e = compare(PromelaConstants.EQ, left, right);
-		return e;
+		return new LTSminPCGuard(e);
 	}
 
 	public static Expression dieGuard(LTSminModel model, Proctype p) {
