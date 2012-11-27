@@ -90,16 +90,6 @@ public class LTSminTransition implements LTSminGuardContainer {
 		this.guards = guards;
 	}
 
-	public void addGuard(int index, Expression e) {
-		addGuard(index, new LTSminGuard(e));
-	}
-	
-	public void addGuard(int index, LTSminGuardBase guard) {
-		//if(!guard.isDefinitelyTrue()) {
-			guards.add(index, guard);
-		//}
-	}
-
 	public void addGuard(Expression e) {
 	    if (e instanceof CompareExpression) {
 	        CompareExpression ce = (CompareExpression) e;

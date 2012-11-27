@@ -95,7 +95,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
         label_names.add(name);
     }
 
-	private int getGuard(LTSminGuard g) { //TODO: HashSet + equals() + hash()
+	public int getGuard(LTSminGuard g) { //TODO: HashSet + equals() + hash()
 		for (int i = 0; i < labels.size(); i++) {
 			LTSminGuard other = get(i);
 			if (other.equals(g))

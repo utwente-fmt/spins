@@ -162,6 +162,11 @@ public class LTSminGMWalker {
 	 * NDS
 	 * ************/
 
+    /**
+     * Over estimates whether guard, transition in NDS
+     *
+     * @return false of trans,guard not in nes, TRUE IF UNKNOWN
+     */
 	private static int generateNDSMatrix(LTSminModel model, GuardInfo guardInfo) {
         int nlabels = guardInfo.getNumberOfLabels();
 		DepMatrix nds = new DepMatrix(nlabels, model.getTransitions().size());
@@ -197,8 +202,8 @@ public class LTSminGMWalker {
 	}
 
 	/**
-	 * Determine NDS over conjuctions: NDS holds for ex1 and trans iff 
-	 * it holds for one e,t in conjuctions(ex1) X {trans}
+	 * Determine NDS over conjunctions: not NDS holds for ex1 and trans iff 
+	 * it holds for one e,t in conjunctions(ex1) X {trans}
 	 */
 	private static boolean is_nds_guard_stronger(LTSminModel model, Expression ex1,
 												 LTSminTransition t) {
@@ -213,8 +218,8 @@ public class LTSminGMWalker {
 	}
 	
 	/**
-	 * Determine NDS over disjuctions: NDS holds for ex1 and trans iff 
-	 * it holds for all e,t in disjuctions(ex1) X {trans}
+	 * Determine NDS over disjunctions: not NDS holds for ex1 and trans iff 
+	 * it holds for all e,t in disjunctions(ex1) X {trans}
 	 */
 	private static boolean is_nds_guard_strong(LTSminModel model, Expression ex1,
 											   LTSminTransition t) {
@@ -231,8 +236,7 @@ public class LTSminGMWalker {
 	private static boolean is_nds_guard(LTSminModel model, Expression guard,
 										LTSminTransition transition) {
         List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
-		extract_predicates(sps, guard, true, true); // strict, because we compare future and past state vectors
-												 	// conj, since to disable the guard, one conjunction needs to be disabled
+		extract_conjunct_predicates(sps, guard, true); // strict, because we compare future and past state vectors
 		for (SimplePredicate sp2 : sps) {
 		    // PC guards can only be disabled by the next transition
 		    if (sp2.id.isPC()) { // so exclude the others:
@@ -241,7 +245,7 @@ public class LTSminGMWalker {
 		        }
 		    }
 			for (Action a : transition.getActions()) { 
-				if (is_conflicting(model, sp2, a, true /* INVERT */)) {
+				if (definately_disagrees_with(model, sp2, a)) {
 					return false; // NOT conflicting!
 				}
 			}
@@ -272,6 +276,11 @@ public class LTSminGMWalker {
 		return notNES;
 	}
 
+	/**
+	 * Over estimates whether guard, transition in NES 
+     *
+	 * @return false of trans,guard not in nes, TRUE IF UNKNOWN
+	 */
 	private static boolean is_nes_guard(LTSminModel model, LTSminGuard guard,
 										LTSminTransition transition) {
 		switch (aggressivity) {
@@ -288,8 +297,8 @@ public class LTSminGMWalker {
 	}
 
 	/**
-	 * Determine NES over disjuctions: NES holds for ex1 and trans iff 
-	 * it holds for all e,t in disjuctions(ex1) X {trans}
+	 * Determine NES over disjunctions: not NES holds for ex1 and trans iff 
+	 * it holds for one e,t in disjunctions(ex1) X {trans}
 	 */
 	private static boolean is_nes_guard_stronger(LTSminModel model, Expression ex1,
 												 LTSminTransition t) {
@@ -304,8 +313,8 @@ public class LTSminGMWalker {
 	}
 	
 	/**
-	 * Determine NES over conjuctions: NES holds for ex1 and trans iff 
-	 * it holds for one e,t in conjuctions(ex1) X {trans}
+	 * Determine NES over conjunctions: not NES holds for ex1 and trans iff 
+	 * it holds for all e,t in conjunctions(ex1) X {trans}
 	 */
 	private static boolean is_nes_guard_strong(LTSminModel model, Expression ex1,
 											   LTSminTransition t) {
@@ -319,20 +328,54 @@ public class LTSminGMWalker {
         return false;
 	}
 
+	/**
+	 * Determines whether a transition is necessary enabling for a guard by
+	 * checking whether one of its assignments conflicts with a simple predicate
+	 * in the conjunctions of the guard 
+	 * 
+	 * @param model
+	 * @param guard
+	 * @param transition
+	 * @return false is the guard is not enabled by the transition, TRUE IF UNKNOWN (overestimation)
+	 */
 	private static boolean is_nes_guard(LTSminModel model, Expression guard,
 										LTSminTransition transition) {
         List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
-		extract_predicates(sps, guard, true, false); // strict, because we compare future and past state vectors
-													 // disj, since to re-enable the guard, one disjunction needs to be re-enabled
+		extract_conjunct_predicates(sps, guard, true); // strict, because we compare future and past state vectors
 		for (SimplePredicate sp2 : sps) {
 			for (Action a : transition.getActions()) {
-				if (is_conflicting(model, sp2, a, false)) {
-					return false;
+				if (!definately_disagrees_with(model, sp2, a)) {
+					return true;
+				} else if (sp2.id.isPC() && sps.size()==1) { // self loops are never NES for PC guards:
+				    if (!(a instanceof AssignAction))
+				        continue;
+		            AssignAction ae = (AssignAction)a;
+		            Identifier id2;
+		            try {
+		                id2 = getConstantId(ae.getIdentifier(), true);
+		            } catch (ParseException e) {
+		                continue;
+		            }
+		            if (!id2.isPC() || !sp2.id.equals(id2))
+		                continue;
+		            try {
+                        if (sp2.constant != ae.getExpr().getConstantValue())
+                            continue;
+                    } catch (ParseException e) {
+                        continue;
+                    }
+		            return false;
 				}
 			}
 		}
-		return true;
+		return false; // all actions definitely disagree with the conjuncts in guard
+		              // in other words: no action enables a conjunct!
 	}
+
+    private static boolean definately_disagrees_with(LTSminModel model,
+                                                SimplePredicate sp2, Action a) {
+        return is_conflicting(model, sp2, a, true);
+    }
 
 	/**************
 	 * MCE
@@ -394,24 +437,6 @@ public class LTSminGMWalker {
 	}
 
 	/**
-	 * Extracts all conjuctions until disjunctions or arithmicExpr are encountered
-	 */
-	private static void extract_conjunctions (List<Expression> ds, Expression e) {
-		if(e instanceof BooleanExpression) {
-			BooleanExpression ce = (BooleanExpression)e;
-			if (ce.getToken().kind == PromelaTokenManager.BAND ||
-				ce.getToken().kind == PromelaTokenManager.LAND) {
-				extract_disjunctions (ds, ce.getExpr1());
-				extract_disjunctions (ds, ce.getExpr2());
-			} else {
-				ds.add(e);
-			}
-		} else {
-			ds.add(e);
-		}
-	}	
-	
-	/**
 	 * Determine MCE over disjuctions: MCE holds for ex1 and ex2 iff 
 	 * it holds for one d1,d2 in disjuctions(ex1) X disjunctions(ex2)
 	 */
@@ -428,24 +453,6 @@ public class LTSminGMWalker {
             }
         }
         return false;
-	}
-
-	/**
-	 * Extracts all disjuctions until conjunctions or arithmicExpr are encountered
-	 */
-	private static void extract_disjunctions (List<Expression> ds, Expression e) {
-		if(e instanceof BooleanExpression) {
-			BooleanExpression ce = (BooleanExpression)e;
-			if (ce.getToken().kind == PromelaTokenManager.BOR ||
-				ce.getToken().kind == PromelaTokenManager.LOR) {
-				extract_disjunctions (ds, ce.getExpr1());
-				extract_disjunctions (ds, ce.getExpr2());
-			} else {
-				ds.add(e);
-			}
-		} else {
-			ds.add(e);
-		}
 	}
 
 	static class SimplePredicate {
@@ -481,8 +488,8 @@ public class LTSminGMWalker {
 	private static boolean mayBeCoenabled(LTSminModel model, Expression ex1, Expression ex2) {
         List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
         List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
-        extract_predicates(ga_sp, ex1, false, true); // non-strict, since MCE holds for the same state
-        extract_predicates(gb_sp, ex2, false, true); // conj, since only one conj has to conflict for the guards to conflict
+        extract_conjunct_predicates(ga_sp, ex1, false); // non-strict, since MCE holds for the same state
+        extract_conjunct_predicates(gb_sp, ex2, false);
         for(SimplePredicate a : ga_sp) {
             for(SimplePredicate b : gb_sp) {
                 if (is_conflict_predicate(model, a, b)) {
@@ -628,8 +635,8 @@ public class LTSminGMWalker {
 	 * @param strict indicates whether we look for strictly constant variables:
 	 * ie. non-array variables or array variables with constant index
 	 */
-	private static void extract_predicates(List<SimplePredicate> sp, Expression e,
-										   boolean strict, boolean conj) {
+	private static void extract_conjunct_predicates(List<SimplePredicate> sp, Expression e,
+										   boolean strict) {
 		int c;
     	if (e instanceof CompareExpression) {
     		CompareExpression ce1 = (CompareExpression)e;
@@ -648,7 +655,7 @@ public class LTSminGMWalker {
 		} else if (e instanceof ChannelReadExpression) { //TODO: isRandom (disjunction of conjunctions)
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
-			extract_predicates(sp, chanContentsGuard(id), strict, conj);
+			extract_conjunct_predicates(sp, chanContentsGuard(id), strict);
 			List<Expression> exprs = cre.getExprs();
 			for (int i = 0; i < exprs.size(); i++) {
 				try { // this is a conjunction of matchings
@@ -656,7 +663,7 @@ public class LTSminGMWalker {
 					Identifier read = channelBottom(id, i);
 					CompareExpression compare = compare(PromelaConstants.EQ,
 														read, constant(val));
-					extract_predicates(sp, compare, strict, conj);
+					extract_conjunct_predicates(sp, compare, strict);
 		    	} catch (ParseException pe2) {}
 			}
     	} else if (e instanceof ChannelOperation) {
@@ -683,30 +690,58 @@ public class LTSminGMWalker {
 				op = PromelaConstants.NEQ;
 				right = constant (buffer);
 			}
-			extract_predicates(sp, compare(op, left, right), strict, conj);
+			extract_conjunct_predicates(sp, compare(op, left, right), strict);
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
 			Variable pc = rr.getPC(null);
 			int num = rr.getLabelId();
 			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
-			extract_predicates(sp, comp, strict, conj);
+			extract_conjunct_predicates(sp, comp, strict);
     	} else if (e instanceof BooleanExpression) {
     		BooleanExpression ce = (BooleanExpression)e;
-    		if (conj) {
-	    		if (ce.getToken().kind == PromelaTokenManager.BAND ||
-	    			ce.getToken().kind == PromelaTokenManager.LAND) {
-	    			extract_predicates (sp, ce.getExpr1(), strict, conj);
-	    			extract_predicates (sp, ce.getExpr2(), strict, conj);
-	    		}
-    		} else { // disjunctions
-	    		if (ce.getToken().kind == PromelaTokenManager.BOR ||
-	    			ce.getToken().kind == PromelaTokenManager.LOR) {
-	    			extract_predicates (sp, ce.getExpr1(), strict, conj);
-	    			extract_predicates (sp, ce.getExpr2(), strict, conj);
-	    		}
+    		if (ce.getToken().kind == PromelaTokenManager.BAND ||
+    			ce.getToken().kind == PromelaTokenManager.LAND) {
+    			extract_conjunct_predicates (sp, ce.getExpr1(), strict);
+    			extract_conjunct_predicates (sp, ce.getExpr2(), strict);
     		}
 		}
 	}
+
+    /**
+     * Extracts all disjunctions until conjunctions or arithmicExpr are encountered
+     */
+    private static void extract_disjunctions (List<Expression> ds, Expression e) {
+        if(e instanceof BooleanExpression) {
+            BooleanExpression ce = (BooleanExpression)e;
+            if (ce.getToken().kind == PromelaTokenManager.BOR ||
+                ce.getToken().kind == PromelaTokenManager.LOR) {
+                extract_disjunctions (ds, ce.getExpr1());
+                extract_disjunctions (ds, ce.getExpr2());
+            } else {
+                ds.add(e);
+            }
+        } else {
+            ds.add(e);
+        }
+    }
+
+    /**
+     * Extracts all conjunctions until disjunctions or arithmicExpr are encountered
+     */
+    private static void extract_conjunctions (List<Expression> ds, Expression e) {
+        if(e instanceof BooleanExpression) {
+            BooleanExpression ce = (BooleanExpression)e;
+            if (ce.getToken().kind == PromelaTokenManager.BAND ||
+                ce.getToken().kind == PromelaTokenManager.LAND) {
+                extract_disjunctions (ds, ce.getExpr1());
+                extract_disjunctions (ds, ce.getExpr2());
+            } else {
+                ds.add(e);
+            }
+        } else {
+            ds.add(e);
+        }
+    }   
 
 	/**
 	 * Tries to parse an expression as a reference to a singular (channel)

@@ -1,6 +1,7 @@
 package spinja.promela.compiler.ltsmin.matrix;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -96,4 +97,20 @@ public class DepMatrix {
 	public DepRow getRow(int trans) {
 		return dep_matrix.get(trans);
 	}
+
+    public boolean isRead(int row, int col) {
+        return getRow(row).getRead(col) > 0;
+    }
+
+    public boolean isWrite(int row, int col) {
+        return getRow(row).getWrite(col) > 0;
+    }
+
+    public List<Integer> getReads(int row) {
+        return getRow(row).getReads();
+    }
+
+    public List<Integer> getWrites(int row) {
+        return getRow(row).getWrites();
+    }
 }
