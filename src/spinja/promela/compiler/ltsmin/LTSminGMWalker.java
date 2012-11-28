@@ -48,7 +48,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spinja.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spinja.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
-import spinja.promela.compiler.ltsmin.matrix.LTSminPCGuard;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
@@ -172,11 +171,19 @@ public class LTSminGMWalker {
 		DepMatrix nds = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNDSMatrix(nds);
 		int notNDS = 0;
+
+        List<List<Integer>> guards = model.getGuardInfo().getTransMatrix();
+        DepMatrix coen = model.getGuardInfo().getCoMatrix();
+		
 		for (int i = 0; i <  nds.getRows(); i++) {
 			for (int j = 0; j < nds.getRowLength(); j++) {
 				LTSminTransition trans = model.getTransitions().get(j);
 				LTSminGuard g = (LTSminGuard) guardInfo.get(i);
-				if (NO_NDS || is_nds_guard(model, g, trans)) {
+				boolean coenabled = true;
+				for (int g2 : guards.get(j)) {
+				    if (!coen.isRead(i, g2)) coenabled = false;
+				}
+				if (NO_NDS || (coenabled && is_nds_guard(model, g, trans))) {
 					nds.incRead(i, j);
 				} else {
 					notNDS++;
@@ -233,20 +240,24 @@ public class LTSminGMWalker {
         return false;
 	}
 
+    /**
+     * Determines whether a transition is necessary disabling for a guard.
+     * 
+     * @return false is the guard is not NECESSARILY disabled by the transition,
+     *         TRUE IF UNKNOWN (overestimation)
+     */
 	private static boolean is_nds_guard(LTSminModel model, Expression guard,
 										LTSminTransition transition) {
+										//throws ParseException {
         List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
 		extract_conjunct_predicates(sps, guard, true); // strict, because we compare future and past state vectors
+		boolean raise = true;
 		for (SimplePredicate sp2 : sps) {
-		    // PC guards can only be disabled by the next transition
-		    if (sp2.id.isPC()) { // so exclude the others:
-		        for (LTSminPCGuard g : transition.getPCGuards()) {
-		            if (!mayBeCoenabled(model, sp2.e, g.getExpr())) return false;
-		        }
-		    }
 			for (Action a : transition.getActions()) { 
-				if (definately_disagrees_with(model, sp2, a)) {
-					return false; // NOT conflicting!
+				if (definately_agrees_with(model, sp2, a)) {
+					return false;
+				} else if (raise && !definately_disagrees_with(model, sp2, a)) {
+				    raise = false;
 				}
 			}
 		}
@@ -261,12 +272,21 @@ public class LTSminGMWalker {
         int nlabels = guardInfo.getNumberOfLabels();
 		DepMatrix nes = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNESMatrix(nes);
+
+		List<List<Integer>> guards = model.getGuardInfo().getTransMatrix();
+        DepMatrix coen = model.getGuardInfo().getCoMatrix();
+
 		int notNES = 0;
 		for (int i = 0; i <  nes.getRows(); i++) {
 			for (int j = 0; j < nes.getRowLength(); j++) {
 				LTSminTransition trans = model.getTransitions().get(j);
                 LTSminGuard g = (LTSminGuard) guardInfo.get(i);
-				if (NO_NES || is_nes_guard(model, g, trans)) {
+
+                boolean codisabled = false;
+                for (int g2 : guards.get(j)) {
+                    if (coen.isRead(i, g2)) codisabled = true;
+                }
+                if (NO_NES || (codisabled && is_nes_guard(model, g, trans))) {
 					nes.incRead(i, j);
 				} else {
 					notNES++;
@@ -296,47 +316,51 @@ public class LTSminGMWalker {
 		}
 	}
 
-	/**
-	 * Determine NES over disjunctions: not NES holds for ex1 and trans iff 
-	 * it holds for one e,t in disjunctions(ex1) X {trans}
-	 */
-	private static boolean is_nes_guard_stronger(LTSminModel model, Expression ex1,
-												 LTSminTransition t) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        extract_disjunctions (ga_ex, ex1);
-        for (Expression e : ga_ex) {
-            if (!is_nes_guard_strong(model, e, t)) {
-            	return false;
-            }
-        }
-        return true;
-	}
 	
 	/**
 	 * Determine NES over conjunctions: not NES holds for ex1 and trans iff 
 	 * it holds for all e,t in conjunctions(ex1) X {trans}
 	 */
-	private static boolean is_nes_guard_strong(LTSminModel model, Expression ex1,
+	private static boolean is_nes_guard_stronger(LTSminModel model, Expression ex1,
 											   LTSminTransition t) {
         List<Expression> ga_ex = new ArrayList<Expression>();
         extract_conjunctions (ga_ex, ex1);
         for (Expression e : ga_ex) {
-            if (is_nes_guard(model, e, t)) {
+            if (is_nes_guard_strong(model, e, t)) {
             	return true;
             }
         }
         return false;
 	}
+	
+    /**
+     * Determine NES over disjunctions: not NES holds for ex1 and trans iff 
+     * it holds for one e,t in disjunctions(ex1) X {trans}
+     */
+    private static boolean is_nes_guard_strong(LTSminModel model, Expression ex1,
+                                                 LTSminTransition t) {
+        List<Expression> ga_ex = new ArrayList<Expression>();
+        extract_disjunctions (ga_ex, ex1);
+        for (Expression e : ga_ex) {
+            if (!is_nes_guard(model, e, t)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
 	/**
-	 * Determines whether a transition is necessary enabling for a guard by
-	 * checking whether one of its assignments conflicts with a simple predicate
-	 * in the conjunctions of the guard 
+	 * Determines whether a transition is necessary enabling for a guard.
+	 * We select all guards (return true) that are directly enabled by the
+	 * transition, and those for which we cannot determine this precisely.
+	 * In other words, we know for sure that a guard is NOT NES, iff its
+	 * assignment disagrees with a conjunct in the guard.
 	 * 
 	 * @param model
 	 * @param guard
 	 * @param transition
-	 * @return false is the guard is not enabled by the transition, TRUE IF UNKNOWN (overestimation)
+	 * @return false is the guard is not NECESSARILY enabled by the transition,
+	 *         TRUE IF UNKNOWN (overestimation)
 	 */
 	private static boolean is_nes_guard(LTSminModel model, Expression guard,
 										LTSminTransition transition) {
@@ -344,36 +368,24 @@ public class LTSminGMWalker {
 		extract_conjunct_predicates(sps, guard, true); // strict, because we compare future and past state vectors
 		for (SimplePredicate sp2 : sps) {
 			for (Action a : transition.getActions()) {
-				if (!definately_disagrees_with(model, sp2, a)) {
-					return true;
-				} else if (sp2.id.isPC() && sps.size()==1) { // self loops are never NES for PC guards:
-				    if (!(a instanceof AssignAction))
-				        continue;
-		            AssignAction ae = (AssignAction)a;
-		            Identifier id2;
-		            try {
-		                id2 = getConstantId(ae.getIdentifier(), true);
-		            } catch (ParseException e) {
-		                continue;
-		            }
-		            if (!id2.isPC() || !sp2.id.equals(id2))
-		                continue;
-		            try {
-                        if (sp2.constant != ae.getExpr().getConstantValue())
-                            continue;
-                    } catch (ParseException e) {
-                        continue;
-                    }
-		            return false;
-				}
+                if (definately_disagrees_with(model, sp2, a)) {
+                    return false;
+				} // cannot exclude self loops on PCs, because we exclude all
+                  // transitions that only indirectly influence the guard.
+                  // In other words, a not NES transition may lead to enabling
+                  // the PC, but not the guard.
 			}
 		}
-		return false; // all actions definitely disagree with the conjuncts in guard
-		              // in other words: no action enables a conjunct!
+		return true;
 	}
 
     private static boolean definately_disagrees_with(LTSminModel model,
                                                 SimplePredicate sp2, Action a) {
+        return is_conflicting(model, sp2, a, false);
+    }
+
+    private static boolean definately_agrees_with(LTSminModel model,
+                                                  SimplePredicate sp2, Action a) {
         return is_conflicting(model, sp2, a, true);
     }
 
@@ -455,32 +467,6 @@ public class LTSminGMWalker {
         return false;
 	}
 
-	static class SimplePredicate {
-		public SimplePredicate() {}
-		public SimplePredicate(Expression e, Identifier id, int c) {
-			comparison = e.getToken().kind;
-			this.id = id;
-			this.constant = c;
-			this.e = e;
-		}
-
-		public Expression e;
-		public int comparison;
-		public Identifier id;
-		public String ref = null;
-		public int constant;
-
-		public String getRef(LTSminModel model) {
-			if (null!= ref)
-				return ref;
-			LTSminPointer svp = new LTSminPointer(model.sv, "");
-			ExprPrinter p = new ExprPrinter(svp);
-			ref = p.print(id);
-			assert (!ref.equals(LTSminPrinter.SCRATCH_VARIABLE)); // write-only
-			return ref;
-		}
-	}
-
 	/**
 	 * Determine MCE over conjunctions: MCE holds for ex1 and ex2 iff 
 	 * all sp1,sp2 in simplePreds(ex1) X simplePreds(ex2) do no conflict
@@ -499,6 +485,32 @@ public class LTSminGMWalker {
         }
         return true;
 	}
+
+    static class SimplePredicate {
+        public SimplePredicate() {}
+        public SimplePredicate(Expression e, Identifier id, int c) {
+            comparison = e.getToken().kind;
+            this.id = id;
+            this.constant = c;
+            this.e = e;
+        }
+
+        public Expression e;
+        public int comparison;
+        public Identifier id;
+        public String ref = null;
+        public int constant;
+
+        public String getRef(LTSminModel model) {
+            if (null!= ref)
+                return ref;
+            LTSminPointer svp = new LTSminPointer(model.sv, "");
+            ExprPrinter p = new ExprPrinter(svp);
+            ref = p.print(id);
+            assert (!ref.equals(LTSminPrinter.SCRATCH_VARIABLE)); // write-only
+            return ref;
+        }
+    }
 
     /**
      * Returns whether an action CONFLICTS with a simple predicate, e.g.:
