@@ -36,6 +36,13 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	private DepMatrix co_matrix;
 
 	/**
+     *        guards >
+     * guards ...    ...
+     *   v    ...    ...
+     */
+    private DepMatrix codis_matrix;
+
+	/**
 	 *        trans >
 	 * guards ...    ...
 	 *   v    ...    ...
@@ -182,4 +189,12 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	public LTSminGuard get(int i) {
 		return labels.get(i);
 	}
+
+    public void setCoDisMatrix(DepMatrix codis) {
+        codis_matrix = codis;
+    }
+    
+    public DepMatrix getCoDisMatrix() {
+        return codis_matrix;
+    }
 }
