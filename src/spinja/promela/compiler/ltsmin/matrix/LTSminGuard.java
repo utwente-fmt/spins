@@ -1,7 +1,10 @@
 package spinja.promela.compiler.ltsmin.matrix;
 
+import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
+import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.parser.ParseException;
+import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.util.StringWriter;
 
 /**
@@ -57,4 +60,14 @@ public class LTSminGuard extends LTSminGuardBase {
 	public String toString() {
 		return "G: "+ expr;
 	}
+	
+	public static boolean isPC(LTSminGuard g) {
+        if (g instanceof LTSminPCGuard) return true;
+        if (!(g.getExpr() instanceof CompareExpression)) return false;
+        CompareExpression ce = (CompareExpression) g.getExpr();
+        if (ce.getToken().kind != PromelaConstants.EQ) return false;
+        if (!(ce.getExpr1() instanceof Identifier)) return false;
+        Identifier id = (Identifier)ce.getExpr1();
+        return id.isPC(); 
+    }
 }

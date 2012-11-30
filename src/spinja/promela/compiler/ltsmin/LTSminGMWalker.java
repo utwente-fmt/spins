@@ -128,14 +128,15 @@ public class LTSminGMWalker {
         
 		// generate Maybe Coenabled matrix
 		int nmce = generateCoenMatrix (model, guardInfo);
-		int nmcd = generateCodisMatrix (model, guardInfo);
 		int mceSize = nlabels*nlabels/2;
 		double mcep = Math.round((double)nmce/mceSize * 100.0);
-        double mcdp = Math.round((double)nmcd/mceSize * 100.0);
         params.debug.say("Found "+ nmce +"/"+ mceSize +" ("+ mcep +"%) !MCE gurads.");
+
+        // generate Maybe Codisabled matrix  
+        int nmcd = generateCodisMatrix (model, guardInfo);
+        double mcdp = Math.round((double)nmcd/mceSize * 100.0);
         params.debug.say("Found "+ nmcd +"/"+ mceSize +" ("+ mcdp +"%) !MCD gurads.");
-    
-		
+        
 		// generate NES matrix
 		int nnes = generateNESMatrix (model, guardInfo);
 		int nesSize = nlabels*model.getTransitions().size();
@@ -178,20 +179,13 @@ public class LTSminGMWalker {
 		DepMatrix nds = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNDSMatrix(nds);
 		int notNDS = 0;
-
-        List<List<Integer>> guards = model.getGuardInfo().getTransMatrix();
-        DepMatrix coen = model.getGuardInfo().getCoMatrix();
-		
 		for (int i = 0; i <  nds.getRows(); i++) {
 			for (int j = 0; j < nds.getRowLength(); j++) {
 				LTSminTransition trans = model.getTransitions().get(j);
 				LTSminGuard g = (LTSminGuard) guardInfo.get(i);
-				boolean coenabled = true;
-				for (int g2 : guards.get(j)) {
-				    if (!coen.isRead(i, g2)) { coenabled = false; break; }
-				}
-				if (NO_NDS || (coenabled && is_nds_guard(model, g, trans))) {
-					nds.incRead(i, j);
+                boolean maybe_coenabled = model.getGuardInfo().maybeCoEnabled(j, i);
+				if (NO_NDS || (maybe_coenabled && is_nds_guard(model, g, trans))) {
+				    nds.incRead(i, j);
 				} else {
 					notNDS++;
 				}
@@ -200,7 +194,7 @@ public class LTSminGMWalker {
 		return notNDS;
 	}
 
-	private static boolean is_nds_guard(LTSminModel model, LTSminGuard guard,
+    private static boolean is_nds_guard(LTSminModel model, LTSminGuard guard,
 										LTSminTransition transition) {
 		switch (aggressivity) {
 		case Weak:
@@ -276,21 +270,13 @@ public class LTSminGMWalker {
         int nlabels = guardInfo.getNumberOfLabels();
 		DepMatrix nes = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNESMatrix(nes);
-
-		List<List<Integer>> guards = model.getGuardInfo().getTransMatrix();
-        DepMatrix codis = model.getGuardInfo().getCoDisMatrix();
-
 		int notNES = 0;
 		for (int i = 0; i <  nes.getRows(); i++) {
 			for (int j = 0; j < nes.getRowLength(); j++) {
 				LTSminTransition trans = model.getTransitions().get(j);
                 LTSminGuard g = (LTSminGuard) guardInfo.get(i);
-
-                boolean codisabled = false;
-                for (int g2 : guards.get(j)) {
-                    if (codis.isRead(i, g2)) { codisabled = true; break; }
-                }
-                if (NO_NES || (codisabled && is_nes_guard(model, g, trans))) {
+                boolean maybe_codisabled = model.getGuardInfo().maybeCoDisabled(j, i);
+                if (NO_NES || (maybe_codisabled && is_nes_guard(model, g, trans))) {
 					nes.incRead(i, j);
 				} else {
 					notNES++;
@@ -431,8 +417,8 @@ public class LTSminGMWalker {
 	}
 
 	/**
-	 * Determine MCE over disjuctions: MCE holds for ex1 and ex2 iff 
-	 * it holds over for all d1,d2 in conjuctions(ex1) X conjunctions(ex2)
+	 * Determine MCE over conjunctions: MCE holds for ex1 and ex2 iff 
+	 * it holds over for all d1,d2 in conjunctions(ex1) X conjunctions(ex2)
 	 */
 	private static boolean mayBeCoenabledStronger(LTSminModel model, Expression ex1, Expression ex2) {
         List<Expression> ga_ex = new ArrayList<Expression>();
@@ -450,8 +436,8 @@ public class LTSminGMWalker {
 	}
 
 	/**
-	 * Determine MCE over disjuctions: MCE holds for ex1 and ex2 iff 
-	 * it holds for one d1,d2 in disjuctions(ex1) X disjunctions(ex2)
+	 * Determine MCE over disjunctions: MCE holds for ex1 and ex2 iff 
+	 * it holds for one d1,d2 in disjunctions(ex1) X disjunctions(ex2)
 	 */
 	private static boolean mayBeCoenabledStrong(LTSminModel model, Expression ex1, Expression ex2) {
         List<Expression> ga_ex = new ArrayList<Expression>();
@@ -487,28 +473,34 @@ public class LTSminGMWalker {
         return true;
 	}
 
-	
-
     /**************
      * MCD
      * ************/
-    
+
     private static int generateCodisMatrix(LTSminModel model, GuardInfo guardInfo) {
         int nlabels = guardInfo.getNumberOfLabels();
-        DepMatrix co = new DepMatrix(nlabels, nlabels);
-        guardInfo.setCoDisMatrix(co);
+        DepMatrix codis = new DepMatrix(nlabels, nlabels);
+        guardInfo.setCoDisMatrix(codis);
+        DepMatrix coen = guardInfo.getCoMatrix();
         int neverCoDisabled = 0;
         for (int i = 0; i < nlabels; i++) {
-            // same guard is always coenabled:
-            co.incRead(i, i);
             for (int j = i+1; j < nlabels; j++) {
                 LTSminGuard g1 = (LTSminGuard) guardInfo.get(i);
                 LTSminGuard g2 = (LTSminGuard) guardInfo.get(j);
+
                 if (mayBeCodisabled(model, g1, g2)) {
-                    co.incRead(i, j);
-                    co.incRead(j, i);
+                    codis.incRead(i, j);
+                    codis.incRead(j, i);
                 } else {
                     neverCoDisabled++;
+                }
+
+                // sanity check
+                boolean codisabled = !codis.isRead(i, j);
+                boolean coenabled = !coen.isRead(i, j);
+                if (codisabled && coenabled) {
+                    System.out.println("Necessarily coenabled and codisabled: "+ i +","+ j);
+                    System.exit(1);
                 }
             }
         }
@@ -530,8 +522,8 @@ public class LTSminGMWalker {
     }
 
     /**
-     * Determine MCD over disjuctions: MCD holds for ex1 and ex2 iff 
-     * it holds over for one d1,d2 in conjuctions(ex1) X conjunctions(ex2)
+     * Determine MCD over conjunctions: MCD holds for ex1 and ex2 iff 
+     * it holds over for one d1,d2 in conjunctions(ex1) X conjunctions(ex2)
      */
     private static boolean mayBeCodisabledStronger(LTSminModel model, Expression ex1, Expression ex2) {
         List<Expression> ga_ex = new ArrayList<Expression>();
@@ -540,17 +532,17 @@ public class LTSminGMWalker {
         extract_conjunctions (gb_ex, ex2);
         for(Expression a : ga_ex) {
             for(Expression b : gb_ex) {
-                if (!mayBeCodisabledStrong(model, a, b)) { // def enabled
-                    return false;
+                if (mayBeCodisabledStrong(model, a, b)) {
+                    return true;
                 }
             }
         }
-        return true;
+        return false; // all def enabled
     }
 
     /**
-     * Determine MCD over disjuctions: MCD holds for ex1 and ex2 iff 
-     * it holds for all d1,d2 in disjuctions(ex1) X disjunctions(ex2)
+     * Determine MCD over disjunctions: MCD holds for ex1 and ex2 iff 
+     * it holds for all d1,d2 in disjunctions(ex1) X disjunctions(ex2)
      */
     private static boolean mayBeCodisabledStrong(LTSminModel model, Expression ex1, Expression ex2) {
         List<Expression> ga_ex = new ArrayList<Expression>();
@@ -570,24 +562,22 @@ public class LTSminGMWalker {
     /**
      * Determine MCD over conjunctions: MCD holds for ex1 and ex2 iff 
      * one sp1,sp2 in simplePreds(ex1) X simplePreds(ex2) do conflict
-     *
-     * FALSE IF UNKNOWN
      */
     private static boolean mayBeCodisabled(LTSminModel model, Expression ex1, Expression ex2) {
         List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
         List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
         boolean missed = false;
-        missed |= extract_conjunct_predicates(ga_sp, ex1, false); // non-strict, since MCE holds for the same state
+        missed |= extract_conjunct_predicates(ga_sp, ex1, false); // non-strict, since MCD holds for the same state
         missed |= extract_conjunct_predicates(gb_sp, ex2, false);
-        if (missed) return true; // we can never know!
+        if (missed) return true; // maybe (we can never know)!
         for(SimplePredicate a : ga_sp) {
             for(SimplePredicate b : gb_sp) {
-                if (!is_conflict_predicate(model, a, b)) {
-                    return true;
+                if (is_conflict_predicate(model, a, b)) {
+                    return true; // co-disabled!
                 }
             }
         }
-        return false; // no action is missed, so we can return false!
+        return false; // not maybe co-disabled (not maybe and not co-disabled)!
     }
 
     static class SimplePredicate {
@@ -811,6 +801,8 @@ public class LTSminGMWalker {
 			} else if (name.equals("nfull")) {
 				op = PromelaConstants.NEQ;
 				right = constant (buffer);
+			} else {
+			    throw new AssertionError();
 			}
 			missed |= extract_conjunct_predicates(sp, compare(op, left, right), strict);
 		} else if (e instanceof RemoteRef) {
