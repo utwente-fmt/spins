@@ -129,76 +129,74 @@ public class LTSminGMWalker {
 		// generate Maybe Coenabled matrix
 		int nmce = generateCoenMatrix (model, guardInfo);
 		int mceSize = nlabels*nlabels/2;
-		double mcep = Math.round((double)nmce/mceSize * 100.0);
-        params.debug.say("Found "+ nmce +"/"+ mceSize +" ("+ mcep +"%) !MCE gurads.");
+		debug.say(report(nmce, mceSize, "!MCE guards"));
 
         // generate Maybe Codisabled matrix  
         int nmcd = generateCodisMatrix (model, guardInfo);
-        double mcdp = Math.round((double)nmcd/mceSize * 100.0);
-        params.debug.say("Found "+ nmcd +"/"+ mceSize +" ("+ mcdp +"%) !MCD gurads.");
-        
-		// generate NES matrix
+        debug.say(report(nmcd, mceSize, "!MCD guards"));
+
+        // generate NES matrix
 		int nnes = generateNESMatrix (model, guardInfo);
 		int nesSize = nlabels*model.getTransitions().size();
-        double nesp = Math.round((double)nnes/nesSize * 100.0);
-		params.debug.say("Found "+ nnes +"/"+ nesSize +" ("+ nesp +"%) !NES guards.");
+        debug.say(report( nnes, nesSize, "!NES guards"));
 
 		// generate NDS matrix
 		int nnds = generateNDSMatrix (model, guardInfo);
-        double ndsp = Math.round((double)nnds/nesSize * 100.0);
-		params.debug.say("Found "+ nnds +"/"+ nesSize +" ("+ ndsp +"%) !NDS guards.");
+        debug.say(report( nnds, nesSize, "!NDS guards"));
 
-        generateLabelMatrix(model);
+        generateLabelMatrix (model);
 
-        generateLabelVisibility(model, labels, debug);
+        int visible = generateLabelVisibility (model);
+        debug.say(report( visible, nesSize, "visible"));
         
 		debug.say_indent--;
 		debug.say("Generating guard information done");
 		debug.say("");
 	}
 
-    private static void generateLabelVisibility(LTSminModel model,
-                                                Map<String, LTSminGuard> labels,
-                                                LTSminDebug debug) {
+    private static String report(int n, int size, String msg) {
+        double perc = ((double)n * 100)/size;
+        return String.format("Found %,8d /%,8d (%5.1f%%) %s.", n, size, perc, msg);
+    }
+
+    private static int generateLabelVisibility(LTSminModel model) {
         GuardInfo guardInfo = model.getGuardInfo();
-        LTSminGuard p = labels.get("progress");
-        if (p != null) {
-            //int pi = guardInfo.getGuard(p);
-            List<Expression> disj = new ArrayList<Expression>();
-            List<Integer> visible_groups = new ArrayList<Integer>();
-            extract_disjunctions (disj, p.getExpr()); // could be stronger: all conjuncts and disjuncts
-            for (LTSminTransition trans : model) {
-                int t = trans.getGroup();
-label_loop:     for (Expression e : disj) {  
-                    int gi = guardInfo.getGuard(new LTSminGuard(e));
+        int nlabels = guardInfo.getNumberOfLabels();
+        DepMatrix visibility = new DepMatrix(nlabels, model.getTransitions().size());
+        guardInfo.setVisibilityMatrix(visibility);
+        DepMatrix temp = new DepMatrix(1, model.sv.size());
+        int visible = 0;
 
-                    boolean isVisible = false;
-outer:              for ( int s : guardInfo.getDepMatrix().getReads(gi) ) {
-                        if (model.getDepMatrix().isWrite(t, s) ) {
-                            isVisible = true;
-                            break outer;
-                        }
-                        for (int gg : guardInfo.getTransMatrix().get(t)) {
-                            if (guardInfo.getDepMatrix().isRead(gg, s) ) {
-                                isVisible = true;
-                                break outer;
-                            }
-                        }
+        for (int i = 0; i < nlabels; i++) {
+            List<Expression> expr = new ArrayList<Expression>();
+            LTSminGuard label = guardInfo.getLabel(i);
+            extract_boolean_expressions (expr, label.getExpr());
+            for (Expression e : expr) {  
+                LTSminGuard guard = new LTSminGuard(e);
+                temp.clear();
+                LTSminDMWalker.walkOneGuard(model, temp, guard, 0);
+                for (LTSminTransition trans : model.getTransitions()) {
+                    int t = trans.getGroup();
+                    if (!model.getDepMatrix().isWrite(t, temp.getReads(0)))
+                        continue;
+
+                    boolean mcd = false;
+                    boolean mce = true;
+                    for (int gg : guardInfo.getTransMatrix().get(t)) {
+                        LTSminGuard gguard = guardInfo.get(gg);
+                        mcd = mcd || mayBeCodisabled(model, e, gguard.getExpr());
+                        mce = mce && mayBeCoenabled(model, e, gguard.getExpr());
                     }
-                    if (!isVisible) continue;
-
-                    //debug.say(e +" "+ trans.getActions());
-                    if ( guardInfo.getNDSMatrix().isRead(gi, t) ||
-                         guardInfo.getNESMatrix().isRead(gi, t) ) {
-                        visible_groups.add(t);
-                        //debug.say ("visibility["+ t +"] = 1;");
-                        break label_loop;
+                    if ( mcd && is_nes_guard(model, guard, trans) ||
+                         mce && is_nds_guard(model, guard, trans) ) {
+                        visibility.incRead(i, t);
+                        visible++;
+                        continue;
                     }
                 }
             }
-            debug.say("Found visible progress labels: "+ visible_groups);
-
         }
+        return visible;
     }
 
 	private static void generateLabelMatrix(LTSminModel model) {
@@ -906,7 +904,21 @@ outer:              for ( int s : guardInfo.getDepMatrix().getReads(gi) ) {
         } else {
             ds.add(e);
         }
-    }   
+    }
+
+    /**
+     * Extracts all disjunctions until conjunctions or arithmicExpr are encountered
+     */
+    private static void extract_boolean_expressions (List<Expression> ds, Expression e) {
+        if(e instanceof BooleanExpression) {
+            BooleanExpression ce = (BooleanExpression)e;
+            extract_boolean_expressions (ds, ce.getExpr1());
+            if (ce.getExpr2() != null)
+                extract_boolean_expressions (ds, ce.getExpr2());
+        } else {
+            ds.add(e);
+        }
+    }
 
 	/**
 	 * Tries to parse an expression as a reference to a singular (channel)

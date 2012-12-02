@@ -113,4 +113,15 @@ public class DepMatrix {
     public List<Integer> getWrites(int row) {
         return getRow(row).getWrites();
     }
+
+    public boolean isWrite(int row, List<Integer> reads) {
+        for (int i : reads)
+            if (isWrite(row, i)) return true;
+        return false;
+    }
+
+    public void clear() {
+        for (int i = 0 ; i < dep_matrix.size(); i++)
+            dep_matrix.get(i).clear();
+    }
 }
