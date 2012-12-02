@@ -70,6 +70,11 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	 */
 	private DepMatrix dm;
 
+	/**
+	 * Label visibility matrix
+	 */
+    private DepMatrix visibility;
+
 	public GuardInfo(int width) {
 		labels = new ArrayList<LTSminGuard>();
 		label_names = new ArrayList<String>();
@@ -214,5 +219,13 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
             }
         }
         return true;
+    }
+
+    public void setVisibilityMatrix(DepMatrix vis) {
+        visibility = vis;
+    }
+    
+    public DepMatrix getVisibilityMatrix() {
+        return visibility;
     }
 }

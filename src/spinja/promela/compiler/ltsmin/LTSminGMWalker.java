@@ -149,11 +149,57 @@ public class LTSminGMWalker {
 		params.debug.say("Found "+ nnds +"/"+ nesSize +" ("+ ndsp +"%) !NDS guards.");
 
         generateLabelMatrix(model);
-		
+
+        generateLabelVisibility(model, labels, debug);
+        
 		debug.say_indent--;
 		debug.say("Generating guard information done");
 		debug.say("");
 	}
+
+    private static void generateLabelVisibility(LTSminModel model,
+                                                Map<String, LTSminGuard> labels,
+                                                LTSminDebug debug) {
+        GuardInfo guardInfo = model.getGuardInfo();
+        LTSminGuard p = labels.get("progress");
+        if (p != null) {
+            //int pi = guardInfo.getGuard(p);
+            List<Expression> disj = new ArrayList<Expression>();
+            List<Integer> visible_groups = new ArrayList<Integer>();
+            extract_disjunctions (disj, p.getExpr()); // could be stronger: all conjuncts and disjuncts
+            for (LTSminTransition trans : model) {
+                int t = trans.getGroup();
+label_loop:     for (Expression e : disj) {  
+                    int gi = guardInfo.getGuard(new LTSminGuard(e));
+
+                    boolean isVisible = false;
+outer:              for ( int s : guardInfo.getDepMatrix().getReads(gi) ) {
+                        if (model.getDepMatrix().isWrite(t, s) ) {
+                            isVisible = true;
+                            break outer;
+                        }
+                        for (int gg : guardInfo.getTransMatrix().get(t)) {
+                            if (guardInfo.getDepMatrix().isRead(gg, s) ) {
+                                isVisible = true;
+                                break outer;
+                            }
+                        }
+                    }
+                    if (!isVisible) continue;
+
+                    //debug.say(e +" "+ trans.getActions());
+                    if ( guardInfo.getNDSMatrix().isRead(gi, t) ||
+                         guardInfo.getNESMatrix().isRead(gi, t) ) {
+                        visible_groups.add(t);
+                        //debug.say ("visibility["+ t +"] = 1;");
+                        break label_loop;
+                    }
+                }
+            }
+            debug.say("Found visible progress labels: "+ visible_groups);
+
+        }
+    }
 
 	private static void generateLabelMatrix(LTSminModel model) {
         GuardInfo guardInfo = model.getGuardInfo();

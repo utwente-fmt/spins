@@ -113,6 +113,8 @@ public class LTSminPrinter {
 	public static final String DM_NAME = "transition_dependency";
 	public static final String GM_DM_NAME = "gm_dm";
 	public static final String CO_DM_NAME = "co_dm";
+    public static final String VIS_DM_NAME = "vis_dm";
+    public static final String CODIS_DM_NAME = "codis_dm";
 	public static final String NES_DM_NAME = "nes_dm";
 	public static final String NDS_DM_NAME = "nds_dm";
 	public static final String GM_TRANS_NAME = "gm_trans";
@@ -1268,6 +1270,12 @@ public class LTSminPrinter {
 		if(gm==null) return;
 
 		DepMatrix co_matrix = gm.getCoMatrix();
+        DepMatrix codis_matrix = gm.getCoDisMatrix();
+
+        w.appendLine("");
+        w.appendLine("// Visibility matrix:");
+        generateDepMatrix(w, gm.getVisibilityMatrix(), VIS_DM_NAME, false);
+        w.appendLine("");
 
 		w.appendLine("");
 		w.appendLine("// Label(Guard)-Dependency Matrix:");
@@ -1278,6 +1286,11 @@ public class LTSminPrinter {
 		w.appendLine("// Maybe Co-Enabled Matrix:");
 		generateDepMatrix(w, co_matrix, CO_DM_NAME, false);
 		w.appendLine("");
+
+        w.appendLine("");
+        w.appendLine("// Maybe Co-Disabled Matrix:");
+        generateDepMatrix(w, codis_matrix, CODIS_DM_NAME, false);
+        w.appendLine("");
 
 		w.appendLine("");
 		w.appendLine("// Necessary Enabling Matrix:");
@@ -1356,6 +1369,13 @@ public class LTSminPrinter {
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
+
+        w.appendLine("const int* spinja_get_label_visiblity_matrix(int g) {");
+        w.indent();
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_guard_nes_matrix: invalid guard index %d\", g);");
+        w.appendLine("return "+ VIS_DM_NAME +"[g];");
+        w.outdent();
+        w.appendLine("}");
 
 		w.appendLine("const int* spinja_get_guard_nes_matrix(int g) {");
 		w.indent();

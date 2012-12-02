@@ -21,46 +21,46 @@ public class DepMatrix {
 
 	/**
 	 * Increase the number of reads of the specified dependency by one.
-	 * @param dep The dependency to increase.
+	 * @param col The dependency to increase.
 	 */
-	public void incRead(int transition, int dep) {
-		if(transition<0 || transition>=dep_matrix.size()) return;
-		DepRow dr = dep_matrix.get(transition);
+	public void incRead(int row, int col) {
+		if(row<0 || row>=dep_matrix.size()) return;
+		DepRow dr = dep_matrix.get(row);
 		assert(dr!=null);
-		dr.incRead(dep);
+		dr.incRead(col);
 	}
 
 	/**
 	 * Increase the number of writes of the specified dependency by one.
-	 * @param dep The dependency to increase.
+	 * @param col The dependency to increase.
 	 */
-	public void incWrite(int transition, int dep) {
-		if(transition<0 || transition>=dep_matrix.size()) return;
-		DepRow dr = dep_matrix.get(transition);
+	public void incWrite(int row, int col) {
+		if(row<0 || row>=dep_matrix.size()) return;
+		DepRow dr = dep_matrix.get(row);
 		assert(dr!=null);
-		dr.incWrite(dep);
+		dr.incWrite(col);
 	}
 
 	/**
 	 * Decrease the number of reads of the specified dependency by one.
-	 * @param dep The dependency to decrease.
+	 * @param col The dependency to decrease.
 	 */
-	public void decrRead(int transition, int dep) {
-		if(transition<0 || transition>=dep_matrix.size()) return;
-		DepRow dr = dep_matrix.get(transition);
+	public void decrRead(int row, int col) {
+		if(row<0 || row>=dep_matrix.size()) return;
+		DepRow dr = dep_matrix.get(row);
 		assert(dr!=null);
-		dr.decrRead(dep);
+		dr.decrRead(col);
 	}
 
 	/**
 	 * Decrease the number of writes of the specified dependency by one.
-	 * @param dep The dependency to decrease.
+	 * @param col The dependency to decrease.
 	 */
-	public void decrWrite(int transition, int dep) {
-		if(transition<0 || transition>=dep_matrix.size()) return;
-		DepRow dr = dep_matrix.get(transition);
+	public void decrWrite(int row, int col) {
+		if(row<0 || row>=dep_matrix.size()) return;
+		DepRow dr = dep_matrix.get(row);
 		assert(dr!=null);
-		dr.decrWrite(dep);
+		dr.decrWrite(col);
 	}
 
 	/**
