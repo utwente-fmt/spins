@@ -191,12 +191,14 @@ public class LTSminTreeWalker {
             Action act =  (t.getTransition().getActionCount() > 0 ? t.getTransition().getAction(0) : null);
             String name = t.getName().split("\t")[1];
             int line = null == act ? -1 : act.getToken().beginLine;
+            State from = t.getTransition().getFrom();
             State to = t.getTransition().getTo();
             int id = null == to ? -1 : to.getStateId();
             String valid = to == null || to.isEndingState() ? "valid" : "invalid";
+            String progress = from == null || from.isProgressState() ? ", progress" : "";
             name = "group "+ t.getGroup() +" ("+ t.getProcess().getName() +") "+ 
                    Preprocessor.getFileName() +":"+ line +
-                   " (state "+ id +") <"+ valid +" end state> "+ name;
+                   " (state "+ id +") <"+ valid +" end state"+ progress +"> "+ name;
             model.addTypeValue(STATEMENT_TYPE_NAME, name);
         }
 
