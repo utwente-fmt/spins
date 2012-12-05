@@ -19,6 +19,8 @@ import static spinja.promela.compiler.ltsmin.model.LTSminUtil.pcGuard;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
+import static spinja.promela.compiler.ltsmin.model.LTSminUtil.Pair;
+import static spinja.promela.compiler.ltsmin.LTSminPrinter.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,7 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+import java.util.ListIterator;
 
 import spinja.promela.compiler.ProcInstance;
 import spinja.promela.compiler.Proctype;
@@ -80,7 +82,9 @@ import spinja.promela.compiler.ltsmin.model.LTSminTransition;
 import spinja.promela.compiler.ltsmin.model.ReadAction;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.model.SendAction;
+import spinja.promela.compiler.ltsmin.state.LTSminSlot;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
+import spinja.promela.compiler.ltsmin.state.LTSminVariable;
 import spinja.promela.compiler.optimizer.RenumberAll;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.Preprocessor;
@@ -101,12 +105,8 @@ import spinja.promela.compiler.variable.VariableType;
  */
 public class LTSminTreeWalker {
 
-	public List<Pair<ChannelReadAction,Transition>> pairs =
+    public List<Pair<ChannelReadAction,Transition>> pairs =
 	        new ArrayList<Pair<ChannelReadAction,Transition>>();
-	public static class Pair<L,R> {
-		public L left; public R right;
-		public Pair(L l, R r) { this.left = l; this.right = r; }
-	}
 	
 	private final Specification spec;
 	static boolean NEVER;
@@ -129,8 +129,8 @@ public class LTSminTreeWalker {
 	 */
 	public LTSminModel createLTSminModel(String name, boolean verbose) {
 		this.debug = new LTSminDebug(verbose);
-		LTSminStateVector sv = new LTSminStateVector();
 		instantiate();
+        LTSminStateVector sv = new LTSminStateVector();
 		sv.createVectorStructs(spec, debug);
 		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
@@ -138,8 +138,9 @@ public class LTSminTreeWalker {
 			spec.addReadAction(p.left, p.right);
 		createModelTransitions();
 		createModelAssertions();
+		createModelLabels();
 		LTSminDMWalker.walkModel(model, debug);
-		LTSminGMWalker.generateGuardInfo(model, getSpecialStateLabels(), debug);
+		LTSminGMWalker.generateGuardInfo(model, debug);
 		return model;
 	}
 
@@ -160,8 +161,52 @@ public class LTSminTreeWalker {
 	 * Set accepting state, valid end-state and progress-state conditions for this model. 
 	 * Accepting condition semantics are overloaded with valid end state semantics.
 	 */
-    private Map<String, LTSminGuard> getSpecialStateLabels() {
-        Map<String, LTSminGuard> labels = new HashMap<String, LTSminGuard>();
+    private void createModelLabels() {
+        
+        /* always add the bool type */
+        model.addType(VariableType.BOOL.getName());
+        model.addTypeValue(VariableType.BOOL.getName(), "false", 0); // index 0
+        model.addTypeValue(VariableType.BOOL.getName(), "true", 1);  // index 1
+        
+        /* Generate static list of types. mtypes have values */
+        for (LTSminSlot slot : model.sv) {
+            LTSminVariable var = slot.getVariable();
+            String cType = var.getVariable().getType().getName();
+            if (model.getType(cType) != null) continue; 
+            model.addType(cType);
+            if (cType.equals("mtype")) {
+                List<String> mtypes = model.getMTypes();
+                model.addTypeValue("mtype", "uninitialized");
+                ListIterator<String> it = mtypes.listIterator(mtypes.size());
+                while (it.hasPrevious()) { // indices are reversed!
+                    model.addTypeValue("mtype", it.previous());
+                }
+            }
+        }
+
+        /* Statements are exported in SPIN format with line numbers for traces */
+        model.addType(STATEMENT_TYPE_NAME);
+        model.addEdgeLabel(STATEMENT_EDGE_LABEL_NAME, STATEMENT_TYPE_NAME);
+        for(LTSminTransition t : model.getTransitions()) {
+            Action act =  (t.getTransition().getActionCount() > 0 ? t.getTransition().getAction(0) : null);
+            String name = t.getName().split("\t")[1];
+            int line = null == act ? -1 : act.getToken().beginLine;
+            State to = t.getTransition().getTo();
+            int id = null == to ? -1 : to.getStateId();
+            String valid = to == null || to.isEndingState() ? "valid" : "invalid";
+            name = "group "+ t.getGroup() +" ("+ t.getProcess().getName() +") "+ 
+                   Preprocessor.getFileName() +":"+ line +
+                   " (state "+ id +") <"+ valid +" end state> "+ name;
+            model.addTypeValue(STATEMENT_TYPE_NAME, name);
+        }
+
+        /* Action edge labels are used for assertion violation detection */
+        model.addType(ACTION_TYPE_NAME);
+        model.addTypeValue(ACTION_TYPE_NAME, NO_ACTION_NAME, 0); // no action
+        model.addTypeValue(ACTION_TYPE_NAME, ASSERT_ACTION_NAME, 1);
+        model.addEdgeLabel(ACTION_EDGE_LABEL_NAME, ACTION_TYPE_NAME);
+
+        /* Add accepting state labels for never claim */
 		if (NEVER) {
 			Proctype never = spec.getNever();
 			Expression or = null;
@@ -176,42 +221,43 @@ public class LTSminTreeWalker {
 				    or = or == null ? g : or(or, g) ; // Or
 				}
 			}
-			if (or != null) // maybe a never claim with an invariant (assertion)
-			    labels.put("accept_buchi", new LTSminGuard(or));
-		}
-		
-		{
-            Expression or = null;
-    		for (ProcInstance pi : spec) {
-    		    for (State s : pi.getAutomaton()) {
-    		        if (s.isProgressState()) {
-    		            Expression g = pcGuard(model, s, pi).getExpr();
-    	                or = or == null ? g : or(or, g) ; // Or
-    		        }
-    		    }
-    		}
-    		if (or != null)
-    		    labels.put("progress", new LTSminGuard(or));
+			if (or != null) { // maybe a never claim with an invariant (assertion)
+			    model.addStateLabel(ACCEPTING_STATE_LABEL_NAME, new LTSminGuard(or));
+			}
 		}
 
-		{
-    		Expression end = compare(PromelaConstants.EQ, id(_NR_PR), constant(0)); // or
-    		Expression and = null;
-        	for (ProcInstance instance : spec) {
-    			Variable pc = model.sv.getPC(instance);
-                Expression labeled = compare(PromelaConstants.EQ, id(pc), constant(-1));
-    	    	for (State s : instance.getAutomaton()) {
-    		    	if (s.hasLabelPrefix("end")) {
-    		    		labeled = or(labeled, pcGuard(model, s, instance).getExpr()); // Or
-    		    	}
-    	    	}
-    	    	and = and == null ? labeled : and(and, labeled) ; // And
-        	}
-        	if (and != null)
-        	    end = or(end, and); // Or
-    		labels.put("end_valid", new LTSminGuard(end));
+		/* Add nonprogress state label and progress edge label */
+        Expression or = null;
+		for (ProcInstance pi : spec) {
+		    for (State s : pi.getAutomaton()) {
+		        if (s.isProgressState()) {
+		            Expression g = pcGuard(model, s, pi).getExpr();
+	                or = or == null ? g : or(or, g) ; // Or
+		        }
+		    }
 		}
-		return labels;
+		if (or != null) {
+		    model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME, new LTSminGuard(or));
+		    // also as progress trans label:
+		    model.addEdgeLabel(PROGRESS_EDGE_LABEL_NAME, VariableType.BOOL.getName());
+		}
+
+		/* Export label for valid end states */
+		Expression end = compare(PromelaConstants.EQ, id(_NR_PR), constant(0)); // or
+		Expression and = null;
+    	for (ProcInstance instance : spec) {
+			Variable pc = model.sv.getPC(instance);
+            Expression labeled = compare(PromelaConstants.EQ, id(pc), constant(-1));
+	    	for (State s : instance.getAutomaton()) {
+		    	if (s.hasLabelPrefix("end")) {
+		    		labeled = or(labeled, pcGuard(model, s, instance).getExpr()); // Or
+		    	}
+	    	}
+	    	and = and == null ? labeled : and(and, labeled) ; // And
+    	}
+    	if (and != null)
+    	    end = or(end, and); // Or
+		model.addStateLabel(VALID_END_STATE_LABEL_NAME, new LTSminGuard(end));
 	}
 
     private List<String> iCount = new ArrayList<String>();

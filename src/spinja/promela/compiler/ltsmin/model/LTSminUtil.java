@@ -35,6 +35,11 @@ import spinja.promela.compiler.variable.Variable;
 
 public class LTSminUtil {
 
+    public static class Pair<L,R> {
+        public L left; public R right;
+        public Pair(L l, R r) { this.left = l; this.right = r; }
+    }
+
 	/** Expressions **/
 	public static Identifier channelBottom(Identifier id, int elem) {
 		return channelIndex(id, constant(0), elem) ;

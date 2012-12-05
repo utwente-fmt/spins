@@ -79,4 +79,10 @@ public class LTSminState {
 	public List<LTSminTransition> getOut() {
 		return out;
 	}
+
+    public boolean isProgress() {
+        return state != null && state.isProgressState() ||
+                sync != null &&  sync.isProgressState() ||
+               never != null && never.isProgressState();
+    }
 }

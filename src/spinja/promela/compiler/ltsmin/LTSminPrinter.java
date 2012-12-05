@@ -36,11 +36,10 @@ import static spinja.promela.compiler.parser.PromelaConstants.TRUE;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
+import java.util.Set;
 import java.util.regex.Matcher;
 
 import spinja.promela.compiler.ProcInstance;
@@ -73,7 +72,6 @@ import spinja.promela.compiler.expression.MTypeReference;
 import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
 import spinja.promela.compiler.expression.TimeoutExpression;
-import spinja.promela.compiler.ltsmin.LTSminTreeWalker.Pair;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.DepRow;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
@@ -82,6 +80,7 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
+import spinja.promela.compiler.ltsmin.model.LTSminUtil.Pair;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminSlot;
@@ -90,12 +89,12 @@ import spinja.promela.compiler.ltsmin.state.LTSminTypeI;
 import spinja.promela.compiler.ltsmin.state.LTSminTypeStruct;
 import spinja.promela.compiler.ltsmin.state.LTSminVariable;
 import spinja.promela.compiler.parser.ParseException;
-import spinja.promela.compiler.parser.Preprocessor;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
+import spinja.util.IndexedSet;
 import spinja.util.StringWriter;
 
 /**
@@ -105,26 +104,37 @@ import spinja.util.StringWriter;
  */
 public class LTSminPrinter {
 
-	public static final String IN_VAR = "in";
-	public static final String OUT_VAR = "tmp";
-	public static final String INITIAL_VAR = "initial";
+	public static final String IN_VAR              = "in";
+	public static final String OUT_VAR             = "out";
+	public static final String INITIAL_VAR         = "initial";
 
-	public static final int    PM_MAX_PROCS = 256;
-	public static final String DM_NAME = "transition_dependency";
-	public static final String GM_DM_NAME = "gm_dm";
-	public static final String CO_DM_NAME = "co_dm";
-    public static final String VIS_DM_NAME = "vis_dm";
-    public static final String CODIS_DM_NAME = "codis_dm";
-	public static final String NES_DM_NAME = "nes_dm";
-	public static final String NDS_DM_NAME = "nds_dm";
-	public static final String GM_TRANS_NAME = "gm_trans";
-	public static final int    STATE_ELEMENT_SIZE = 4;
-	public static final String SCRATCH_VARIABLE = "__spinja_scratch";
+	public static final int    PM_MAX_PROCS        = 256;
+	public static final String DM_NAME             = "transition_dependency";
+	public static final String GM_DM_NAME          = "gm_dm";
+	public static final String CO_DM_NAME          = "co_dm";
+    public static final String VIS_DM_NAME         = "vis_dm";
+    public static final String CODIS_DM_NAME       = "codis_dm";
+	public static final String NES_DM_NAME         = "nes_dm";
+	public static final String NDS_DM_NAME         = "nds_dm";
+	public static final String GM_TRANS_NAME       = "gm_trans";
+	public static final int    STATE_ELEMENT_SIZE  = 4;
+	public static final String SCRATCH_VARIABLE    = "__spinja_scratch";
+
+	public static final String VALID_END_STATE_LABEL_NAME       = "end_";
+    public static final String ACCEPTING_STATE_LABEL_NAME       = "accept_";
+    public static final String NON_PROGRESS_STATE_LABEL_NAME    = "np_";
+
+    public static final String PROGRESS_EDGE_LABEL_NAME         = "progress";
+    public static final String STATEMENT_EDGE_LABEL_NAME        = "statement";
+    public static final String ACTION_EDGE_LABEL_NAME           = "action";
+    
+    public static final String STATEMENT_TYPE_NAME              = "statement";
+    public static final String ACTION_TYPE_NAME                 = "action";
+
+    public static final String NO_ACTION_NAME                   = "";
+    public static final String ASSERT_ACTION_NAME               = "assert";
 
 	static int n_active = 0;
-
-	// first value of assertions indicates a passed assertion
-	static List<String> assertions = new ArrayList<String>(Arrays.asList("", "assert"));
 
 	public static String generateCode(LTSminModel model) {
 		StringWriter w = new StringWriter();
@@ -149,7 +159,6 @@ public class LTSminPrinter {
 		generateGuardFunctions(w, model);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
-		generateGroupDescriptors(w, model);
 		generateHashTable(w, model);
 		generateReach(w, model);
 	}
@@ -324,10 +333,15 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 	
-	private static void generateACallback(StringWriter w, int trans) {
-		w.appendLine("transition_info.group = "+ trans +";");
-        w.appendLine("transition_labels[1] = "+ trans +";"); // index
-		w.appendLine("callback(arg,&transition_info,tmp);");
+	private static void generateACallback(StringWriter w, LTSminModel model, int trans) {
+        int index = model.getEdgeIndex(STATEMENT_EDGE_LABEL_NAME);
+        w.appendLine("transition_labels["+ index +"] = "+ trans +";"); // index
+        if (model.getTransitions().get(trans).isProgress()) {
+            index = model.getEdgeIndex(PROGRESS_EDGE_LABEL_NAME);
+            w.appendLine("transition_labels["+ index +"] = 1;"); // 1 == "true"
+        }
+        w.appendLine("transition_info.group = "+ trans +";");
+		w.appendLine("callback(arg,&transition_info,"+ OUT_VAR +");");
 		w.appendLine("++states_emitted;");
 	}
 
@@ -365,8 +379,9 @@ public class LTSminPrinter {
 		for(Action a: actions)
 			generateAction(w,a,model);
 		w.appendLine("transition_info.group = "+ t.getGroup() +";");
-        w.appendLine("transition_labels[1] = "+ t.getGroup() +";"); // index
-		w.appendLine("spinja_atomic_cb(arg,&transition_info,tmp,"+ t.getEndId() +");");
+        int index = model.getEdgeIndex(STATEMENT_EDGE_LABEL_NAME);
+        w.appendLine("transition_labels["+ index +"] = "+ t.getGroup() +";"); // index
+		w.appendLine("spinja_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +");");
 		w.appendLine("++states_emitted;");
 		w.outdent();
 		w.appendLine("}");
@@ -376,9 +391,12 @@ public class LTSminPrinter {
 		/* PROMELA specific per-proctype code */
 	    if (model.getTransitions().size() == 0) return;
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
-			w.appendLine("int spinja_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *tmp) {");
+			w.appendLine("int spinja_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +") {");
 			w.indent();
-			w.appendLine("int transition_labels[2] = {0, -1};");
+			String edge_array = "";
+			for (int i = 0; i < model.getEdges().size(); i++)
+			    edge_array += "0, ";
+			w.appendLine("int transition_labels["+ model.getEdges().size() +"] = {"+ edge_array +"};");
 			w.appendLine("transition_info_t transition_info = { transition_labels, -1 };");
 			w.appendLine("int states_emitted = 0;");
 			for (Variable local : model.getLocals()) {
@@ -395,11 +413,11 @@ public class LTSminPrinter {
 			w.appendLine("}");
 			w.appendLine();
 		}
-		w.appendLine("int spinja_get_successor_sid( void* model, state_t *in, void *arg, state_t *tmp, int atomic) {");
+		w.appendLine("int spinja_get_successor_sid( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +", int atomic) {");
 		w.indent();
 		w.appendLine("switch (atomic) {");
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
-			w.appendLine("case "+ p.getID() +": return spinja_get_successor_sid"+ p.getID() +"(model, in, arg, tmp); break;");
+			w.appendLine("case "+ p.getID() +": return spinja_get_successor_sid"+ p.getID() +"(model, in, arg, "+ OUT_VAR +"); break;");
 		}
 		w.appendLine("default: printf(\"Wrong structural ID\"); exit(-1);");
 		w.appendLine("}");
@@ -410,11 +428,14 @@ public class LTSminPrinter {
 
 		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-        w.appendLine("int transition_labels[2] = {0, -1};");
+		String edge_array = "";
+        for (int i = 0; i < model.getEdges().size(); i++)
+            edge_array += "0, ";
+        w.appendLine("int transition_labels["+ model.getEdges().size() +"] = {"+ edge_array +"};");
 		w.appendLine("transition_info_t transition_info = { transition_labels, -1 };");
 		w.appendLine("int states_emitted = 0;");
-		w.appendLine("state_t out;");
-		w.appendLine("state_t *tmp = &out;");
+		w.appendLine("state_t tmp;");
+		w.appendLine("state_t *"+ OUT_VAR +" = &tmp;");
 		for (Variable local : model.getLocals()) {
 			w.appendLine("int "+ local.getName() +";");
 		}
@@ -457,10 +478,10 @@ public class LTSminPrinter {
 			generateAction(w,a,model);
 		if (t.isAtomic()) {
 			w.appendLine("transition_info.group = "+ t.getGroup() +";");
-			w.appendLine("int count = spinja_reach (model, &transition_info, tmp, callback, arg, "+ t.getEndId() +");");
+			w.appendLine("int count = spinja_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +");");
 			w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
 		} else {
-			generateACallback(w,t.getGroup());
+			generateACallback(w, model, t.getGroup());
 		}
 		w.outdent();
 		w.appendLine("}");
@@ -469,7 +490,10 @@ public class LTSminPrinter {
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
 		w.appendLine("int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
-        w.appendLine("int transition_labels[2] = {0, -1};");
+		String edge_array = "";
+        for (int i = 0; i < model.getEdges().size(); i++)
+            edge_array += "0, ";
+        w.appendLine("int transition_labels["+ model.getEdges().size() +"] = {"+ edge_array +"};");
 		w.appendLine("transition_info_t transition_info = { transition_labels, t };");
 		w.appendLine("int states_emitted = 0;");
 		w.appendLine("int minus_one = -1;");
@@ -591,7 +615,9 @@ public class LTSminPrinter {
 			w.append(") {");
 			w.appendPostfix();
 			w.indent();
-			w.appendLine("transition_labels[0] = 1;"); // index
+			int index = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
+            int typeno = model.getTypeValueIndex(ACTION_TYPE_NAME, ASSERT_ACTION_NAME);
+			w.appendLine("transition_labels["+ index +"] = "+ typeno +";"); // index
 			w.outdent();
 			w.appendLine("}");
 		} else if(a instanceof PrintAction) {
@@ -1057,6 +1083,7 @@ public class LTSminPrinter {
 
 	private static void generateStateDescriptors(StringWriter w, LTSminModel model) {
 		int state_size = model.sv.size();
+        Set<String> types = model.getTypes();
 
 		// Generate static list of names
 		w.appendLine("static const char* var_names[] = {");
@@ -1074,20 +1101,10 @@ public class LTSminPrinter {
 		w.outdent().appendPostfix();
 		w.appendLine("};");
 
-		// Generate static list of types
-		List<String> types = new ArrayList<String>();
-		for (LTSminSlot slot : model.sv) {
-			LTSminVariable var = slot.getVariable();
-			String cType = var.getVariable().getType().getName();
-			if (!types.contains(cType)) {
-				types.add(cType);
-			}
-		}
-
 		w.appendLine("");
 		w.appendLine("static const char* var_types[] = {");
 		w.indent();
-		for (String s : types) {
+        for (String s : types) {
 			w.appendLine("\"",s,"\",");
 		}
 		w.appendLine("\"\"");
@@ -1100,7 +1117,7 @@ public class LTSminPrinter {
 		for (LTSminSlot slot : model.sv) {
 			LTSminVariable var = slot.getVariable();
 			String cType = var.getVariable().getType().getName();
-			int num = types.indexOf(cType);
+			int num = model.getTypeIndex(cType);
 			w.appendLine(num,",");
 		}
 		w.appendLine("-1");
@@ -1110,32 +1127,24 @@ public class LTSminPrinter {
 		w.appendLine("");
 		w.appendLine("static const int var_type_value_count[] = {");
 		w.indent();
-		List<String> mtypes = model.getMTypes();
-		for (String s : types) {
-			if (s.equals("mtype")) {
-				w.appendLine(mtypes.size() + 1,","); // add "uninitialized"				
-			} else {
-				w.appendLine("0,");
-			}
+		for (IndexedSet<String> vals : model.getTypeValues()) {
+		    w.appendLine(vals.size() ,",");
 		}
 		w.appendLine("-1");
 		w.outdent();
 		w.appendLine("};");
 	
 		w.appendLine("");
-		for (String s : types) {
+		for (int i = 0; i < types.size(); i++) {
+		    String s = model.getType(i);
 			w.appendLine("static const char* const var_type_",s,"[] = {");
-			if (s.equals("mtype")) {
-				w.indent();
-				w.appendLine("\"uninitialized\",");
-				ListIterator<String> it = mtypes.listIterator(mtypes.size());
-				while (it.hasPrevious()) {
-					String mtype = it.previous();
-					w.appendLine("\"",mtype,"\",");
-				}
-				w.appendLine("\"\"");
-				w.outdent();
+			w.indent();
+			IndexedSet<String> values = model.getTypeValues(i);
+            for (String value : values) {
+				w.appendLine("\"",value,"\",");
 			}
+			if (values.size()> 0) w.appendLine("\"\"");
+			w.outdent();
 			w.appendLine("};");
 			w.appendLine("");
 		}
@@ -1198,71 +1207,56 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static void generateGroupDescriptors(StringWriter w, LTSminModel model) {
-		// Generate static list of names
-		w.appendLine("static const char* group_names[] = {");
-		w.indent();
-		int i = 0;
-		for(LTSminTransition t : model.getTransitions()) {
-			if (0 != i)
-				w.append(",").appendPostfix();
-			Action act =  (t.getTransition().getActionCount() > 0 ? t.getTransition().getAction(0) : null);
-			String name = t.getName().split("\t")[1];
-			w.appendPrefix();
-			int line = null == act ? -1 : act.getToken().beginLine;
-			int id = null == t.getTransition().getTo() ? -1 : t.getTransition().getTo().getStateId();
-			w.append("\"group "+ i +" ("+ t.getProcess().getName() +") "+ 
-					Preprocessor.getFileName() +":"+ line +
-					" (state "+ id +") <valid end state> "+ name +"\"");
-			i++;
-		}
-		w.outdent().appendPostfix();
-		w.appendLine("};");
-		w.appendLine("");
-
-		w.appendLine("extern const char* spinja_get_group_name(int type) {");
-		w.indent();
-		w.appendLine("assert(type < ",model.getTransitions().size(),", \"spinja_get_group_name: invalid type index %d\", type);");
-		//String pid = printPID(transition.passesControlAtomically(), out(model));
-		//w.appendLine("snprintf(buf, 1024, group_names[type], "+ pid +");");
-		w.appendLine("return group_names[type];");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("");
-	}
-	
 	private static void generateEdgeDescriptors(StringWriter w, LTSminModel model) {
-		if (assertions.size() == 1) return; // only the passed assertion is present
-		
+
+        IndexedSet<String> edges = model.getEdges();
+
 		// Generate static list of names
 		w.appendLine("static const char* edge_names[] = {");
 		w.indent();
-		int i = 0;
-		for (String edge : assertions) {
-			if (0 != i)
+        for (String edge : edges) {
+			if (edge != edges.getIndex(0))
 				w.append(",").appendPostfix();
 			w.appendPrefix();
 			w.append("\""+ edge +"\"");
-			i++;
 		}
 		w.outdent().appendPostfix();
 		w.appendLine("};");
 		w.appendLine("");
 
-		w.appendLine("extern int spinja_get_edge_count() {");
+		w.appendLine("extern const char* spinja_get_edge_name(int index) {");
 		w.indent();
-		w.appendLine("return ",assertions.size(),";");
+		w.appendLine("assert(index < ",edges.size(),", \"spinja_get_edge_name: invalid type index %d\", index);");
+		w.appendLine("return edge_names[index];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("extern const char* spinja_get_edge_name(int type) {");
-		w.indent();
-		w.appendLine("assert(type < ",assertions.size(),", \"spinja_get_edge_name: invalid type index %d\", type);");
-		w.appendLine("return edge_names[type];");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("");
+        w.appendLine("static const int edge_type[] = {");
+        w.indent();
+        for (int i = 0; i < edges.size(); i++) {
+            int num = model.getTypeIndex(model.getEdgeType(i));
+            w.appendLine(num,",");
+        }
+        w.appendLine("-1");
+        w.outdent();
+        w.appendLine("};");
+        w .appendLine("");
+
+        w.appendLine("extern int spinja_get_edge_count() {");
+        w.indent();
+        w.appendLine("return "+ edges.size() +";");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+
+        w.appendLine("extern int spinja_get_edge_type(int edge) {");
+        w.indent();
+        w.appendLine("assert(edge < ",edges.size(),", \"spinja_get_edge_type: invalid type index %d\", edge);");
+        w.appendLine("return edge_type[edge];");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
 	}
 	
 	private static void generateGuardMatrices(StringWriter w, LTSminModel model) {
@@ -1347,24 +1341,24 @@ public class LTSminPrinter {
         w.appendLine("}");
         w.appendLine("");
 		
-		w.appendLine("const int* spinja_get_guards(int t) {");
+		w.appendLine("const int* spinja_get_labels(int t) {");
 		w.indent();
-		w.appendLine("assert(t < ",gm.getTransMatrix().size(),", \"spinja_get_guards: invalid transition index %d\", t);");
+		w.appendLine("assert(t < ",gm.getTransMatrix().size(),", \"spinja_get_labels: invalid transition index %d\", t);");
 		w.appendLine("return "+ GM_TRANS_NAME +"[t];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("const int*** spinja_get_all_guards() {");
+		w.appendLine("const int*** spinja_get_all_labels() {");
 		w.indent();
 		w.appendLine("return (const int***)&"+ GM_TRANS_NAME +";");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("const int* spinja_get_guard_may_be_coenabled_matrix(int g) {");
+		w.appendLine("const int* spinja_get_label_may_be_coenabled_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfGuards(),", \"spinja_get_guard_may_be_coenabled_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_may_be_coenabled_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ CO_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
@@ -1372,22 +1366,22 @@ public class LTSminPrinter {
 
         w.appendLine("const int* spinja_get_label_visiblity_matrix(int g) {");
         w.indent();
-        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_guard_nes_matrix: invalid guard index %d\", g);");
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_nes_matrix: invalid guard index %d\", g);");
         w.appendLine("return "+ VIS_DM_NAME +"[g];");
         w.outdent();
         w.appendLine("}");
 
-		w.appendLine("const int* spinja_get_guard_nes_matrix(int g) {");
+		w.appendLine("const int* spinja_get_label_nes_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_guard_nes_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_nes_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NES_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("const int* spinja_get_guard_nds_matrix(int g) {");
+		w.appendLine("const int* spinja_get_label_nds_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_guard_nds_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_nds_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NDS_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
@@ -1438,12 +1432,12 @@ public class LTSminPrinter {
         w.appendLine("}");
         w.appendLine("");
 		
-		w.appendLine("void spinja_get_labels_all(void* model, ",C_STATE,"* ",IN_VAR,", int* guard) {");
+		w.appendLine("void spinja_get_labels_all(void* model, ",C_STATE,"* ",IN_VAR,", int* label) {");
 		w.indent();
 		w.appendLine("(void)model;");
 		for(int g=0; g<gm.getNumberOfLabels(); ++g) {
 			w.appendPrefix();
-			w.append("guard[").append(g).append("] = ");
+			w.append("label[").append(g).append("] = ");
 			generateGuard(w, model, gm.getLabel(g), in(model));
 			w.append(" != 0;");
 			w.appendPostfix();

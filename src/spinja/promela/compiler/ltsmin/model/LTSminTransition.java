@@ -250,4 +250,8 @@ public class LTSminTransition implements LTSminGuardContainer {
         if (pcGuard.size() == 0) throw new AssertionError("No PC guard for "+ this);
         return pcGuard;
     }
+
+    public boolean isProgress() {
+        return begin.isProgress();
+    }
 }

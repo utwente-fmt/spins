@@ -105,13 +105,14 @@ static int spinja_to_get;
 static int spinja_choice;
 static int spinja_pilot = false;
 static int spinja_match_tid = false;
+static int statement_type = -1;
 
 void
 spinja_sim_cb(void* arg, transition_info_t *ti, state_t *out)
 {
 	state_t *state = (state_t *)arg;
 	if (-1 == spinja_to_get) {
-		printf("\tchoice %d: %s\n", ++spinja_choice, spinja_get_group_name(ti->group));
+		printf("\tchoice %d: %s\n", ++spinja_choice, spinja_get_type_value_name(statement_type, ti->group));
 	} else {
 		++spinja_choice;
 		if (spinja_match_tid ? ti->group == spinja_to_get : spinja_choice == spinja_to_get) {
@@ -145,7 +146,7 @@ spinja_dm()
 	int k = spinja_get_transition_groups();
 	int n = spinja_get_state_size();
 	for (i = 0; i < k; i++) {
-		printf("%d)\t%s\t", i, spinja_get_group_name(i));
+		printf("%d)\t%s\t", i, spinja_get_type_value_name(statement_type, i));
 		const int *write = spinja_get_transition_write_dependencies(i);
 		const int *read = spinja_get_transition_read_dependencies(i);
 		for (j = 0; j < n; j++) {
@@ -160,10 +161,10 @@ void
 spinja_mce()
 {
 	int i, j;
-	int g = spinja_get_guard_count();
+	int g = spinja_get_label_count();
 	for (i = 0; i < g; i++) {
 		printf("!%d)\t", i);
-		const int *mce = spinja_get_guard_may_be_coenabled_matrix(i);
+		const int *mce = spinja_get_label_may_be_coenabled_matrix(i);
 		for (j = i+1; j < g; j++) {
 			if (!mce[j]) printf("%d, ", j);
 		}
@@ -197,6 +198,8 @@ main(int argc, char **argv)
 	state_t state;
 	spinja_get_initial_state(&state);
 	int k = spinja_get_transition_groups();
+	for (statement_type = 0; statement_type++; statement_type < spinja_get_type_count())
+	    if (0 == strcmp(spinja_get_type_name(statement_type),"statement")) break;
 	while (true) {
 		int result = spinja_state_db_lookup(seen, (const int*)&state);
 		if (STATE_DB_FULL == result) {

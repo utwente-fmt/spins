@@ -7,15 +7,19 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.expression.Expression;
-import spinja.promela.compiler.ltsmin.LTSminTreeWalker.Pair;
 import spinja.promela.compiler.ltsmin.matrix.DepMatrix;
 import spinja.promela.compiler.ltsmin.matrix.GuardInfo;
+import spinja.promela.compiler.ltsmin.matrix.LTSminGuard;
+import spinja.promela.compiler.ltsmin.model.LTSminUtil.Pair;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.variable.Variable;
 import spinja.promela.compiler.variable.VariableType;
+import spinja.util.IndexedSet;
 
 /**
  * An LTSmin model consists is derived from a SpinJa Specification and
@@ -37,17 +41,36 @@ import spinja.promela.compiler.variable.VariableType;
  */
 public class LTSminModel implements Iterable<LTSminTransition> {
 
-	private String name;
-	public LTSminStateVector sv;
-	private DepMatrix depMatrix;
-	private GuardInfo guardInfo;
-	private List<String> mtypes;
+    private String name;
+    private DepMatrix depMatrix;
+    private GuardInfo guardInfo;
+    private List<String> mtypes;
+
+    // local variables
 	public final Variable index = new Variable(VariableType.INT, "i", -1);
 	public final Variable jndex = new Variable(VariableType.INT, "j", -1);
-	private List<LTSminTransition> transitions = new ArrayList<LTSminTransition>();
-	private List<Variable> locals = Arrays.asList(index, jndex);
-	Map<LTSminState, LTSminState> states = new HashMap<LTSminState, LTSminState>();
+    private List<Variable> locals = Arrays.asList(index, jndex);
+
+    // state vector
+    public LTSminStateVector sv;
+
+    // next-state assertions
     public List<Pair<Expression,String>> assertions = new LinkedList<Pair<Expression,String>>();
+
+    // states and transitions
+    private List<LTSminTransition> transitions = new ArrayList<LTSminTransition>();
+	private Map<LTSminState, LTSminState> states = new HashMap<LTSminState, LTSminState>();
+
+	// types
+    private IndexedSet<String> types = new IndexedSet<String>();
+    private List<IndexedSet<String>> values = new ArrayList<IndexedSet<String>>();
+
+    // edge labels
+    private IndexedSet<String> edgeLabels = new IndexedSet<String>();
+    private List<String> edgeTypes = new ArrayList<String>();
+
+    // state labels
+    private Map<String, LTSminGuard> stateLabels = new HashMap<String, LTSminGuard>();
 
 	public LTSminModel(String name, LTSminStateVector sv, Specification spec) {
 		this.name = name;
@@ -112,4 +135,81 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 	    lt.setGroup(transitions.size());
 		transitions.add(lt);
 	}
+
+    public void addType(String string) {
+        if (types.get(string) != null) throw new AssertionError("Adding type twice: "+ string);
+        types.add(string);
+        values.add(new IndexedSet<String>());
+    }
+
+    public void addTypeValue(String string, String value) {
+        getType(string).add(value);
+    }
+
+    public int getTypeIndex(String string) {
+        return types.get(string);
+    }
+    
+    public IndexedSet<String> getType(String string) {
+        Integer index = types.get(string);
+        if (index == null) return null;
+        return values.get(index);
+    }
+
+    public String getType(int index) {
+        return types.getIndex(index);
+    }
+
+    public IndexedSet<String> getTypeValues(int index) {
+        return values.get(index);
+    }
+
+    public int getTypeValueIndex(String type, String string) {
+        Integer typeno = types.get(type);
+        IndexedSet<String> values = this.values.get(typeno);
+        return values.get(string);
+    }
+
+    public IndexedSet<String> getTypes() {
+        return types;
+    }
+
+    public List<IndexedSet<String>> getTypeValues() {
+        return values;
+    }
+
+    public void addEdgeLabel(String name, String type) {
+        edgeLabels.add(name);
+        edgeTypes.add(type);
+    }
+
+    public IndexedSet<String> getEdges() {
+        return edgeLabels;
+    }
+
+    public String getEdgeType(String string) {
+        int index = edgeLabels.get(string);
+        return edgeTypes.get(index);
+    }
+
+    public String getEdgeType(int index) {
+        return edgeTypes.get(index);
+    }
+    
+    public void addStateLabel(String string, LTSminGuard g) {
+        stateLabels.put(string, g);
+    }
+    
+    public Set<Entry<String, LTSminGuard>> getLabels() {
+       return stateLabels.entrySet();
+    }
+
+    public void addTypeValue(String name2, String string, int i) {
+        if (i != getType(name2).size()) throw new AssertionError("Out of order adding type value "+ name2 +"."+ string +" at "+ i);
+        addTypeValue(name2, string);
+    }
+
+    public int getEdgeIndex(String edge) {
+        return edgeLabels.get(edge);
+    }
 }

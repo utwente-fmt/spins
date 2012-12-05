@@ -101,12 +101,10 @@ public class LTSminGMWalker {
 	 * @param model
 	 * @param debug
 	 */
-	static void generateGuardInfo(LTSminModel model,
-	                              Map<String, LTSminGuard> labels,
-	                              LTSminDebug debug) {
+	static void generateGuardInfo(LTSminModel model, LTSminDebug debug) {
 		debug.say("Generating guard information ...");
 		debug.say_indent++;
-		
+
 		if(model.getGuardInfo()==null)
 			model.setGuardInfo(new GuardInfo(model.getTransitions().size()));
 		GuardInfo guardInfo = model.getGuardInfo();
@@ -115,11 +113,10 @@ public class LTSminGMWalker {
 		// extact guards
 		generateTransitionGuardLabels (params);
 
-		//int nguards = guardInfo.getNumberOfGuards();
-
-		// add the normal labels
-        for (Map.Entry<String, LTSminGuard> label : labels.entrySet())
+		// add the normal state labels
+        for (Map.Entry<String, LTSminGuard> label : model.getLabels()) {
             guardInfo.addLabel(label.getKey(), label.getValue());
+        }
 
         // We extend the NES and NDS matrices to include all labels
         // The special labels, e.g. progress and valid end, can then be used in
@@ -144,10 +141,12 @@ public class LTSminGMWalker {
 		int nnds = generateNDSMatrix (model, guardInfo);
         debug.say(report( nnds, nesSize, "!NDS guards"));
 
+        // generate label / slot read matrix
         generateLabelMatrix (model);
 
+        // generate transition / guard visibility matrix
         int visible = generateLabelVisibility (model);
-        debug.say(report( visible, nesSize, "visible"));
+        debug.say(report( visible, nesSize, "visibilities"));
         
 		debug.say_indent--;
 		debug.say("Generating guard information done");
@@ -171,15 +170,15 @@ public class LTSminGMWalker {
             List<Expression> expr = new ArrayList<Expression>();
             LTSminGuard label = guardInfo.getLabel(i);
             extract_boolean_expressions (expr, label.getExpr());
-            for (Expression e : expr) {  
-                LTSminGuard guard = new LTSminGuard(e);
-                temp.clear();
-                LTSminDMWalker.walkOneGuard(model, temp, guard, 0);
-                for (LTSminTransition trans : model.getTransitions()) {
+trans_loop: for (LTSminTransition trans : model.getTransitions()) {
+                for (Expression e : expr) {  
+                    LTSminGuard guard = new LTSminGuard(e);
+                    temp.clear();
+                    LTSminDMWalker.walkOneGuard(model, temp, guard, 0);
                     int t = trans.getGroup();
                     if (!model.getDepMatrix().isWrite(t, temp.getReads(0)))
                         continue;
-
+                    
                     boolean mcd = false;
                     boolean mce = true;
                     for (int gg : guardInfo.getTransMatrix().get(t)) {
@@ -191,7 +190,7 @@ public class LTSminGMWalker {
                          mce && is_nds_guard(model, guard, trans) ) {
                         visibility.incRead(i, t);
                         visible++;
-                        continue;
+                        continue trans_loop; // next transition
                     }
                 }
             }
