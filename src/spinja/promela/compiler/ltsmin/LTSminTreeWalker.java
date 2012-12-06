@@ -138,7 +138,7 @@ public class LTSminTreeWalker {
 			spec.addReadAction(p.left, p.right);
 		createModelTransitions();
 		createModelAssertions();
-		createModelLabels();
+		createModelLabels(debug);
 		LTSminDMWalker.walkModel(model, debug);
 		LTSminGMWalker.generateGuardInfo(model, debug);
 		return model;
@@ -161,8 +161,10 @@ public class LTSminTreeWalker {
 	 * Set accepting state, valid end-state and progress-state conditions for this model. 
 	 * Accepting condition semantics are overloaded with valid end state semantics.
 	 */
-    private void createModelLabels() {
-        
+    private void createModelLabels(LTSminDebug debug) {
+
+        if (!BOOLEAN_TYPE_NAME.equals(VariableType.BOOL.getName()))
+             debug.say(MessageKind.FATAL, "Not exporting boolean type as \"bool\" (LTSmin standard)");
         /* always add the bool type */
         model.addType(VariableType.BOOL.getName());
         model.addTypeValue(VariableType.BOOL.getName(), "false", 0); // index 0
@@ -195,10 +197,11 @@ public class LTSminTreeWalker {
             State to = t.getTransition().getTo();
             int id = null == to ? -1 : to.getStateId();
             String valid = to == null || to.isEndingState() ? "valid" : "invalid";
-            String progress = from == null || from.isProgressState() ? ", progress" : "";
+            String progress = from == null || from.isProgressState() ? " <progress>" : "";
             name = "group "+ t.getGroup() +" ("+ t.getProcess().getName() +") "+ 
-                   Preprocessor.getFileName() +":"+ line +
-                   " (state "+ id +") <"+ valid +" end state"+ progress +"> "+ name;
+                   Preprocessor.getFileName() +":"+ line + progress +
+                   " (state "+ id +") <"+ valid +" end state> "+ name;
+            // group G (PROCESS) FILE:LINE <progress> (state TO) <(in)valid end state> NAME 
             model.addTypeValue(STATEMENT_TYPE_NAME, name);
         }
 
@@ -206,6 +209,7 @@ public class LTSminTreeWalker {
         model.addType(ACTION_TYPE_NAME);
         model.addTypeValue(ACTION_TYPE_NAME, NO_ACTION_NAME, 0); // no action
         model.addTypeValue(ACTION_TYPE_NAME, ASSERT_ACTION_NAME, 1);
+        model.addTypeValue(ACTION_TYPE_NAME, PROGRESS_ACTION_NAME, 2);
         model.addEdgeLabel(ACTION_EDGE_LABEL_NAME, ACTION_TYPE_NAME);
 
         /* Add accepting state labels for never claim */
@@ -240,8 +244,6 @@ public class LTSminTreeWalker {
 		}
 		if (or != null) {
 		    model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME, new LTSminGuard(or));
-		    // also as progress trans label:
-		    model.addEdgeLabel(PROGRESS_EDGE_LABEL_NAME, VariableType.BOOL.getName());
 		}
 
 		/* Export label for valid end states */

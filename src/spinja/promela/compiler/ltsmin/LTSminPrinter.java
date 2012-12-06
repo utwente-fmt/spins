@@ -124,15 +124,16 @@ public class LTSminPrinter {
     public static final String ACCEPTING_STATE_LABEL_NAME       = "accept_";
     public static final String NON_PROGRESS_STATE_LABEL_NAME    = "np_";
 
-    public static final String PROGRESS_EDGE_LABEL_NAME         = "progress";
     public static final String STATEMENT_EDGE_LABEL_NAME        = "statement";
     public static final String ACTION_EDGE_LABEL_NAME           = "action";
     
     public static final String STATEMENT_TYPE_NAME              = "statement";
     public static final String ACTION_TYPE_NAME                 = "action";
+    public static final String BOOLEAN_TYPE_NAME                = "bool";
 
     public static final String NO_ACTION_NAME                   = "";
     public static final String ASSERT_ACTION_NAME               = "assert";
+    public static final String PROGRESS_ACTION_NAME             = "progress";
 
 	static int n_active = 0;
 
@@ -333,17 +334,24 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 	
-	private static void generateACallback(StringWriter w, LTSminModel model, int trans) {
-        int index = model.getEdgeIndex(STATEMENT_EDGE_LABEL_NAME);
-        w.appendLine("transition_labels["+ index +"] = "+ trans +";"); // index
-        if (model.getTransitions().get(trans).isProgress()) {
-            index = model.getEdgeIndex(PROGRESS_EDGE_LABEL_NAME);
-            w.appendLine("transition_labels["+ index +"] = 1;"); // 1 == "true"
-        }
-        w.appendLine("transition_info.group = "+ trans +";");
+	private static void generateACallback(StringWriter w, LTSminModel model,
+	                                      LTSminTransition t) {
+        printEdgeLabels(w, model, t);
+        w.appendLine("transition_info.group = "+ t.getGroup() +";");
 		w.appendLine("callback(arg,&transition_info,"+ OUT_VAR +");");
 		w.appendLine("++states_emitted;");
 	}
+
+    private static void printEdgeLabels(StringWriter w, LTSminModel model,
+                                        LTSminTransition t) {
+        int index = model.getEdgeIndex(STATEMENT_EDGE_LABEL_NAME);
+        w.appendLine("transition_labels["+ index +"] = "+ t.getGroup() +";"); // index
+        if (t.isProgress()) {
+            index = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
+            int value = model.getTypeValueIndex(ACTION_TYPE_NAME, PROGRESS_ACTION_NAME);
+            w.appendLine("transition_labels["+ index +"] = "+ value +";"); // index
+        }
+    }
 
 	private static void generateLeavesAtomic(StringWriter w, LTSminModel model) {
 		List<LTSminTransition> ts = model.getTransitions();
@@ -377,10 +385,9 @@ public class LTSminPrinter {
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
 		List<Action> actions = t.getActions();
 		for(Action a: actions)
-			generateAction(w,a,model);
+			generateAction(w,a,model, t);
+		// No edge labels! They are discarded anyway!
 		w.appendLine("transition_info.group = "+ t.getGroup() +";");
-        int index = model.getEdgeIndex(STATEMENT_EDGE_LABEL_NAME);
-        w.appendLine("transition_labels["+ index +"] = "+ t.getGroup() +";"); // index
 		w.appendLine("spinja_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +");");
 		w.appendLine("++states_emitted;");
 		w.outdent();
@@ -475,13 +482,14 @@ public class LTSminPrinter {
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
 		List<Action> actions = t.getActions();
 		for(Action a: actions)
-			generateAction(w,a,model);
+			generateAction(w,a,model, t);
 		if (t.isAtomic()) {
+		    printEdgeLabels (w, model, t);
 			w.appendLine("transition_info.group = "+ t.getGroup() +";");
 			w.appendLine("int count = spinja_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +");");
 			w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
 		} else {
-			generateACallback(w, model, t.getGroup());
+			generateACallback(w, model, t);
 		}
 		w.outdent();
 		w.appendLine("}");
@@ -538,7 +546,8 @@ public class LTSminPrinter {
         generateExpression(w, guard.getExpression(), state);
 	}
 
-	private static void generateAction(StringWriter w, Action a, LTSminModel model) {
+	private static void generateAction(StringWriter w, Action a,
+	                                   LTSminModel model, LTSminTransition t) {
 		if(a instanceof AssignAction) { //TODO: assign + expr + runexp
 			AssignAction as = (AssignAction)a;
 			Identifier id = as.getIdentifier();
@@ -615,9 +624,11 @@ public class LTSminPrinter {
 			w.append(") {");
 			w.appendPostfix();
 			w.indent();
+			if (t.isProgress())
+			    System.err.println("Warning: assert action will be overwritten by progress action!");
 			int index = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
-            int typeno = model.getTypeValueIndex(ACTION_TYPE_NAME, ASSERT_ACTION_NAME);
-			w.appendLine("transition_labels["+ index +"] = "+ typeno +";"); // index
+            int value = model.getTypeValueIndex(ACTION_TYPE_NAME, ASSERT_ACTION_NAME);
+			w.appendLine("transition_labels["+ index +"] = "+ value +";"); // index
 			w.outdent();
 			w.appendLine("}");
 		} else if(a instanceof PrintAction) {
@@ -673,11 +684,11 @@ public class LTSminPrinter {
 			//set pid
 			Action update_pid = assign(model.sv.getPID(instance),
 										id(LTSminStateVector._NR_PR));
-			generateAction(w2, update_pid, model);
+			generateAction(w2, update_pid, model, t);
 
 			//activate process
 			Action update_pc = assign(model.sv.getPC(instance), 0);
-			generateAction(w2, update_pc, model);
+			generateAction(w2, update_pc, model, t);
 			w2.appendLine("++("+ printVar(_NR_PR, out(model)) +");");
 			
 			List<Variable> args = instance.getArguments();
@@ -690,11 +701,11 @@ public class LTSminPrinter {
 				// channels are passed by reference: TreeWalker.bindByReferenceCalls 
 				if (!(v.getType() instanceof ChannelType) && !v.isStatic()) {
 					Action aa = assign(v, e);
-					generateAction(w2, aa, model);
+					generateAction(w2, aa, model, t);
 				}
 			}
 			for (Action action: re.getActions())
-				generateAction(w2, action, model);
+				generateAction(w2, action, model, t);
 
 			String ccode = w2.toString();
 			if (re.getInstances().size() > 1) {
@@ -731,7 +742,7 @@ public class LTSminPrinter {
 						w.appendLine(var +" = false;");
 						w.appendLine("goto "+ loop.getLabel() +";");
 					}
-					generateAction(w, act, model);
+					generateAction(w, act, model, t);
 				}
 				w.outdent();
 				first = false;
@@ -757,9 +768,9 @@ public class LTSminPrinter {
 			List<Expression> exprs = csa.getExprs();
 			for (int e = 0; e < exprs.size(); e++) {
 				final Expression expr = exprs.get(e);
-				generateAction(w, assign(channelNext(id,e), expr), model);
+				generateAction(w, assign(channelNext(id,e), expr), model, t);
 			}
-			generateAction(w, incr(chanLength(id)), model);
+			generateAction(w, incr(chanLength(id)), model, t);
 		} else if (a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			Identifier id = cra.getIdentifier();
@@ -786,7 +797,7 @@ public class LTSminPrinter {
 				if (expr instanceof Identifier) {
 					Identifier p = (Identifier)expr;
 					Expression m = channelBottom(id, e);
-					generateAction(w, assign(p, m), model);
+					generateAction(w, assign(p, m), model, t);
 				}
 			}
 			if (cra.isRandom()) {
@@ -804,14 +815,14 @@ public class LTSminPrinter {
 					for (int e = 0; e < exprs.size(); e++) {
 						Identifier m = channelIndex(id, index, e);
 						Identifier mpp = channelIndex(id, pp, e);
-						generateAction(w, assign(m, mpp), model);
+						generateAction(w, assign(m, mpp), model, t);
 					}
 					w.outdent();
 					w.appendLine("}");
 				}
-				generateAction(w, decr(chanLength(id)), model);
+				generateAction(w, decr(chanLength(id)), model, t);
 				for (int e = 0; e < exprs.size(); e++) {
-					generateAction(w, assign(channelNext(id,e), constant(0)), model);
+					generateAction(w, assign(channelNext(id,e), constant(0)), model, t);
 				}
 			}
 		} else {
@@ -1366,7 +1377,7 @@ public class LTSminPrinter {
 
         w.appendLine("const int* spinja_get_label_visiblity_matrix(int g) {");
         w.indent();
-        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_nes_matrix: invalid guard index %d\", g);");
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_visiblity_matrix: invalid guard index %d\", g);");
         w.appendLine("return "+ VIS_DM_NAME +"[g];");
         w.outdent();
         w.appendLine("}");

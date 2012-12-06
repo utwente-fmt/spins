@@ -383,4 +383,8 @@ public class State {
 	public List<String> getLabels() {
 		return labels;
 	}
+
+    public void addLabels(List<String> labels2) {
+        this.labels.addAll(labels2);
+    }
 }

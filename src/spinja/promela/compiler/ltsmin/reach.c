@@ -12,26 +12,25 @@ typedef struct spinja_args_s {
 	size_t 				outs;
 	spinja_state_db_t  *seen;
 	int 				sid;
-	int 				real_group;
+	transition_info_t  *ti_orig;
 } spinja_args_t;
 
-extern void spinja_dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state, int atomic);
+extern void spinja_dfs (spinja_args_t *args, state_t *state, int atomic);
 
 void
 spinja_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic)
 {
 	spinja_args_t *args = (spinja_args_t *)arg;
 	if (leaves_atomic[transition_info->group]) {
-	    transition_info->group = args->real_group;
-		args->callback (args->arg, transition_info, out);
+		args->callback (args->arg, args->ti_orig, out);
 		args->outs++;
 	} else {
-		spinja_dfs (args, transition_info, out, atomic);
+		spinja_dfs (args, out, atomic);
 	}
 }
 
 void
-spinja_dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *state, int atomic)
+spinja_dfs (spinja_args_t *args, state_t *state, int atomic)
 {
 	int result = spinja_state_db_lookup (args->seen, (const int*)state);
 	switch ( result ) {
@@ -39,15 +38,15 @@ spinja_dfs (spinja_args_t *args, transition_info_t *transition_info, state_t *st
 		state_t out;
 		int count = spinja_get_successor_sid (args->model, state, args, &out, atomic);
 		if (count == 0) {
-		    transition_info->group = args->real_group;
-			args->callback (args->arg, transition_info, state);
+			args->callback (args->arg, args->ti_orig, state);
 			args->outs++;
 		}
 		break;
 	}
 	case STATE_DB_FULL: // full database
-		printf ("ERROR: model's internal atomic state database is filled (max size = 2^%zu). Increase DB_MAX_SIZE.", DB_MAX_SIZE);
-		exit(1);
+		printf ("ERROR: model's internal atomic state database is filled "
+		        "(max size = 2^%zu). Increase DB_MAX_SIZE.", DB_MAX_SIZE);
+		exit (1);
 	case true: break; // seen state
 	default: break;
 	}
@@ -76,7 +75,7 @@ spinja_destroy_key() {
 spinja_args_t *
 spinja_get_tls ()
 {
-	spinja_args_t      *args = pthread_getspecific (spinja_local_key);
+	spinja_args_t *args = pthread_getspecific (spinja_local_key);
     if (args == NULL) {
         args = spinja_align (SJ_CACHE_LINE_SIZE, sizeof(spinja_args_t));
     	args->seen = spinja_state_db_create (spinja_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
@@ -95,9 +94,9 @@ spinja_reach (void* model, transition_info_t *transition_info, state_t *in,
 	args->arg = arg;
 	args->outs = 0;
 	args->sid = sid;
-	args->real_group = transition_info->group;
+	args->ti_orig = transition_info;
 	spinja_state_db_clear (args->seen);
-	spinja_dfs (args, transition_info, in, sid);
+	spinja_dfs (args, in, sid);
 	return args->outs;
 }
 
