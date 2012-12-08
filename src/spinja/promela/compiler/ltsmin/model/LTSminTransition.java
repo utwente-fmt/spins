@@ -10,6 +10,7 @@ import java.util.Set;
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.Specification;
 import spinja.promela.compiler.actions.Action;
+import spinja.promela.compiler.automaton.State;
 import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.CompareExpression;
 import spinja.promela.compiler.expression.Expression;
@@ -252,6 +253,7 @@ public class LTSminTransition implements LTSminGuardContainer {
     }
 
     public boolean isProgress() {
-        return begin.isProgress();
+        return begin.isProgress() ||
+               State.hasLabelPrefix(original.getLabels(), State.LABEL_PROGRESS);
     }
 }

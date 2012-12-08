@@ -35,7 +35,12 @@ import spinja.promela.compiler.actions.Action;
  * @author Marc de Jonge
  */
 public class State {
-	private static class StateIdCounter {
+
+    public static final String LABEL_PROGRESS = "progress";
+	public static final String LABEL_ACCEPT = "accept";
+    public static final String LABEL_END = "end";
+
+    private static class StateIdCounter {
 		private static int id = 0;
 
 		private static synchronized int nextId() {
@@ -192,7 +197,7 @@ public class State {
 				null == trans.getTo())
 				return true;
 		}
-		return hasLabelPrefix("end");
+		return hasLabelPrefix(LABEL_END);
 	}
 
 	/**
@@ -201,7 +206,7 @@ public class State {
 	 * @return true when this state is and acceptance state.
 	 */
 	public boolean isAcceptState() {
-		return hasLabelPrefix("accept");
+		return hasLabelPrefix(LABEL_ACCEPT);
 	}
 
 	/**
@@ -210,7 +215,7 @@ public class State {
 	 * @return true when this state is and progress state.
 	 */
 	public boolean isProgressState() {
-		return hasLabelPrefix("progress");
+		return hasLabelPrefix(LABEL_PROGRESS);
 	}
 
 	/**
@@ -253,7 +258,12 @@ public class State {
 	 * @return True if one of the labels that is has begins with the given prefix, false otherwise.
 	 */
 	public boolean hasLabelPrefix(final String prefix) {
-		for (final String label : labels) {
+        return hasLabelPrefix (labels,prefix);
+    }
+
+	static public boolean hasLabelPrefix(List<String> labels, final String prefix) {
+		if (labels == null) return false;
+	    for (final String label : labels) {
 			if (label.startsWith(prefix)) {
 				return true;
 			}
@@ -346,7 +356,7 @@ public class State {
 	 */
 	@Override
 	public String toString() {
-		return (inAtomic ? "Atomic " : "") + "State " + stateId + " (OUT: " + out + ")";
+		return (inAtomic ? "Atomic " : "") + "State " + stateId + " (OUT: " + out + ") "+ labels;
 	}
 
 	/**

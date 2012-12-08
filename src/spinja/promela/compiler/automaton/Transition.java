@@ -16,6 +16,7 @@ package spinja.promela.compiler.automaton;
 
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 
 import spinja.promela.compiler.Proctype;
 import spinja.promela.compiler.actions.Action;
@@ -46,6 +47,8 @@ public abstract class Transition implements ActionContainer {
 	private State from, to;
 
 	private final int transId;
+
+    private List<String> labels;
 
 	/**
 	 * Constructor of Transition. Creates a {@link Transition} from one {@link State} to an other.
@@ -325,7 +328,8 @@ public abstract class Transition implements ActionContainer {
 		return new StringWriter().appendIf(takesAtomicToken(), "Atomic ").append(
 			getClass().getSimpleName()).append(" from ").append(
 			from == null ? "nowhere" : from.getStateId()).append(" to ").append(
-			to == null ? "nowhere" : to.getStateId()).append(" ").append(getText()).toString();
+			to == null ? "nowhere" : to.getStateId()).append(" ").append(
+			labels == null ? "" : " "+labels).append(getText()).toString();
 	}
 
 	public boolean isAlwaysEnabled() {
@@ -354,4 +358,12 @@ public abstract class Transition implements ActionContainer {
 	public Proctype getProc() {
 		return getFrom().getAutomaton().getProctype();
 	}
+
+    public void setLabels(List<String> labels) {
+        this.labels = labels;
+    }
+
+    public List<String> getLabels() {
+        return labels;
+    }
 }

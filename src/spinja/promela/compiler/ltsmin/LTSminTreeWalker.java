@@ -193,11 +193,10 @@ public class LTSminTreeWalker {
             Action act =  (t.getTransition().getActionCount() > 0 ? t.getTransition().getAction(0) : null);
             String name = t.getName().split("\t")[1];
             int line = null == act ? -1 : act.getToken().beginLine;
-            State from = t.getTransition().getFrom();
             State to = t.getTransition().getTo();
             int id = null == to ? -1 : to.getStateId();
             String valid = to == null || to.isEndingState() ? "valid" : "invalid";
-            String progress = from == null || from.isProgressState() ? " <progress>" : "";
+            String progress = t.isProgress() ? " <progress>" : "";
             name = "group "+ t.getGroup() +" ("+ t.getProcess().getName() +") "+ 
                    Preprocessor.getFileName() +":"+ line + progress +
                    " (state "+ id +") <"+ valid +" end state> "+ name;
@@ -393,6 +392,7 @@ public class LTSminTreeWalker {
 				(trans instanceof GotoTransition ? new GotoTransition(newState, newNextState, trans.getText().substring(5)) :
 				(trans instanceof UselessTransition ? new UselessTransition(newState, newNextState, trans.getText()) :
 				 null))))));
+			newTrans.setLabels(trans.getLabels());
 			for (Action a : trans)
 				newTrans.addAction(instantiate(a, newTrans, p, null));
 			instantiate(next, newNextState, seen, p);
