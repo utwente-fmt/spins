@@ -430,7 +430,7 @@ SKIP : { // Skip whitespace and comments
                 SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore if until else/enfi
             }
         } catch (Exception e) {
-            throw new AssertionError("Failed to parse #if "+ image.toString(), e);
+            throw new AssertionError("Failed to parse #if "+ image.toString()+ e);
         }
     }
 }

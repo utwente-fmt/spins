@@ -34,7 +34,6 @@ public class Compiler<TYPE extends Type, TOKEN extends Token<TYPE>> {
 		return buffer;
 	}
 
-	@SafeVarargs
     // WARNING SUPPRESSED: Type safety: Potential heap pollution via varargs parameter
 	protected final boolean nextIs(TYPE... types) throws ParseException {
 		for (TYPE type : types) {
@@ -59,7 +58,6 @@ public class Compiler<TYPE extends Type, TOKEN extends Token<TYPE>> {
 		return token;
 	}
 
-	@SafeVarargs
 	// WARNING SUPPRESSED: Type safety: Potential heap pollution via varargs parameter
 	protected final TOKEN expect(TYPE... types) throws ParseException {
 		TOKEN token = take();
