@@ -1,4 +1,4 @@
-package spinja.promela.compiler.ltsmin.model;
+package spinja.promela.compiler.ltsmin.util;
 
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_FILL_VAR;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
@@ -24,6 +24,7 @@ import spinja.promela.compiler.expression.Expression;
 import spinja.promela.compiler.expression.Identifier;
 import spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spinja.promela.compiler.ltsmin.matrix.LTSminPCGuard;
+import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.parser.ParseException;

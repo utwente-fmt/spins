@@ -1,16 +1,16 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanContentsGuard;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelBottom;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelNext;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.decr;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.incr;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.not;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.assign;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.chanContentsGuard;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.channelBottom;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.compare;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.constant;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.decr;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.id;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.incr;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.not;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.INCR;
@@ -54,6 +54,7 @@ import spinja.promela.compiler.ltsmin.model.LTSminTransition;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
+import spinja.promela.compiler.ltsmin.util.LTSminDebug;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.parser.PromelaTokenManager;
@@ -1028,22 +1029,28 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
 	static void walkGuard(Params params, LTSminTransition t, LTSminGuardBase guard) {
 		if (guard instanceof LTSminLocalGuard) { // Nothing
 		} else if (guard instanceof LTSminGuard) {
-			params.guardMatrix.addGuard(t.getGroup(), (LTSminGuard)guard);
+			LTSminGuard g = (LTSminGuard)guard;
+			if (g.getExpression() == null)
+			    return;
+            params.guardMatrix.addGuard(t.getGroup(), g);
 		} else if (guard instanceof LTSminGuardAnd) {
 			for(LTSminGuardBase gb : (LTSminGuardContainer)guard)
 				walkGuard(params, t, gb);
         } else if (guard instanceof LTSminGuardNand) {
             LTSminGuardNand g = (LTSminGuardNand)guard;
-            if (!g.iterator().hasNext()) return;
             Expression e = g.getExpression();
-            params.guardMatrix.addGuard(t.getGroup(), not(e));
+            if (e == null) return;
+            params.guardMatrix.addGuard(t.getGroup(), e);
 		} else if (guard instanceof LTSminGuardNor) { // DeMorgan
-			for (LTSminGuardBase gb : (LTSminGuardContainer)guard)
-                walkGuard(params, t, gb.negate());
+			for (LTSminGuardBase gb : (LTSminGuardContainer)guard) {
+			    Expression expr = gb.getExpression();
+			    if (expr == null) continue;
+                params.guardMatrix.addGuard(t.getGroup(), not(expr));
+			}
 		} else if (guard instanceof LTSminGuardOr) {
 		    LTSminGuardOr g = (LTSminGuardOr)guard;
-			if (!g.iterator().hasNext()) return;
 			Expression e = g.getExpression();
+            if (e == null) return;
 			params.guardMatrix.addGuard(t.getGroup(), e);
 		} else {
 			throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());

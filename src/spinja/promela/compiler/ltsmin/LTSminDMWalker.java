@@ -1,13 +1,13 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelBottom;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelIndex;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelNext;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.channelBottom;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.channelIndex;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.compare;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.constant;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.id;
 
 import java.util.List;
 
@@ -51,6 +51,8 @@ import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminSlot;
 import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.ltsmin.state.LTSminSubVector;
+import spinja.promela.compiler.ltsmin.util.LTSminDebug;
+import spinja.promela.compiler.ltsmin.util.LTSminRendezVousException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.Variable;
@@ -206,7 +208,11 @@ public class LTSminDMWalker {
 			LTSminGuardAnd orc = new LTSminGuardAnd();
 			for (Sequence seq : oa) {
 				Action act = seq.iterator().next();
-				LTSminTreeWalker.createEnabledGuard(act, orc);
+				try {
+                    LTSminTreeWalker.createEnabledGuard(act, orc);
+                } catch (LTSminRendezVousException e) {
+                    throw new AssertionError(e);
+                }
 				for (Action sa : seq) {
 					walkAction(params, sa);
 				}

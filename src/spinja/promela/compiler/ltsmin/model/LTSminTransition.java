@@ -110,9 +110,9 @@ public class LTSminTransition implements LTSminGuardContainer {
         if (guard instanceof LTSminPCGuard) {
             pcGuard.add((LTSminPCGuard) guard);
         }
-		//if(!guard.isDefinitelyTrue()) {
+		if(!guard.isDefinitelyTrue()) {
 			guards.add(guard);
-		//}
+		}
 	}
 
 	public void addAction(Action action) {

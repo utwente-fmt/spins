@@ -1,22 +1,5 @@
 package spinja.promela.compiler.ltsmin;
 
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.assign;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.calc;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.chanLength;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelBottom;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelIndex;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.channelNext;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.compare;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.constant;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.decr;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.eq;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.error;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.id;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.incr;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.not;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.print;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printPC;
-import static spinja.promela.compiler.ltsmin.model.LTSminUtil.printVar;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector.C_STATE;
 import static spinja.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_BOOL;
@@ -26,6 +9,23 @@ import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT8;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_UINT16;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_UINT32;
 import static spinja.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_UINT8;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.assign;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.calc;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.channelBottom;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.channelIndex;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.compare;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.constant;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.decr;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.eq;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.error;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.id;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.incr;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.not;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.print;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.printPC;
+import static spinja.promela.compiler.ltsmin.util.LTSminUtil.printVar;
 import static spinja.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spinja.promela.compiler.parser.PromelaConstants.DECR;
 import static spinja.promela.compiler.parser.PromelaConstants.FALSE;
@@ -80,7 +80,6 @@ import spinja.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spinja.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spinja.promela.compiler.ltsmin.model.LTSminModel;
 import spinja.promela.compiler.ltsmin.model.LTSminTransition;
-import spinja.promela.compiler.ltsmin.model.LTSminUtil.Pair;
 import spinja.promela.compiler.ltsmin.model.ResetProcessAction;
 import spinja.promela.compiler.ltsmin.state.LTSminPointer;
 import spinja.promela.compiler.ltsmin.state.LTSminSlot;
@@ -88,6 +87,8 @@ import spinja.promela.compiler.ltsmin.state.LTSminStateVector;
 import spinja.promela.compiler.ltsmin.state.LTSminTypeI;
 import spinja.promela.compiler.ltsmin.state.LTSminTypeStruct;
 import spinja.promela.compiler.ltsmin.state.LTSminVariable;
+import spinja.promela.compiler.ltsmin.util.LTSminRendezVousException;
+import spinja.promela.compiler.ltsmin.util.LTSminUtil.Pair;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.parser.PromelaConstants;
 import spinja.promela.compiler.variable.ChannelType;
@@ -375,11 +376,14 @@ public class LTSminPrinter {
 	public static void generateAnAtomicTransition(StringWriter w, LTSminTransition t,
 										   LTSminModel model) {
 		w.appendLine("// "+ t.getName());
-		w.appendPrefix().append("if (true");
+		w.appendPrefix().append("if (");
+		int guards = 0;
 		for(LTSminGuardBase g: t.getGuards()) {
-			w.appendPostfix().appendPrefix().append("&&");
-			generateGuard(w, model, g, in(model));
+		    if (g != t.getGuards().get(0))
+		        w.appendPostfix().appendPrefix().append("&&");
+			guards += generateGuard(w, model, g, in(model));
 		}
+		if (guards == 0) w.append("true");
 		w.append(") {").appendPostfix();
 		w.indent();
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
@@ -471,12 +475,15 @@ public class LTSminPrinter {
     public static void generateATransition(StringWriter w, LTSminTransition t,
 										   LTSminModel model, boolean many) {
 		w.appendLine("// "+ t.getName());
-		w.appendPrefix().append("if (true");
+        w.appendPrefix().append("if (");
+        int guards = 0;
 		for(LTSminGuardBase g: t.getGuards()) {
-			w.appendPostfix().appendPrefix().append("&&");
-			if (many) generateGuardMany(w, model, g, in(model));
-			else      generateGuard(w, model, g, in(model));
+			if (g != t.getGuards().get(0))
+			    w.appendPostfix().appendPrefix().append("&&");
+			if (many) guards += generateGuardMany(w, model, g, in(model));
+			else      guards += generateGuard(w, model, g, in(model));
 		}
+		if (guards == 0) w.append("true");
 		w.append(") {").appendPostfix();
 		w.indent();
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
@@ -532,18 +539,22 @@ public class LTSminPrinter {
 		w.appendLine();
 	}
 
-    private static void generateGuardMany(StringWriter w, LTSminModel model,
+    private static int generateGuardMany(StringWriter w, LTSminModel model,
                                       LTSminGuardBase guard, LTSminPointer state) {
         if (guard.isDeadlock()) {
             w.append("0 == states_emitted");
         } else {
-            generateExpression(w, guard.getExpression(), state);
+            return generateGuard(w ,model, guard, state);
         }
+        return 1;
     }
 
-	private static void generateGuard(StringWriter w, LTSminModel model,
+	private static int generateGuard(StringWriter w, LTSminModel model,
 								      LTSminGuardBase guard, LTSminPointer state) {
-        generateExpression(w, guard.getExpression(), state);
+        Expression expression = guard.getExpression();
+        if (expression == null) return 0;
+        generateExpression(w, expression, state);
+        return 1;
 	}
 
 	private static void generateAction(StringWriter w, Action a,
@@ -731,8 +742,13 @@ public class LTSminPrinter {
 					w.appendPrefix().append("if (");
 				Action guardAction = seq.iterator().next();
 				LTSminGuardAnd ag = new LTSminGuardAnd();
-				LTSminTreeWalker.createEnabledGuard(guardAction, ag);
-				generateGuard(w, model, ag, out(model));
+				try {
+                    LTSminTreeWalker.createEnabledGuard(guardAction, ag);
+                } catch (LTSminRendezVousException e) {
+                    throw new AssertionError(e);
+                }
+				int count = generateGuard(w, model, ag, out(model));
+				if (count == 0) w.append("true");
 				w.append(") {").appendPostfix();
 				w.indent();
 				for (Action act : seq) {
@@ -748,7 +764,7 @@ public class LTSminPrinter {
 				first = false;
 			}
 			if (oa.loops()) {
-				w.appendLine("} else { printf(\"Blocking loop in d_step\"); exit(1); }");
+				w.appendLine("} else { assert(false, \"Blocking loop in d_step\"); }");
 				w.outdent();
 				w.appendLine("}");
 			} else {

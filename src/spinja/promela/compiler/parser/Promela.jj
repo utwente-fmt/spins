@@ -72,10 +72,6 @@ public class Promela {
 		return procNr++;
 	}
 
-    private void addReadAction(ChannelReadAction ra, Transition t) {
-        specification.addReadAction(ra, t);
-    }
-
 	private void setGotos() throws ParseException {
 		for(State n : gotos.keySet()) {
 			Token t = gotos.get(n);
@@ -1218,14 +1214,12 @@ State channel_statement(State start, State breakNode, boolean inAtomic): {
 	| t=<CH_READ>
 	  ( {
 	  	  ChannelReadAction read = new ChannelReadAction(t, (Identifier)expr, false, false);
-	  	  Transition trans = start.newTransition(read, end);
-          addReadAction(read, trans);
+	  	  start.newTransition(read, end);
 	    }
 	    recv_args(read)
 	  | {
 	  	  ChannelReadAction read2 = new ChannelReadAction(t, (Identifier)expr, true, false);
-          Transition trans2 = start.newTransition(read2, end);
-          addReadAction(read2, trans2);
+          start.newTransition(read2, end);
 	    }
 	    <LT> recv_args(read2) <GT>
 	  )
@@ -1233,15 +1227,13 @@ State channel_statement(State start, State breakNode, boolean inAtomic): {
 	  (
       {
           ChannelReadAction read3 = new ChannelReadAction(t, (Identifier)expr, false, true);
-          Transition trans3 = start.newTransition(read3, end);
-          addReadAction(read3, trans3);
+          start.newTransition(read3, end);
       }
       recv_args(read3)
 	  | 
       {
           ChannelReadAction read4 = new ChannelReadAction(t, (Identifier)expr, true, true);
-          Transition trans4 = start.newTransition(read4, end);
-          addReadAction(read4, trans4);
+          start.newTransition(read4, end);
       }
 	  <LT> recv_args(read4) <GT>
 	  )

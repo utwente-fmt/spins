@@ -67,6 +67,8 @@ public abstract class Expression {
 	 *             When it can not determine what the constant value is.
 	 */
 	public int getConstantValue() throws ParseException {
+	    if (token == null)
+	        throw new ParseException("Constant value not be determened on compile-time."+ this);
 		throw new MyParseException("Constant value not be determened on compile-time.", getToken());
 	}
 

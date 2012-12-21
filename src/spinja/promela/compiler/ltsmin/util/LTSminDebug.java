@@ -1,4 +1,4 @@
-package spinja.promela.compiler.ltsmin;
+package spinja.promela.compiler.ltsmin.util;
 
 public class LTSminDebug {
 	static final String TAB = "   ";

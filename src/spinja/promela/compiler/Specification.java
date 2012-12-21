@@ -24,11 +24,13 @@ import java.util.Map;
 import java.util.Set;
 
 import spinja.promela.compiler.actions.ChannelReadAction;
+import spinja.promela.compiler.actions.ChannelSendAction;
 import spinja.promela.compiler.automaton.Transition;
 import spinja.promela.compiler.expression.RemoteRef;
 import spinja.promela.compiler.expression.RunExpression;
-import spinja.promela.compiler.ltsmin.model.LTSminUtil;
 import spinja.promela.compiler.ltsmin.model.ReadAction;
+import spinja.promela.compiler.ltsmin.model.SendAction;
+import spinja.promela.compiler.ltsmin.util.LTSminUtil;
 import spinja.promela.compiler.parser.ParseException;
 import spinja.promela.compiler.variable.ChannelType;
 import spinja.promela.compiler.variable.ChannelVariable;
@@ -55,7 +57,8 @@ public class Specification implements Iterable<ProcInstance> {
 
 	private final List<String> mtypes;
 
-	private HashMap<Variable, List<ReadAction>> channels;
+	private HashMap<Variable, List<ReadAction>> channelReads;
+    private HashMap<Variable, List<SendAction>> channelWrites;
 
 	public Specification(final String name) {
 		this.name = name;
@@ -63,7 +66,8 @@ public class Specification implements Iterable<ProcInstance> {
 		channelTypes = new ArrayList<ChannelType>();
 		userTypes = new HashMap<String, CustomVariableType>();
 		varStore = new VariableStore();
-		channels = new HashMap<Variable, List<ReadAction>>();
+		channelReads = new HashMap<Variable, List<ReadAction>>();
+		channelWrites = new HashMap<Variable, List<SendAction>>();
 		Variable hidden = new Variable(VariableType.INT, "_", -1);
 		hidden.setHidden(true);
 		varStore.addVariable(hidden);
@@ -79,19 +83,34 @@ public class Specification implements Iterable<ProcInstance> {
 	}
 
 	public void clearReadActions() {
-		channels.clear();
+		channelReads.clear();
 	}
+
+    public void clearWriteActions() {
+        channelWrites.clear();
+    }
 
 	public void addReadAction(ChannelReadAction cra, Transition t) {
 		if (!LTSminUtil.isRendezVousReadAction(cra)) return;
 		Variable cv = cra.getIdentifier().getVariable();
-		List<ReadAction> raw = channels.get(cv);
+		List<ReadAction> raw = channelReads.get(cv);
 		if (raw == null) {
 			raw = new ArrayList<ReadAction>();
-			channels.put(cv, raw);
+			channelReads.put(cv, raw);
 		}
 		raw.add(new ReadAction(cra, t, t.getProc()));
 	}
+
+    public void addWriteAction(ChannelSendAction cwa, Transition t) {
+        if (!LTSminUtil.isRendezVousSendAction(cwa)) return;
+        Variable cv = cwa.getIdentifier().getVariable();
+        List<SendAction> raw = channelWrites.get(cv);
+        if (raw == null) {
+            raw = new ArrayList<SendAction>();
+            channelWrites.put(cv, raw);
+        }
+        raw.add(new SendAction(cwa, t, t.getProc()));
+    }
 
 	/**
 	 * Creates a new Channel type for in this Specification.
@@ -482,6 +501,10 @@ public class Specification implements Iterable<ProcInstance> {
 	}
 
 	public List<ReadAction> getReadActions(Variable cv) {
-		return channels.get(cv);
+		return channelReads.get(cv);
 	}
+
+    public List<SendAction> getWriteActions(Variable cv) {
+        return channelWrites.get(cv);
+    }
 }
