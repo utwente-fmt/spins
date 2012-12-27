@@ -247,22 +247,24 @@ public class LTSminTreeWalker {
 		}
 
 		/* Add nonprogress state label and progress edge label */
-        Expression or = null;
+        Expression and = null;
 		for (ProcInstance pi : spec) {
 		    for (State s : pi.getAutomaton()) {
 		        if (s.isProgressState()) {
-		            Expression g = pcGuard(model, s, pi).getExpr();
-	                or = or == null ? g : or(or, g) ; // Or
+		            Variable pc = model.sv.getPC(pi);
+		            Expression counter = constant(s.getStateId());
+		            Expression e = compare(PromelaConstants.NEQ, id(pc), counter);
+	                and = and == null ? e : and(and, e) ; // And Not
 		        }
 		    }
 		}
-		if (or != null) {
-		    model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME, new LTSminGuard(or));
+		if (and != null) {
+		    model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME, new LTSminGuard(and));
 		}
 
 		/* Export label for valid end states */
 		Expression end = compare(PromelaConstants.EQ, id(_NR_PR), constant(0)); // or
-		Expression and = null;
+		and = null;
     	for (ProcInstance instance : spec) {
 			Variable pc = model.sv.getPC(instance);
             Expression labeled = compare(PromelaConstants.EQ, id(pc), constant(-1));
