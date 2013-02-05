@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
-<project name="SpinJa" default="build" basedir=".">
+<project name="SpinS" default="build" basedir=".">
 	<target name="init" description="Initializes the build variables">
-		<property name="name"           value="spinja" />
+		<property name="name"           value="spins" />
 		<property name="version"        value="0.9"  />
 
-		<property name="spinja"         value="spinja" />
-		<property name="spinja_parser"  value="spinja/promela/compiler/parser" />
+		<property name="spins"         value="spins" />
+		<property name="spins_parser"  value="spins/promela/compiler/parser" />
 
 		<property name="build"          value="../build" />
 		<property name="dist"           value="../dist" />
@@ -19,18 +19,18 @@
 	</target>
 
 	<target name="javacc" description="Generates the java-files from the JavacCC specification" depends="prepare">
-		<javacc target="${spinja_parser}/Promela.jj" 
+		<javacc target="${spins_parser}/Promela.jj" 
 			javacchome="${lib}" 
-			outputdirectory="${spinja_parser}" 
+			outputdirectory="${spins_parser}" 
 		/>
 	</target>
 
 	<target name="compile" description="Compiles all java files" depends="javacc">
-		<javac destdir="${build}/classes"  source="1.5" debug="on" debuglevel="lines,vars,source" srcdir="${spinja}" includeantruntime="false">
+		<javac destdir="${build}/classes"  source="1.5" debug="on" debuglevel="lines,vars,source" srcdir="${spins}" includeantruntime="false">
 			  <compilerarg line="-XDignore.symbol.file" />	
 		</javac>
-		<copy file="${spinja}/promela/compiler/ltsmin/reach.c"  todir="${build}/classes/${spinja}/promela/compiler/ltsmin/" />
-		<copy file="${spinja}/promela/compiler/ltsmin/hashtable.c"  todir="${build}/classes/${spinja}/promela/compiler/ltsmin/" />
+		<copy file="${spins}/promela/compiler/ltsmin/reach.c"  todir="${build}/classes/${spins}/promela/compiler/ltsmin/" />
+		<copy file="${spins}/promela/compiler/ltsmin/hashtable.c"  todir="${build}/classes/${spins}/promela/compiler/ltsmin/" />
 	</target>
 
 	<target name="jar" description="Generates jar-file" depends="compile">
@@ -42,14 +42,14 @@
 			<manifest>
 				<attribute name="Built-By" value="${user.name}" />
 				<attribute name="Implementation-Version" value="${version} ${TODAY}" />
-				<attribute name="Main-Class" value="spinja.Compile" />
+				<attribute name="Main-Class" value="spins.Compile" />
 			</manifest>
 		</jar>
 		<copy file="${build}/${name}.jar" todir=".." />
 	</target>
 
 	<target name="build" depends="jar">
-        <replace file="spinja/promela/compiler/parser/Promela.java">
+        <replace file="spins/promela/compiler/parser/Promela.java">
             <replacetoken>
 
 public class Promela</replacetoken>
@@ -57,7 +57,7 @@ public class Promela</replacetoken>
 @SuppressWarnings("all")
 public class Promela</replacevalue>
         </replace>
-        <replace file="spinja/promela/compiler/parser/PromelaTokenManager.java">
+        <replace file="spins/promela/compiler/parser/PromelaTokenManager.java">
             <replacetoken>*/
 public class Promela</replacetoken>
             <replacevalue>*/
@@ -66,9 +66,9 @@ public class Promela</replacevalue>
         </replace>
 	</target>
 
-	<target name="javadocs" description="Generates the Javadoc of the SpinJa library" depends="prepare">
-		<javadoc destdir="${doc}/api" author="true" version="true" windowtitle="SpinJa API">
-			<fileset dir="${spinja}" defaultexcludes="yes">
+	<target name="javadocs" description="Generates the Javadoc of the SpinS library" depends="prepare">
+		<javadoc destdir="${doc}/api" author="true" version="true" windowtitle="SpinS API">
+			<fileset dir="${spins}" defaultexcludes="yes">
 				<include name="**/*.java" />
 			</fileset>
 		</javadoc>
@@ -87,29 +87,29 @@ public class Promela</replacevalue>
 
 	<target name="very_clean" description="Clean + remove JavaCC generated Java files" depends="clean">
 		<delete failonerror="false">
-			<fileset dir="${spinja_parser}" 
+			<fileset dir="${spins_parser}" 
 				includes="*.java" 
 				excludes="MyParseException.java,OptionsResult.java,SequenceResult.java" 
 			/>
 		</delete>
 	</target>
 
-	<target name="bin_dist" description="Creates the *binary* distribution for SpinJa" depends="jar">
-		<property name="bname" value="spinja-${version}-bin" />
+	<target name="bin_dist" description="Creates the *binary* distribution for SpinS" depends="jar">
+		<property name="bname" value="spins-${version}-bin" />
 		<mkdir dir="${dist}" />
 		<zip destfile="${dist}/${bname}.zip">
-			<zipfileset dir=".." includes="README.html spinja.sh" prefix="${bname}" />
-			<zipfileset dir="../build" includes="spinja.jar" prefix="${bname}" />
+			<zipfileset dir=".." includes="README.html spins.sh" prefix="${bname}" />
+			<zipfileset dir="../build" includes="spins.jar" prefix="${bname}" />
 			<zipfileset dir="../doc"   includes="CHANGES.txt LICENSE.txt" prefix="${bname}/doc" />
 			<zipfileset dir="../tests" prefix="${bname}/tests" />
 		 </zip>
 	</target>
 
-	<target name="src_dist" description="Creates the *source* distribution for SpinJa" depends="bin_dist">
-		<property name="sname" value="spinja-${version}-src" />
+	<target name="src_dist" description="Creates the *source* distribution for SpinS" depends="bin_dist">
+		<property name="sname" value="spins-${version}-src" />
 		<zip destfile="${dist}/${sname}.zip">
-			<zipfileset dir=".." includes="README.html spinja.sh" prefix="${sname}" />
-			<zipfileset dir="../build" includes="spinja.jar" prefix="${sname}" />
+			<zipfileset dir=".." includes="README.html spins.sh" prefix="${sname}" />
+			<zipfileset dir="../build" includes="spins.jar" prefix="${sname}" />
 			<zipfileset dir="../doc"   includes="CHANGES.txt LICENSE.txt" prefix="${sname}/doc" />
 			<zipfileset dir="../tests" prefix="${sname}/tests" />
 			<zipfileset dir="../lib"   prefix="${sname}/lib" />
