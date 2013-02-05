@@ -27,8 +27,6 @@ import spins.options.OptionParser;
 import spins.options.StringOption;
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.Specification;
-import spins.promela.compiler.automaton.State;
-import spins.promela.compiler.automaton.Transition;
 import spins.promela.compiler.ltsmin.LTSminPrinter;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
@@ -114,106 +112,6 @@ public class Compile {
 		return null;
 	}
 
-	/*
-	private static void compileFiles(final String name, final File outputDir, final File userDir) {
-		final String command = "javac -target 5 -cp \"" + System.getProperty("java.class.path")
-								+ "\" \"" + outputDir.getAbsolutePath()
-								+ System.getProperty("file.separator") + name + "Model.java\"";
-		System.out.println(command);
-		Process p = null;
-		try {
-			p = Runtime.getRuntime().exec(command, null, userDir);
-		} catch (final IOException ex) {
-			System.out.println("Could not start compiler: " + ex.toString());
-			System.exit(-7);
-		}
-		try {
-			new InputStreamPrinter(p.getInputStream()).start();
-			new InputStreamPrinter(p.getErrorStream()).start();
-			switch (p.waitFor()) {
-				case 0:
-					System.out.println("Compiled succesfully.");
-					break;
-				default:
-					System.out.println("Error while compiling.");
-					return;
-			}
-		} catch (final InterruptedException ex) {
-			assert false;
-			// Should not be able to happen!
-		}
-	}
-
-	private static void createJar(final String name, final boolean hasNever, final File outputDir) {
-		try {
-			final File jarFile = new File(System.getProperty("user.dir"), name + ".jar");
-			final ZipOutputStream zipFile = new ZipOutputStream(new FileOutputStream(jarFile));
-			zipFile.putNextEntry(new ZipEntry("META-INF/MANIFEST.MF"));
-			final String line = "Generated-By: SpinS\n" + "Main-Class: spins.generated." + name
-								+ "Model" + (hasNever ? ".never\n" : "\n")
-								+ "Class-Path: SpinS.jar\n\n";
-			zipFile.write(line.getBytes());
-			zipFile.closeEntry();
-			final File[] files = outputDir.listFiles();
-			for (final File file : files) {
-				zipFile.putNextEntry(new ZipEntry("spins/generated/" + file.getName()));
-				final FileInputStream is = new FileInputStream(file);
-				final byte[] buffer = new byte[65536];
-				int i = -1;
-				while ((i = is.read(buffer)) != -1) {
-					zipFile.write(buffer, 0, i);
-				}
-				zipFile.closeEntry();
-				is.close();
-			}
-			zipFile.flush();
-			zipFile.close();
-		} catch (final IOException ex) {
-			System.out.println("IOException while writer jar-file: " + ex.getMessage());
-			System.exit(-8);
-		}
-	}
-
-	private static void delete(final File file) {
-		if (file.isDirectory()) {
-			for (final File inner : file.listFiles()) {
-				Compile.delete(inner);
-			}
-		}
-		file.delete();
-	}
-
-	private static File generateTmpDir(final File userDir) {
-		File tempDir = null;
-		while ((tempDir == null) || tempDir.exists()) {
-			tempDir = new File(userDir, String.format("tmp%05d",
-				Math.abs(new Random().nextInt()) % 100000));
-		}
-		return tempDir;
-	}
-
-	private static String getName(final File file) {
-		final String filename = file.getAbsolutePath();
-		final int lastSlash = filename.lastIndexOf(System.getProperty("file.separator"));
-		int lastDot = filename.lastIndexOf('.');
-		if ((lastDot == -1) || (lastDot <= lastSlash)) {
-			lastDot = filename.length();
-		}
-		final StringBuilder sb = new StringBuilder(lastDot - lastSlash - 1);
-		for (int i = lastSlash + 1; i < lastDot; i++) {
-			final char c = filename.charAt(i);
-			if (((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z'))
-				|| ((i != lastSlash + 1) && (c >= '0') && (c <= '9'))) {
-				sb.append(c);
-			} else {
-				sb.append('_');
-			}
-		}
-		sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));
-		return sb.toString();
-	}
-	*/
-
 	public static void main(final String[] args) {
 		final String  defaultname = "Pan";
 		final String  shortd  = 
@@ -238,32 +136,18 @@ public class Compile {
 		final BooleanOption dot = new BooleanOption('d',
 			"only write dot output (ltsmin/spins) \n");
 		parser.addOption(dot);
-		
-		final BooleanOption ltsmin = new BooleanOption('l',
-			"sets output to LTSmin \n");
-		parser.addOption(ltsmin);
 
 		final BooleanOption ltsmin_ltl = new BooleanOption('L',
-			"sets output to LTSmin with LTSmin LTL semantics \n");
+			"sets output to LTSmin LTL semantics \n");
 		parser.addOption(ltsmin_ltl);
 
         final BooleanOption textbook_ltl = new BooleanOption('t',
-            "sets output to LTSmin with textbook LTL semantics \n");
+            "sets output to textbook LTL semantics \n");
         parser.addOption(textbook_ltl);
 		
 		final BooleanOption preprocessor = new BooleanOption('I',
 			"prints output of preprocessor\n");
 		parser.addOption(preprocessor);
-
-		// [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
-//		final BooleanOption createjar = new BooleanOption('j',
-//			"Creates an easy to execute jar-file.");
-//		parser.addOption(createjar);
-
-		final StringOption srcDir = new StringOption('s',
-			"sets the output directory for the sourcecode \n" +
-			"(default: spins)", false);
-		parser.addOption(srcDir);
 
 		final MultiStringOption optimalizations = new MultiStringOption('o',
 			"disables one or more optimalisations", 
@@ -291,10 +175,6 @@ public class Compile {
 			parser.printUsage();
 		}
 
-		if (ltsmin.isSet() && ltsmin_ltl.isSet()) {
-			System.err.println("Choose -l or -L.");
-			System.exit(-1);
-		}
         if (textbook_ltl.isSet()) {
             System.err.println("Textbook LTL semantics not yet implemented.");
             System.exit(-1);
@@ -305,10 +185,6 @@ public class Compile {
 			name = modelname.getValue();
 		} else {
 			name = defaultname;
-			// [07-Apr-2010 10:45 ruys] 
-			//   The default name is now "Pan". The original version of SpinS ..
-			//   .. used getName(file) to construct the name for the model.
-			// name = Compile.getName(file);
 		}
 
 		for (String def : define) {
@@ -352,83 +228,16 @@ public class Compile {
 			System.exit(-4);
 		}
 
-		final File userDir = new File(System.getProperty("user.dir"));
-		File outputDir = null;
-// [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
-//		if (!createjar.isSet()) {
-			if (srcDir.isSet()) {
-				outputDir = new File(userDir, srcDir.getValue());
-			} else {
-				outputDir = userDir;
-//				[07-Apr-2010 12:20 ruys] was: outputDir = new File(new File(userDir, "spins"), "generated");
-			}
-//		} else {
-//			outputDir = Compile.generateTmpDir(userDir);
-//		}
-
-//		System.out.println("ltsmin: " + ltsmin.isSet());
-
-		if (ltsmin.isSet() || ltsmin_ltl.isSet()) {
-			if (dot.isSet()) {
-				Compile.writeLTSminDotFile(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
-				System.out.println("Written DOT file to " + outputDir + "/" + file.getName()+".spins.dot");
-			} else {
-				Compile.writeLTSMinFiles(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
-				System.out.println("Written C model to " + outputDir + "/" + file.getName()+".spins.c");
-			}
+		File outputDir = new File(System.getProperty("user.dir"));
+		if (dot.isSet()) {
+			Compile.writeLTSminDotFile(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
+			System.out.println("Written DOT file to " + outputDir + "/" + file.getName()+".spins.dot");
 		} else {
-			outputDir = new File(userDir, "spins");
-			if (!outputDir.exists() && !outputDir.mkdirs()) {
-				System.out.println("Error: could not generate directory " + outputDir.getName());
-				System.exit(-3);
-			}
-			if (dot.isSet()) {
-				Compile.writeDotFile(spec, file.getName(), outputDir);
-				System.out.println("Written DOT file for '" + file + "' to\n" + outputDir + "/" + file.getName()+".spins.dot");
-			} else {
-				Compile.writeFiles(spec, name, outputDir);
-				System.out.println("Written Java files for '" + file + "' to\n" + outputDir);
-			}
-		}
-
-// [22-Mar-2010 16:00 ruys] For the time being, we disable the "create jar" option.
-//		if (createjar.isSet()) {
-//			Compile.compileFiles(name, outputDir, userDir);
-//			Compile.createJar(name, spec.getNever() != null, outputDir);
-//			Compile.delete(outputDir);
-//		}
-	}
-
-	private static void writeDotFile (final Specification spec, final String name, final File outputDir) {
-		final File dotFile = new File(outputDir, name + ".spins.dot");
-
-		String out = "digraph {\n";
-		for (Proctype proc : spec) {
-			String n = proc.getName();
-			for (State state : proc.getAutomaton()) {
-				String from = state.getStateId() +"";
-				boolean atomic = state.isInAtomic();
-				out += "\t\""+ n +"_"+ from +"\" "+ (atomic ? "[penwidth=4]" : "") +"\n";
-				for (Transition t : state.output) {
-					atomic |= (t.getTo()!=null && t.getTo().isInAtomic());
-					String to = (t.getTo()==null ? "end" : t.getTo().getStateId() +"");
-					String p = "\"";
-					p += n +"_"+ from +"\" -> \""+  n +"_"+ to +"\"";
-					out += "\t"+ p + (atomic ? "[penwidth=4]" : "") +"\n";
-				}
-			}
-		}
-		out += "}\n";
-		try {
-			FileOutputStream fos = new FileOutputStream(dotFile);
-			fos.write(out.getBytes());
-			fos.flush();
-			fos.close();
-		} catch (Exception e) {
-			e.printStackTrace();
+			Compile.writeLTSMinFiles(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
+			System.out.println("Written C model to " + outputDir + "/" + file.getName()+".spins.c");
 		}
 	}
-	
+
 	private static void writeLTSminDotFile (final Specification spec,
 										final String name, final File outputDir,
 										boolean verbose, boolean ltsmin_ltl) {
@@ -499,22 +308,6 @@ public class Compile {
 		} catch (final IOException ex) {
 			System.out.println("IOException while writing java files: " + ex.getMessage());
 			System.exit(-5);
-		}
-	}
-
-	private static void writeFiles(final Specification spec, final String name, final File outputDir) {
-		final File javaFile = new File(outputDir, name + "Model.java");
-		try {
-			final FileOutputStream fos = new FileOutputStream(javaFile);
-			fos.write(spec.generateModel().getBytes());
-			fos.flush();
-			fos.close();
-		} catch (final IOException ex) {
-			System.out.println("IOException while writing java files: " + ex.getMessage());
-			System.exit(-5);
-		} catch (final ParseException ex) {
-			System.out.println("Parse exception: " + ex.getMessage());
-			System.exit(-6);
 		}
 	}
 }
