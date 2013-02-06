@@ -119,7 +119,7 @@ public class LTSminPrinter {
 	public static final String NDS_DM_NAME         = "nds_dm";
 	public static final String GM_TRANS_NAME       = "gm_trans";
 	public static final int    STATE_ELEMENT_SIZE  = 4;
-	public static final String SCRATCH_VARIABLE    = "__spinja_scratch";
+	public static final String SCRATCH_VARIABLE    = "__spins_scratch";
 
 	public static final String VALID_END_STATE_LABEL_NAME       = "end_";
     public static final String ACCEPTING_STATE_LABEL_NAME       = "accept_";
@@ -266,7 +266,7 @@ public class LTSminPrinter {
 	}
 
 	private static void generateStateCount(StringWriter w, LTSminModel model) {
-		w.appendLine("extern int spinja_get_state_size() {");
+		w.appendLine("extern int spins_get_state_size() {");
 		w.indent();
 		w.appendLine("return ",model.sv.size(),";");
 		w.outdent();
@@ -275,7 +275,7 @@ public class LTSminPrinter {
 	}
 
 	private static void generateTransitionCount(StringWriter w, LTSminModel model) {
-		w.appendLine("extern int spinja_get_transition_groups() {");
+		w.appendLine("extern int spins_get_transition_groups() {");
 		w.indent();
 		w.appendLine("return ",model.getTransitions().size(),";");
 		w.outdent();
@@ -284,10 +284,10 @@ public class LTSminPrinter {
 	}
 
 	private static void generateForwardDeclarations(StringWriter w) {
-		w.appendLine("extern inline int spinja_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
-		w.appendLine("extern int spinja_get_successor_all (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
-		w.appendLine("extern int spinja_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
-		w.appendLine("extern void spinja_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
+		w.appendLine("extern inline int spins_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
+		w.appendLine("extern int spins_get_successor_all (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
+		w.appendLine("extern int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
+		w.appendLine("extern void spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
 		w.appendLine("static int "+ SCRATCH_VARIABLE +";");
 		w.appendLine("");
 	}
@@ -322,7 +322,7 @@ public class LTSminPrinter {
 		w.appendLine("};");
 		w.appendLine("");
 		
-		w.appendLine("extern void spinja_get_initial_state( state_t *to )");
+		w.appendLine("extern void spins_get_initial_state( state_t *to )");
 		w.appendLine("{");
 		w.indent();
 		w.appendLine("if("+ model.sv.size() +"*",STATE_ELEMENT_SIZE," != sizeof(" + C_STATE + "))");
@@ -392,7 +392,7 @@ public class LTSminPrinter {
 			generateAction(w,a,model, t);
 		// No edge labels! They are discarded anyway!
 		w.appendLine("transition_info.group = "+ t.getGroup() +";");
-		w.appendLine("spinja_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +");");
+		w.appendLine("spins_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +");");
 		w.appendLine("++states_emitted;");
 		w.outdent();
 		w.appendLine("}");
@@ -402,7 +402,7 @@ public class LTSminPrinter {
 		/* PROMELA specific per-proctype code */
 	    if (model.getTransitions().size() == 0) return;
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
-			w.appendLine("int spinja_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +") {");
+			w.appendLine("int spins_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +") {");
 			w.indent();
 			String edge_array = "";
 			for (int i = 0; i < model.getEdges().size(); i++)
@@ -424,11 +424,11 @@ public class LTSminPrinter {
 			w.appendLine("}");
 			w.appendLine();
 		}
-		w.appendLine("int spinja_get_successor_sid( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +", int atomic) {");
+		w.appendLine("int spins_get_successor_sid( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +", int atomic) {");
 		w.indent();
 		w.appendLine("switch (atomic) {");
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
-			w.appendLine("case "+ p.getID() +": return spinja_get_successor_sid"+ p.getID() +"(model, in, arg, "+ OUT_VAR +"); break;");
+			w.appendLine("case "+ p.getID() +": return spins_get_successor_sid"+ p.getID() +"(model, in, arg, "+ OUT_VAR +"); break;");
 		}
 		w.appendLine("default: printf(\"Wrong structural ID\"); exit(-1);");
 		w.appendLine("}");
@@ -437,7 +437,7 @@ public class LTSminPrinter {
 		w.appendLine();
 		/* END PROMELA specific code */
 
-		w.appendLine("int spinja_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+		w.appendLine("int spins_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 		String edge_array = "";
         for (int i = 0; i < model.getEdges().size(); i++)
@@ -493,7 +493,7 @@ public class LTSminPrinter {
 		if (t.isAtomic()) {
 		    printEdgeLabels (w, model, t);
 			w.appendLine("transition_info.group = "+ t.getGroup() +";");
-			w.appendLine("int count = spinja_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +");");
+			w.appendLine("int count = spins_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +");");
 			w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
 		} else {
 			generateACallback(w, model, t);
@@ -503,7 +503,7 @@ public class LTSminPrinter {
 	}
 
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
-		w.appendLine("int spinja_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+		w.appendLine("int spins_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 		String edge_array = "";
         for (int i = 0; i < model.getEdges().size(); i++)
@@ -1094,13 +1094,13 @@ public class LTSminPrinter {
 	private static void generateDMFunctions(StringWriter w, DepMatrix dm) {
 		// Function to access the dependency matrix
 		w.appendLine("");
-		w.appendLine("extern const int* spinja_get_transition_read_dependencies(int t)");
+		w.appendLine("extern const int* spins_get_transition_read_dependencies(int t)");
 		w.appendLine("{");
 		w.appendLine("	if (t>=0 && t < "+ dm.getRows() +") return "+ DM_NAME +"[t][0];");
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 		w.appendLine("");
-		w.appendLine("extern const int* spinja_get_transition_write_dependencies(int t)");
+		w.appendLine("extern const int* spins_get_transition_write_dependencies(int t)");
 		w.appendLine("{");
 		w.appendLine("	if (t>=0 && t < "+ dm.getRows()+ ") return "+ DM_NAME +"[t][1];");
 		w.appendLine("	return NULL;");
@@ -1185,49 +1185,49 @@ public class LTSminPrinter {
 		w.appendLine("};");
 
 		w.appendLine("");
-		w.appendLine("extern const char* spinja_get_state_variable_name(unsigned int var) {");
+		w.appendLine("extern const char* spins_get_state_variable_name(unsigned int var) {");
 		w.indent();
-		w.appendLine("assert(var < ",state_size,", \"spinja_get_state_variable_name: invalid variable index %d\", var);");
+		w.appendLine("assert(var < ",state_size,", \"spins_get_state_variable_name: invalid variable index %d\", var);");
 		w.appendLine("return var_names[var];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("extern int spinja_get_type_count() {");
+		w.appendLine("extern int spins_get_type_count() {");
 		w.indent();
 		w.appendLine("return ",types.size(),";");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("extern const char* spinja_get_type_name(int type) {");
+		w.appendLine("extern const char* spins_get_type_name(int type) {");
 		w.indent();
-		w.appendLine("assert(type > -1 && type < ",types.size(),", \"spinja_get_type_name: invalid type index %d\", type);");
+		w.appendLine("assert(type > -1 && type < ",types.size(),", \"spins_get_type_name: invalid type index %d\", type);");
 		w.appendLine("return var_types[type];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("extern int spinja_get_type_value_count(int type) {");
+		w.appendLine("extern int spins_get_type_value_count(int type) {");
 		w.indent();
-		w.appendLine("assert(type > -1 && type < ",types.size(),", \"spinja_get_type_value_count: invalid type index %d\", type);");
+		w.appendLine("assert(type > -1 && type < ",types.size(),", \"spins_get_type_value_count: invalid type index %d\", type);");
 		w.appendLine("return var_type_value_count[type];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("extern const char* spinja_get_type_value_name(int type, int value) {");
+		w.appendLine("extern const char* spins_get_type_value_name(int type, int value) {");
 		w.indent();
-		w.appendLine("assert(type > -1 && type < ",types.size(),", \"spinja_get_type_value_name: invalid type %d\", type);");
-		w.appendLine("assert(value <= var_type_value_count[type], \"spinja_get_type_value_name: invalid type %d\", value);");
+		w.appendLine("assert(type > -1 && type < ",types.size(),", \"spins_get_type_value_name: invalid type %d\", type);");
+		w.appendLine("assert(value <= var_type_value_count[type], \"spins_get_type_value_name: invalid type %d\", value);");
 		w.appendLine("return var_type_values[type][value];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("extern int spinja_get_state_variable_type(int var) {");
+		w.appendLine("extern int spins_get_state_variable_type(int var) {");
 		w.indent();
-		w.appendLine("assert(var > -1 && var < ",state_size,", \"spinja_get_state_variable_type: invalid variable %d\", var);");
+		w.appendLine("assert(var > -1 && var < ",state_size,", \"spins_get_state_variable_type: invalid variable %d\", var);");
 		w.appendLine("return var_type[var];");
 		w.outdent();
 		w.appendLine("}");
@@ -1251,9 +1251,9 @@ public class LTSminPrinter {
 		w.appendLine("};");
 		w.appendLine("");
 
-		w.appendLine("extern const char* spinja_get_edge_name(int index) {");
+		w.appendLine("extern const char* spins_get_edge_name(int index) {");
 		w.indent();
-		w.appendLine("assert(index < ",edges.size(),", \"spinja_get_edge_name: invalid type index %d\", index);");
+		w.appendLine("assert(index < ",edges.size(),", \"spins_get_edge_name: invalid type index %d\", index);");
 		w.appendLine("return edge_names[index];");
 		w.outdent();
 		w.appendLine("}");
@@ -1270,16 +1270,16 @@ public class LTSminPrinter {
         w.appendLine("};");
         w .appendLine("");
 
-        w.appendLine("extern int spinja_get_edge_count() {");
+        w.appendLine("extern int spins_get_edge_count() {");
         w.indent();
         w.appendLine("return "+ edges.size() +";");
         w.outdent();
         w.appendLine("}");
         w.appendLine("");
 
-        w.appendLine("extern int spinja_get_edge_type(int edge) {");
+        w.appendLine("extern int spins_get_edge_type(int edge) {");
         w.indent();
-        w.appendLine("assert(edge < ",edges.size(),", \"spinja_get_edge_type: invalid type index %d\", edge);");
+        w.appendLine("assert(edge < ",edges.size(),", \"spins_get_edge_type: invalid type index %d\", edge);");
         w.appendLine("return edge_type[edge];");
         w.outdent();
         w.appendLine("}");
@@ -1354,78 +1354,78 @@ public class LTSminPrinter {
 	private static void generateGuardFunctions(StringWriter w, LTSminModel model) {
 	    GuardInfo gm = model.getGuardInfo();
 
-	    w.appendLine("int spinja_get_guard_count() {");
+	    w.appendLine("int spins_get_guard_count() {");
 		w.indent();
 		w.appendLine("return ",gm.getNumberOfGuards(),";");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-        w.appendLine("int spinja_get_label_count() {");
+        w.appendLine("int spins_get_label_count() {");
         w.indent();
         w.appendLine("return ",gm.getNumberOfLabels(),";");
         w.outdent();
         w.appendLine("}");
         w.appendLine("");
 		
-		w.appendLine("const int* spinja_get_labels(int t) {");
+		w.appendLine("const int* spins_get_labels(int t) {");
 		w.indent();
-		w.appendLine("assert(t < ",gm.getTransMatrix().size(),", \"spinja_get_labels: invalid transition index %d\", t);");
+		w.appendLine("assert(t < ",gm.getTransMatrix().size(),", \"spins_get_labels: invalid transition index %d\", t);");
 		w.appendLine("return "+ GM_TRANS_NAME +"[t];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("const int*** spinja_get_all_labels() {");
+		w.appendLine("const int*** spins_get_all_labels() {");
 		w.indent();
 		w.appendLine("return (const int***)&"+ GM_TRANS_NAME +";");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("const int* spinja_get_label_may_be_coenabled_matrix(int g) {");
+		w.appendLine("const int* spins_get_label_may_be_coenabled_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_may_be_coenabled_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_may_be_coenabled_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ CO_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-        w.appendLine("const int* spinja_get_label_visiblity_matrix(int g) {");
+        w.appendLine("const int* spins_get_label_visiblity_matrix(int g) {");
         w.indent();
-        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_visiblity_matrix: invalid guard index %d\", g);");
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_visiblity_matrix: invalid guard index %d\", g);");
         w.appendLine("return "+ VIS_DM_NAME +"[g];");
         w.outdent();
         w.appendLine("}");
 
-		w.appendLine("const int* spinja_get_label_nes_matrix(int g) {");
+		w.appendLine("const int* spins_get_label_nes_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_nes_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_nes_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NES_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 
-		w.appendLine("const int* spinja_get_label_nds_matrix(int g) {");
+		w.appendLine("const int* spins_get_label_nds_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_nds_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_nds_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NDS_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 		
-		w.appendLine("const int* spinja_get_label_matrix(int g) {");
+		w.appendLine("const int* spins_get_label_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ GM_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
 		
-		w.appendLine("bool spinja_get_label(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
+		w.appendLine("bool spins_get_label(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
 		w.indent();
         w.appendLine("(void)model;");
-		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label: invalid guard index %d\", g);");
 		w.appendLine("switch(g) {");
 		w.indent();
 		for(int g=0; g<gm.getNumberOfLabels(); ++g) {
@@ -1442,9 +1442,9 @@ public class LTSminPrinter {
 		w.appendLine("}");
 		w.appendLine("");
 
-        w.appendLine("const char *spinja_get_label_name(int g) {");
+        w.appendLine("const char *spins_get_label_name(int g) {");
         w.indent();
-        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spinja_get_label_name: invalid guard index %d\", g);");
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_name: invalid guard index %d\", g);");
         w.appendLine("switch(g) {");
         w.indent();
         for(int g=0; g<gm.getNumberOfLabels(); ++g) {
@@ -1459,7 +1459,7 @@ public class LTSminPrinter {
         w.appendLine("}");
         w.appendLine("");
 		
-		w.appendLine("void spinja_get_labels_all(void* model, ",C_STATE,"* ",IN_VAR,", int* label) {");
+		w.appendLine("void spins_get_labels_all(void* model, ",C_STATE,"* ",IN_VAR,", int* label) {");
 		w.indent();
 		w.appendLine("(void)model;");
 		for(int g=0; g<gm.getNumberOfLabels(); ++g) {

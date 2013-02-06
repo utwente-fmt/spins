@@ -33,7 +33,7 @@ if [ -f "$output_file" ]; then
 	rm -f "$output_file";
 fi
 
-java -Xms120m -Xmx2048m -cp $CP spins.Compile -l ${1+"$@"}
+java -Xms120m -Xmx2048m -cp $CP spins.Compile ${1+"$@"}
 ERROR=$?
 if [ $ERROR -ne 0 ]; then
 	echo "Compilation of $promela_file failed"

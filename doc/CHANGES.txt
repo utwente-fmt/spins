@@ -1,4 +1,27 @@
-SpinJa - Revision History
+SpinS - Revision History
+
+1.0 (25-Feb-2013)
+- Renamed project to SpinS.
+- Extended parser with macros.
+- Added porgress labels.
+- Improved d_step capabilities (gotos, communication, etc).
+- Added Remote references.
+- Improved LTL handling.
+- Improved PINS POR matrices (NES, NDS and visibility).
+
+0.9.9 (22-Feb-2012)
+- Added channel operations (full, empty, length).
+- Added random receive.
+- Added enabling statement.
+- Extended parser.
+- Added _pid special variable.
+- Added custom types (structs).
+- Added PINS POR matrices.
+
+0.9 (23-Jun-2011)
+- Ported generated code to C implementing the PINS interface.
+- Implemented atomicity with loss of atomicity.
+- Dropped timeouts.
 
 0.9 (10-Apr-2010):
 - Changed name of model checker from SpinJ to SpinJa.
