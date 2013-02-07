@@ -13,6 +13,5 @@ pan
 doc/api
 backup-*
 .DS_Store
-src/spins/promela/compiler/parser/*.java
 build
 spins.jar
