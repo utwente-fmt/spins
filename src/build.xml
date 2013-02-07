@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<project name="SpinS" default="build" basedir=".">
+<project name="SpinS" default="jar" basedir=".">
 	<target name="init" description="Initializes the build variables">
 		<property name="name"           value="spins" />
 		<property name="version"        value="0.9"  />
@@ -18,14 +18,32 @@
 		<mkdir dir="${doc}/api" />
 	</target>
 
-	<target name="javacc" description="Generates the java-files from the JavacCC specification" depends="prepare">
-		<javacc target="${spins_parser}/Promela.jj" 
-			javacchome="${lib}" 
-			outputdirectory="${spins_parser}" 
-		/>
-	</target>
+    <target name="javacc" description="Generates the java-files from the JavacCC specification" depends="prepare">
+        <javacc target="${spins_parser}/Promela.jj"
+            javacchome="${lib}"
+            outputdirectory="${spins_parser}"
+        />
+    </target>
 
-	<target name="compile" description="Compiles all java files" depends="javacc">
+	<target name="build" depends="javacc">
+        <replace file="spins/promela/compiler/parser/Promela.java">
+            <replacetoken>
+
+public class Promela</replacetoken>
+            <replacevalue>
+@SuppressWarnings({"unused", "serial"})
+public class Promela</replacevalue>
+        </replace>
+        <replace file="spins/promela/compiler/parser/PromelaTokenManager.java">
+            <replacetoken>*/
+public class Promela</replacetoken>
+            <replacevalue>*/
+@SuppressWarnings("unused")
+public class Promela</replacevalue>
+        </replace>
+    </target>
+
+	<target name="compile" description="Compiles all java files" depends="build">
 		<javac destdir="${build}/classes"  source="1.5" debug="on" debuglevel="lines,vars,source" srcdir="${spins}" includeantruntime="false">
 			  <compilerarg line="-XDignore.symbol.file" />	
 		</javac>
@@ -46,24 +64,6 @@
 			</manifest>
 		</jar>
 		<copy file="${build}/${name}.jar" todir=".." />
-	</target>
-
-	<target name="build" depends="jar">
-        <replace file="spins/promela/compiler/parser/Promela.java">
-            <replacetoken>
-
-public class Promela</replacetoken>
-            <replacevalue>
-@SuppressWarnings({"unused", "serial"})
-public class Promela</replacevalue>
-        </replace>
-        <replace file="spins/promela/compiler/parser/PromelaTokenManager.java">
-            <replacetoken>*/
-public class Promela</replacetoken>
-            <replacevalue>*/
-@SuppressWarnings("unused")
-public class Promela</replacevalue>
-        </replace>
 	</target>
 
 	<target name="javadocs" description="Generates the Javadoc of the SpinS library" depends="prepare">

@@ -1,4 +1,4 @@
-package spins.promela.compiler.parser;
+package spins.promela.compiler;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.Stack;
+
+import spins.promela.compiler.parser.SimpleCharStream;
 
 /**
  *
