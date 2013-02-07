@@ -168,23 +168,19 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 		this.nds_matrix = nds_matrix;
 	}
 
-	@Override
 	public Iterator<Entry<String,LTSminGuard>> iterator() {
 		return new Iterator<Entry<String,LTSminGuard>>() {
 		    Iterator<LTSminGuard> it = labels.iterator();
             Iterator<String> it2 = label_names.iterator();
 		    
-		    @Override
             public boolean hasNext() {
                 return it.hasNext();
             }
 
-            @Override
             public Entry<String,LTSminGuard> next() {
                 return new SimpleEntry<String,LTSminGuard>(it2.next(), it.next());
             }
 
-            @Override
             public void remove() {
                 throw new UnsupportedOperationException();
             }

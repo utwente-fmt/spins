@@ -40,7 +40,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Matcher;
 
 import spins.promela.compiler.ProcInstance;
 import spins.promela.compiler.Proctype;
@@ -721,7 +720,7 @@ public class LTSminPrinter {
 			String ccode = w2.toString();
 			if (re.getInstances().size() > 1) {
 				String struct = model.sv.getMember(instance.getName()).getType().toString();
-				ccode = ccode.replaceAll(Matcher.quoteReplacement(OUT_VAR +"->"+ instance.getName()), 
+				ccode = ccode.replace(OUT_VAR +"->"+ instance.getName(), 
 					"(("+ struct +"*)&"+ OUT_VAR +"->"+ instance.getName() +")[__active_" + n_active + "]");
 			}
 			w.append(ccode);

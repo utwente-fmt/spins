@@ -478,7 +478,6 @@ public class Specification implements Iterable<ProcInstance> {
 
     public Set<RemoteRef> remoteRefs = new HashSet<RemoteRef>();
 	
-	@Override
 	public Iterator<ProcInstance> iterator() {
 		if (null == instances)
 			throw new AssertionError("Processes were not instantiated");

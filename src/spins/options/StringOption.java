@@ -64,7 +64,6 @@ public class StringOption extends Option implements Iterable<String> {
 		return super.toString("[text]");
 	}
 
-    @Override
     public Iterator<String> iterator() {
         if (!allowMultiple)
             throw new AssertionError("wrong use, allowMultiple off. Use getValue");

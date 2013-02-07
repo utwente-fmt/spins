@@ -114,22 +114,18 @@ public abstract class LTSminSubVector implements Iterable<LTSminSlot> {
 		return offset;
 	}
 
-	@Override
 	public Iterator<LTSminSlot> iterator() {
 		return new Iterator<LTSminSlot>() {
 			int index = 0;
 
-			@Override
 			public boolean hasNext() {
 				return index < length();
 			}
 
-			@Override
 			public LTSminSlot next() {
 				return slot(index++);
 			}
 
-			@Override
 			public void remove() {
 				throw new AssertionError("Remove not allowed on fixed-length state vector.");
 			}

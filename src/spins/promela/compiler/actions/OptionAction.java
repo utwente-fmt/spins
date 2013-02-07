@@ -149,7 +149,6 @@ public class OptionAction extends Action implements Iterable<Sequence> {
 		return loops ? "do" : "if";
 	}
 
-	@Override
 	public Iterator<Sequence> iterator() {
 		return options.iterator();
 	}

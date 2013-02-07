@@ -14,8 +14,6 @@
 
 package spins.util;
 
-import spins.util.compiler.Tokenizer;
-
 /**
  * A {@link CharacterQueue} is a simple queue that stored characters efficiently, so that they may
  * be handled by a {@link Tokenizer}.

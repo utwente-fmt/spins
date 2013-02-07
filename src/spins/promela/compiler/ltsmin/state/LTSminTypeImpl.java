@@ -16,32 +16,27 @@ public abstract class LTSminTypeImpl implements LTSminTypeI {
 	/* (non-Javadoc)
 	 * @see spinja.promela.compiler.ltsmin.LTSminTypeI#getName()
 	 */
-	@Override
 	public abstract String getName();
 	protected abstract int length_();
 
 	/* (non-Javadoc)
 	 * @see spinja.promela.compiler.ltsmin.LTSminTypeI#toString()
 	 */
-	@Override
 	public abstract String toString();
 
 	/* (non-Javadoc)
 	 * @see spinja.promela.compiler.ltsmin.LTSminTypeI#printIdentifier(spinja.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter, spinja.promela.compiler.expression.Identifier)
 	 */
-	@Override
 	public abstract String printIdentifier(ExprPrinter p, Identifier id);
 
 	/* (non-Javadoc)
 	 * @see spinja.promela.compiler.ltsmin.LTSminTypeI#fix()
 	 */
-	@Override
 	public abstract void fix();
 	
 	/* (non-Javadoc)
 	 * @see spinja.promela.compiler.ltsmin.LTSminTypeI#length()
 	 */
-	@Override
 	public int length() {
 		int l = length_();
 		unmodifiable = true;

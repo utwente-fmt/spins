@@ -46,7 +46,6 @@ public class LTSminTypeStruct extends LTSminTypeImpl implements LTSminTypeStruct
 		return length;
 	}
 
-	@Override
 	public Iterator<LTSminVariable> iterator() {
 		return members.iterator();
 	}

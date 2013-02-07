@@ -126,7 +126,6 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 		return transitions;
 	}
 
-	@Override
 	public Iterator<LTSminTransition> iterator() {
 		return transitions.iterator();
 	}

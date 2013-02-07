@@ -234,27 +234,22 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	 * LTSminTypeStruct interface is implemented by delegation
 	 * Multiple Inheritance Pattern
 	 ***********************/
-	@Override
 	public String getName() {
 		return state_t.getName();
 	}
 
-	@Override
 	public void addMember(LTSminVariable var) {
 		state_t.addMember(var);
 	}
 
-	@Override
 	public void fix() {
 		state_t.fix();
 	}
 
-	@Override
 	public String printIdentifier(ExprPrinter p, Identifier id) {
 		return state_t.printIdentifier(p, id);
 	}
 
-	@Override
 	public LTSminVariable getMember(String name) {
 		return state_t.getMember(name);
 	}

@@ -63,12 +63,10 @@ public class LTSminGuardNand extends LTSminGuardBase implements LTSminGuardConta
 		return true;
 	}
 
-	@Override
 	public Iterator<LTSminGuardBase> iterator() {
 		return guards.iterator();
 	}
 
-	@Override
 	public int guardCount() {
 		return guards.size();
 	}

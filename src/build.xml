@@ -54,14 +54,14 @@
 
 public class Promela</replacetoken>
             <replacevalue>
-@SuppressWarnings("all")
+@SuppressWarnings({"unused", "serial"})
 public class Promela</replacevalue>
         </replace>
         <replace file="spins/promela/compiler/parser/PromelaTokenManager.java">
             <replacetoken>*/
 public class Promela</replacetoken>
             <replacevalue>*/
-@SuppressWarnings("all")
+@SuppressWarnings("unused")
 public class Promela</replacevalue>
         </replace>
 	</target>

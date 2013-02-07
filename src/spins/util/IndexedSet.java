@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.sun.xml.internal.ws.server.UnsupportedMediaException;
-
 public class IndexedSet<T> implements Set<T> {
 
     private List<T> list;
@@ -20,12 +18,10 @@ public class IndexedSet<T> implements Set<T> {
       this.list = new ArrayList<T>();
     }
 
-    @Override
     public int size() {
         return list.size();
     }
 
-    @Override
     public boolean isEmpty() {
         return list.isEmpty();
     }
@@ -87,7 +83,7 @@ public class IndexedSet<T> implements Set<T> {
      * @see java.util.Map#remove(java.lang.Object)
      */
     public boolean remove(Object key) {
-        throw new UnsupportedMediaException();
+        throw new UnsupportedOperationException();
     }
 
     /**
@@ -128,28 +124,23 @@ public class IndexedSet<T> implements Set<T> {
         return list.hashCode();
     }
 
-    @Override
     public boolean contains(Object o) {
         return map.containsKey(o);
     }
 
-    @Override
     public Iterator<T> iterator() {
         return list.iterator();
     }
 
-    @Override
     public Object[] toArray() {
         return list.toArray();
     }
 
     @SuppressWarnings("hiding")
-    @Override
     public <T> T[] toArray(T[] a) {
         return list.toArray(a);
     }
 
-    @Override
     public boolean containsAll(Collection<?> c) {
         for (Object t : c) {
             if (!this.contains(t)) return false;
@@ -157,13 +148,11 @@ public class IndexedSet<T> implements Set<T> {
         return true;
     }
 
-    @Override
     public boolean retainAll(Collection<?> c) {
-        throw new UnsupportedMediaException();
+        throw new UnsupportedOperationException();
     }
 
-    @Override
     public boolean removeAll(Collection<?> c) {
-        throw new UnsupportedMediaException();
+        throw new UnsupportedOperationException();
     }
 }
