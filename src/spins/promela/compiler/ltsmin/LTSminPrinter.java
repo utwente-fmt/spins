@@ -1421,7 +1421,7 @@ public class LTSminPrinter {
 		w.appendLine("}");
 		w.appendLine("");
 		
-		w.appendLine("bool spins_get_label(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
+		w.appendLine("int spins_get_label(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
 		w.indent();
         w.appendLine("(void)model;");
 		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label: invalid guard index %d\", g);");
