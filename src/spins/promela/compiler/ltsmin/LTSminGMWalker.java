@@ -76,10 +76,11 @@ public class LTSminGMWalker {
 		Weak,
 		Low,
 		Normal,
-		High
+		High,
+		Highest
 	}
 
-	static Aggressivity aggressivity = Aggressivity.High;
+	static Aggressivity aggressiveness = Aggressivity.Highest;
 	static final boolean NO_NES = false;
 	static final boolean NO_NDS = false;
 
@@ -167,31 +168,35 @@ public class LTSminGMWalker {
         DepMatrix temp = new DepMatrix(1, model.sv.size());
         int visible = 0;
 
-        for (int i = 0; i < nlabels; i++) {
+        for (int g = 0; g < nlabels; g++) {
             List<Expression> expr = new ArrayList<Expression>();
-            LTSminGuard label = guardInfo.getLabel(i);
-            extract_boolean_expressions (expr, label.getExpr());
-trans_loop: for (LTSminTransition trans : model.getTransitions()) {
-                for (Expression e : expr) {  
-                    LTSminGuard guard = new LTSminGuard(e);
+            LTSminGuard guard = guardInfo.getLabel(g);
+            extract_boolean_expressions (expr, guard.getExpr());
+            
+            for (LTSminTransition trans : model.getTransitions()) {
+                int t = trans.getGroup();
+
+                boolean ce = false;
+                boolean mce = true;
+                for (int gg : guardInfo.getTransMatrix().get(t)) {
+                    ce = ce || gg == g;
+                }
+                for (Expression e : expr) {
                     temp.clear();
-                    LTSminDMWalker.walkOneGuard(model, temp, guard, 0);
-                    int t = trans.getGroup();
+                    LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(e), 0);
                     if (!model.getDepMatrix().isWrite(t, temp.getReads(0)))
                         continue;
                     
-                    boolean mcd = false;
-                    boolean mce = true;
                     for (int gg : guardInfo.getTransMatrix().get(t)) {
                         LTSminGuard gguard = guardInfo.get(gg);
-                        mcd = mcd || mayBeCodisabled(model, e, gguard.getExpr());
-                        mce = mce && mayBeCoenabled(model, e, gguard.getExpr());
+                        mce = mce && mayBeCoenabledStronger(model, e, gguard.getExpr());
                     }
-                    if ( mcd && is_nes_guard(model, guard, trans) ||
-                         mce && is_nds_guard(model, guard, trans) ) {
-                        visibility.incRead(i, t);
+
+                    if ( !ce && is_nes_guard_stronger(model, e, trans) ||
+                         mce && is_nds_guard_stronger(model, e, trans) ) {
+                        visibility.incRead(g, t);
                         visible++;
-                        continue trans_loop; // next transition
+                        break;
                     }
                 }
             }
@@ -240,7 +245,7 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
 
     private static boolean is_nds_guard(LTSminModel model, LTSminGuard guard,
 										LTSminTransition transition) {
-		switch (aggressivity) {
+		switch (aggressiveness) {
 		case Weak:
 		case Low:
 			return is_nds_guard(model, guard.getExpr(), transition);
@@ -248,10 +253,28 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
 			return is_nds_guard_strong(model, guard.getExpr(), transition);
 		case High:
 			return is_nds_guard_stronger(model, guard.getExpr(), transition);
+        case Highest:
+            return is_nds_guard_strongest(model, guard.getExpr(), transition);
 		default:
-			throw new AssertionError("Unimplemented aggressivity level: "+ aggressivity);
+			throw new AssertionError("Unimplemented aggressiveness level: "+ aggressiveness);
 		}
 	}
+
+    /**
+     * Determine NDS over disjunctions: not NDS holds for ex1 and trans iff 
+     * it holds for all e,t in disjunctions(ex1) X {trans}
+     */
+    private static boolean is_nds_guard_strongest(LTSminModel model, Expression ex1,
+                                               LTSminTransition t) {
+        List<Expression> ga_ex = new ArrayList<Expression>();
+        extract_disjunctions (ga_ex, ex1);
+        for (Expression e : ga_ex) {
+            if (is_nds_guard_stronger(model, e, t)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
 	/**
 	 * Determine NDS over conjunctions: not NDS holds for ex1 and trans iff 
@@ -293,18 +316,34 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
      */
 	private static boolean is_nds_guard(LTSminModel model, Expression guard,
 										LTSminTransition transition) {
-										//throws ParseException {
         List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
 		extract_conjunct_predicates(sps, guard, true); // strict, because we compare future and past state vectors
 		for (SimplePredicate sp2 : sps) {
-			for (Action a : transition.getActions()) { 
-				if (definately_agrees_with(model, sp2, a)) {
-					return false;
-				}
+			if (!maybe_disables(model, transition, sp2)) {
+			    return false;
 			}
 		}
 		return true;
 	}
+
+    private static boolean maybe_disables(LTSminModel model,
+            LTSminTransition transition, SimplePredicate sp2) {
+        // check dependent
+        DepMatrix temp = new DepMatrix(1, model.sv.size());
+        int t = transition.getGroup();
+        temp.clear();
+        LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(sp2.e), 0);
+        if (!model.getDepMatrix().isWrite(t, temp.getReads(0)))
+            return false;
+
+        // check value written
+        for (Action a : transition.getActions()) { 
+        	if (definately_agrees_with(model, sp2, a)) {
+        		return false;
+        	}
+        }
+        return true;
+    }
 
 	/**************
 	 * NES
@@ -315,13 +354,15 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
 		DepMatrix nes = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNESMatrix(nes);
 		int notNES = 0;
-		for (int i = 0; i <  nes.getRows(); i++) {
-			for (int j = 0; j < nes.getRowLength(); j++) {
-				LTSminTransition trans = model.getTransitions().get(j);
-                LTSminGuard g = (LTSminGuard) guardInfo.get(i);
-                boolean maybe_codisabled = model.getGuardInfo().maybeCoDisabled(j, i);
-                if (NO_NES || (maybe_codisabled && is_nes_guard(model, g, trans))) {
-					nes.incRead(i, j);
+		for (int g = 0; g <  nes.getRows(); g++) {
+			for (int t = 0; t < nes.getRowLength(); t++) {
+				LTSminTransition trans = model.getTransitions().get(t);
+                LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
+                boolean coenabled = false;
+                for (int gg : guardInfo.getTransMatrix().get(t))
+                    if (gg == g) coenabled = true;
+                if (NO_NES || (!coenabled && is_nes_guard(model, guard, trans))) {
+					nes.incRead(g, t); 
 				} else {
 					notNES++;
 				}
@@ -337,7 +378,7 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
 	 */
 	private static boolean is_nes_guard(LTSminModel model, LTSminGuard guard,
 										LTSminTransition transition) {
-		switch (aggressivity) {
+		switch (aggressiveness) {
 		case Weak:
 		case Low:
 			return is_nes_guard(model, guard.getExpr(), transition);
@@ -345,12 +386,29 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
 			return is_nes_guard_strong(model, guard.getExpr(), transition);
 		case High:
 			return is_nes_guard_stronger(model, guard.getExpr(), transition);
+        case Highest:
+            return is_nes_guard_strongest(model, guard.getExpr(), transition);
 		default:
-			throw new AssertionError("Unimplemented aggressivity level: "+ aggressivity);
+			throw new AssertionError("Unimplemented aggressiveness level: "+ aggressiveness);
 		}
 	}
 
-	
+    /**
+     * Determine NES over disjunctions: not NES holds for ex1 and trans iff 
+     * it holds for one e,t in disjunctions(ex1) X {trans}
+     */
+    private static boolean is_nes_guard_strongest(LTSminModel model, Expression ex1,
+                                                 LTSminTransition t) {
+        List<Expression> ga_ex = new ArrayList<Expression>();
+        extract_disjunctions (ga_ex, ex1);
+        for (Expression e : ga_ex) {
+            if (!is_nes_guard_stronger(model, e, t)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 	/**
 	 * Determine NES over conjunctions: not NES holds for ex1 and trans iff 
 	 * it holds for all e,t in conjunctions(ex1) X {trans}
@@ -391,24 +449,41 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
 	 * assignment disagrees with a conjunct in the guard.
 	 * 
 	 * @param model
-	 * @param guard
+	 * @param e
 	 * @param transition
 	 * @return false is the guard is not NECESSARILY enabled by the transition,
 	 *         TRUE IF UNKNOWN (overestimation)
 	 */
-	private static boolean is_nes_guard(LTSminModel model, Expression guard,
+	private static boolean is_nes_guard(LTSminModel model, Expression e,
 										LTSminTransition transition) {
         List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
-		extract_conjunct_predicates(sps, guard, true); // strict, because we compare future and past state vectors
+		extract_conjunct_predicates(sps, e, true); // strict, because we compare future and past state vectors
 		for (SimplePredicate sp2 : sps) {
-			for (Action a : transition.getActions()) {
-                if (definately_disagrees_with(model, sp2, a)) {
-                    return false;
-				}
+			if (maybe_enables(model, transition, sp2)) {
+			    return true;
 			}
 		}
-		return true;
+		return false;
 	}
+
+    private static boolean maybe_enables(LTSminModel model, LTSminTransition transition,
+                                         SimplePredicate sp2) {
+        // check dependent
+        DepMatrix temp = new DepMatrix(1, model.sv.size());
+        int t = transition.getGroup();
+        temp.clear();
+        LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(sp2.e), 0);
+        if (!model.getDepMatrix().isWrite(t, temp.getReads(0)))
+            return false;
+
+        // check value written
+        for (Action a : transition.getActions()) {
+            if (definately_disagrees_with(model, sp2, a)) {
+                return false;
+        	}
+        }
+        return true;
+    }
 
     private static boolean definately_disagrees_with(LTSminModel model,
                                                 SimplePredicate sp2, Action a) {
@@ -447,7 +522,7 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
 	}
 	
 	private static boolean mayBeCoenabled(LTSminModel model, LTSminGuard g1, LTSminGuard g2) {
-        switch (aggressivity) {
+        switch (aggressiveness) {
             case Weak:
             case Low:
                 return mayBeCoenabled(model, g1.expr, g2.expr);
@@ -455,10 +530,31 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
                 return mayBeCoenabledStrong(model, g1.expr, g2.expr);
             case High:
                 return mayBeCoenabledStronger(model, g1.expr, g2.expr);
+            case Highest:
+                return mayBeCoenabledStrongest(model, g1.expr, g2.expr);
             default:
-                throw new AssertionError("Unimplemented aggressivity level: "+ aggressivity);
+                throw new AssertionError("Unimplemented aggressivity level: "+ aggressiveness);
         }
 	}
+
+    /**
+     * Determine MCE over disjunctions: MCE holds for ex1 and ex2 iff 
+     * it holds for one d1,d2 in disjunctions(ex1) X disjunctions(ex2)
+     */
+    private static boolean mayBeCoenabledStrongest(LTSminModel model, Expression ex1, Expression ex2) {
+        List<Expression> ga_ex = new ArrayList<Expression>();
+        List<Expression> gb_ex = new ArrayList<Expression>();
+        extract_disjunctions (ga_ex, ex1);
+        extract_disjunctions (gb_ex, ex2);
+        for(Expression a : ga_ex) {
+            for(Expression b : gb_ex) {
+                if (mayBeCoenabledStronger(model, a, b)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
 	/**
 	 * Determine MCE over conjunctions: MCE holds for ex1 and ex2 iff 
@@ -552,7 +648,7 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
     }
     
     private static boolean mayBeCodisabled(LTSminModel model, LTSminGuard g1, LTSminGuard g2) {
-        switch (aggressivity) {
+        switch (aggressiveness) {
             case Weak:
             case Low:
                 return mayBeCodisabled(model, g1.expr, g2.expr);
@@ -560,9 +656,30 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
                 return mayBeCodisabledStrong(model, g1.expr, g2.expr);
             case High:
                 return mayBeCodisabledStronger(model, g1.expr, g2.expr);
+            case Highest:
+                return mayBeCodisabledStrongest(model, g1.expr, g2.expr);
             default:
-                throw new AssertionError("Unimplemented aggressivity level: "+ aggressivity);
+                throw new AssertionError("Unimplemented aggressivity level: "+ aggressiveness);
         }
+    }
+
+    /**
+     * Determine MCD over disjunctions: MCD holds for ex1 and ex2 iff 
+     * it holds for all d1,d2 in disjunctions(ex1) X disjunctions(ex2)
+     */
+    private static boolean mayBeCodisabledStrongest(LTSminModel model, Expression ex1, Expression ex2) {
+        List<Expression> ga_ex = new ArrayList<Expression>();
+        List<Expression> gb_ex = new ArrayList<Expression>();
+        extract_disjunctions (ga_ex, ex1);
+        extract_disjunctions (gb_ex, ex2);
+        for(Expression a : ga_ex) {
+            for(Expression b : gb_ex) {
+                if (mayBeCodisabledStronger(model, a, b)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -907,7 +1024,7 @@ trans_loop: for (LTSminTransition trans : model.getTransitions()) {
     }
 
     /**
-     * Extracts all disjunctions until conjunctions or arithmicExpr are encountered
+     * Extracts all boolean expressions
      */
     private static void extract_boolean_expressions (List<Expression> ds, Expression e) {
         if(e instanceof BooleanExpression) {
