@@ -48,6 +48,7 @@ public class Promela</replacevalue>
 			  <compilerarg line="-XDignore.symbol.file" />	
 		</javac>
 		<copy file="${spins}/promela/compiler/ltsmin/reach.c"  todir="${build}/classes/${spins}/promela/compiler/ltsmin/" />
+		<copy file="${spins}/promela/compiler/ltsmin/reach2.c"  todir="${build}/classes/${spins}/promela/compiler/ltsmin/" />
 		<copy file="${spins}/promela/compiler/ltsmin/hashtable.c"  todir="${build}/classes/${spins}/promela/compiler/ltsmin/" />
 	</target>
 

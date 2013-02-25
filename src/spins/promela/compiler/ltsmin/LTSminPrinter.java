@@ -137,13 +137,14 @@ public class LTSminPrinter {
 
 	static int n_active = 0;
 
-	public static String generateCode(LTSminModel model) {
+	public static String generateCode(LTSminModel model, boolean no_atomic_loops) {
 		StringWriter w = new StringWriter();
-		LTSminPrinter.generateModel(w, model);
+		LTSminPrinter.generateModel(w, model, no_atomic_loops);
 		return w.toString();
 	}
 	
-	private static void generateModel(StringWriter w, LTSminModel model) {
+	private static void generateModel(StringWriter w, LTSminModel model,
+	                                  boolean no_atomic_loops) {
 		generateHeader(w, model);
 		generateNativeTypes(w);
 		generateTypeDef(w, model);
@@ -160,8 +161,12 @@ public class LTSminPrinter {
 		generateGuardFunctions(w, model);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
-		generateHashTable(w, model);
-		generateReach(w, model);
+		if (no_atomic_loops) {
+		    generateReachNoTable(w, model);
+		} else {
+		    generateHashTable(w, model);
+		    generateReach(w, model);
+		}
 	}
 
 	private static void generateTypeDef(StringWriter w, LTSminModel model) {
@@ -254,6 +259,15 @@ public class LTSminPrinter {
 			e.printStackTrace();
 		}
 	}
+
+    private static void generateReachNoTable(StringWriter w, LTSminModel model) {
+        //if (!model.hasAtomic()) return;
+        try {
+            w.appendLine(readTextFile(new LTSminPrinter().getClass(), "reach2.c"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
 	private static void generateReach(StringWriter w, LTSminModel model) {
 		//if (!model.hasAtomic()) return;
@@ -1290,7 +1304,7 @@ public class LTSminPrinter {
 		if(gm==null) return;
 
 		DepMatrix co_matrix = gm.getCoMatrix();
-        DepMatrix codis_matrix = gm.getCoDisMatrix();
+        DepMatrix codis_matrix = gm.getInverseCoenMatrix();
 
         w.appendLine("");
         w.appendLine("// Visibility matrix:");
