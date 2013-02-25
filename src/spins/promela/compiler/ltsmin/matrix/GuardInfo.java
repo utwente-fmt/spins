@@ -40,7 +40,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
      * guards ...    ...
      *   v    ...    ...
      */
-    private DepMatrix codis_matrix;
+    private DepMatrix ico_matrix;
 
 	/**
 	 *        trans >
@@ -191,21 +191,21 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 		return labels.get(i);
 	}
 
-    public void setCoDisMatrix(DepMatrix codis) {
-        codis_matrix = codis;
+    public void setInverseCoenMatrix(DepMatrix codis) {
+        ico_matrix = codis;
     }
     
-    public DepMatrix getCoDisMatrix() {
-        return codis_matrix;
+    public DepMatrix getInverseCoenMatrix() {
+        return ico_matrix;
     }
 
-    public boolean maybeCoDisabled(int trans, int guard) {
+    public boolean inverseMaybeCoenabled(int trans, int guard) {
         for (int g2 : trans_guard_matrix.get(trans)) {
-            if (codis_matrix.isRead(guard, g2)) {
-                return true;
+            if (!ico_matrix.isRead(guard, g2)) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     public boolean maybeCoEnabled(int trans, int guard) {
