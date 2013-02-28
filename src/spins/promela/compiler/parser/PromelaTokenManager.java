@@ -4203,17 +4203,16 @@ void TokenLexicalActions(Token matchedToken)
             SimpleCharStream scs = Preprocessor.preprocessing.pop();
             Preprocessor.setFilename(Preprocessor.files.pop());
             if (null == scs) return; // #if, no need to restore, since a recursive parser was launched
+            Preprocessor.DefineMapping current = Preprocessor.current.pop();
+            if (null != current && current.size() > 0) {
+                Preprocessor.removeDefines();
+            }
             ReInit(scs);
             Token next = getNextToken();
             matchedToken.image = next.image;
             matchedToken.kind = next.kind;
             matchedToken.next = next.next;
             matchedToken.specialToken = next.specialToken;
-            Preprocessor.DefineMapping current = Preprocessor.current.pop();
-            if (null == current) return; // #include, no need to remove parameters
-            if (current.size() > 0) {
-                Preprocessor.removeDefines();
-                }
         } else {
             if (!Preprocessor.ifs.empty()) {
                 throw new AssertionError("Missing #endif");
