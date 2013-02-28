@@ -132,7 +132,7 @@ public class LTSminGMWalker {
 
         // generate Maybe Codisabled matrix  
         int nimce = generateInverseCoenMatrix (model, guardInfo);
-        debug.say(report(nimce, mceSize, "!IMC guards"));
+        debug.say(report(nimce, mceSize*2, "!IMC guards"));
 
         // generate NES matrix
 		int nnes = generateNESMatrix (model, guardInfo);
@@ -169,9 +169,6 @@ public class LTSminGMWalker {
         DepMatrix ndsM = guardInfo.getNDSMatrix();
         int visible = 0;
         for (int g = 0; g < nlabels; g++) {
-            List<Expression> expr = new ArrayList<Expression>();
-            LTSminGuard guard = guardInfo.getLabel(g);
-            extract_boolean_expressions (expr, guard.getExpr());
             for (LTSminTransition trans : model.getTransitions()) {
                 int t = trans.getGroup();
                 if ( nesM.isRead(g, t) || ndsM.isRead(g, t) ) {
@@ -215,8 +212,6 @@ public class LTSminGMWalker {
 				boolean maybe_coenabled = gm.maybeCoEnabled(t, g);
 				if (NO_NDS || (maybe_coenabled && 
 				               enables(model, trans, guard.getExpr(), true))) {
-                    if (g == 251 && t < 22)
-                        System.out.println("NDS(g:"+g+", t:"+t+")");
 				    nds.incRead(g, t);
 				} else {
 					notNDS++;
@@ -242,8 +237,6 @@ public class LTSminGMWalker {
                 boolean maybe_codisabled = gm.inverseMaybeCoenabled(t, g);
                 if (NO_NES || (maybe_codisabled &&
                         enables(model, trans, guard.getExpr(), false))) {
-                    if (g == 251 && t < 22)
-                        System.out.println("NES(g:"+g+", t:"+t+")");
                     nes.incRead(g, t);
 				} else {
 					notNES++;
@@ -317,7 +310,8 @@ public class LTSminGMWalker {
 	/**************
 	 * MCE
 	 * ************/
-	
+
+static int G1, G2;
 	private static int generateCoenMatrix(LTSminModel model, GuardInfo guardInfo) {
 	    int nlabels = guardInfo.getNumberOfLabels();
 		DepMatrix co = new DepMatrix(nlabels, nlabels);
@@ -329,7 +323,9 @@ public class LTSminGMWalker {
 			for (int j = i+1; j < nlabels; j++) {
                 LTSminGuard g1 = (LTSminGuard) guardInfo.get(i);
                 LTSminGuard g2 = (LTSminGuard) guardInfo.get(j);
-				if (mayBeCoenabled(model, g1, g2)) {
+                G1 = i;
+                G2 = j;
+				if (mce(model, g1.getExpr(), g2.getExpr(), false, false)) {
 					co.incRead(i, j);
 					co.incRead(j, i);
 				} else {
@@ -340,116 +336,91 @@ public class LTSminGMWalker {
 		return neverCoEnabled;
 	}
 
-    private static boolean mayBeCoenabled(LTSminModel model, LTSminGuard g1, LTSminGuard g2) {
-        return mayBeCoenabled(model, g1, g2, false);
-    }
-	
-    private static boolean mayBeCoenabled(LTSminModel model, LTSminGuard g1,
-                                          LTSminGuard g2, boolean invertLeft) {
-        switch (aggressiveness) {
-            case Weak:
-            case Low:
-                return mayBeCoenabled(model, g1.expr, g2.expr, invertLeft);
-            case Normal:
-                return mayBeCoenabledStrong(model, g1.expr, g2.expr, invertLeft);
-            case High:
-                return mayBeCoenabledStronger(model, g1.expr, g2.expr, invertLeft);
-            case Highest:
-                return mayBeCoenabledStrongest(model, g1.expr, g2.expr, invertLeft);
-            default:
-                throw new AssertionError("Unimplemented aggressivity level: "+ aggressiveness);
-        }
-	}
-
     /**
-     * Determine MCE over disjunctions: MCE holds for ex1 and ex2 iff 
-     * it holds for one d1,d2 in disjunctions(ex1) X disjunctions(ex2)
+     * Over estimates whether a transition can enable a guard 
+     *
+     * @return false of trans definitely does not enable the guard, else true
      */
-    private static boolean mayBeCoenabledStrongest(LTSminModel model,
-                                                   Expression ex1,
-                                                   Expression ex2,
-                                                   boolean invertLeft) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        List<Expression> gb_ex = new ArrayList<Expression>();
-        extract_disjunctions (ga_ex, ex1);
-        extract_disjunctions (gb_ex, ex2);
-        for(Expression a : ga_ex) {
-            for(Expression b : gb_ex) {
-                if (mayBeCoenabledStronger(model, a, b, invertLeft)) {
+    private static boolean mce (LTSminModel model,
+                                Expression e1,
+                                Expression e2,
+                                boolean invert1,
+                                boolean invert2) {
+         if (e1 instanceof BooleanExpression) {
+            BooleanExpression ce1 = (BooleanExpression)e1;
+            switch (ce1.getToken().kind) {
+            case PromelaTokenManager.BNOT:
+            case PromelaTokenManager.LNOT:
+                return mce(model, ce1.getExpr1(), e2, !invert1, invert2);
+            case PromelaTokenManager.BAND:
+            case PromelaTokenManager.LAND:
+                if (invert1) {
+                    return mce(model, ce1.getExpr1(), e2, invert1, invert2) ||
+                           mce(model, ce1.getExpr2(), e2, invert1, invert2);
+                } else {
+                    return mce(model, ce1.getExpr1(), e2, invert1, invert2) &&
+                           mce(model, ce1.getExpr2(), e2, invert1, invert2);
+                }
+            case PromelaTokenManager.BOR:
+            case PromelaTokenManager.LOR:
+                if (invert1) {
+                    return mce(model, ce1.getExpr1(), e2, invert1, invert2) &&
+                           mce(model, ce1.getExpr2(), e2, invert1, invert2);
+                } else {
+                    return mce(model, ce1.getExpr1(), e2, invert1, invert2) ||
+                           mce(model, ce1.getExpr2(), e2, invert1, invert2);
+                }
+            default: throw new RuntimeException("Unknown boolean expression: "+ e1);
+            }
+        } else if (e2 instanceof BooleanExpression) {
+            return mce(model, e2, e1, invert2, invert1);
+        } else {
+            List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
+            boolean missed = extract_conjunct_predicates(ga_sp, e1, false); // non-strict, since MCE holds for the same state
+            if (invert1) {
+                if (missed)
+                    return true; // don't know
+                for(SimplePredicate a : ga_sp) {                   
+                    a = a.invert();
+                    if (mce(model, e2, a, invert2)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else {
+                for(SimplePredicate a : ga_sp) {
+                    if (!mce(model, e2, a, invert2)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+    }
+
+    private static boolean mce(LTSminModel model, Expression e2,
+                               SimplePredicate a, boolean invert2) {
+        List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
+        boolean missed = extract_conjunct_predicates(gb_sp, e2, false);
+        if (invert2) {
+            if (missed)
+                return true; // don't know
+            for(SimplePredicate b : gb_sp) {
+                b = b.invert();
+                if (!is_conflict_predicate(model, a, b)) {
                     return true;
                 }
             }
-        }
-        return false;
-    }
-
-	/**
-	 * Determine MCE over conjunctions: MCE holds for ex1 and ex2 iff 
-	 * it holds over for all d1,d2 in conjunctions(ex1) X conjunctions(ex2)
-	 */
-	private static boolean mayBeCoenabledStronger(LTSminModel model,
-	                                              Expression ex1,
-	                                              Expression ex2,
-                                                  boolean invertLeft) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        List<Expression> gb_ex = new ArrayList<Expression>();
-        extract_conjunctions (ga_ex, ex1);
-        extract_conjunctions (gb_ex, ex2);
-        for(Expression a : ga_ex) {
-            for(Expression b : gb_ex) {
-                if (!mayBeCoenabledStrong(model, a, b, invertLeft)) {
-                	return false;
-                }
-            }
-        }
-        return true;
-	}
-
-	/**
-	 * Determine MCE over disjunctions: MCE holds for ex1 and ex2 iff 
-	 * it holds for one d1,d2 in disjunctions(ex1) X disjunctions(ex2)
-	 */
-	private static boolean mayBeCoenabledStrong(LTSminModel model,
-	                                            Expression ex1,
-	                                            Expression ex2,
-                                                boolean invertLeft) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        List<Expression> gb_ex = new ArrayList<Expression>();
-        extract_disjunctions (ga_ex, ex1);
-        extract_disjunctions (gb_ex, ex2);
-        for(Expression a : ga_ex) {
-            for(Expression b : gb_ex) {
-                if (mayBeCoenabled(model, a, b, invertLeft)) {
-                	return true;
-                }
-            }
-        }
-        return false;
-	}
-
-	/**
-	 * Determine MCE over conjunctions: MCE holds for ex1 and ex2 iff 
-	 * all sp1,sp2 in simplePreds(ex1) X simplePreds(ex2) do no conflict
-	 */
-	private static boolean mayBeCoenabled(LTSminModel model,
-	                                      Expression ex1,
-	                                      Expression ex2,
-                                          boolean invertLeft) {
-        List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
-        List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
-        extract_conjunct_predicates(ga_sp, ex1, false); // non-strict, since MCE holds for the same state
-        extract_conjunct_predicates(gb_sp, ex2, false);
-        for(SimplePredicate x : ga_sp) {
-            if (invertLeft)
-                x = x.invert();
+            return false;
+        } else {
             for(SimplePredicate b : gb_sp) {
-                if (is_conflict_predicate(model, x, b)) {
-                	return false;
+                if (is_conflict_predicate(model, a, b)) {
+                    return false;
                 }
             }
+            return true;
         }
-        return true;
-	}
+    }
 
     /**************
      * IMCE/IMC: Inverse (is) Maybe Conenabled
@@ -471,7 +442,7 @@ public class LTSminGMWalker {
                 }
                 LTSminGuard g1 = (LTSminGuard) guardInfo.get(i);
                 LTSminGuard g2 = (LTSminGuard) guardInfo.get(j);
-                if (mayBeCoenabled(model, g1, g2, true)) {
+                if (mce(model, g1.getExpr(), g2.getExpr(), true, false)) {
                     codis.incRead(i, j);
                 } else {
                     neverCoenabled++;
@@ -744,69 +715,12 @@ public class LTSminGMWalker {
 			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
 			missed |= extract_conjunct_predicates(sp, comp, strict);
     	} else if (e instanceof BooleanExpression) {
-    	    BooleanExpression ce = (BooleanExpression)e;
-    		if (ce.getToken().kind == PromelaTokenManager.BAND ||
-    			ce.getToken().kind == PromelaTokenManager.LAND) {
-    		    missed |= extract_conjunct_predicates (sp, ce.getExpr1(), strict);
-    		    missed |= extract_conjunct_predicates (sp, ce.getExpr2(), strict);
-    		} else {
-    		    missed = true;
-    		}
+    	   throw new RuntimeException("Was expecting leaf");
 		} else {
 		    missed = true; // missed one!
 		}
     	return missed;
 	}
-
-    /**
-     * Extracts all disjunctions until conjunctions or arithmicExpr are encountered
-     */
-    private static void extract_disjunctions (List<Expression> ds, Expression e) {
-        if(e instanceof BooleanExpression) {
-            BooleanExpression ce = (BooleanExpression)e;
-            if (ce.getToken().kind == PromelaTokenManager.BOR ||
-                ce.getToken().kind == PromelaTokenManager.LOR) {
-                extract_disjunctions (ds, ce.getExpr1());
-                extract_disjunctions (ds, ce.getExpr2());
-            } else {
-                ds.add(e);
-            }
-        } else {
-            ds.add(e);
-        }
-    }
-
-    /**
-     * Extracts all conjunctions until disjunctions or arithmicExpr are encountered
-     */
-    private static void extract_conjunctions (List<Expression> ds, Expression e) {
-        if(e instanceof BooleanExpression) {
-            BooleanExpression ce = (BooleanExpression)e;
-            if (ce.getToken().kind == PromelaTokenManager.BAND ||
-                ce.getToken().kind == PromelaTokenManager.LAND) {
-                extract_disjunctions (ds, ce.getExpr1());
-                extract_disjunctions (ds, ce.getExpr2());
-            } else {
-                ds.add(e);
-            }
-        } else {
-            ds.add(e);
-        }
-    }
-
-    /**
-     * Extracts all boolean expressions
-     */
-    private static void extract_boolean_expressions (List<Expression> ds, Expression e) {
-        if(e instanceof BooleanExpression) {
-            BooleanExpression ce = (BooleanExpression)e;
-            extract_boolean_expressions (ds, ce.getExpr1());
-            if (ce.getExpr2() != null)
-                extract_boolean_expressions (ds, ce.getExpr2());
-        } else {
-            ds.add(e);
-        }
-    }
 
 	/**
 	 * Tries to parse an expression as a reference to a singular (channel)
