@@ -314,11 +314,17 @@ public class LTSminPrinter {
 			if (0 != slot.getIndex())
 				w.append(", // "+ (slot.getIndex()-1));
 			w.appendPostfix().appendPrefix();
-			w.append(slot.fullName());
-			char[] chars = new char[Math.max(40 - slot.fullName().length(),0)];
-			Arrays.fill(chars, ' '); 
-			String prefix = new String(chars);
-			w.append(prefix +" = ");
+			String name = slot.fullName();
+			
+            char[] chars = new char[Math.max(40 - name.length(),0)];
+            Arrays.fill(chars, ' ');
+            String prefix = new String(chars);
+            w.append(name.replace(".var", ".pad"));
+            w.append(prefix +" = 0,");
+            w.appendPostfix().appendPrefix();
+
+            w.append(name);
+            w.append(prefix +" = ");
 			Expression e = slot.getInitExpr();
 			if (e==null) {
 				w.append("0");
@@ -501,7 +507,7 @@ public class LTSminPrinter {
 		w.indent();
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
 		List<Action> actions = t.getActions();
-		for(Action a: actions)
+		for(Action a : actions)
 			generateAction(w,a,model, t);
 		if (t.isAtomic()) {
 		    printEdgeLabels (w, model, t);
@@ -511,9 +517,30 @@ public class LTSminPrinter {
 		} else {
 			generateACallback(w, model, t);
 		}
+		if (many) { // reset transition_labels
+		    boolean hasAssert = hasAssert(t.getActions());
+		    if (hasAssert) {
+    		    int index = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
+    		    w.appendLine("transition_labels["+ index +"] = "+ 0 +";");
+		    }
+		}
 		w.outdent();
 		w.appendLine("}");
 	}
+
+    private static boolean hasAssert(List<Action> as) {
+        for(Action a : as) {
+            if (a instanceof AssertAction) return true;
+            if (a instanceof Sequence) return hasAssert (((Sequence)a).getActions());
+            if (a instanceof OptionAction) {
+                for (Sequence s : ((OptionAction)a)) {
+                    if (hasAssert(s.getActions()))
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
 
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
 		w.appendLine("int spins_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");

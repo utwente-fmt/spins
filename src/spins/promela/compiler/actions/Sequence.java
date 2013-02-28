@@ -182,4 +182,8 @@ public class Sequence extends Action implements ActionContainer {
 			return "d_step";
 		}
 	}
+
+    public List<Action> getActions() {
+        return actions;
+    }
 }
