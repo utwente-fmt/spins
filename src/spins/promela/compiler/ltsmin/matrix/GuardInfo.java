@@ -74,6 +74,15 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	 * Label visibility matrix
 	 */
     private DepMatrix visibility;
+    
+    /**
+     * Test sets of transitions
+     * 
+     *        slots >
+     * trans  ...    ...
+     *   V    ...    ...
+     */
+    private DepMatrix testset;
 
 	public GuardInfo(int width) {
 		labels = new ArrayList<LTSminGuard>();
@@ -223,5 +232,13 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
     
     public DepMatrix getVisibilityMatrix() {
         return visibility;
+    }
+
+    public void setTestSetMatrix(DepMatrix dm2) {
+        testset = dm2;
+    }
+    
+    public DepMatrix getTestSetMatrix() {
+        return testset;
     }
 }
