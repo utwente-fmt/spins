@@ -165,41 +165,18 @@ public class LTSminGMWalker {
         int nlabels = guardInfo.getNumberOfLabels();
         DepMatrix visibility = new DepMatrix(nlabels, model.getTransitions().size());
         guardInfo.setVisibilityMatrix(visibility);
-        DepMatrix temp = new DepMatrix(1, model.sv.size());
+        DepMatrix nesM = guardInfo.getNESMatrix();
+        DepMatrix ndsM = guardInfo.getNDSMatrix();
         int visible = 0;
-
         for (int g = 0; g < nlabels; g++) {
             List<Expression> expr = new ArrayList<Expression>();
             LTSminGuard guard = guardInfo.getLabel(g);
             extract_boolean_expressions (expr, guard.getExpr());
-            
             for (LTSminTransition trans : model.getTransitions()) {
                 int t = trans.getGroup();
-
-                boolean ce = false; // Yields few more? Should be included in IMCE
-                for (int gg : guardInfo.getTransMatrix().get(t)) {
-                    ce = ce || gg == g;
-                }
-                for (Expression e : expr) {
-                    temp.clear();
-                    LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(e), 0);
-                    if (!model.getDepMatrix().isWrite(t, temp.getReads(0)))
-                        continue;
-
-                    boolean mce = true;
-                    boolean imc = true;
-                    for (int gg : guardInfo.getTransMatrix().get(t)) {
-                        LTSminGuard gguard = guardInfo.get(gg);
-                        imc = imc && mayBeCoenabledStrongest(model, e, gguard.getExpr(), true);
-                        mce = mce && mayBeCoenabledStrongest(model, e, gguard.getExpr(), false);
-                    }
-
-                    if ( !ce && imc && is_nes_guard_strongest(model, e, trans) ||
-                         mce && is_nds_guard_strongest(model, e, trans) ) {
-                        visibility.incRead(g, t);
-                        visible++;
-                        break;
-                    }
+                if ( nesM.isRead(g, t) || ndsM.isRead(g, t) ) {
+                    visibility.incRead(g, t);
+                    visible++;
                 }
             }
         }
@@ -236,7 +213,10 @@ public class LTSminGMWalker {
 				LTSminTransition trans = model.getTransitions().get(t);
 				LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
 				boolean maybe_coenabled = gm.maybeCoEnabled(t, g);
-				if (NO_NDS || (maybe_coenabled && is_nds_guard(model, guard, trans))) {
+				if (NO_NDS || (maybe_coenabled && 
+				               enables(model, trans, guard.getExpr(), true))) {
+                    if (g == 251 && t < 22)
+                        System.out.println("NDS(g:"+g+", t:"+t+")");
 				    nds.incRead(g, t);
 				} else {
 					notNDS++;
@@ -246,112 +226,9 @@ public class LTSminGMWalker {
 		return notNDS;
 	}
 
-    private static boolean is_nds_guard(LTSminModel model, LTSminGuard guard,
-										LTSminTransition transition) {
-		switch (aggressiveness) {
-		case Weak:
-		case Low:
-			return is_nds_guard(model, guard.getExpr(), transition);
-		case Normal:
-			return is_nds_guard_strong(model, guard.getExpr(), transition);
-		case High:
-			return is_nds_guard_stronger(model, guard.getExpr(), transition);
-        case Highest:
-            return is_nds_guard_strongest(model, guard.getExpr(), transition);
-		default:
-			throw new AssertionError("Unimplemented aggressiveness level: "+ aggressiveness);
-		}
-	}
-
-    /**
-     * Determine NDS over disjunctions: not NDS holds for ex1 and trans iff 
-     * it holds for all e,t in disjunctions(ex1) X {trans}
-     */
-    private static boolean is_nds_guard_strongest(LTSminModel model, Expression ex1,
-                                               LTSminTransition t) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        extract_disjunctions (ga_ex, ex1);
-        for (Expression e : ga_ex) {
-            if (is_nds_guard_stronger(model, e, t)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-	/**
-	 * Determine NDS over conjunctions: not NDS holds for ex1 and trans iff 
-	 * it holds for one e,t in conjunctions(ex1) X {trans}
-	 */
-	private static boolean is_nds_guard_stronger(LTSminModel model, Expression ex1,
-												 LTSminTransition t) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        extract_conjunctions (ga_ex, ex1);
-        for (Expression e : ga_ex) {
-            if (!is_nds_guard_strong(model, e, t)) {
-            	return false;
-            }
-        }
-        return true;
-	}
-	
-	/**
-	 * Determine NDS over disjunctions: not NDS holds for ex1 and trans iff 
-	 * it holds for all e,t in disjunctions(ex1) X {trans}
-	 */
-	private static boolean is_nds_guard_strong(LTSminModel model, Expression ex1,
-											   LTSminTransition t) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        extract_disjunctions (ga_ex, ex1);
-        for (Expression e : ga_ex) {
-            if (is_nds_guard(model, e, t)) {
-            	return true;
-            }
-        }
-        return false;
-	}
-
-    /**
-     * Determines whether a transition is necessary disabling for a guard.
-     * 
-     * @return false is the guard is not NECESSARILY disabled by the transition,
-     *         TRUE IF UNKNOWN (overestimation)
-     */
-	private static boolean is_nds_guard(LTSminModel model, Expression guard,
-										LTSminTransition transition) {
-        List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
-		extract_conjunct_predicates(sps, guard, true); // strict, because we compare future and past state vectors
-		for (SimplePredicate sp2 : sps) {
-			if (!maybe_disables(model, transition, sp2)) {
-			    return false;
-			}
-		}
-		return true;
-	}
-
-    private static boolean maybe_disables(LTSminModel model,
-            LTSminTransition transition, SimplePredicate sp2) {
-        // check dependent
-        DepMatrix temp = new DepMatrix(1, model.sv.size());
-        int t = transition.getGroup();
-        temp.clear();
-        LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(sp2.e), 0);
-        if (!model.getDepMatrix().isWrite(t, temp.getReads(0)))
-            return false;
-
-        // check value written
-        for (Action a : transition.getActions()) { 
-        	if (definately_agrees_with(model, sp2, a)) {
-        		return false;
-        	}
-        }
-        return true;
-    }
-
 	/**************
 	 * NES
 	 * ************/
-	
 	private static int generateNESMatrix(LTSminModel model, GuardInfo guardInfo) {
         int nlabels = guardInfo.getNumberOfLabels();
 		DepMatrix nes = new DepMatrix(nlabels, model.getTransitions().size());
@@ -364,8 +241,10 @@ public class LTSminGMWalker {
                 LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
                 boolean maybe_codisabled = gm.inverseMaybeCoenabled(t, g);
                 if (NO_NES || (maybe_codisabled &&
-                                is_nes_guard(model, guard, trans))) {
-					nes.incRead(g, t); 
+                        enables(model, trans, guard.getExpr(), false))) {
+                    if (g == 251 && t < 22)
+                        System.out.println("NES(g:"+g+", t:"+t+")");
+                    nes.incRead(g, t);
 				} else {
 					notNES++;
 				}
@@ -375,127 +254,64 @@ public class LTSminGMWalker {
 	}
 
 	/**
-	 * Over estimates whether guard, transition in NES 
+	 * Over estimates whether a transition can enable a guard 
      *
-	 * @return false of trans,guard not in nes, TRUE IF UNKNOWN
+	 * @return false of trans definitely does not enable the guard, else true
 	 */
-	private static boolean is_nes_guard(LTSminModel model, LTSminGuard guard,
-										LTSminTransition transition) {
-		switch (aggressiveness) {
-		case Weak:
-		case Low:
-			return is_nes_guard(model, guard.getExpr(), transition);
-		case Normal:
-			return is_nes_guard_strong(model, guard.getExpr(), transition);
-		case High:
-			return is_nes_guard_stronger(model, guard.getExpr(), transition);
-        case Highest:
-            return is_nes_guard_strongest(model, guard.getExpr(), transition);
-		default:
-			throw new AssertionError("Unimplemented aggressiveness level: "+ aggressiveness);
-		}
-	}
-
-    /**
-     * Determine NES over disjunctions: not NES holds for ex1 and trans iff 
-     * it holds for one e,t in disjunctions(ex1) X {trans}
-     */
-    private static boolean is_nes_guard_strongest(LTSminModel model, Expression ex1,
-                                                 LTSminTransition t) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        extract_disjunctions (ga_ex, ex1);
-        for (Expression e : ga_ex) {
-            if (!is_nes_guard_stronger(model, e, t)) {
-                return false;
+	private static boolean enables (LTSminModel model,
+	                                LTSminTransition t,
+									Expression e,
+									boolean invert) {
+        DepMatrix deps = model.getDepMatrix();
+	    if (e instanceof BooleanExpression) {
+            BooleanExpression ce = (BooleanExpression)e;
+            if (ce.getToken().kind == PromelaTokenManager.BNOT ||
+                ce.getToken().kind == PromelaTokenManager.LNOT) {
+                return enables(model, t, ce.getExpr1(), !invert);
+            } else {
+                return enables(model, t, ce.getExpr1(), invert) ||
+                       enables(model, t, ce.getExpr2(), invert);
             }
-        }
-        return true;
-    }
-
-	/**
-	 * Determine NES over conjunctions: not NES holds for ex1 and trans iff 
-	 * it holds for all e,t in conjunctions(ex1) X {trans}
-	 */
-	private static boolean is_nes_guard_stronger(LTSminModel model, Expression ex1,
-											   LTSminTransition t) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        extract_conjunctions (ga_ex, ex1);
-        for (Expression e : ga_ex) {
-            if (is_nes_guard_strong(model, e, t)) {
-            	return true;
+        } else {
+            List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
+            boolean missed = extract_conjunct_predicates(sps, e, false);
+            if (missed) {
+                DepMatrix temp = new DepMatrix(1, model.sv.size());
+                LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(e), 0);
+                return deps.isWrite(t.getGroup(), temp.getReads(0));
             }
-        }
-        return false;
-	}
-	
-    /**
-     * Determine NES over disjunctions: not NES holds for ex1 and trans iff 
-     * it holds for one e,t in disjunctions(ex1) X {trans}
-     */
-    private static boolean is_nes_guard_strong(LTSminModel model, Expression ex1,
-                                                 LTSminTransition t) {
-        List<Expression> ga_ex = new ArrayList<Expression>();
-        extract_disjunctions (ga_ex, ex1);
-        for (Expression e : ga_ex) {
-            if (!is_nes_guard(model, e, t)) {
-                return false;
+            for (SimplePredicate sp : sps) {
+                if (invert)
+                    sp = sp.invert();
+                if (agrees(model, t, sp, invert)) {
+                    return true;
+                }
             }
-        }
-        return true;
-    }
-
-	/**
-	 * Determines whether a transition is necessary enabling for a guard.
-	 * We select all guards (return true) that are directly enabled by the
-	 * transition, and those for which we cannot determine this precisely.
-	 * In other words, we know for sure that a guard is NOT NES, iff its
-	 * assignment disagrees with a conjunct in the guard.
-	 * 
-	 * @param model
-	 * @param e
-	 * @param transition
-	 * @return false is the guard is not NECESSARILY enabled by the transition,
-	 *         TRUE IF UNKNOWN (overestimation)
-	 */
-	private static boolean is_nes_guard(LTSminModel model, Expression e,
-										LTSminTransition transition) {
-        List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
-		extract_conjunct_predicates(sps, e, true); // strict, because we compare future and past state vectors
-		for (SimplePredicate sp2 : sps) {
-			if (maybe_enables(model, transition, sp2)) {
-			    return true;
-			}
-		}
-		return false;
-	}
-
-    private static boolean maybe_enables(LTSminModel model, LTSminTransition transition,
-                                         SimplePredicate sp2) {
-        // check dependent
-        DepMatrix temp = new DepMatrix(1, model.sv.size());
-        int t = transition.getGroup();
-        temp.clear();
-        LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(sp2.e), 0);
-        if (!model.getDepMatrix().isWrite(t, temp.getReads(0)))
             return false;
+        }
+	}
 
-        // check value written
-        for (Action a : transition.getActions()) {
-            if (definately_disagrees_with(model, sp2, a)) {
-                return false;
+    private static boolean agrees (LTSminModel model,
+                                   LTSminTransition t,
+                                   SimplePredicate sp,
+                                   boolean invert) {
+        DepMatrix testSet = new DepMatrix(1, model.sv.size());
+        DepMatrix writeSet = new DepMatrix(1, model.sv.size());
+
+        for (Action a : t.getActions()) {
+            testSet.clear();
+            writeSet.clear();
+            LTSminDMWalker.walkOneGuard(model, testSet, new LTSminGuard(sp.e), 0);
+            LTSminDMWalker.walkOneAction(model, writeSet, a, 0);
+            if (!writeSet.isWrite(0, testSet.getReads(0)))
+                continue;
+
+            boolean conflicts = conflicts(model, a, sp, false);
+            if (!conflicts) {
+                return true;
         	}
         }
-        return true;
-    }
-
-    private static boolean definately_disagrees_with(LTSminModel model,
-                                                SimplePredicate sp2, Action a) {
-        return is_conflicting(model, sp2, a, false);
-    }
-
-    private static boolean definately_agrees_with(LTSminModel model,
-                                                  SimplePredicate sp2, Action a) {
-        return is_conflicting(model, sp2, a, true);
+        return false;
     }
 
 	/**************
@@ -624,12 +440,10 @@ public class LTSminGMWalker {
         extract_conjunct_predicates(ga_sp, ex1, false); // non-strict, since MCE holds for the same state
         extract_conjunct_predicates(gb_sp, ex2, false);
         for(SimplePredicate x : ga_sp) {
-            SimplePredicate a = x;
-            if (invertLeft) {
-                a = new InvertedSimplePredicate(x.e, x.id, x.comparison);
-            }
+            if (invertLeft)
+                x = x.invert();
             for(SimplePredicate b : gb_sp) {
-                if (is_conflict_predicate(model, a, b)) {
+                if (is_conflict_predicate(model, x, b)) {
                 	return false;
                 }
             }
@@ -693,33 +507,34 @@ public class LTSminGMWalker {
             assert (!ref.equals(LTSminPrinter.SCRATCH_VARIABLE)); // write-only
             return ref;
         }
-    }
+        public String toString() {
+            String comp = PromelaConstants.tokenImage[comparison].replace('"', ' ');
+            return id + comp + constant;
+        }
 
-    static class InvertedSimplePredicate extends SimplePredicate {
-        public InvertedSimplePredicate(Expression e, Identifier id, int c) {
-            switch(e.getToken().kind) {
+        public SimplePredicate invert() {
+            SimplePredicate copy = new SimplePredicate(e, id, constant);
+            switch(comparison) {
                 case PromelaConstants.LT:
-                    this.comparison = PromelaConstants.GTE;
+                    copy.comparison = PromelaConstants.GTE;
                     break;
                 case PromelaConstants.LTE:
-                    this.comparison = PromelaConstants.GT;
+                    copy.comparison = PromelaConstants.GT;
                     break;
                 case PromelaConstants.EQ:
-                    this.comparison = PromelaConstants.NEQ;
+                    copy.comparison = PromelaConstants.NEQ;
                     break;
                 case PromelaConstants.NEQ:
-                    this.comparison = PromelaConstants.EQ;
+                    copy.comparison = PromelaConstants.EQ;
                     break;
                 case PromelaConstants.GT:
-                    this.comparison = PromelaConstants.LTE;
+                    copy.comparison = PromelaConstants.LTE;
                     break;
                 case PromelaConstants.GTE:
-                    this.comparison = PromelaConstants.LT;
+                    copy.comparison = PromelaConstants.LT;
                     break;
             }
-            this.id = id;
-            this.constant = c;
-            this.e = null;
+            return copy;
         }
     }
 
@@ -731,13 +546,13 @@ public class LTSminGMWalker {
      * For testing on the negation, use the invert flag.
      * 
      * @param model
-     * @param sp2 the simple predicate (x == 4)
      * @param a the action
+     * @param sp2 the simple predicate (x == 4)
      * @param invert if true: the action is inverted: x := 5 --> x := !5
      * @return true if conflict is found, FALSE IF UNKNOWN
      */
-    private static boolean is_conflicting(LTSminModel model, SimplePredicate sp2,
-                                          Action a, boolean invert) {
+    private static boolean conflicts (LTSminModel model, Action a,
+                                      SimplePredicate sp2, boolean invert) {
         SimplePredicate sp1 = new SimplePredicate();
         if (a instanceof AssignAction) {
             AssignAction ae = (AssignAction)a;
@@ -773,21 +588,21 @@ public class LTSminGMWalker {
         } else if (a instanceof ResetProcessAction) {
             ResetProcessAction rpa = (ResetProcessAction)a;
             Variable pc = model.sv.getPC(rpa.getProcess());
-            if (is_conflicting(model, sp2, assign(pc, -1), invert))
+            if (conflicts(model, assign(pc, -1), sp2, invert))
                 return true;
-            return is_conflicting(model, sp2, decr(id(LTSminStateVector._NR_PR)), invert);
+            return conflicts(model, decr(id(LTSminStateVector._NR_PR)), sp2, invert);
         } else if (a instanceof ExprAction) {
             Expression expr = ((ExprAction)a).getExpression();
             if (expr.getSideEffect() == null) return false; // simple expressions are guards
             RunExpression re = (RunExpression)expr;
             
-            if (is_conflicting(model, sp2, incr(id(LTSminStateVector._NR_PR)), invert))
+            if (conflicts(model, incr(id(LTSminStateVector._NR_PR)), sp2, invert))
                 return true;
 
             for (Proctype p : re.getInstances()) {
                 for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
                     Variable pc = model.sv.getPC(instance);
-                    if (is_conflicting(model, sp2, assign(pc, 0), invert)) {
+                    if (conflicts(model, assign(pc, 0), sp2, invert)) {
                         return true;
                     }
                 }
@@ -799,14 +614,14 @@ public class LTSminGMWalker {
                         continue; //passed by reference or already in state vector
                     try {
                         int val = param.getConstantValue();
-                        if (is_conflicting(model, sp2, assign(v, val), invert)) {
+                        if (conflicts(model, assign(v, val), sp2, invert)) {
                             return true;
                         }
                     } catch (ParseException e) {}
                 }
             }
             for (Action rea : re.getActions()) {
-                if (is_conflicting(model, sp2,  rea, invert)) {
+                if (conflicts(model, rea,  sp2, invert)) {
                     return true;
                 }
             }
@@ -817,12 +632,12 @@ public class LTSminGMWalker {
                 try {
                     int val = csa.getExprs().get(i).getConstantValue();
                     Identifier next = channelNext(id, i);
-                    if (is_conflicting(model, sp2, assign(next, constant(val)), invert)) {
+                    if (conflicts(model, assign(next, constant(val)), sp2, invert)) {
                         return true;
                     }
                 } catch (ParseException e) {}
             }
-            return is_conflicting(model, sp2, incr(chanLength(id)), invert);
+            return conflicts(model, incr(chanLength(id)), sp2, invert);
         } else if(a instanceof OptionAction) { // options in a d_step sequence
             //OptionAction oa = (OptionAction)a;
             //for (Sequence seq : oa) {
@@ -833,7 +648,7 @@ public class LTSminGMWalker {
             ChannelReadAction cra = (ChannelReadAction)a;
             Identifier id = cra.getIdentifier();
             if (!cra.isPoll()) {
-                return is_conflicting(model, sp2, decr(chanLength(id)), invert);
+                return conflicts(model, decr(chanLength(id)), sp2, invert);
             }
         }
         return false;
@@ -929,7 +744,7 @@ public class LTSminGMWalker {
 			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
 			missed |= extract_conjunct_predicates(sp, comp, strict);
     	} else if (e instanceof BooleanExpression) {
-    		BooleanExpression ce = (BooleanExpression)e;
+    	    BooleanExpression ce = (BooleanExpression)e;
     		if (ce.getToken().kind == PromelaTokenManager.BAND ||
     			ce.getToken().kind == PromelaTokenManager.LAND) {
     		    missed |= extract_conjunct_predicates (sp, ce.getExpr1(), strict);

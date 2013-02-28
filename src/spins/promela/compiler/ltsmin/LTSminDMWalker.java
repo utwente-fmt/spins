@@ -97,6 +97,12 @@ public class LTSminDMWalker {
 		walkGuard (p, g);
 	}
 	
+    public static void walkOneAction(LTSminModel model, DepMatrix dm,
+                                     Action a, int num) {
+         Params p = new Params(model, dm, num); 
+         walkAction (p, a);
+    }
+	
 	static void walkModel(LTSminModel model, LTSminDebug debug) {
 		debug.say("Generating DM information ...");
 		debug.say_indent++;
