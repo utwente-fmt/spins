@@ -28,11 +28,14 @@ import spins.promela.compiler.actions.ChannelReadAction;
 import spins.promela.compiler.actions.ChannelSendAction;
 import spins.promela.compiler.actions.ExprAction;
 import spins.promela.compiler.actions.OptionAction;
+import spins.promela.compiler.expression.AritmicExpression;
 import spins.promela.compiler.expression.BooleanExpression;
 import spins.promela.compiler.expression.ChannelLengthExpression;
 import spins.promela.compiler.expression.ChannelOperation;
 import spins.promela.compiler.expression.ChannelReadExpression;
 import spins.promela.compiler.expression.CompareExpression;
+import spins.promela.compiler.expression.ConstantExpression;
+import spins.promela.compiler.expression.EvalExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.expression.RemoteRef;
@@ -70,6 +73,7 @@ import spins.promela.compiler.variable.VariableType;
  * TODO: avoid allocation of dependency matrices in recurring tree searches
  * TODO: MCE check possible in leafs of NES check?
  * TODO: optimize case "missing" in nes search
+ * TODO: RunExpr
  * 
  * @author FIB, Alfons Laarman
  */
@@ -285,7 +289,10 @@ public class LTSminGMWalker {
 									Expression e,
 									boolean invert) {
         DepMatrix deps = model.getDepMatrix();
-	    if (e instanceof BooleanExpression) {
+        if (e instanceof EvalExpression) {
+            EvalExpression eval = (EvalExpression)e;
+            return enables(model, t, eval.getExpression(), invert);
+        } else if (e instanceof BooleanExpression) {
             BooleanExpression ce = (BooleanExpression)e;
             if (ce.getToken().kind == PromelaTokenManager.BNOT ||
                 ce.getToken().kind == PromelaTokenManager.LNOT) {
@@ -296,7 +303,7 @@ public class LTSminGMWalker {
             }
         } else {
             List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
-            boolean missed = extract_conjunct_predicates(sps, e, false);
+            boolean missed = extract_conjunct_predicates(sps, e, invert, false);
             if (missed) {
                 DepMatrix temp = new DepMatrix(1, model.sv.size());
                 LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(e), 0);
@@ -373,12 +380,15 @@ public class LTSminGMWalker {
                                 boolean invert1,
                                 boolean invert2,
                                 DepRow limit1, DepRow limit2) {
-         if (e1 instanceof BooleanExpression) {
+        if (e1 instanceof EvalExpression) {
+            EvalExpression eval = (EvalExpression)e1;
+            return mce (model, eval.getExpression(), e2, invert1, invert2, limit1, limit2);
+        } else if (e1 instanceof BooleanExpression) {
             BooleanExpression ce1 = (BooleanExpression)e1;
             switch (ce1.getToken().kind) {
             case PromelaTokenManager.BNOT:
             case PromelaTokenManager.LNOT:
-                return mce(model, ce1.getExpr1(), e2, !invert1, invert2, limit1, limit2);
+                return mce (model, ce1.getExpr1(), e2, !invert1, invert2, limit1, limit2);
             case PromelaTokenManager.BAND:
             case PromelaTokenManager.LAND:
                 if (invert1) {
@@ -399,7 +409,8 @@ public class LTSminGMWalker {
                 }
             default: throw new RuntimeException("Unknown boolean expression: "+ e1);
             }
-        } else if (e2 instanceof BooleanExpression) {
+        } else if (e2 instanceof BooleanExpression ||
+                   e2 instanceof EvalExpression) {
             return mce(model, e2, e1, invert2, invert1, limit2, limit1);
         } else {
             if (limit1 != null | limit2 != null) {
@@ -410,7 +421,7 @@ public class LTSminGMWalker {
                 if (!testSet.isRead(0, limit.getWrites())) return false;
             }
             List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
-            boolean missed = extract_conjunct_predicates(ga_sp, e1, false); // non-strict, since MCE holds for the same state
+            boolean missed = extract_conjunct_predicates(ga_sp, e1, invert1, false); // non-strict, since MCE holds for the same state
             if (invert1) {
                 if (missed)
                     return true; // don't know
@@ -435,7 +446,7 @@ public class LTSminGMWalker {
     private static boolean mce(LTSminModel model, Expression e2,
                                SimplePredicate a, boolean invert2) {
         List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
-        boolean missed = extract_conjunct_predicates(gb_sp, e2, false);
+        boolean missed = extract_conjunct_predicates(gb_sp, e2, invert2, false);
         if (invert2) {
             if (missed)
                 return true; // don't know
@@ -674,12 +685,13 @@ public class LTSminGMWalker {
 	 * SimplePred ::= cvarref <comparison> constant | constant <comparison> cvarref
 	 * where cvarref is a reference to a singular (channel) variable or a
 	 * constant index in array variable.
-	 * 
+	 * @param invert TODO
 	 * @param strict indicates whether we look for strictly constant variables:
 	 * ie. non-array variables or array variables with constant index
 	 */
 	private static boolean extract_conjunct_predicates(List<SimplePredicate> sp,
 	                                                   Expression e,
+	                                                   boolean invert, // Does not invert SPs!
 	                                                   boolean strict) {
 		int c;
         boolean missed = false;
@@ -702,7 +714,7 @@ public class LTSminGMWalker {
 		} else if (e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
-			missed |= extract_conjunct_predicates(sp, chanContentsGuard(id), strict);
+			missed |= extract_conjunct_predicates(sp, chanContentsGuard(id), invert, strict);
 			List<Expression> exprs = cre.getExprs();
 			for (int i = 0; i < exprs.size(); i++) {
 				try { // this is a conjunction of matchings
@@ -710,7 +722,7 @@ public class LTSminGMWalker {
 					Identifier read = channelBottom(id, i);
 					CompareExpression compare = compare(PromelaConstants.EQ,
 														read, constant(val));
-					missed |= extract_conjunct_predicates(sp, compare, strict);
+					missed |= extract_conjunct_predicates(sp, compare, invert, strict);
 		    	} catch (ParseException pe2) {
 		    	    missed = true; // missed one!
 		    	}
@@ -741,17 +753,35 @@ public class LTSminGMWalker {
 			} else {
 			    throw new AssertionError();
 			}
-			missed |= extract_conjunct_predicates(sp, compare(op, left, right), strict);
+			missed |= extract_conjunct_predicates(sp, compare(op, left, right), invert, strict);
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
 			Variable pc = rr.getPC(null);
 			int num = rr.getLabelId();
 			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
-			missed |= extract_conjunct_predicates(sp, comp, strict);
-    	} else if (e instanceof BooleanExpression) {
+			missed |= extract_conjunct_predicates(sp, comp, invert, strict);
+		} else if (e instanceof ConstantExpression) {
+		    try {
+                int val = e.getConstantValue();
+                missed |= invert ? val != 0 : val == 0;
+            } catch (ParseException e1) {
+                throw new RuntimeException("Dynamic constants?");
+            }
+        } else if (e instanceof AritmicExpression ||
+                   e instanceof Identifier) {
+            try {
+                int val = e.getConstantValue();
+                missed |= invert ? val != 0 : val == 0;
+            } catch (ParseException e1) {
+                missed = true;
+            }
+        } else if (e instanceof EvalExpression) {
+            EvalExpression eval = (EvalExpression) e;
+            missed |= extract_conjunct_predicates(sp, eval.getExpression(), invert, strict);
+		} else if (e instanceof BooleanExpression) {
     	   throw new RuntimeException("Was expecting leaf");
 		} else {
-		    missed = true; // missed one!
+		    return true; // missed one!
 		}
     	return missed;
 	}
