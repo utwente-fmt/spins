@@ -1,0 +1,366 @@
+\documentclass{paper}
+
+\usepackage{multirow} 
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{comment}
+\usepackage{color}
+\usepackage[lined,vlined,linesnumbered,boxed]{algorithm2e}
+\usepackage[pdftex,
+        colorlinks=false,
+        pdftitle={Scalable Recursive State Compression},
+        pdfauthor={Alfons Laarman},
+        pdfsubject={},
+        pdfkeywords={compression, model checking, tree-based algorithm},
+        %pdfadjustspacing=1,
+        pagebackref=true,
+        pdfpagemode=None,
+        bookmarksopen=true]{hyperref}
+        
+\usepackage{ntabbing, float}
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\floatstyle{boxed}
+\newfloat{fig}{bt}{fig}
+\floatname{fig}{Figure}
+
+\interfootnotelinepenalty=10000
+\renewcommand{\bottomfraction}{1.2}
+\renewcommand{\topfraction}{1.2}
+
+\title{Guards-based Partial Order Reduction}
+\subtitle{}
+
+%\author{Alfons Laarman\label{}\\
+%	a.w.laarman@ewi.utwente.nl
+%}
+
+\newtheorem{definition}{Definition}
+%\newcommand{\l}{\ \|\ }
+
+\pagestyle{empty} 
+\pagenumbering{arabic} 
+\begin{document}
+
+\maketitle
+\thispagestyle{empty} 
+
+\section{Guard Formulas}
+
+Thus far, we have discussed guards only as interpretations over states 
+(evaluating to true or false). In order to demonstrate how
+guard-based partial-order reduction can be used generically and 
+efficiently, we will now discuss the form of guards.
+We show how different modeling languages can compile to guard formulas, 
+and how to calculate the different dependency relations needed for 
+partial-order reduction. In fact, we show that - even with our generic 
+definition - we can calculate the needed relations in more detail than
+with the language-specific heuristics usually discussed in literature.
+
+\begin{definition}
+The syntax of a guard formula $\gamma$ is defined as follows:\label{}\\	
+$\gamma ::= \gamma\lor\gamma | \gamma\land\gamma | sp$
+\end{definition}
+
+Here, $sp$ is a simple predicate over atoms $a$ of the following form:\label{}\\
+$sp ::= sp=sp | sp\neq sp | sp<sp | sp > sp | sp\le sp | sp\ge sp | a$
+
+An atom can be a constant (number) or an identifier (variable).
+
+
+\subsection{Language Modules}
+
+\subsection{Generic Calculation of Dependency Relations}
+\newpage
+
+\newcommand\promela{\textsc{Promela}\xspace}
+\newcommand\pins{\textsc{Pins}\xspace}
+
+\newcommand\guards{\ensuremath{\mathcal{G}}\xspace}
+\newcommand\actions{\ensuremath{\mathcal{A}}\xspace}
+\newcommand\trans{\ensuremath{\mathcal{T}}\xspace}
+\newcommand\bool{\ensuremath{\mathbb{B}}\xspace}
+\newcommand\writeset{\ensuremath{\mathcal{W}}\xspace}
+\newcommand\readset{\ensuremath{\mathcal{R}}\xspace}
+\newcommand\MC{\ensuremath{\mathcal{MC}}\xspace}
+\newcommand\NES{\ensuremath{\mathcal{NES}}\xspace}
+\newcommand\NDS{\ensuremath{\mathcal{NDS}}\xspace}
+
+\newcommand\vars{\ensuremath{\mathcal{V}}\xspace}
+\newcommand\visible{\ensuremath{\mathit{vis}}\xspace}
+\newcommand\nguards{\overline{\guards}\xspace}
+
+\newcommand\nes{\textsf{nes}\xspace}
+\newcommand\nds{\textsf{nds}\xspace}
+\newcommand\enables{\textsf{enables}\xspace}
+\newcommand\agrees{\textsf{agrees}\xspace}
+\newcommand\mce{\textsf{mce}\xspace}
+\newcommand\conflicts{\textsf{conflicts}\xspace}
+\newcommand\true{\ensuremath{\mathit{true}}\xspace}
+\newcommand\false{\ensuremath{\mathit{false}}\xspace}
+
+\newcommand\tie{\bowtie\hspace{1ex}}
+
+%\begin{minipage}{\linewidth}
+
+$\equiv$ is used for syntactical equivalence check;
+for both \enables and \mce, we can assume the same state).
+
+$c_1, c_2$ are constants.
+
+$\bowtie$ a comparison operator (in a simple linear (sub)equation
+of a guard).
+
+$v,v'$ are state variables.
+
+$\nguards = \{ \neg g \mid g\in\guards\}$ are the set of inverses of all
+guards.
+
+
+%\begin{subequations}\begin{align} 
+%\begin{array}{l@{}l@{}r@{}l}
+%\mce(g_1\lor g_2,g') &:= \mce(&g_1adshjdasjka,&g')\lor\mce(g_2, g')\\
+%\mce(g_1\lor g_2,g')kldfnfklds &:= \mce(&g_1,&g')\lor\mce(g_2, g')\\
+%\end{array}
+%\end{align}\end{subequations}
+
+
+\newcommand*{\Comment}[1]{\hfill\makebox[3cm][r]{\textit{$\triangleright$#1}}}%
+
+\begin{algorithm}[p]
+\begin{ntabbing}\hspace{-.8ex}
+$\conflicts\colon \guards \times \guards \rightarrow \bool$\label{}\\
+$\conflicts(\dots, \true)$ \=:= \false\label{}\\
+$\conflicts(\true, \dots)$ \=:= \false\label{}\\
+$\conflicts(v \bowtie c_1, v'\bowtie c_2)$ \=:= $v\equiv v'\land$
+\textit{check linear equation}
+\label{}\\
+$\conflicts(\dots, \dots)$ \>:= $\true$ \Comment{unknown}
+\label{}\\
+\end{ntabbing}\vspace{-2em}
+\caption{(Simple) guard conflicts}
+\end{algorithm}
+\vspace{-3em}
+
+\begin{algorithm}[p]
+\begin{ntabbing}\hspace{-.8ex}
+$\mce\colon\guards\times\guards\rightarrow \bool$\=~~~~~~~~~~~\=~~~~~~~~~~~~~~~~~~~~~\=
+\label{}\\
+$\mce(g_1\lor g_2,$\>$g')$ \>:= $\mce(g_1,$\>$g')\lor\mce(g_2, g')$\label{}\\
+$\mce(g_1\land g_2,$\>$g')$ \>:= $\mce(g_1,$\>$g')\land\mce(g_2,g')$\label{}\\
+$\mce(\neg(g_1\lor g_2),$\>$g')$\>:= $\mce(\neg g_1,$\>$g')\land\mce(\neg g_2,g')$
+\label{}\\
+$\mce(\neg(g_1\land g_2),$\>$g')$\>:= $\mce(\neg g_1,$\>$g')\lor\mce(\neg g_2,g')$
+\label{}\\
+$\mce(\neg(v~\bowtie~g),$\>$g')$\>:= $\mce(v~\overline{\bowtie}~g,$\>$g')$
+\label{}\\
+$\dots$\textit{~by symmetry:~$g, g'\Rightarrow g', g$}\label{}\\
+
+$\mce(g, $\>$g')$ \>:= $\conflicts(g,g')$
+\label{}\\
+\end{ntabbing}\vspace{-2em}
+\caption{Maybe coenabled computation}
+\end{algorithm}
+\vspace{-3em}
+
+% \accentedsymbol{\dbarA}{\Bar{\Bar{A}}}
+
+
+\begin{algorithm}[p]
+\begin{ntabbing}\hspace{-.8ex}
+$\conflicts\colon \actions \times \guards \rightarrow$
+\=$\bool$~~~~~~~~~~~\=
+\label{}\\
+
+$\conflicts(v:=c_1,$\>$v'\bowtie c_2)$\>:=
+$\conflicts(v=c_1,v'~\bowtie~c_2)$
+\Comment{90\% of all actions}\label{}\\
+
+$\conflicts(v\texttt{++},$\>$v'\bowtie\dots)$\>:=
+$v\equiv v'\land\tie\in\{<,\leq\}$
+\label{}\\
+$\conflicts(v\texttt{--}, $\>$v' \bowtie \dots)$ \>:=
+$v\equiv v'\land\tie\in\{>,\geq\}$
+\label{}\\
+$\conflicts(\alpha, $\>$\neg (v \bowtie g))$ \>:=
+$\conflicts(\alpha,v~\overline{\bowtie}~g)$
+\label{}\\
+$\conflicts(\dots, $\>$\dots)$ \>:= $\true$ \textit{// unknown}
+\label{}\\
+\end{ntabbing}\vspace{-2em}
+\caption{Action / (simple) guard conflicts (note the $\equiv$)}
+\end{algorithm}
+\vspace{-3em}
+
+
+\begin{algorithm}[p]
+%\texttt{
+\begin{ntabbing}\hspace{-.8ex}
+$\MC_t$ := $\{ (t,g)\in\trans\times\guards\cup\nguards \mid
+\forall g'\in\guards(t)$\=$\colon \mce(g,g') \}$
+\label{}\\
+\\
+$\nes,\nds\colon \guards \rightarrow 2^\trans$\=\label{}\\
+$\nes(g)$ \>:= $\{ t\in \trans \mid (t, \neg g)\in\MC_t
+\land \enables(t, g) \}$
+\label{}\\
+$\nds(g)$ \>:= $\nes(\neg g) $
+\label{}\\
+\\
+$\enables\colon\trans \times \guards \rightarrow \bool$~~~~~~\=
+\label{}\\
+$\enables(t,g_1\land g_2)$\>:= $\enables(t,g_1)\lor\enables(t,g_2)$
+\label{}\\
+$\enables(t,g_1\lor g_2)$\>:= $\enables(t,g_1)\lor\enables(t,g_2)$
+\label{}\\
+$\enables(t,\neg(g_1\lor g_2))$\>:=
+$\enables(t,\neg g_1)\lor\enables(t, \neg g_2)$
+\label{}\\
+$\enables(t,\neg(g_1\lor g_2))$\>:=
+$\enables(t,\neg g_1)\lor\enables(t, \neg g_2)$
+\label{}\\
+$\enables(t, g)$\>:= $\agrees(t, g)$
+\label{}\\
+\\
+$\agrees\colon \trans \times \guards \rightarrow \bool$
+\label{}\\
+$\agrees(t, g)$ := $\exists \alpha\in\actions(t)\colon
+\writeset(a)\cap\readset(g)\neq\emptyset \land \conflicts(\alpha,\neg g)$
+\label{}\\
+\end{ntabbing}\vspace{-2em}
+\caption{NES/NDS computation (extend guard set with negated gaurds
+$\nguards$) (TODO: search for smallest sets)}
+\end{algorithm}
+
+\newpage 
+
+
+To reduce the size of the computed \nes and obtain better reductions,
+it is tempting to
+use the maybe coenabled relation at the leafs of
+the \agrees function, where we then check whether $t$ is already
+be coenabled with $\neg g$. However, such an attempt would be incorrect,
+as the following example illustrates. When we call
+$\nes(t,g)$ with $g \equiv g_1 \land g_2$ and $g_1 \equiv pc_0 \neq 5$,
+it eventually checks whether $g_1$
+can be enabled by an action $\alpha\in\actions(t)$.
+If there exists an $\alpha \equiv pc_0 := 2$, it is considered enabling. 
+Now \agrees can additionally check whether
+$(\neg g_1, t) \not\in \MC$, with e.g. $\guards(t) = \{pc_0=1\}$,
+and conclude that an already (co)enabled
+transition is not \emph{necessarily} enabling.
+However, because $g$ is a conjunction,
+we may still have $(\neg g, t)\in\MC$.
+
+Whether or not we may mark $t$ as not necessary enabling for $g$ depends
+then on $g_2$. If $g_2 \equiv pc_1 = 1$, then indeed we may. If, however,
+$g_2 \equiv pc_0 = 1$ this is no longer the case.
+But what if $g_2\equiv pc_1 = 10$?
+This depends again on the actions set of $t$. If $\actions(t)$
+contains an action $\beta\equiv pc_1 := 10$ then it should be.
+But if no action of $t$ writes to $pc_1$, then why would it be?
+A solution seems to be to limit the \mce check to those subexpressions of
+guards whose test set intersects the write set of the transition.
+
+
+\begin{enumerate}
+\item Computation \mce + dependent for
+	$(\guards\times\trans)\times(\guards\times\trans)$ is more efficient.
+\item 
+\end{enumerate}
+
+%\end{minipage}
+
+\newpage
+
+For LTL model checking, we the visibility proviso needs to be implemented.
+It states that a partial persistent set ($en(s) \neq \mathit{ample(s)}$)
+does not contain any visible transition, where the definition of 
+visibility is:
+\begin{quote}
+A transition that may enable or disable the LTL formula.
+\end{quote}
+In practice, this is over estimated by selecting those transitions that
+influence the closure of the LTL formula, i.e. its smallest simple
+sub formulas.
+
+An LTL formula $F$ can be expressed with references to state variables
+$v \in \vars(F)$, e.g. $\Box \Diamond v = 5$.
+In this case, the visibility proviso can be implemented by marking
+all transitions that write to these variables as visible:
+\[
+\trans^F_\visible:=\{t\in\trans\mid\writeset(t)\cap\vars(F)\neq\emptyset\}
+\] 
+
+However, this is a coarse over approximation that can easily lead to
+significantly less reduction. Therefore, we may just as well employ guards
+and other state labels to define our LTL properties.
+For instance, $\Box \Diamond \mathit{np\_}$ can express the
+livelock property, where, in \promela, $\mathit{np\_}$ indicates that
+no process counter is at statement labeled with \textsf{progress:}.
+We extend the definition of \nes, \nds and \mce with all state labels
+(including guards), so that we can now
+define a more fine-grained  set of visible transitions:
+
+\[
+\trans^F_\visible:=
+\{ t\in\trans\mid\writeset(t)\cap\vars(F)\neq\emptyset \}
+\cup
+\bigcup_{g\in\guards(F)} \nes(g)\cup\nds(g)
+\]
+
+This computation can completely be done in the front end.
+
+\section{Conclusion}
+
+Summarizing: to enable full partial order reduction including LTL
+we only require the front-end to compute and export:
+\begin{enumerate}
+\item Transition-state dependencies, as in the 
+original \pins: \writeset and \readset,
+\item guards as \pins state labels and their relation to transitions: 
+	\guards, $\guards(\trans)$, and
+\item a guard-level maybe coenabled matrix:
+	$\MC := \{ g,g\in\guards \mid  \mce(g,g)\}$.
+\end{enumerate}
+
+To improve reduction the frontend can also offer a fine-grained necessary 
+enabling set, which is normally over estimated using the dependencies:
+\begin{enumerate}
+\item A necessary enabling set:
+	$\NES := \{ (g,t)\in\guards\times\trans \mid t\in\nes(g)\}$.
+\end{enumerate}
+
+This also enables LTL model checking, as the visibility proviso can also
+be roughly over-approximated using the dependencies. To improve the
+reductions under LTL, we additionally require:
+\begin{itemize}
+\item Negated guards in all dependencies: $\guards':=\guards\cup\nguards$,
+	or
+\item a necessary disabling set: 
+	$\NDS := \{ (g,t)\in\guards\times\trans \mid t\in\nes(\neg g)\}$.
+\end{itemize}
+Because $\nds(g) = \nes(\neg g)$, the first option hardly increases the
+amount of effort required to implement.
+
+\bibliography{main}
+\bibliographystyle{plain}
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
