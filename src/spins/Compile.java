@@ -51,8 +51,8 @@ public class Compile {
 		                                 final boolean verbose) {
 		try {
 			Preprocessor.setFilename(promFile.getName());
-			String path = promFile.getAbsolutePath();
-			Preprocessor.setDirname(path.substring(0, path.lastIndexOf("/")));
+			String path = promFile.getAbsoluteFile().getParent();
+			Preprocessor.setDirname(path);
 
 			System.out.print("Start parsing " + promFile.getName() + "...");
 			final Promela prom = new Promela(new FileInputStream(promFile));
@@ -205,8 +205,8 @@ public class Compile {
 
 		if (preprocessor.isSet()) {
 			Preprocessor.setFilename(file.getName());
-			String path = file.getAbsolutePath();
-			Preprocessor.setDirname(path.substring(0, path.lastIndexOf("/")));
+			String path = file.getAbsoluteFile().getParent();
+			Preprocessor.setDirname(path);
 			PromelaTokenManager tm;
 			try {
 				tm = new PromelaTokenManager(null, new SimpleCharStream(new FileInputStream(file)));
