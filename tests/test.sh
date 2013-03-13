@@ -191,9 +191,9 @@ function comment { echo ""
 test "brp" "brp.prm" 3280269 7058556 -o3
 test "dbm" "dbm.prm" 5112 20476
 test "fgs" "fgs.promela" 242 3388
-off "garp/garp-a" "garp" 48363145 247135869 #2636 deadlocks, large
+off "garp/garp-a" "garp" 48363145 247135869 #2636 deadlocks, large (-o1 IN SPIN)
 test "i-protocol/code/spin" "i0" 9798465 45932747 #846 deadlocks
-test "i-protocol/code/spin" "i2" 14309427 48024048 -o3 #41436 deadlocks (states in spin -o1 13276960/44568068)\
+test "i-protocol/code/spin" "i2" 14309427 48024048 -o3 #41436 deadlocks (-o1 -o2 -o3 in SPIN)
 test "i-protocol/code/spin" "i3" 388929 1161274 -o3 #0 deadlocks
 test "i-protocol/code/spin" "i4" 95756 204405 -o3 #501 deadlocks
 test "jspin-examples" "frogs.pml" 81 91
