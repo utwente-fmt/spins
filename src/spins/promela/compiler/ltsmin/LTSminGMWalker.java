@@ -88,8 +88,6 @@ public class LTSminGMWalker {
 	}
 
 	static Aggressivity aggressiveness = Aggressivity.Highest;
-	static final boolean NO_NES = false;
-	static final boolean NO_NDS = false;
 
 	static public class Params {
 		public final LTSminModel model;
@@ -224,17 +222,12 @@ public class LTSminGMWalker {
 		guardInfo.setNDSMatrix(nds);
 		int notNDS = 0;
 		for (int g = 0; g <  nds.getRows(); g++) {
-			for (int t = 0; t < nds.getRowLength(); t++) {
-				LTSminTransition trans = model.getTransitions().get(t);
-				LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
-				//boolean maybe_coenabled = gm.maybeCoEnabled(t, g);
-                boolean maybe_coenabled = limitMCE(model, guardInfo, t, guard, false);
-				if (NO_NDS || (maybe_coenabled && 
-				               enables(model, trans, guard.getExpr(), true))) {
-				    nds.incRead(g, t);
-				} else {
-					notNDS++;
-				}
+            for (LTSminTransition trans : model.getTransitions()) {
+                if (atomicNES(model, guardInfo, g, trans, true)) {
+                    nds.incRead(g, trans.getGroup());
+                } else {
+                    notNDS += 1;
+                }
 			}
 		}
 		return notNDS;
@@ -250,21 +243,41 @@ public class LTSminGMWalker {
 		guardInfo.setNESMatrix(nes);
 		int notNES = 0;
 		for (int g = 0; g <  nes.getRows(); g++) {
-			for (int t = 0; t < nes.getRowLength(); t++) {
-				LTSminTransition trans = model.getTransitions().get(t);
-                LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
-                //boolean maybe_codisabled = gm.inverseMaybeCoenabled(t, g);
-                boolean maybe_codisabled = limitMCE(model, guardInfo, t, guard, true);
-                if (NO_NES || (maybe_codisabled &&
-                        enables(model, trans, guard.getExpr(), false))) {
-                    nes.incRead(g, t);
-				} else {
-					notNES++;
-				}
+			for (LTSminTransition trans : model.getTransitions()) {
+                if (atomicNES(model, guardInfo, g, trans, false)) {
+                    nes.incRead(g, trans.getGroup());
+                } else {
+                    notNES += 1;
+                }
 			}
 		}
 		return notNES;
 	}
+
+    private static boolean atomicNES(LTSminModel model,
+                                     GuardInfo guardInfo,
+                                     int g,
+                                     LTSminTransition trans,
+                                     boolean invert) {
+        if (transNES(model, guardInfo, g, trans, invert))
+            return true;
+        for (LTSminTransition atomic : trans.getTransitions()) {
+            if (transNES(model, guardInfo, g, atomic, invert)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean transNES(LTSminModel model, GuardInfo guardInfo,
+                                    int g, LTSminTransition trans, boolean invert) {
+        LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
+        if (limitMCE(model, guardInfo, trans.getGroup(), guard, !invert) &&
+                enables(model, trans, guard.getExpr(), invert)) {
+            return true;
+        }
+      	return false;
+    }
 
     private static boolean limitMCE(LTSminModel model, GuardInfo guardInfo,
                                     int t, LTSminGuard guard, boolean invert) {
