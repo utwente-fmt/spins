@@ -223,7 +223,8 @@ public class LTSminGMWalker {
 		int notNDS = 0;
 		for (int g = 0; g <  nds.getRows(); g++) {
             for (LTSminTransition trans : model.getTransitions()) {
-                if (atomicNES(model, guardInfo, g, trans, true)) {
+                LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
+                if (atomicNES(model, guardInfo, guard, trans, true)) {
                     nds.incRead(g, trans.getGroup());
                 } else {
                     notNDS += 1;
@@ -244,7 +245,8 @@ public class LTSminGMWalker {
 		int notNES = 0;
 		for (int g = 0; g <  nes.getRows(); g++) {
 			for (LTSminTransition trans : model.getTransitions()) {
-                if (atomicNES(model, guardInfo, g, trans, false)) {
+		        LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
+                if (atomicNES(model, guardInfo, guard, trans, false)) {
                     nes.incRead(g, trans.getGroup());
                 } else {
                     notNES += 1;
@@ -254,42 +256,54 @@ public class LTSminGMWalker {
 		return notNES;
 	}
 
+
+    /**
+     * For atomic transitions, the guards of the first should be coenabled.
+     * If one of the actions of all transitive atomic transitions enables,
+     * then the atomic transitions is enabling.
+     */
     private static boolean atomicNES(LTSminModel model,
                                      GuardInfo guardInfo,
-                                     int g,
+                                     LTSminGuard guard,
                                      LTSminTransition trans,
                                      boolean invert) {
-        if (transNES(model, guardInfo, g, trans, invert))
+        if (!limitMCE(model, guardInfo, trans.getGroup(), guard, !invert))
+            return false; // should be coenabled with the negated guard!
+
+        if (enables(model, trans, guard.getExpr(), invert))
             return true;
         for (LTSminTransition atomic : trans.getTransitions()) {
-            if (transNES(model, guardInfo, g, atomic, invert)) {
+            if (enables(model, atomic, guard.getExpr(), invert)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean transNES(LTSminModel model, GuardInfo guardInfo,
-                                    int g, LTSminTransition trans, boolean invert) {
-        LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
-        if (limitMCE(model, guardInfo, trans.getGroup(), guard, !invert) &&
-                enables(model, trans, guard.getExpr(), invert)) {
-            return true;
-        }
-      	return false;
-    }
-
     private static boolean limitMCE(LTSminModel model, GuardInfo guardInfo,
                                     int t, LTSminGuard guard, boolean invert) {
-
-        boolean maybe_codisabled = true;
-        DepRow tests = model.getDepMatrix().getRow(t);//guardInfo.getTestSetMatrix().getRow(t);
+        DepMatrix rw = model.getDepMatrix();
+        DepMatrix guardReads = new DepMatrix(1, model.sv.size());
         for (int gg : guardInfo.getTransMatrix().get(t)) {
-            Expression gge = guardInfo.get(gg).getExpr();
-            maybe_codisabled &= mce (model, guard.getExpr(), gge,
-                                     invert, false, tests, null);
+            LTSminGuard gguard = guardInfo.get(gg);
+            guardReads.clear();
+            LTSminDMWalker.walkOneGuard(model, guardReads, gguard, 0);
+            Expression gge = gguard.getExpr();
+
+
+            if (rw.isWrite(t, guardReads.getReads(0))) {
+                Boolean coenabled = MCE(model, guard.getExpr(), gge, invert, false, rw.getRow(t), null);
+                if (coenabled == null || !coenabled) {
+//                    System.out.println ("NES ("+ invert +"): "+ guard.getExpr() +" "+ gge +" trans:: "+ model.getTransitions().get(t).getActions());
+                    return false;
+                }
+            } else {
+                if (!MCE(model, guard.getExpr(), gge, invert, false, null, null)) {
+                    return false;
+                }
+            }
         }
-        return maybe_codisabled;
+        return true;
     }
 
 	/**
@@ -301,7 +315,6 @@ public class LTSminGMWalker {
 	                                LTSminTransition t,
 									Expression e,
 									boolean invert) {
-        DepMatrix deps = model.getDepMatrix();
         if (e instanceof EvalExpression) {
             EvalExpression eval = (EvalExpression)e;
             return enables(model, t, eval.getExpression(), invert);
@@ -318,6 +331,7 @@ public class LTSminGMWalker {
             List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
             boolean missed = extract_conjunct_predicates(sps, e, invert, false);
             if (missed) {
+                DepMatrix deps = model.getDepMatrix();
                 DepMatrix temp = new DepMatrix(1, model.sv.size());
                 LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(e), 0);
                 return deps.isWrite(t.getGroup(), temp.getReads(0));
@@ -371,7 +385,7 @@ public class LTSminGMWalker {
 			for (int j = i+1; j < nlabels; j++) {
                 LTSminGuard g1 = (LTSminGuard) guardInfo.get(i);
                 LTSminGuard g2 = (LTSminGuard) guardInfo.get(j);
-				if (mce(model, g1.getExpr(), g2.getExpr(), false, false, null, null)) {
+				if (MCE(model, g1.getExpr(), g2.getExpr(), false, false, null, null)) {
 					co.incRead(i, j);
 					co.incRead(j, i);
 				} else {
@@ -387,7 +401,7 @@ public class LTSminGMWalker {
      * @param limit1 deprow of writes to variables, to which the mce check is limited 
      * @return false of trans definitely does not enable the guard, else true
      */
-    private static boolean mce (LTSminModel model,
+    private static Boolean MCE (LTSminModel model,
                                 Expression e1,
                                 Expression e2,
                                 boolean invert1,
@@ -395,43 +409,48 @@ public class LTSminGMWalker {
                                 DepRow limit1, DepRow limit2) {
         if (e1 instanceof EvalExpression) {
             EvalExpression eval = (EvalExpression)e1;
-            return mce (model, eval.getExpression(), e2, invert1, invert2, limit1, limit2);
+            return MCE (model, eval.getExpression(), e2, invert1, invert2, limit1, limit2);
         } else if (e1 instanceof BooleanExpression) {
             BooleanExpression ce1 = (BooleanExpression)e1;
             switch (ce1.getToken().kind) {
             case PromelaTokenManager.BNOT:
             case PromelaTokenManager.LNOT:
-                return mce (model, ce1.getExpr1(), e2, !invert1, invert2, limit1, limit2);
+                return MCE (model, ce1.getExpr1(), e2, !invert1, invert2, limit1, limit2);
             case PromelaTokenManager.BAND:
             case PromelaTokenManager.LAND:
                 if (invert1) {
-                    return mce(model, ce1.getExpr1(), e2, invert1, invert2, limit1, limit2) ||
-                           mce(model, ce1.getExpr2(), e2, invert1, invert2, limit1, limit2);
+                    Boolean left = MCE(model, ce1.getExpr1(), e2, invert1, invert2, limit1, limit2);
+                    Boolean right = MCE(model, ce1.getExpr2(), e2, invert1, invert2, limit1, limit2);
+                    return OR3(left, right);
+                    
                 } else {
-                    return mce(model, ce1.getExpr1(), e2, invert1, invert2, limit1, limit2) &&
-                           mce(model, ce1.getExpr2(), e2, invert1, invert2, limit1, limit2);
+                    Boolean left = MCE(model, ce1.getExpr1(), e2, invert1, invert2, limit1, limit2);
+                    Boolean right = MCE(model, ce1.getExpr2(), e2, invert1, invert2, limit1, limit2);
+                    return AND3(left, right);
                 }
             case PromelaTokenManager.BOR:
             case PromelaTokenManager.LOR:
                 if (invert1) {
-                    return mce(model, ce1.getExpr1(), e2, invert1, invert2, limit1, limit2) &&
-                           mce(model, ce1.getExpr2(), e2, invert1, invert2, limit1, limit2);
+                    Boolean left = MCE(model, ce1.getExpr1(), e2, invert1, invert2, limit1, limit2);
+                    Boolean right = MCE(model, ce1.getExpr2(), e2, invert1, invert2, limit1, limit2);
+                    return AND3(left, right);
                 } else {
-                    return mce(model, ce1.getExpr1(), e2, invert1, invert2, limit1, limit2) ||
-                           mce(model, ce1.getExpr2(), e2, invert1, invert2, limit1, limit2);
+                    Boolean left = MCE(model, ce1.getExpr1(), e2, invert1, invert2, limit1, limit2);
+                    Boolean right = MCE(model, ce1.getExpr2(), e2, invert1, invert2, limit1, limit2);
+                    return OR3(left, right);
                 }
             default: throw new RuntimeException("Unknown boolean expression: "+ e1);
             }
         } else if (e2 instanceof BooleanExpression ||
                    e2 instanceof EvalExpression) {
-            return mce(model, e2, e1, invert2, invert1, limit2, limit1);
+            return MCE(model, e2, e1, invert2, invert1, limit2, limit1);
         } else {
             if (limit1 != null | limit2 != null) {
                 DepRow limit = limit1 != null ? limit1 : limit2;
                 Expression e = limit1 != null ? e1 : e2;
                 DepMatrix testSet = new DepMatrix(1, model.sv.size());
                 LTSminDMWalker.walkOneGuard(model, testSet, new LTSminGuard(e), 0);
-                if (!testSet.isRead(0, limit.getWrites())) return false;
+                if (!testSet.isRead(0, limit.getWrites())) return null;
             }
             List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
             boolean missed = extract_conjunct_predicates(ga_sp, e1, invert1, false); // non-strict, since MCE holds for the same state
@@ -454,6 +473,18 @@ public class LTSminGMWalker {
                 return true;
             }
         }
+    }
+
+    private static Boolean AND3(Boolean left, Boolean right) {
+        if (left == null) return right;
+        if (right == null) return left;
+        return left || right;
+    }
+
+    private static Boolean OR3(Boolean left, Boolean right) {
+        if (left == null) return right;
+        if (right == null) return left;
+        return left || right;
     }
 
     private static boolean mce(LTSminModel model, Expression e2,
@@ -500,7 +531,7 @@ public class LTSminGMWalker {
                 }
                 LTSminGuard g1 = (LTSminGuard) guardInfo.get(i);
                 LTSminGuard g2 = (LTSminGuard) guardInfo.get(j);
-                if (mce(model, g1.getExpr(), g2.getExpr(), true, false, null, null)) {
+                if (MCE(model, g1.getExpr(), g2.getExpr(), true, false, null, null)) {
                     codis.incRead(i, j);
                 } else {
                     neverCoenabled++;
