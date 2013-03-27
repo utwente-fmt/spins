@@ -11,11 +11,11 @@ public class DepMatrix {
 	private int row_length;
 
 
-	public DepMatrix(int trans, int size) {
+	public DepMatrix(int rows, int cols) {
 		dep_matrix = new ArrayList<DepRow>();
-		row_length = size;
-		for(int i=0;i<trans;++i) {
-			dep_matrix.add(i,new DepRow(size));
+		row_length = cols;
+		for(int i=0;i<rows;++i) {
+			dep_matrix.add(i,new DepRow(cols));
 		}
 	}
 

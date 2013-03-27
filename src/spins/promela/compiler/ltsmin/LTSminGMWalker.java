@@ -71,7 +71,6 @@ import spins.promela.compiler.variable.VariableType;
  * matrices and state label matrix 
  * 
  * TODO: avoid allocation of dependency matrices in recurring tree searches
- * TODO: MCE check possible in leafs of NES check?
  * TODO: optimize case "missing" in nes search
  * TODO: RunExpr
  * 
@@ -128,32 +127,25 @@ public class LTSminGMWalker {
         // We extend the NES and NDS matrices to include all labels
         // The special labels, e.g. progress and valid end, can then be used in
         // LTL properties with precise (in)visibility information.
-        int nlabels = guardInfo.getNumberOfLabels();
+        int nLabels = guardInfo.getNumberOfLabels();
+        int nTrans = model.getTransitions().size();
 
         // generate label / slot read matrix
         generateLabelMatrix (model);
 
-		// generate Maybe Coenabled matrix
-		int nmce = generateCoenMatrix (model, guardInfo);
-		int mceSize = nlabels*nlabels/2;
-		debug.say(report(nmce, mceSize, "!MCE guards"));
-
-        // generate Maybe Codisabled matrix  
-        int nimce = generateInverseCoenMatrix (model, guardInfo);
-        debug.say(report(nimce, mceSize*2, "!IMC guards"));
-
         // generate NES matrix
 		int nnes = generateNESMatrix (model, guardInfo);
-		int nesSize = nlabels*model.getTransitions().size();
+        int nesSize = nTrans * nLabels;
         debug.say(report( nnes, nesSize, "!NES guards"));
 
 		// generate NDS matrix
 		int nnds = generateNDSMatrix (model, guardInfo);
         debug.say(report( nnds, nesSize, "!NDS guards"));
 
-        // generate transition / guard visibility matrix
-        int visible = generateLabelVisibility (model);
-        debug.say(report( nesSize - visible, nesSize, "!visibilities"));
+        // generate Maybe Coenabled matrix
+        int nmce = generateCoenMatrix (model, guardInfo);
+        int mceSize = nTrans*nTrans/2;
+        debug.say(report(nmce, mceSize, "!MCE guards"));
         
 		debug.say_indent--;
 		debug.say("Generating guard information done");
@@ -163,26 +155,6 @@ public class LTSminGMWalker {
     private static String report(int n, int size, String msg) {
         double perc = ((double)n * 100)/size;
         return String.format("Found %,8d /%,8d (%5.1f%%) %s.", n, size, perc, msg);
-    }
-
-    private static int generateLabelVisibility(LTSminModel model) {
-        GuardInfo guardInfo = model.getGuardInfo();
-        int nlabels = guardInfo.getNumberOfLabels();
-        DepMatrix visibility = new DepMatrix(nlabels, model.getTransitions().size());
-        guardInfo.setVisibilityMatrix(visibility);
-        DepMatrix nesM = guardInfo.getNESMatrix();
-        DepMatrix ndsM = guardInfo.getNDSMatrix();
-        int visible = 0;
-        for (int g = 0; g < nlabels; g++) {
-            for (LTSminTransition trans : model.getTransitions()) {
-                int t = trans.getGroup();
-                if ( nesM.isRead(g, t) || ndsM.isRead(g, t) ) {
-                    visibility.incRead(g, t);
-                    visible++;
-                }
-            }
-        }
-        return visible;
     }
 
 	private static void generateLabelMatrix(LTSminModel model) {
@@ -224,7 +196,7 @@ public class LTSminGMWalker {
 		for (int g = 0; g <  nds.getRows(); g++) {
             for (LTSminTransition trans : model.getTransitions()) {
                 LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
-                if (atomicNES(model, guardInfo, guard, trans, true)) {
+                if (atomicNES(model, guardInfo, guard, g, trans, true)) {
                     nds.incRead(g, trans.getGroup());
                 } else {
                     notNDS += 1;
@@ -244,9 +216,9 @@ public class LTSminGMWalker {
 		guardInfo.setNESMatrix(nes);
 		int notNES = 0;
 		for (int g = 0; g <  nes.getRows(); g++) {
+            LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
 			for (LTSminTransition trans : model.getTransitions()) {
-		        LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
-                if (atomicNES(model, guardInfo, guard, trans, false)) {
+                if (atomicNES(model, guardInfo, guard, g, trans, false)) {
                     nes.incRead(g, trans.getGroup());
                 } else {
                     notNES += 1;
@@ -264,16 +236,16 @@ public class LTSminGMWalker {
      */
     private static boolean atomicNES(LTSminModel model,
                                      GuardInfo guardInfo,
-                                     LTSminGuard guard,
+                                     LTSminGuard guard, int g,
                                      LTSminTransition trans,
                                      boolean invert) {
         if (!limitMCE(model, guardInfo, trans.getGroup(), guard, !invert))
             return false; // should be coenabled with the negated guard!
 
-        if (enables(model, trans, guard.getExpr(), invert))
+        if (enables(model, trans, guard.getExpr(), g, invert))
             return true;
         for (LTSminTransition atomic : trans.getTransitions()) {
-            if (enables(model, atomic, guard.getExpr(), invert)) {
+            if (enables(model, atomic, guard.getExpr(), g, invert)) {
                 return true;
             }
         }
@@ -313,19 +285,19 @@ public class LTSminGMWalker {
 	 */
 	private static boolean enables (LTSminModel model,
 	                                LTSminTransition t,
-									Expression e,
+									Expression e, int g,
 									boolean invert) {
         if (e instanceof EvalExpression) {
             EvalExpression eval = (EvalExpression)e;
-            return enables(model, t, eval.getExpression(), invert);
+            return enables(model, t, eval.getExpression(), g,invert);
         } else if (e instanceof BooleanExpression) {
             BooleanExpression ce = (BooleanExpression)e;
             if (ce.getToken().kind == PromelaTokenManager.BNOT ||
                 ce.getToken().kind == PromelaTokenManager.LNOT) {
-                return enables(model, t, ce.getExpr1(), !invert);
+                return enables(model, t, ce.getExpr1(), g,!invert);
             } else {
-                return enables(model, t, ce.getExpr1(), invert) ||
-                       enables(model, t, ce.getExpr2(), invert);
+                return enables(model, t, ce.getExpr1(), g,invert) ||
+                       enables(model, t, ce.getExpr2(), g,invert);
             }
         } else {
             List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
@@ -337,9 +309,7 @@ public class LTSminGMWalker {
                 return deps.isWrite(t.getGroup(), temp.getReads(0));
             }
             for (SimplePredicate sp : sps) {
-                if (invert)
-                    sp = sp.invert();
-                if (agrees(model, t, sp, invert)) {
+                if (agrees(model, t, g, sp, invert)) {
                     return true;
                 }
             }
@@ -348,13 +318,14 @@ public class LTSminGMWalker {
 	}
 
     private static boolean agrees (LTSminModel model,
-                                   LTSminTransition t,
+                                   LTSminTransition t, int g,
                                    SimplePredicate sp,
                                    boolean invert) {
         DepMatrix testSet = new DepMatrix(1, model.sv.size());
         DepMatrix writeSet = new DepMatrix(1, model.sv.size());
 
         for (Action a : t.getActions()) {
+            
             testSet.clear();
             writeSet.clear();
             LTSminDMWalker.walkOneGuard(model, testSet, new LTSminGuard(sp.e), 0);
@@ -362,8 +333,11 @@ public class LTSminGMWalker {
             if (!writeSet.isWrite(0, testSet.getReads(0)))
                 continue;
 
-            boolean conflicts = conflicts(model, a, sp, false);
+            boolean conflicts = conflicts(model, a, sp, t, g, invert);
             if (!conflicts) {
+                if (t.getGroup() == 138 && g == 18) {
+                    System.out.println ("true");
+                }
                 return true;
         	}
         }
@@ -375,22 +349,27 @@ public class LTSminGMWalker {
 	 * ************/
 
 	private static int generateCoenMatrix(LTSminModel model, GuardInfo guardInfo) {
-	    int nlabels = guardInfo.getNumberOfLabels();
-		DepMatrix co = new DepMatrix(nlabels, nlabels);
+        int nTrans = model.getTransitions().size();
+		DepMatrix co = new DepMatrix(nTrans, nTrans);
 		guardInfo.setCoMatrix(co);
+        DepMatrix ndsM = guardInfo.getNDSMatrix();
 		int neverCoEnabled = 0;
-		for (int i = 0; i < nlabels; i++) {
-			// same guard is always coenabled:
-			co.incRead(i, i);
-			for (int j = i+1; j < nlabels; j++) {
-                LTSminGuard g1 = (LTSminGuard) guardInfo.get(i);
-                LTSminGuard g2 = (LTSminGuard) guardInfo.get(j);
-				if (MCE(model, g1.getExpr(), g2.getExpr(), false, false, null, null)) {
-					co.incRead(i, j);
-					co.incRead(j, i);
-				} else {
-					neverCoEnabled++;
-				}
+		for (int t1 = 0; t1 < nTrans; t1++) {
+            co.incRead(t1, t1);
+nextTrans:  for (int t2 = t1+1; t2 < nTrans; t2++) {
+                for (int g1 : guardInfo.getTransMatrix().get(t1)) {
+    			    for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
+        				if (ndsM.isRead(g2, t1) || ndsM.isRead(g1, t2)) {
+        					co.incRead(t1, t2);
+        					co.incRead(t2, t1);
+        	                if (t1 == 82 && t2 == 96) {
+        	                    System.out.println ("!accords");
+        	                }
+        	                neverCoEnabled++;
+        					continue nextTrans;
+        				}
+    			    }
+                }
 			}
 		}
 		return neverCoEnabled;
@@ -511,36 +490,6 @@ public class LTSminGMWalker {
         }
     }
 
-    /**************
-     * IMCE/IMC: Inverse (is) Maybe Conenabled
-     * 
-     * Asymmetric relation that tells whether an INVERTED guard can be coenabled
-     * with some other guard.
-     * ************/
-
-    private static int generateInverseCoenMatrix(LTSminModel model, GuardInfo guardInfo) {
-        int nlabels = guardInfo.getNumberOfLabels();
-        DepMatrix codis = new DepMatrix(nlabels, nlabels);
-        guardInfo.setInverseCoenMatrix(codis);
-        int neverCoenabled = 0;
-        for (int i = 0; i < nlabels; i++) {
-            for (int j = 0; j < nlabels; j++) {
-                if (i == j) {
-                    neverCoenabled++;
-                    continue;
-                }
-                LTSminGuard g1 = (LTSminGuard) guardInfo.get(i);
-                LTSminGuard g2 = (LTSminGuard) guardInfo.get(j);
-                if (MCE(model, g1.getExpr(), g2.getExpr(), true, false, null, null)) {
-                    codis.incRead(i, j);
-                } else {
-                    neverCoenabled++;
-                }
-            }
-        }
-        return neverCoenabled;
-    }
-    
     /***************************** HELPER FUNCTIONS ***************************/
 
     static class SimplePredicate {
@@ -607,12 +556,12 @@ public class LTSminGMWalker {
      * 
      * @param model
      * @param a the action
-     * @param sp2 the simple predicate (x == 4)
+     * @param sp the simple predicate (x == 4)
      * @param invert if true: the action is inverted: x := 5 --> x := !5
      * @return true if conflict is found, FALSE IF UNKNOWN
      */
     private static boolean conflicts (LTSminModel model, Action a,
-                                      SimplePredicate sp2, boolean invert) {
+                                      SimplePredicate sp, LTSminTransition t, int g, boolean invert) {
         SimplePredicate sp1 = new SimplePredicate();
         if (a instanceof AssignAction) {
             AssignAction ae = (AssignAction)a;
@@ -629,18 +578,21 @@ public class LTSminGMWalker {
                         return false;
                     }
                     sp1.comparison = invert ? PromelaConstants.NEQ : PromelaConstants.EQ;
-                    if (is_conflict_predicate(model, sp1, sp2))
+                    if (is_conflict_predicate(model, sp1, sp))
                         return true;
                     break;
                 case INCR:
-                    if (sp1.getRef(model).equals(sp2.getRef(model)))
-                        if (invert ? gt(sp2) : lt(sp2))
-                            return true;
+                    if (t.getGroup() == 138 && g == 18) {
+                        System.out.println ("NES ("+ invert +"): "+ sp +" trans:: "+ t.getActions() +"    "+ (invert ? !lt(sp) : !gt(sp)));
+                    }
+//                    if (sp1.getRef(model).equals(sp.getRef(model)))
+//                        if (invert ? !lt(sp) : !gt(sp))
+//                            return true;
                     break;
                 case DECR:
-                    if (sp1.getRef(model).equals(sp2.getRef(model)))
-                        if (invert ? lt(sp2) : gt(sp2))
-                            return true;
+//                    if (sp1.getRef(model).equals(sp.getRef(model)))
+//                        if (invert ? !gt(sp) : !lt(sp))
+//                            return true;
                     break;
                 default:
                     throw new AssertionError("unknown assignment type");
@@ -648,21 +600,21 @@ public class LTSminGMWalker {
         } else if (a instanceof ResetProcessAction) {
             ResetProcessAction rpa = (ResetProcessAction)a;
             Variable pc = model.sv.getPC(rpa.getProcess());
-            if (conflicts(model, assign(pc, -1), sp2, invert))
+            if (conflicts(model, assign(pc, -1), sp, t, g, invert))
                 return true;
-            return conflicts(model, decr(id(LTSminStateVector._NR_PR)), sp2, invert);
+            return conflicts(model, decr(id(LTSminStateVector._NR_PR)), sp, t, g, invert);
         } else if (a instanceof ExprAction) {
             Expression expr = ((ExprAction)a).getExpression();
             if (expr.getSideEffect() == null) return false; // simple expressions are guards
             RunExpression re = (RunExpression)expr;
             
-            if (conflicts(model, incr(id(LTSminStateVector._NR_PR)), sp2, invert))
+            if (conflicts(model, incr(id(LTSminStateVector._NR_PR)), sp, t, g, invert))
                 return true;
 
             for (Proctype p : re.getInstances()) {
                 for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
                     Variable pc = model.sv.getPC(instance);
-                    if (conflicts(model, assign(pc, 0), sp2, invert)) {
+                    if (conflicts(model, assign(pc, 0), sp, t, g, invert)) {
                         return true;
                     }
                 }
@@ -674,14 +626,14 @@ public class LTSminGMWalker {
                         continue; //passed by reference or already in state vector
                     try {
                         int val = param.getConstantValue();
-                        if (conflicts(model, assign(v, val), sp2, invert)) {
+                        if (conflicts(model, assign(v, val), sp, t, g, invert)) {
                             return true;
                         }
                     } catch (ParseException e) {}
                 }
             }
             for (Action rea : re.getActions()) {
-                if (conflicts(model, rea,  sp2, invert)) {
+                if (conflicts(model, rea,  sp, t, g, invert)) {
                     return true;
                 }
             }
@@ -692,12 +644,12 @@ public class LTSminGMWalker {
                 try {
                     int val = csa.getExprs().get(i).getConstantValue();
                     Identifier next = channelNext(id, i);
-                    if (conflicts(model, assign(next, constant(val)), sp2, invert)) {
+                    if (conflicts(model, assign(next, constant(val)), sp, t, g, invert)) {
                         return true;
                     }
                 } catch (ParseException e) {}
             }
-            return conflicts(model, incr(chanLength(id)), sp2, invert);
+            return conflicts(model, incr(chanLength(id)), sp, t, g, invert);
         } else if(a instanceof OptionAction) { // options in a d_step sequence
             //OptionAction oa = (OptionAction)a;
             //for (Sequence seq : oa) {
@@ -708,20 +660,20 @@ public class LTSminGMWalker {
             ChannelReadAction cra = (ChannelReadAction)a;
             Identifier id = cra.getIdentifier();
             if (!cra.isPoll()) {
-                return conflicts(model, decr(chanLength(id)), sp2, invert);
+                return conflicts(model, decr(chanLength(id)), sp, t, g, invert);
             }
         }
         return false;
     }
 
-    private static boolean lt(SimplePredicate sp2) {
-        return sp2.comparison == PromelaConstants.LT || 
-            sp2.comparison == PromelaConstants.LTE;
+    private static boolean lt(SimplePredicate sp) {
+        return sp.comparison == PromelaConstants.LT || 
+            sp.comparison == PromelaConstants.LTE;
     }
 
-    private static boolean gt(SimplePredicate sp2) {
-        return sp2.comparison == PromelaConstants.GT || 
-            sp2.comparison == PromelaConstants.GTE;
+    private static boolean gt(SimplePredicate sp) {
+        return sp.comparison == PromelaConstants.GT || 
+            sp.comparison == PromelaConstants.GTE;
     }
 
 	/**

@@ -36,13 +36,6 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	private DepMatrix co_matrix;
 
 	/**
-     *        guards >
-     * guards ...    ...
-     *   v    ...    ...
-     */
-    private DepMatrix ico_matrix;
-
-	/**
 	 *        trans >
 	 * guards ...    ...
 	 *   v    ...    ...
@@ -69,11 +62,6 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	 *   v    ...    ...
 	 */
 	private DepMatrix dm;
-
-	/**
-	 * Label visibility matrix
-	 */
-    private DepMatrix visibility;
     
     /**
      * Test sets of transitions
@@ -200,23 +188,6 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 		return labels.get(i);
 	}
 
-    public void setInverseCoenMatrix(DepMatrix codis) {
-        ico_matrix = codis;
-    }
-    
-    public DepMatrix getInverseCoenMatrix() {
-        return ico_matrix;
-    }
-
-    public boolean inverseMaybeCoenabled(int trans, int guard) {
-        for (int g2 : trans_guard_matrix.get(trans)) {
-            if (!ico_matrix.isRead(guard, g2)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     public boolean maybeCoEnabled(int trans, int guard) {
         for (int g2 : trans_guard_matrix.get(trans)) {
             if (!co_matrix.isRead(guard, g2)) {
@@ -224,14 +195,6 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
             }
         }
         return true;
-    }
-
-    public void setVisibilityMatrix(DepMatrix vis) {
-        visibility = vis;
-    }
-    
-    public DepMatrix getVisibilityMatrix() {
-        return visibility;
     }
 
     public void setTestSetMatrix(DepMatrix dm2) {
