@@ -145,7 +145,7 @@ public class LTSminGMWalker {
         // generate Maybe Coenabled matrix
         int nmce = generateCoenMatrix (model, guardInfo);
         int mceSize = nTrans*nTrans/2;
-        debug.say(report(nmce, mceSize, "!MCE guards"));
+        debug.say(report(nmce, mceSize, "!DNA transitions"));
         
 		debug.say_indent--;
 		debug.say("Generating guard information done");
@@ -239,11 +239,13 @@ public class LTSminGMWalker {
                                      LTSminGuard guard, int g,
                                      LTSminTransition trans,
                                      boolean invert) {
-        if (!limitMCE(model, guardInfo, trans.getGroup(), guard, !invert))
+        if (!limitMCE(model, guardInfo, trans.getGroup(), guard, g, !invert))
             return false; // should be coenabled with the negated guard!
 
-        if (enables(model, trans, guard.getExpr(), g, invert))
+        if (enables(model, trans, guard.getExpr(), g, invert)) {
             return true;
+        }
+
         for (LTSminTransition atomic : trans.getTransitions()) {
             if (enables(model, atomic, guard.getExpr(), g, invert)) {
                 return true;
@@ -253,7 +255,7 @@ public class LTSminGMWalker {
     }
 
     private static boolean limitMCE(LTSminModel model, GuardInfo guardInfo,
-                                    int t, LTSminGuard guard, boolean invert) {
+                                    int t, LTSminGuard guard, int g, boolean invert) {
         DepMatrix rw = model.getDepMatrix();
         DepMatrix guardReads = new DepMatrix(1, model.sv.size());
         for (int gg : guardInfo.getTransMatrix().get(t)) {
@@ -262,11 +264,9 @@ public class LTSminGMWalker {
             LTSminDMWalker.walkOneGuard(model, guardReads, gguard, 0);
             Expression gge = gguard.getExpr();
 
-
             if (rw.isWrite(t, guardReads.getReads(0))) {
                 Boolean coenabled = MCE(model, guard.getExpr(), gge, invert, false, rw.getRow(t), null);
-                if (coenabled == null || !coenabled) {
-//                    System.out.println ("NES ("+ invert +"): "+ guard.getExpr() +" "+ gge +" trans:: "+ model.getTransitions().get(t).getActions());
+                if (coenabled != null && !coenabled) {
                     return false;
                 }
             } else {
@@ -325,7 +325,6 @@ public class LTSminGMWalker {
         DepMatrix writeSet = new DepMatrix(1, model.sv.size());
 
         for (Action a : t.getActions()) {
-            
             testSet.clear();
             writeSet.clear();
             LTSminDMWalker.walkOneGuard(model, testSet, new LTSminGuard(sp.e), 0);
@@ -335,9 +334,6 @@ public class LTSminGMWalker {
 
             boolean conflicts = conflicts(model, a, sp, t, g, invert);
             if (!conflicts) {
-                if (t.getGroup() == 138 && g == 18) {
-                    System.out.println ("true");
-                }
                 return true;
         	}
         }
@@ -362,14 +358,11 @@ nextTrans:  for (int t2 = t1+1; t2 < nTrans; t2++) {
         				if (ndsM.isRead(g2, t1) || ndsM.isRead(g1, t2)) {
         					co.incRead(t1, t2);
         					co.incRead(t2, t1);
-        	                if (t1 == 82 && t2 == 96) {
-        	                    System.out.println ("!accords");
-        	                }
-        	                neverCoEnabled++;
         					continue nextTrans;
         				}
     			    }
                 }
+                neverCoEnabled++;
 			}
 		}
 		return neverCoEnabled;
@@ -457,7 +450,7 @@ nextTrans:  for (int t2 = t1+1; t2 < nTrans; t2++) {
     private static Boolean AND3(Boolean left, Boolean right) {
         if (left == null) return right;
         if (right == null) return left;
-        return left || right;
+        return left && right;
     }
 
     private static Boolean OR3(Boolean left, Boolean right) {
@@ -582,17 +575,14 @@ nextTrans:  for (int t2 = t1+1; t2 < nTrans; t2++) {
                         return true;
                     break;
                 case INCR:
-                    if (t.getGroup() == 138 && g == 18) {
-                        System.out.println ("NES ("+ invert +"): "+ sp +" trans:: "+ t.getActions() +"    "+ (invert ? !lt(sp) : !gt(sp)));
-                    }
-//                    if (sp1.getRef(model).equals(sp.getRef(model)))
-//                        if (invert ? !lt(sp) : !gt(sp))
-//                            return true;
+                    if (sp1.getRef(model).equals(sp.getRef(model)))
+                        if (invert ? gt(sp) : lt(sp))
+                            return true;
                     break;
                 case DECR:
-//                    if (sp1.getRef(model).equals(sp.getRef(model)))
-//                        if (invert ? !gt(sp) : !lt(sp))
-//                            return true;
+                    if (sp1.getRef(model).equals(sp.getRef(model)))
+                        if (invert ? lt(sp) : gt(sp))
+                            return true;
                     break;
                 default:
                     throw new AssertionError("unknown assignment type");
@@ -681,7 +671,7 @@ nextTrans:  for (int t2 = t1+1; t2 < nTrans; t2++) {
 	 * SimplePred ::= cvarref <comparison> constant | constant <comparison> cvarref
 	 * where cvarref is a reference to a singular (channel) variable or a
 	 * constant index in array variable.
-	 * @param invert TODO
+	 * @param invert Influences outcome of missed
 	 * @param strict indicates whether we look for strictly constant variables:
 	 * ie. non-array variables or array variables with constant index
 	 */
