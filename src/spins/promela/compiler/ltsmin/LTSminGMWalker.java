@@ -145,7 +145,12 @@ public class LTSminGMWalker {
         // generate Maybe Coenabled matrix
         int nmce = generateCoenMatrix (model, guardInfo);
         int mceSize = nTrans*nTrans/2;
-        debug.say(report(nmce, mceSize, "!DNA transitions"));
+        debug.say(report(nmce, mceSize, "!MCE guards"));
+        
+        // generate Do Not Accord Matrix
+        int ndna = generateDoNoAccord (model, guardInfo);
+        int dnaSize = nTrans*nTrans/2;
+        debug.say(report(ndna, dnaSize, "!DNA transitions"));
         
 		debug.say_indent--;
 		debug.say("Generating guard information done");
@@ -339,30 +344,56 @@ public class LTSminGMWalker {
         }
         return false;
     }
+    
+    /**************
+     * DNA
+     * ************/
+
+    private static int generateDoNoAccord(LTSminModel model, GuardInfo guardInfo) {
+        int nTrans = model.getTransitions().size();
+        DepMatrix co = new DepMatrix(nTrans, nTrans);
+        guardInfo.setDNAMatrix(co);
+        DepMatrix ndsM = guardInfo.getNDSMatrix();
+        int neverDNA = 0;
+        for (int t1 = 0; t1 < nTrans; t1++) {
+            co.incRead(t1, t1);
+nextTrans:  for (int t2 = t1+1; t2 < nTrans; t2++) {
+                for (int g1 : guardInfo.getTransMatrix().get(t1)) {
+                    for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
+                        if (ndsM.isRead(g2, t1) || ndsM.isRead(g1, t2)) {
+                            co.incRead(t1, t2);
+                            co.incRead(t2, t1);
+                            continue nextTrans;
+                        }
+                    }
+                }
+                neverDNA++;
+            }
+        }
+        return neverDNA;
+    }
 
 	/**************
 	 * MCE
 	 * ************/
 
 	private static int generateCoenMatrix(LTSminModel model, GuardInfo guardInfo) {
-        int nTrans = model.getTransitions().size();
-		DepMatrix co = new DepMatrix(nTrans, nTrans);
+	    int nlabels = guardInfo.getNumberOfLabels();
+		DepMatrix co = new DepMatrix(nlabels, nlabels);
 		guardInfo.setCoMatrix(co);
-        DepMatrix ndsM = guardInfo.getNDSMatrix();
 		int neverCoEnabled = 0;
-		for (int t1 = 0; t1 < nTrans; t1++) {
-            co.incRead(t1, t1);
-nextTrans:  for (int t2 = t1+1; t2 < nTrans; t2++) {
-                for (int g1 : guardInfo.getTransMatrix().get(t1)) {
-    			    for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
-        				if (ndsM.isRead(g2, t1) || ndsM.isRead(g1, t2)) {
-        					co.incRead(t1, t2);
-        					co.incRead(t2, t1);
-        					continue nextTrans;
-        				}
-    			    }
+		for (int g1 = 0; g1 < nlabels; g1++) {
+            co.incRead(g1, g1);
+            Expression ge1 = guardInfo.get(g1).getExpr();
+            for (int g2 = g1+1; g2 < nlabels; g2++) {
+                Expression ge2 = guardInfo.get(g2).getExpr();
+                Boolean coenabled = MCE(model, ge1, ge2, false, false, null, null);
+                if (coenabled == null || coenabled) {
+                    co.incRead(g1, g2);
+                    co.incRead(g2, g1);
+                } else {
+                    neverCoEnabled++;
                 }
-                neverCoEnabled++;
 			}
 		}
 		return neverCoEnabled;

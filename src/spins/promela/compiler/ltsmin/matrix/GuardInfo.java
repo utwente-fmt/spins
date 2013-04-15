@@ -36,6 +36,13 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	private DepMatrix co_matrix;
 
 	/**
+     *        trans >
+     * trans ...    ...
+     *   v    ...    ...
+     */
+    private DepMatrix dna_matrix;
+
+	/**
 	 *        trans >
 	 * guards ...    ...
 	 *   v    ...    ...
@@ -203,5 +210,14 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
     
     public DepMatrix getTestSetMatrix() {
         return testset;
+    }
+
+
+    public DepMatrix getDNAMatrix() {
+        return dna_matrix;
+    }
+
+    public void setDNAMatrix(DepMatrix dna) {
+        dna_matrix = dna;
     }
 }

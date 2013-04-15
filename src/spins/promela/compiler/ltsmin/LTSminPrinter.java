@@ -111,7 +111,8 @@ public class LTSminPrinter {
 	public static final int    PM_MAX_PROCS        = 256;
 	public static final String DM_NAME             = "transition_dependency";
 	public static final String GM_DM_NAME          = "gm_dm";
-	public static final String CO_DM_NAME          = "co_dm";
+    public static final String CO_DM_NAME          = "co_dm";
+    public static final String DNA_DM_NAME         = "dna_dm";
 	public static final String NES_DM_NAME         = "nes_dm";
 	public static final String NDS_DM_NAME         = "nds_dm";
 	public static final String GM_TRANS_NAME       = "gm_trans";
@@ -1329,6 +1330,7 @@ public class LTSminPrinter {
 		if(gm==null) return;
 
 		DepMatrix co_matrix = gm.getCoMatrix();
+		DepMatrix dna_matrix = gm.getDNAMatrix();
 
 		w.appendLine("");
 		w.appendLine("// Label(Guard)-Dependency Matrix:");
@@ -1339,6 +1341,11 @@ public class LTSminPrinter {
 		w.appendLine("// Maybe Co-Enabled Matrix:");
 		generateDepMatrix(w, co_matrix, CO_DM_NAME, false);
 		w.appendLine("");
+
+        w.appendLine("");
+        w.appendLine("// Doo Not Accord Matrix:");
+        generateDepMatrix(w, dna_matrix, DNA_DM_NAME, false);
+        w.appendLine("");
 
 		w.appendLine("");
 		w.appendLine("// Necessary Enabling Matrix:");
@@ -1411,9 +1418,17 @@ public class LTSminPrinter {
 		w.appendLine("}");
 		w.appendLine("");
 
+        w.appendLine("const int* spins_get_trans_do_not_accord_matrix(int t) {");
+        w.indent();
+        w.appendLine("assert(t < ",nTrans,", \"spins_get_label_do_not_accord_matrix: invalid trans index %d\", t);");
+        w.appendLine("return "+ DNA_DM_NAME +"[t];");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+
 		w.appendLine("const int* spins_get_label_may_be_coenabled_matrix(int g) {");
 		w.indent();
-		w.appendLine("assert(g < ",nTrans,", \"spins_get_label_may_be_coenabled_matrix: invalid guard index %d\", g);");
+		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_may_be_coenabled_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ CO_DM_NAME +"[g];");
 		w.outdent();
 		w.appendLine("}");
