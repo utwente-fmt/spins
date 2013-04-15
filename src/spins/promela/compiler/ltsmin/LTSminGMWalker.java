@@ -244,9 +244,17 @@ public class LTSminGMWalker {
                                      LTSminGuard guard, int g,
                                      LTSminTransition trans,
                                      boolean invert) {
+        //boolean all_not_coenabled = true;
         if (!limitMCE(model, guardInfo, trans.getGroup(), guard, g, !invert))
+            return false;//all_not_coenabled =  false;
+        /*
+        for (LTSminTransition atomic : trans.getTransitions()) {
+            if (limitMCE(model, guardInfo, atomic.getGroup(), guard, g, !invert))
+                all_not_coenabled = false;
+        }
+        if (all_not_coenabled)
             return false; // should be coenabled with the negated guard!
-
+        */
         if (enables(model, trans, guard.getExpr(), g, invert)) {
             return true;
         }
@@ -349,24 +357,61 @@ public class LTSminGMWalker {
      * DNA
      * ************/
 
+    private static boolean mayMutuallyAffect(GuardInfo guardInfo,
+                                              DepMatrix nsM,
+                                              int t1, int t2) {
+        for (int g1 : guardInfo.getTransMatrix().get(t1)) {
+            for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
+                if (nsM.isRead(g2, t1) || nsM.isRead(g1, t2)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean mayAffectAtomic (LTSminModel model,
+                                            GuardInfo guardInfo,
+                                            int t1, int t2) {
+        DepMatrix nds = guardInfo.getNDSMatrix();
+        DepMatrix nes = guardInfo.getNESMatrix();
+        LTSminTransition trans = model.getTransitions().get(t1);
+        for (LTSminTransition atomic : trans.getTransitions()) {
+            int a = atomic.getGroup();
+            if (mayMutuallyAffect(guardInfo, nes, a, t2) ||
+                mayMutuallyAffect(guardInfo, nds, a, t2)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    
     private static int generateDoNoAccord(LTSminModel model, GuardInfo guardInfo) {
         int nTrans = model.getTransitions().size();
         DepMatrix co = new DepMatrix(nTrans, nTrans);
         guardInfo.setDNAMatrix(co);
-        DepMatrix ndsM = guardInfo.getNDSMatrix();
+        DepMatrix nds = guardInfo.getNDSMatrix();
         int neverDNA = 0;
         for (int t1 = 0; t1 < nTrans; t1++) {
             co.incRead(t1, t1);
-nextTrans:  for (int t2 = t1+1; t2 < nTrans; t2++) {
-                for (int g1 : guardInfo.getTransMatrix().get(t1)) {
-                    for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
-                        if (ndsM.isRead(g2, t1) || ndsM.isRead(g1, t2)) {
-                            co.incRead(t1, t2);
-                            co.incRead(t2, t1);
-                            continue nextTrans;
-                        }
-                    }
+            for (int t2 = t1+1; t2 < nTrans; t2++) {
+                if (mayMutuallyAffect(guardInfo, nds, t1, t2)) {
+                    co.incRead(t1, t2);
+                    co.incRead(t2, t1);
+                    continue;
                 }
+
+                // For atomic transitions we require a more stringent condition
+                // the atomic steps may neither be disabled nor enabled so
+                // that the outcome of the group is not influenced
+                if (mayAffectAtomic(model, guardInfo, t1, t2) ||
+                    mayAffectAtomic(model, guardInfo, t2, t1)) {
+                    co.incRead(t1, t2);
+                    co.incRead(t2, t1);
+                    continue;   
+                }
+                
                 neverDNA++;
             }
         }
