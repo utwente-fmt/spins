@@ -14,11 +14,21 @@ public class DepMatrix {
 	public DepMatrix(int rows, int cols) {
 		dep_matrix = new ArrayList<DepRow>();
 		row_length = cols;
-		for(int i=0;i<rows;++i) {
+		for (int i = 0; i < rows; ++i) {
 			dep_matrix.add(i,new DepRow(cols));
 		}
 	}
 
+   public DepMatrix(DepMatrix org) {
+       int rows = org.getNrRows();
+       int cols = org.getNrCols();
+       dep_matrix = new ArrayList<DepRow>();
+       row_length = cols;
+       for (int i = 0; i < rows; ++i) {
+           dep_matrix.add(i, new DepRow(org.getRow(i)));
+       }
+    }
+	   
 	/**
 	 * Increase the number of reads of the specified dependency by one.
 	 * @param col The dependency to increase.
@@ -81,11 +91,11 @@ public class DepMatrix {
 	 * Returns the number of rows in the dependency matrix.
 	 * @return The number of rows in the dependency matrix.
 	 */
-	public int getRows() {
+	public int getNrRows() {
 		return dep_matrix.size();
 	}
 
-	public int getRowLength() {
+	public int getNrCols() {
 		return row_length;
 	}
 	

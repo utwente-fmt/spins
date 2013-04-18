@@ -145,11 +145,11 @@ public class RunExpression extends Expression implements CompoundExpression {
 
 	private List<Action> actions = new ArrayList<Action>();
 
-	public void addAction(Action action) {
+	public void addInitAction(Action action) {
 		actions.add(action);
 	}
 
-	public List<Action> getActions() {
+	public List<Action> getInitActions() {
 		return actions;
 	}
 }

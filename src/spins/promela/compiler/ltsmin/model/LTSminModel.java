@@ -43,6 +43,7 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 
     private String name;
     private DepMatrix depMatrix;
+    private DepMatrix actionDepMatrix;
     private GuardInfo guardInfo;
     private List<String> mtypes;
 
@@ -97,6 +98,14 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 	public void setDepMatrix(DepMatrix depMatrix) {
 		this.depMatrix = depMatrix;
 	}
+
+    public DepMatrix getActionDepMatrix() {
+        return actionDepMatrix;
+    }
+
+    public void setActionDepMatrix(DepMatrix depMatrix) {
+        this.actionDepMatrix = depMatrix;
+    }
 
 	public GuardInfo getGuardInfo() {
 		return guardInfo;

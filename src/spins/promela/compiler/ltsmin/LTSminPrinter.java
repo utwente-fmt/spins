@@ -754,7 +754,7 @@ public class LTSminPrinter {
 					generateAction(w2, aa, model, t);
 				}
 			}
-			for (Action action: re.getActions())
+			for (Action action: re.getInitActions())
 				generateAction(w2, action, model, t);
 
 			String ccode = w2.toString();
@@ -1090,13 +1090,13 @@ public class LTSminPrinter {
 	private static void generateDepMatrix(StringWriter w, DepMatrix dm, String name, boolean rw) {
 		String dub = rw ? "[2]" : "";
 		w.appendPrefix();
-		w.appendLine("int "+ name + "[]"+ dub +"["+ dm.getRowLength() +"] = {");
+		w.appendLine("int "+ name + "[]"+ dub +"["+ dm.getNrCols() +"] = {");
 		w.indent();
 		if (rw)
 			w.appendLine("// { ... read ...}, { ... write ...}");
 
 		// Iterate over all the rows
-		for(int t = 0; t < dm.getRows(); t++) {
+		for(int t = 0; t < dm.getNrRows(); t++) {
 			if (t > 0)
 				w.append(", // "+ (t-1)).appendPostfix();
 			w.appendPrefix();
@@ -1135,13 +1135,13 @@ public class LTSminPrinter {
 		w.appendLine("");
 		w.appendLine("extern const int* spins_get_transition_read_dependencies(int t)");
 		w.appendLine("{");
-		w.appendLine("	if (t>=0 && t < "+ dm.getRows() +") return "+ DM_NAME +"[t][0];");
+		w.appendLine("	if (t>=0 && t < "+ dm.getNrRows() +") return "+ DM_NAME +"[t][0];");
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 		w.appendLine("");
 		w.appendLine("extern const int* spins_get_transition_write_dependencies(int t)");
 		w.appendLine("{");
-		w.appendLine("	if (t>=0 && t < "+ dm.getRows()+ ") return "+ DM_NAME +"[t][1];");
+		w.appendLine("	if (t>=0 && t < "+ dm.getNrRows()+ ") return "+ DM_NAME +"[t][1];");
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 		w.appendLine("");

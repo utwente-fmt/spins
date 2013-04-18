@@ -79,7 +79,7 @@ public class LTSminDMWalker {
 	static public class Params {
 		public final LTSminModel model;
 		public final LTSminStateVector sv;
-		public final DepMatrix depMatrix;
+		public DepMatrix depMatrix;
 		public int trans;
 		public boolean inTimeOut = false;
 
@@ -107,7 +107,7 @@ public class LTSminDMWalker {
 		debug.say("Generating DM information ...");
 		debug.say_indent++;
 
-		if(model.getDepMatrix()==null) {
+		if (model.getDepMatrix() == null) {
 			model.setDepMatrix(new DepMatrix(model.getTransitions().size(), model.sv.size()));
 		}
 		Params params = new Params(model, model.getDepMatrix(), 0);
@@ -126,17 +126,29 @@ public class LTSminDMWalker {
 	}
 
 	static void walkTransition(Params params, LTSminTransition t) {
-		for(LTSminGuardBase g : t.getGuards())
-			walkGuard(params,g);
 		for(Action a : t.getActions())
 			walkAction(params,a);
+		// transitively add dependencies of atomic transitions
 		for(LTSminTransition atomic : t.getTransitions()) {
-			for(LTSminGuardBase g : atomic.getGuards())
-				walkGuard(params,g);
 			for(Action a : atomic.getActions()) {
 				walkAction(params,a);
 			}
 		}
+
+		// preserve the dep matrix with only action dependencies!
+		params.model.setActionDepMatrix(params.depMatrix);
+		// copy the matrix so that we can add guard dependencies 
+		params.depMatrix = new DepMatrix(params.depMatrix);
+		params.model.setDepMatrix(params.depMatrix);
+		
+        for(LTSminGuardBase g : t.getGuards())
+            walkGuard(params,g);
+        // transitively add dependencies of atomic transitions
+        for(LTSminTransition atomic : t.getTransitions()) {
+            for(LTSminGuardBase g : atomic.getGuards()) {
+                walkGuard(params,g);
+            }
+        }
 	}
 
 	static void walkGuard(Params params, LTSminGuardBase guard) {
@@ -206,7 +218,7 @@ public class LTSminDMWalker {
 					DMIncWrite(params, v);
 				}
 			}
-			for (Action rea : re.getActions()) {
+			for (Action rea : re.getInitActions()) {
 				walkAction(params, rea);
 			}
 		} else if(a instanceof OptionAction) { // options in a d_step sequence

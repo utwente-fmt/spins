@@ -711,7 +711,7 @@ public class LTSminTreeWalker {
 							"Change the proctype's arguments or unroll the loop with run expressions in the model.");
 				Expression init = v.getInitExpr();
 				v.unsetInitExpr();
-				re.addAction(new AssignAction(new Token(PromelaConstants.ASSIGN), id(v), init));
+				re.addInitAction(new AssignAction(new Token(PromelaConstants.ASSIGN), id(v), init));
 			}
 		}
 	}

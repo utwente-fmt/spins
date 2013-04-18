@@ -12,6 +12,7 @@ public class DepRow {
 	private List<Integer> reads;
 	private List<Integer> writes;
 
+    private List<Integer> depsDense = null;
 	private List<Integer> readsDense = null;
     private List<Integer> writesDense = null;
     private boolean fixed = false;
@@ -29,7 +30,12 @@ public class DepRow {
 		}
 	}
 
-	/**
+	public DepRow(DepRow row) {
+        reads = new ArrayList<Integer>(row.reads);
+        writes= new ArrayList<Integer>(row.writes);
+    }
+
+    /**
 	 * Increase the number of reads of the specified dependency by one.
 	 * @param dep The dependency to increase.
 	 */
@@ -133,6 +139,18 @@ public class DepRow {
             }
         }
         return writesDense;
+    }
+
+    public List<Integer> getDeps() {
+        if (depsDense == null) {
+            fixed = true;
+            depsDense = new LinkedList<Integer>();
+            for (int i = 0; i < reads.size(); i++) {
+                if (reads.get(i) > 0 || writes.get(i) > 0)
+                    depsDense.add(i);
+            }
+        }
+        return depsDense;
     }
 
     public void clear() {

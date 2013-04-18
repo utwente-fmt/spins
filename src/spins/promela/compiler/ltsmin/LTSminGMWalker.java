@@ -12,8 +12,17 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.incr;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
 import static spins.promela.compiler.parser.PromelaConstants.ASSIGN;
+import static spins.promela.compiler.parser.PromelaConstants.CH_READ;
+import static spins.promela.compiler.parser.PromelaConstants.CH_SEND_SORTED;
 import static spins.promela.compiler.parser.PromelaConstants.DECR;
+import static spins.promela.compiler.parser.PromelaConstants.EQ;
+import static spins.promela.compiler.parser.PromelaConstants.GT;
+import static spins.promela.compiler.parser.PromelaConstants.GTE;
 import static spins.promela.compiler.parser.PromelaConstants.INCR;
+import static spins.promela.compiler.parser.PromelaConstants.LT;
+import static spins.promela.compiler.parser.PromelaConstants.LTE;
+import static spins.promela.compiler.parser.PromelaConstants.NEQ;
+import static spins.promela.compiler.parser.PromelaConstants.tokenImage;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -60,7 +69,6 @@ import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
 import spins.promela.compiler.parser.ParseException;
-import spins.promela.compiler.parser.PromelaConstants;
 import spins.promela.compiler.parser.PromelaTokenManager;
 import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.Variable;
@@ -171,7 +179,7 @@ public class LTSminGMWalker {
 			LTSminDMWalker.walkOneGuard(model, dm, guardInfo.get(i), i);
 		}
 
-		int T = model.getDepMatrix().getRows();
+		int T = model.getDepMatrix().getNrRows();
         DepMatrix testset = new DepMatrix(T, model.sv.size());
         guardInfo.setTestSetMatrix(testset);
         DepMatrix gm = guardInfo.getDepMatrix();
@@ -198,7 +206,7 @@ public class LTSminGMWalker {
 		DepMatrix nds = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNDSMatrix(nds);
 		int notNDS = 0;
-		for (int g = 0; g <  nds.getRows(); g++) {
+		for (int g = 0; g <  nds.getNrRows(); g++) {
             for (LTSminTransition trans : model.getTransitions()) {
                 LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
                 if (atomicNES(model, guardInfo, guard, g, trans, true)) {
@@ -220,7 +228,7 @@ public class LTSminGMWalker {
 		DepMatrix nes = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNESMatrix(nes);
 		int notNES = 0;
-		for (int g = 0; g <  nes.getRows(); g++) {
+		for (int g = 0; g <  nes.getNrRows(); g++) {
             LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
 			for (LTSminTransition trans : model.getTransitions()) {
                 if (atomicNES(model, guardInfo, guard, g, trans, false)) {
@@ -244,17 +252,10 @@ public class LTSminGMWalker {
                                      LTSminGuard guard, int g,
                                      LTSminTransition trans,
                                      boolean invert) {
-        //boolean all_not_coenabled = true;
-        if (!limitMCE(model, guardInfo, trans.getGroup(), guard, g, !invert))
-            return false;//all_not_coenabled =  false;
-        /*
-        for (LTSminTransition atomic : trans.getTransitions()) {
-            if (limitMCE(model, guardInfo, atomic.getGroup(), guard, g, !invert))
-                all_not_coenabled = false;
+        if (!limitMCE(model, guardInfo, trans.getGroup(), guard, g, !invert)) {
+            return false;
         }
-        if (all_not_coenabled)
-            return false; // should be coenabled with the negated guard!
-        */
+
         if (enables(model, trans, guard.getExpr(), g, invert)) {
             return true;
         }
@@ -267,6 +268,17 @@ public class LTSminGMWalker {
         return false;
     }
 
+    /**
+     * This check for maybe coenabledness of the transition t with a guard g
+     * (or its inverse for necessary enabledness).
+     * We conjecture that in our setting, g needs only to be
+     * coenabled in those variables that are written to by the transition
+     * (if these exist). Because for NES/NDS we may assume g to be disabled/
+     * enabled in advance and the transition only affects a few variables that
+     * should make g enabled/disabled.
+     * Limiting the MCE check to these variables gives additional precision
+     * in the presence of disjunctions.
+     */
     private static boolean limitMCE(LTSminModel model, GuardInfo guardInfo,
                                     int t, LTSminGuard guard, int g, boolean invert) {
         DepMatrix rw = model.getDepMatrix();
@@ -356,36 +368,6 @@ public class LTSminGMWalker {
     /**************
      * DNA
      * ************/
-
-    private static boolean mayMutuallyAffect(GuardInfo guardInfo,
-                                              DepMatrix nsM,
-                                              int t1, int t2) {
-        for (int g1 : guardInfo.getTransMatrix().get(t1)) {
-            for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
-                if (nsM.isRead(g2, t1) || nsM.isRead(g1, t2)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private static boolean mayAffectAtomic (LTSminModel model,
-                                            GuardInfo guardInfo,
-                                            int t1, int t2) {
-        DepMatrix nds = guardInfo.getNDSMatrix();
-        DepMatrix nes = guardInfo.getNESMatrix();
-        LTSminTransition trans = model.getTransitions().get(t1);
-        for (LTSminTransition atomic : trans.getTransitions()) {
-            int a = atomic.getGroup();
-            if (mayMutuallyAffect(guardInfo, nes, a, t2) ||
-                mayMutuallyAffect(guardInfo, nds, a, t2)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     
     private static int generateDoNoAccord(LTSminModel model, GuardInfo guardInfo) {
         int nTrans = model.getTransitions().size();
@@ -396,13 +378,14 @@ public class LTSminGMWalker {
         for (int t1 = 0; t1 < nTrans; t1++) {
             co.incRead(t1, t1);
             for (int t2 = t1+1; t2 < nTrans; t2++) {
-                if (mayMutuallyAffect(guardInfo, nds, t1, t2)) {
+                if (mayMutuallyAffect(model, guardInfo, nds, t1, t2)) {
                     co.incRead(t1, t2);
                     co.incRead(t2, t1);
                     continue;
                 }
 
-                // For atomic transitions we require a more stringent condition
+                // For atomic transitions (internal steps),
+                // we require a more stringent condition
                 // the atomic steps may neither be disabled nor enabled so
                 // that the outcome of the group is not influenced
                 if (mayAffectAtomic(model, guardInfo, t1, t2) ||
@@ -416,6 +399,243 @@ public class LTSminGMWalker {
             }
         }
         return neverDNA;
+    }
+    
+
+    private static boolean mayAffectAtomic (LTSminModel model,
+                                            GuardInfo guardInfo,
+                                            int t1, int t2) {
+        DepMatrix nds = guardInfo.getNDSMatrix();
+        DepMatrix nes = guardInfo.getNESMatrix();
+        LTSminTransition trans = model.getTransitions().get(t1);
+        for (LTSminTransition atomic : trans.getTransitions()) {
+            int a = atomic.getGroup();
+            if (mayMutuallyAffect(model, guardInfo, nes, a, t2) ||
+                mayMutuallyAffect(model, guardInfo, nds, a, t2)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     *  s --t1--> s'
+     *  |         |
+     *  t2        t2
+     *  |         |
+     *  v         v
+     * s1 --t1--> s1'
+     * 
+     * Roughly, transitions do not accord if:
+     * - they disable each other (and are maybe coenabled as implied by DNS)
+     * - their actions do commute (see is_commuting_assignment)
+     */
+    private static boolean mayMutuallyAffect(LTSminModel model,
+                                              GuardInfo guardInfo,
+                                              DepMatrix nsM, int t1, int t2) {
+        // check for disabling
+        for (int g1 : guardInfo.getTransMatrix().get(t1)) {
+            for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
+                if (nsM.isRead(g2, t1) || nsM.isRead(g1, t2)) {
+                    return true;
+                }
+            }
+        }
+
+        LTSminTransition trans1 = model.getTransitions().get(t1);
+        LTSminTransition trans2 = model.getTransitions().get(t2);
+        
+        DepMatrix depsA = new DepMatrix(1, model.sv.size());
+        DepMatrix depsB = new DepMatrix(1, model.sv.size());
+
+        // check for non-commuting actions
+        for (Action acta: trans1.getActions()) {
+            depsA.clear(); // get actions deps:
+            LTSminDMWalker.walkOneAction(model, depsA, acta, 0);
+     
+            for (Action actb : trans2.getActions()) {
+                depsB.clear(); // get actions deps:
+                LTSminDMWalker.walkOneAction(model, depsB, actb, 0);
+
+                // extract simple predicates for the actions
+                List<SimplePredicate> allA, allB;
+                try {
+                    allA = allAssigns (model, acta, depsB.getWrites(0));
+                    allB = allAssigns (model, actb, depsA.getWrites(0));
+                } catch (ParseException e) {
+                    return true;
+                } 
+                
+                for (SimplePredicate spa : allA) {
+                    for (SimplePredicate spb : allB) {
+                        if (!is_commuting_assignment(model, spa, spb)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Since complex array expressions in an identifier id are not written to
+     * (see allAssigns), id refers to the same variable in s1 as in s' (see
+     * mayMutuallyAffect). Therefore, simple predicates commute iff:
+     * - id1 != id2, or
+     * - both assign the same constant, or
+     * - both are increment/decrement, or
+     * - read and write to a channel.
+     */
+    private static boolean is_commuting_assignment(LTSminModel model,
+                                                   SimplePredicate p1,
+                                                   SimplePredicate p2) {
+        String ref1, ref2;
+        try {
+            ref1 = p1.getRef(model); // convert to c code string
+            ref2 = p2.getRef(model);
+        } catch (AssertionError ae) {
+            throw new AssertionError("Serialization of expression "+ p1.id +" or "+ p2.id +" failed: "+ ae);
+        }
+        if (!ref1.equals(ref2)) {
+            return true;
+        } else if (p1.comparison == EQ && p2.comparison == EQ) {
+            return p1.constant == p2.constant;
+        } else if ((p1.comparison == INCR || p1.comparison == DECR) &&
+                   (p2.comparison == INCR || p2.comparison == DECR)) {
+            return true;
+        } else if ((p1.comparison == CH_READ && p2.comparison == CH_SEND_SORTED) ||
+                   (p1.comparison == CH_SEND_SORTED && p2.comparison == CH_READ)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Extract simple predicates that help check commutativity:
+     * - assignments with constants
+     * - increments / decrements
+     * - fifo channel reads / writes
+     * All complex actions are translated to assignments. Possibly assignments
+     * use complex expressions, in that case we check whether the other transition
+     * (see mayMutuallyAffect) writes to these. If this is the case, or if the
+     * identifier contains a complex array expression that is written to, we
+     * give up, i.e. throw a ParseException.
+     */
+    private static List<SimplePredicate> allAssigns (LTSminModel model,
+                                                     Action a,
+                                                     List<Integer> writes) throws ParseException {
+        List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
+        if (a instanceof AssignAction) {
+            SimplePredicate sp1 = new SimplePredicate();
+            AssignAction ae = (AssignAction)a;
+            try {
+                sp1.id = getConstantId(model, ae.getIdentifier(), writes);
+            } catch (ParseException e1) {
+                depCheck(model, a, writes); // may rethrow
+                return sps; // empty
+            }
+            switch (ae.getToken().kind) {
+                case ASSIGN:
+                    sp1.comparison = EQ;
+                    try {
+                        sp1.constant = ae.getExpr().getConstantValue();
+                    } catch (ParseException e) {
+                        depCheck(model, ae.getExpr(), writes); // may rethrow
+                        return sps; // empty
+                    }
+                    break;
+                case INCR:   sp1.comparison = INCR; break;
+                case DECR:   sp1.comparison = DECR; break;
+                default: throw new AssertionError("unknown assignment type");
+            }
+            sps.add(sp1);
+        } else if (a instanceof ResetProcessAction) {
+            ResetProcessAction rpa = (ResetProcessAction)a;
+            Action end = assign(model.sv.getPC(rpa.getProcess()), -1);
+            sps.addAll(allAssigns(model, end, writes));
+            Action procs = decr(id(LTSminStateVector._NR_PR));
+            sps.addAll(allAssigns(model, procs, writes));
+        } else if (a instanceof ExprAction) {
+            Expression expr = ((ExprAction)a).getExpression();
+            if (expr.getSideEffect() == null) return sps; // simple expressions are guards
+            
+            RunExpression re = (RunExpression)expr;
+            Action procs = incr(id(LTSminStateVector._NR_PR));
+            sps.addAll(allAssigns(model, procs, writes));
+
+            for (Proctype p : re.getInstances()) {
+                for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
+                    Action step = assign(model.sv.getPC(instance), 0);
+                    sps.addAll(allAssigns(model, step, writes));
+                }
+                //write to the arguments of the target process
+                Iterator<Expression> rei = re.getExpressions().iterator();
+                for (Variable v : p.getArguments()) {
+                    Expression param = rei.next();
+                    if (v.getType() instanceof ChannelType || v.isStatic())
+                        continue; //passed by reference or already in state vector
+                    Action arg = assign(v, param);
+                    sps.addAll(allAssigns(model, arg, writes));
+                }
+            }
+            for (Action rea : re.getInitActions()) {
+                sps.addAll(allAssigns(model, rea, writes));
+            }
+        } else if(a instanceof ChannelSendAction) {
+            ChannelSendAction csa = (ChannelSendAction)a;
+            Identifier id = csa.getIdentifier();
+            SimplePredicate send = new SimplePredicate();
+            send.comparison = CH_SEND_SORTED;
+            try {
+                send.id = getConstantId(model, chanLength(id), writes);
+            } catch (ParseException e1) {
+                depCheck(model, a, writes); // may rethrow
+                return sps; // empty
+            }
+            sps.add(send);
+        } else if(a instanceof OptionAction) { // options in a d_step sequence
+            depCheck(model, a, writes); // may rethrow
+        } else if(a instanceof ChannelReadAction) {
+            ChannelReadAction cra = (ChannelReadAction)a;
+            Identifier id = cra.getIdentifier();
+            if (!cra.isPoll()) {
+                SimplePredicate read = new SimplePredicate();
+                read.comparison = CH_READ;
+                try {
+                    read.id = getConstantId(model, chanLength(id), writes);
+                } catch (ParseException e1) {
+                    depCheck(model, a, writes); // may rethrow
+                    return sps; // empty
+                }
+                sps.add(read);
+            } else {
+                depCheck(model, a, writes); // may throw
+            }
+        } else {
+            throw new ParseException();
+        }
+        return sps;
+    }
+
+
+    private static void depCheck(LTSminModel model, Expression e,
+                                 List<Integer> writes) throws ParseException {
+        DepMatrix deps = new DepMatrix(1, model.sv.size());
+        LTSminDMWalker.walkOneGuard(model, deps, new LTSminGuard(e), 0);
+        if (deps.isRead(0, writes) || deps.isWrite(0, writes)) {
+            throw new ParseException();
+        }
+    }
+
+    private static void depCheck(LTSminModel model, Action a,
+                                 List<Integer> writes) throws ParseException {
+        DepMatrix deps = new DepMatrix(1, model.sv.size());
+        LTSminDMWalker.walkOneAction(model, deps, a, 0);
+        if (deps.isRead(0, writes) || deps.isWrite(0, writes)) {
+            throw new ParseException();
+        }
     }
 
 	/**************
@@ -501,7 +721,7 @@ public class LTSminGMWalker {
                 if (!testSet.isRead(0, limit.getWrites())) return null;
             }
             List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
-            boolean missed = extract_conjunct_predicates(ga_sp, e1, invert1, false); // non-strict, since MCE holds for the same state
+            boolean missed = extract_conjunct_predicates(model, ga_sp, e1, invert1);
             if (invert1) {
                 if (missed)
                     return true; // don't know
@@ -538,7 +758,7 @@ public class LTSminGMWalker {
     private static boolean mce(LTSminModel model, Expression e2,
                                SimplePredicate a, boolean invert2) {
         List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
-        boolean missed = extract_conjunct_predicates(gb_sp, e2, invert2, false);
+        boolean missed = extract_conjunct_predicates(model, gb_sp, e2, invert2);
         if (invert2) {
             if (missed)
                 return true; // don't know
@@ -586,30 +806,30 @@ public class LTSminGMWalker {
             return ref;
         }
         public String toString() {
-            String comp = PromelaConstants.tokenImage[comparison].replace('"', ' ');
+            String comp = tokenImage[comparison].replace('"', ' ');
             return id + comp + constant;
         }
 
         public SimplePredicate invert() {
             SimplePredicate copy = new SimplePredicate(e, id, constant);
             switch(comparison) {
-                case PromelaConstants.LT:
-                    copy.comparison = PromelaConstants.GTE;
+                case LT:
+                    copy.comparison = GTE;
                     break;
-                case PromelaConstants.LTE:
-                    copy.comparison = PromelaConstants.GT;
+                case LTE:
+                    copy.comparison = GT;
                     break;
-                case PromelaConstants.EQ:
-                    copy.comparison = PromelaConstants.NEQ;
+                case EQ:
+                    copy.comparison = NEQ;
                     break;
-                case PromelaConstants.NEQ:
-                    copy.comparison = PromelaConstants.EQ;
+                case NEQ:
+                    copy.comparison = EQ;
                     break;
-                case PromelaConstants.GT:
-                    copy.comparison = PromelaConstants.LTE;
+                case GT:
+                    copy.comparison = LTE;
                     break;
-                case PromelaConstants.GTE:
-                    copy.comparison = PromelaConstants.LT;
+                case GTE:
+                    copy.comparison = LT;
                     break;
             }
             return copy;
@@ -635,7 +855,7 @@ public class LTSminGMWalker {
         if (a instanceof AssignAction) {
             AssignAction ae = (AssignAction)a;
             try {
-                sp1.id = getConstantId(ae.getIdentifier(), true); // strict
+                sp1.id = getConstantId(model, ae.getIdentifier(), null);
             } catch (ParseException e1) {
                 return false;
             }
@@ -646,7 +866,7 @@ public class LTSminGMWalker {
                     } catch (ParseException e) {
                         return false;
                     }
-                    sp1.comparison = invert ? PromelaConstants.NEQ : PromelaConstants.EQ;
+                    sp1.comparison = invert ? NEQ : EQ;
                     if (is_conflict_predicate(model, sp1, sp))
                         return true;
                     break;
@@ -698,7 +918,7 @@ public class LTSminGMWalker {
                     } catch (ParseException e) {}
                 }
             }
-            for (Action rea : re.getActions()) {
+            for (Action rea : re.getInitActions()) {
                 if (conflicts(model, rea,  sp, t, g, invert)) {
                     return true;
                 }
@@ -733,13 +953,13 @@ public class LTSminGMWalker {
     }
 
     private static boolean lt(SimplePredicate sp) {
-        return sp.comparison == PromelaConstants.LT || 
-            sp.comparison == PromelaConstants.LTE;
+        return sp.comparison == LT || 
+            sp.comparison == LTE;
     }
 
     private static boolean gt(SimplePredicate sp) {
-        return sp.comparison == PromelaConstants.GT || 
-            sp.comparison == PromelaConstants.GTE;
+        return sp.comparison == GT || 
+            sp.comparison == GTE;
     }
 
 	/**
@@ -748,25 +968,22 @@ public class LTSminGMWalker {
 	 * where cvarref is a reference to a singular (channel) variable or a
 	 * constant index in array variable.
 	 * @param invert Influences outcome of missed
-	 * @param strict indicates whether we look for strictly constant variables:
-	 * ie. non-array variables or array variables with constant index
 	 */
-	private static boolean extract_conjunct_predicates(List<SimplePredicate> sp,
-	                                                   Expression e,
-	                                                   boolean invert, // Does not invert SPs!
-	                                                   boolean strict) {
+	private static boolean extract_conjunct_predicates(LTSminModel model,
+	                                                   List<SimplePredicate> sp,
+	                                                   Expression e, boolean invert) {
 		int c;
         boolean missed = false;
     	if (e instanceof CompareExpression) {
     		CompareExpression ce1 = (CompareExpression)e;
     		Identifier id;
     		try {
-    			id = getConstantId(ce1.getExpr1(), strict);
+    			id = getConstantId(model, ce1.getExpr1(), null); // non-strict, since MCE/NES/NDS holds for the same state
     			c = ce1.getExpr2().getConstantValue();
         		sp.add(new SimplePredicate(e, id, c));
     		} catch (ParseException pe) {
         		try {
-        			id = getConstantId(ce1.getExpr2(), strict);
+        			id = getConstantId(model, ce1.getExpr2(), null);
         			c = ce1.getExpr1().getConstantValue();
             		sp.add(new SimplePredicate(e, id, c));
         		} catch (ParseException pe2) {
@@ -776,15 +993,15 @@ public class LTSminGMWalker {
 		} else if (e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
-			missed |= extract_conjunct_predicates(sp, chanContentsGuard(id), invert, strict);
+			missed |= extract_conjunct_predicates(model, sp, chanContentsGuard(id), invert);
 			List<Expression> exprs = cre.getExprs();
 			for (int i = 0; i < exprs.size(); i++) {
 				try { // this is a conjunction of matchings
 					int val = exprs.get(i).getConstantValue();
 					Identifier read = channelBottom(id, i);
-					CompareExpression compare = compare(PromelaConstants.EQ,
+					CompareExpression compare = compare(EQ,
 														read, constant(val));
-					missed |= extract_conjunct_predicates(sp, compare, invert, strict);
+					missed |= extract_conjunct_predicates(model, sp, compare, invert);
 		    	} catch (ParseException pe2) {
 		    	    missed = true; // missed one!
 		    	}
@@ -801,27 +1018,27 @@ public class LTSminGMWalker {
 			Expression right = null;
 			int op = -1;
 			if (name.equals("empty")) {
-				op = PromelaConstants.EQ;
+				op = EQ;
 				right = constant (0);
 			} else if (name.equals("nempty")) {
-				op = PromelaConstants.NEQ;
+				op = NEQ;
 				right = constant (0);
 			} else if (name.equals("full")) {
-				op = PromelaConstants.EQ;
+				op = EQ;
 				right = constant (buffer);
 			} else if (name.equals("nfull")) {
-				op = PromelaConstants.NEQ;
+				op = NEQ;
 				right = constant (buffer);
 			} else {
 			    throw new AssertionError();
 			}
-			missed |= extract_conjunct_predicates(sp, compare(op, left, right), invert, strict);
+			missed |= extract_conjunct_predicates(model, sp, compare(op, left, right), invert);
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
 			Variable pc = rr.getPC(null);
 			int num = rr.getLabelId();
-			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
-			missed |= extract_conjunct_predicates(sp, comp, invert, strict);
+			Expression comp = compare(EQ, id(pc), constant(num));
+			missed |= extract_conjunct_predicates(model, sp, comp, invert);
 		} else if (e instanceof ConstantExpression) {
 		    try {
                 int val = e.getConstantValue();
@@ -839,7 +1056,7 @@ public class LTSminGMWalker {
             }
         } else if (e instanceof EvalExpression) {
             EvalExpression eval = (EvalExpression) e;
-            missed |= extract_conjunct_predicates(sp, eval.getExpression(), invert, strict);
+            missed |= extract_conjunct_predicates(model, sp, eval.getExpression(), invert);
 		} else if (e instanceof BooleanExpression) {
     	   throw new RuntimeException("Was expecting leaf");
 		} else {
@@ -848,38 +1065,42 @@ public class LTSminGMWalker {
     	return missed;
 	}
 
-	/**
-	 * Tries to parse an expression as a reference to a singular (channel)
-	 * variable or a constant index in array variable (a cvarref).
-	 */
-	private static Identifier getConstantId(Expression e, boolean strict) throws ParseException {
-		if (e instanceof LTSminIdentifier) {
-		} else if (e instanceof Identifier) {
-			Identifier id = (Identifier)e;
-			Variable var = id.getVariable();
-			if (var.isHidden())
-					throw new ParseException();
-			Expression ar = id.getArrayExpr();
-			if ((null == ar) != (-1 == var.getArraySize()))
-				throw new AssertionError("Invalid array semantics in expression: "+ id);
-			if (null != ar) { 
-				try {
-					ar = constant(ar.getConstantValue());
-				} catch (ParseException pe) {
-					if (strict) throw new ParseException();
-				} // non-strict: do nothing. See getRef().
-			}
-			Identifier sub = null;
-			if (null != id.getSub())
-				sub = getConstantId(id.getSub(), strict);
-			return id(var, ar, sub);
-		} else if (e instanceof ChannelLengthExpression)  {
-			ChannelLengthExpression cle = (ChannelLengthExpression)e;
-			Identifier id = (Identifier)cle.getExpression();
-			return getConstantId(chanLength(id), strict);
-		}
-		throw new ParseException();
-	}
+    /**
+     * Tries to parse an expression as a reference to a singular (channel)
+     * variable or a constant index in array variable (a cvarref).
+     */
+    private static Identifier getConstantId(LTSminModel model,
+                                            Expression e,
+                                            List<Integer> writes)
+                                                    throws ParseException {
+        if (e instanceof LTSminIdentifier) {
+        } else if (e instanceof Identifier) {
+            Identifier id = (Identifier)e;
+            Variable var = id.getVariable();
+            if (var.isHidden())
+                    throw new ParseException();
+            Expression ar = id.getArrayExpr();
+            if ((null == ar) != (-1 == var.getArraySize()))
+                throw new AssertionError("Invalid array semantics in expression: "+ id);
+            if (null != ar) { 
+                try {
+                    ar = constant(ar.getConstantValue());
+                } catch (ParseException pe) {
+                    if (writes != null)
+                        depCheck(model, ar, writes); // may rethrow
+                } // non-strict: do nothing. See getRef().
+            }
+            Identifier sub = null;
+            if (null != id.getSub())
+                sub = getConstantId(model, id.getSub(), writes);
+            return id(var, ar, sub);
+        } else if (e instanceof ChannelLengthExpression)  {
+            ChannelLengthExpression cle = (ChannelLengthExpression)e;
+            Identifier id = (Identifier)cle.getExpression();
+            return getConstantId(model, chanLength(id), writes);
+        }
+        throw new ParseException();
+    }
 
 	private static boolean is_conflict_predicate(LTSminModel model, SimplePredicate p1, SimplePredicate p2) {
 	    // assume no conflict
@@ -894,47 +1115,47 @@ public class LTSminGMWalker {
 	    }
 		if (ref1.equals(ref2)) { // syntactic matching, this suffices if we assume expression is evaluated on the same state vector
 	        switch(p1.comparison) {
-	            case PromelaConstants.LT:
+	            case LT:
 	                // no conflict if one of these cases
 	                no_conflict =
 	                (p2.constant < p1.constant - 1) ||
-	                (p2.constant == p1.constant - 1 && p2.comparison != PromelaConstants.GT) ||
-	                (lt(p2) || p2.comparison == PromelaConstants.NEQ);
+	                (p2.constant == p1.constant - 1 && p2.comparison != GT) ||
+	                (lt(p2) || p2.comparison == NEQ);
 	                break;
-	            case PromelaConstants.LTE:
+	            case LTE:
 	                // no conflict if one of these cases
 	                no_conflict =
 	                (p2.constant < p1.constant) ||
-	                (p2.constant == p1.constant && p2.comparison != PromelaConstants.GT) ||
-	                (lt(p2) || p2.comparison == PromelaConstants.NEQ);
+	                (p2.constant == p1.constant && p2.comparison != GT) ||
+	                (lt(p2) || p2.comparison == NEQ);
 	                break;
-	            case PromelaConstants.EQ:
+	            case EQ:
 	                // no conflict if one of these cases
 	                no_conflict =
-	                (p2.constant == p1.constant && (p2.comparison == PromelaConstants.EQ || p2.comparison == PromelaConstants.LTE || p2.comparison == PromelaConstants.GTE)) ||
-	                (p2.constant != p1.constant && p2.comparison == PromelaConstants.NEQ) ||
-	                (p2.constant < p1.constant && p2.comparison == PromelaConstants.GT || p2.comparison == PromelaConstants.GTE) ||
+	                (p2.constant == p1.constant && (p2.comparison == EQ || p2.comparison == LTE || p2.comparison == GTE)) ||
+	                (p2.constant != p1.constant && p2.comparison == NEQ) ||
+	                (p2.constant < p1.constant && p2.comparison == GT || p2.comparison == GTE) ||
 	                (p2.constant > p1.constant && lt(p2));
 	                break;
-	            case PromelaConstants.NEQ:
+	            case NEQ:
 	                // no conflict if one of these cases
 	                no_conflict =
 	                (p2.constant != p1.constant) ||
-	                (p2.constant == p1.constant && p2.comparison != PromelaConstants.EQ);
+	                (p2.constant == p1.constant && p2.comparison != EQ);
 	                break;
-	            case PromelaConstants.GT:
+	            case GT:
 	                // no conflict if one of these cases
 	                no_conflict =
 	                (p2.constant > p1.constant + 1) ||
-	                (p2.constant == p1.constant + 1 && p2.comparison != PromelaConstants.LT) ||
-	                (gt(p2) || p2.comparison == PromelaConstants.NEQ);
+	                (p2.constant == p1.constant + 1 && p2.comparison != LT) ||
+	                (gt(p2) || p2.comparison == NEQ);
 	                break;
-	            case PromelaConstants.GTE:
+	            case GTE:
 	                // no conflict if one of these cases
 	                no_conflict =
 	                (p2.constant > p1.constant) ||
-	                (p2.constant == p1.constant && p2.comparison != PromelaConstants.LT) ||
-	                (gt(p2) || p2.comparison == PromelaConstants.NEQ);
+	                (p2.constant == p1.constant && p2.comparison != LT) ||
+	                (gt(p2) || p2.comparison == NEQ);
 	                break;
 	        }
 	    }
