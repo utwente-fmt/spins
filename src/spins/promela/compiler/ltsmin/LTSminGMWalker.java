@@ -326,7 +326,7 @@ public class LTSminGMWalker {
             }
         } else {
             List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
-            boolean missed = extract_conjunct_predicates(sps, e, invert, false);
+            boolean missed = extract_conjunct_predicates(model, sps, e, invert);
             if (missed) {
                 DepMatrix deps = model.getDepMatrix();
                 DepMatrix temp = new DepMatrix(1, model.sv.size());
@@ -334,7 +334,10 @@ public class LTSminGMWalker {
                 return deps.isWrite(t.getGroup(), temp.getReads(0));
             }
             for (SimplePredicate sp : sps) {
-                if (agrees(model, t, g, sp, invert)) {
+                if (invert)
+                    sp = sp.invert();
+
+                if (agrees(model, t, g, sp)) {
                     return true;
                 }
             }
@@ -344,8 +347,7 @@ public class LTSminGMWalker {
 
     private static boolean agrees (LTSminModel model,
                                    LTSminTransition t, int g,
-                                   SimplePredicate sp,
-                                   boolean invert) {
+                                   SimplePredicate sp) {
         DepMatrix testSet = new DepMatrix(1, model.sv.size());
         DepMatrix writeSet = new DepMatrix(1, model.sv.size());
 
@@ -357,7 +359,7 @@ public class LTSminGMWalker {
             if (!writeSet.isWrite(0, testSet.getReads(0)))
                 continue;
 
-            boolean conflicts = conflicts(model, a, sp, t, g, invert);
+            boolean conflicts = conflicts(model, a, sp, t, g, false);
             if (!conflicts) {
                 return true;
         	}
