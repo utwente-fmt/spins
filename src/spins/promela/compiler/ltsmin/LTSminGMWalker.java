@@ -86,16 +86,6 @@ import spins.promela.compiler.variable.VariableType;
  */
 public class LTSminGMWalker {
 
-	public enum Aggressivity {
-		Weak,
-		Low,
-		Normal,
-		High,
-		Highest
-	}
-
-	static Aggressivity aggressiveness = Aggressivity.Highest;
-
 	static public class Params {
 		public final LTSminModel model;
 		public final GuardInfo guardMatrix;
@@ -376,10 +366,20 @@ public class LTSminGMWalker {
         DepMatrix co = new DepMatrix(nTrans, nTrans);
         guardInfo.setDNAMatrix(co);
         DepMatrix nds = guardInfo.getNDSMatrix();
+        DepMatrix coen = guardInfo.getCoMatrix();
         int neverDNA = 0;
         for (int t1 = 0; t1 < nTrans; t1++) {
             co.incRead(t1, t1);
             for (int t2 = t1+1; t2 < nTrans; t2++) {
+                // check for co-enabledness
+                for (int g1 : guardInfo.getTransMatrix().get(t1)) {
+                    for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
+                        if (coen.isRead(g1, g2)) {
+                            continue;
+                        }
+                    }
+                }
+
                 if (mayMutuallyAffect(model, guardInfo, nds, t1, t2)) {
                     co.incRead(t1, t2);
                     co.incRead(t2, t1);
@@ -559,6 +559,15 @@ public class LTSminGMWalker {
             sps.addAll(allAssigns(model, end, writes));
             Action procs = decr(id(LTSminStateVector._NR_PR));
             sps.addAll(allAssigns(model, procs, writes));
+            // TODO: results in incomplete identifiers
+/*            for (Variable v : rpa.getProcess().getVariables()) {
+                if (v.getName().equals(C_STATE_PROC_COUNTER)) continue;
+                Expression e = v.getInitExpr();
+                if (e == null)
+                    e = constant(0); 
+                Action init = assign(id(v), e);
+                sps.addAll(allAssigns(model, init, writes));
+            }*/
         } else if (a instanceof ExprAction) {
             Expression expr = ((ExprAction)a).getExpression();
             if (expr.getSideEffect() == null) return sps; // simple expressions are guards
@@ -890,7 +899,14 @@ public class LTSminGMWalker {
             Variable pc = model.sv.getPC(rpa.getProcess());
             if (conflicts(model, assign(pc, -1), sp, t, g, invert))
                 return true;
-            return conflicts(model, decr(id(LTSminStateVector._NR_PR)), sp, t, g, invert);
+            if (conflicts(model, decr(id(LTSminStateVector._NR_PR)), sp, t, g, invert))
+                return true;
+            //return false;
+            Expression e = sp.id.getVariable().getInitExpr();
+            if (e == null)
+                e = constant(0); 
+            Action init = assign(sp.id, e);
+            return conflicts(model, init, sp, t, g, invert);
         } else if (a instanceof ExprAction) {
             Expression expr = ((ExprAction)a).getExpression();
             if (expr.getSideEffect() == null) return false; // simple expressions are guards
@@ -940,7 +956,7 @@ public class LTSminGMWalker {
             return conflicts(model, incr(chanLength(id)), sp, t, g, invert);
         } else if(a instanceof OptionAction) { // options in a d_step sequence
             //OptionAction oa = (OptionAction)a;
-            //for (Sequence seq : oa) {
+            //for (Sequence seq : oa) { //TODO
                 //Action act = seq.iterator().next(); // guaranteed by parser
                 //if (act instanceof ElseAction)
             //}
