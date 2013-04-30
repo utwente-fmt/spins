@@ -131,19 +131,25 @@ public class LTSminGMWalker {
         // generate label / slot read matrix
         generateLabelMatrix (model);
 
-        // generate NES matrix
-		int nnes = generateNESMatrix (model, guardInfo);
-        int nesSize = nTrans * nLabels;
-        debug.say(report( nnes, nesSize, "!NES guards"));
-
-		// generate NDS matrix
-		int nnds = generateNDSMatrix (model, guardInfo);
-        debug.say(report( nnds, nesSize, "!NDS guards"));
 
         // generate Maybe Coenabled matrix
         int nmce = generateCoenMatrix (model, guardInfo);
         int mceSize = nTrans*nTrans/2;
         debug.say(report(nmce, mceSize, "!MCE guards"));
+
+        // generate Maybe Coenabled matrix
+        int nice = generateICoenMatrix (model, guardInfo);
+        int miceSize = nTrans*nTrans;
+        debug.say(report(nice, miceSize, "!ICE guards"));
+
+        // generate NES matrix
+        int nnes = generateNESMatrix (model, guardInfo);
+        int nesSize = nTrans * nLabels;
+        debug.say(report( nnes, nesSize, "!NES guards"));
+
+        // generate NDS matrix
+        int nnds = generateNDSMatrix (model, guardInfo);
+        debug.say(report( nnds, nesSize, "!NDS guards"));
         
         // generate Do Not Accord Matrix
         int ndna = generateDoNoAccord (model, guardInfo);
@@ -195,11 +201,18 @@ public class LTSminGMWalker {
         int nlabels = guardInfo.getNumberOfLabels();
 		DepMatrix nds = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNDSMatrix(nds);
+		DepMatrix coen = guardInfo.getCoMatrix();
 		int notNDS = 0;
 		for (int g = 0; g <  nds.getNrRows(); g++) {
+            LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
             for (LTSminTransition trans : model.getTransitions()) {
-                LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
-                if (atomicNES(model, guardInfo, guard, g, trans, true)) {
+
+                boolean ce = true;
+                for (int g1 : guardInfo.getTransMatrix().get(trans.getGroup())) {  
+                    if (!coen.isRead(g, g1)) ce = false;
+                }
+                
+                if (ce && atomicNES(model, guardInfo, guard, g, trans, true)) {
                     nds.incRead(g, trans.getGroup());
                 } else {
                     notNDS += 1;
@@ -217,11 +230,18 @@ public class LTSminGMWalker {
         int nlabels = guardInfo.getNumberOfLabels();
 		DepMatrix nes = new DepMatrix(nlabels, model.getTransitions().size());
 		guardInfo.setNESMatrix(nes);
+        DepMatrix icoen = guardInfo.getICoMatrix();
 		int notNES = 0;
 		for (int g = 0; g <  nes.getNrRows(); g++) {
             LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
 			for (LTSminTransition trans : model.getTransitions()) {
-                if (atomicNES(model, guardInfo, guard, g, trans, false)) {
+			    
+		        boolean ice = true;
+		        for (int g1 : guardInfo.getTransMatrix().get(trans.getGroup())) {  
+		            if (!icoen.isRead(g, g1)) ice = false;
+		        }
+			    
+                if (ice && atomicNES(model, guardInfo, guard, g, trans, false)) {
                     nes.incRead(g, trans.getGroup());
                 } else {
                     notNES += 1;
@@ -360,65 +380,6 @@ public class LTSminGMWalker {
     /**************
      * DNA
      * ************/
-    
-    private static int generateDoNoAccord(LTSminModel model, GuardInfo guardInfo) {
-        int nTrans = model.getTransitions().size();
-        DepMatrix co = new DepMatrix(nTrans, nTrans);
-        guardInfo.setDNAMatrix(co);
-        DepMatrix nds = guardInfo.getNDSMatrix();
-        DepMatrix coen = guardInfo.getCoMatrix();
-        int neverDNA = 0;
-        for (int t1 = 0; t1 < nTrans; t1++) {
-            co.incRead(t1, t1);
-            for (int t2 = t1+1; t2 < nTrans; t2++) {
-                // check for co-enabledness
-                for (int g1 : guardInfo.getTransMatrix().get(t1)) {
-                    for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
-                        if (coen.isRead(g1, g2)) {
-                            continue;
-                        }
-                    }
-                }
-
-                if (mayMutuallyAffect(model, guardInfo, nds, t1, t2)) {
-                    co.incRead(t1, t2);
-                    co.incRead(t2, t1);
-                    continue;
-                }
-
-                // For atomic transitions (internal steps),
-                // we require a more stringent condition
-                // the atomic steps may neither be disabled nor enabled so
-                // that the outcome of the group is not influenced
-                if (mayAffectAtomic(model, guardInfo, t1, t2) ||
-                    mayAffectAtomic(model, guardInfo, t2, t1)) {
-                    co.incRead(t1, t2);
-                    co.incRead(t2, t1);
-                    continue;   
-                }
-                
-                neverDNA++;
-            }
-        }
-        return neverDNA;
-    }
-    
-
-    private static boolean mayAffectAtomic (LTSminModel model,
-                                            GuardInfo guardInfo,
-                                            int t1, int t2) {
-        DepMatrix nds = guardInfo.getNDSMatrix();
-        DepMatrix nes = guardInfo.getNESMatrix();
-        LTSminTransition trans = model.getTransitions().get(t1);
-        for (LTSminTransition atomic : trans.getTransitions()) {
-            int a = atomic.getGroup();
-            if (mayMutuallyAffect(model, guardInfo, nes, a, t2) ||
-                mayMutuallyAffect(model, guardInfo, nds, a, t2)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
      *  s --t1--> s'
@@ -429,20 +390,87 @@ public class LTSminGMWalker {
      * s1 --t1--> s1'
      * 
      * Roughly, transitions do not accord if:
+     * - they are never coenabled
      * - they disable each other (and are maybe coenabled as implied by DNS)
      * - their actions do commute (see is_commuting_assignment)
      */
-    private static boolean mayMutuallyAffect(LTSminModel model,
-                                              GuardInfo guardInfo,
-                                              DepMatrix nsM, int t1, int t2) {
-        // check for disabling
-        for (int g1 : guardInfo.getTransMatrix().get(t1)) {
-            for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
-                if (nsM.isRead(g2, t1) || nsM.isRead(g1, t2)) {
-                    return true;
+    private static int generateDoNoAccord(LTSminModel model, GuardInfo guardInfo) {
+        int nTrans = model.getTransitions().size();
+        DepMatrix nda = new DepMatrix(nTrans, nTrans);
+        guardInfo.setDNAMatrix(nda);
+        int neverDNA = 0;
+        for (int t1 = 0; t1 < nTrans; t1++) {
+            nda.incRead(t1, t1);
+            for (int t2 = t1+1; t2 < nTrans; t2++) {
+
+                // check for co-enabledness
+                if (!maybeCoenabled(guardInfo, t1, t2)) {
+                    neverDNA++;
+                    continue;
                 }
+
+                if ( canDisable(guardInfo, t1, t2) ||
+                     canDisable(guardInfo, t2, t1)) {
+                    nda.incRead(t1, t2);
+                    nda.incRead(t2, t1);
+                    continue;
+                }
+               
+                if (!actionsCommute(model, t1, t2)) {
+                    nda.incRead(t1, t2);
+                    nda.incRead(t2, t1);
+                    continue;
+                }
+
+                // For atomic transitions (internal steps),
+                // we require a more stringent condition
+                // the atomic steps may neither be disabled nor enabled so
+                // that the outcome of the group is not influenced
+                if ( mayAffectAtomic(model, guardInfo, t1, t2) ||
+                     mayAffectAtomic(model, guardInfo, t2, t1)) {
+                    nda.incRead(t1, t2);
+                    nda.incRead(t2, t1);
+                    continue;   
+                }
+                
+                neverDNA++;
             }
         }
+        return neverDNA;
+    }
+
+    private static boolean mayAffectAtomic (LTSminModel model,
+                                            GuardInfo guardInfo,
+                                            int t1, int t2) {
+        LTSminTransition trans = model.getTransitions().get(t1);
+        for (LTSminTransition atomic : trans.getTransitions()) {
+            int a = atomic.getGroup();
+
+            // check for co-enabledness
+            if (!maybeCoenabled(guardInfo, a, t2))
+                continue;
+
+            // internal atomic action disabled / enabled by t2
+            // (we may assume t2 to be enabled during atomic sequence;
+            //  if it isn't the nds check below should fail)
+            if ( canDisable(guardInfo, t2, a) ||
+                 canEnable(guardInfo, t2, a)) {
+                return true;
+            }
+
+            // internal action disables t2
+            if ( canDisable(guardInfo, a, t2) ) {
+                return true;
+            }
+            
+            if (!actionsCommute(model, a, t2)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean actionsCommute(LTSminModel model, int t1, int t2) {
 
         LTSminTransition trans1 = model.getTransitions().get(t1);
         LTSminTransition trans2 = model.getTransitions().get(t2);
@@ -465,20 +493,20 @@ public class LTSminGMWalker {
                     allA = allAssigns (model, acta, depsB.getWrites(0));
                     allB = allAssigns (model, actb, depsA.getWrites(0));
                 } catch (ParseException e) {
-                    return true;
+                    return false;
                 } 
                 
                 for (SimplePredicate spa : allA) {
                     for (SimplePredicate spb : allB) {
                         if (!is_commuting_assignment(model, spa, spb)) {
-                            return true;
+                            return false;
                         }
                     }
                 }
             }
         }
         
-        return false;
+        return true;
     }
 
     /**
@@ -630,7 +658,6 @@ public class LTSminGMWalker {
         return sps;
     }
 
-
     private static void depCheck(LTSminModel model, Expression e,
                                  List<Integer> writes) throws ParseException {
         DepMatrix deps = new DepMatrix(1, model.sv.size());
@@ -649,6 +676,38 @@ public class LTSminGMWalker {
         }
     }
 
+    private static boolean maybeCoenabled(GuardInfo guardInfo, int t1, int t2) {
+        DepMatrix coen = guardInfo.getCoMatrix();
+        for (int g1 : guardInfo.getTransMatrix().get(t1)) {
+            for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
+                if (!coen.isRead(g1, g2)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean canDisable(GuardInfo guardInfo, int t1, int t2) {
+        DepMatrix nds = guardInfo.getNDSMatrix();
+        for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
+            if (nds.isRead(g2, t1)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean canEnable(GuardInfo guardInfo, int t1, int t2) {
+        DepMatrix nes = guardInfo.getNESMatrix();
+        for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
+            if (nes.isRead(g2, t1)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
 	/**************
 	 * MCE
 	 * ************/
@@ -673,6 +732,28 @@ public class LTSminGMWalker {
 			}
 		}
 		return neverCoEnabled;
+	}
+
+    private static int generateICoenMatrix(LTSminModel model, GuardInfo guardInfo) {
+        int nlabels = guardInfo.getNumberOfLabels();
+        int neverICoEnabled = 0;
+        DepMatrix ico = new DepMatrix(nlabels, nlabels);
+        guardInfo.setICoMatrix(ico);
+        for (int g1 = 0; g1 < nlabels; g1++) {
+            Expression ge1 = guardInfo.get(g1).getExpr();
+            for (int g2 = 0; g2 < nlabels; g2++) {
+                Expression ge2 = guardInfo.get(g2).getExpr();
+                
+                Boolean icoenabled = MCE(model, ge1, ge2, true, false, null, null);
+                if (icoenabled == null || icoenabled) {
+                    ico.incRead(g1, g2);
+                } else {
+                    neverICoEnabled = neverICoEnabled + 1;
+                }
+            }
+        }
+
+        return neverICoEnabled;
 	}
 
     /**

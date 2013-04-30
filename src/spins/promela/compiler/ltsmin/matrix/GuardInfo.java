@@ -35,6 +35,8 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	 */
 	private DepMatrix co_matrix;
 
+    private DepMatrix ico_matrix;
+
 	/**
      *        trans >
      * trans ...    ...
@@ -136,6 +138,14 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 		co_matrix = co;
 	}
 
+   public DepMatrix getICoMatrix() {
+        return ico_matrix;
+    }
+
+    public void setICoMatrix(DepMatrix ico) {
+        ico_matrix = ico;
+    }
+	
 	public List< List<Integer> > getTransMatrix() {
 		return trans_guard_matrix;
 	}
