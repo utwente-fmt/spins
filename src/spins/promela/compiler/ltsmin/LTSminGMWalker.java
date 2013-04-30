@@ -416,7 +416,7 @@ public class LTSminGMWalker {
                     continue;
                 }
                
-                if (!actionsCommute(model, t1, t2)) {
+                if (!actionsCommute(model, t1, t2, false)) {
                     nda.incRead(t1, t2);
                     nda.incRead(t2, t1);
                     continue;
@@ -446,9 +446,8 @@ public class LTSminGMWalker {
         for (LTSminTransition atomic : trans.getTransitions()) {
             int a = atomic.getGroup();
 
-            // check for co-enabledness
-            if (!maybeCoenabled(guardInfo, a, t2))
-                continue;
+            // NO maybe coenabled check, as the internal guards are invisible
+            // for t2!
 
             // internal atomic action disabled / enabled by t2
             // (we may assume t2 to be enabled during atomic sequence;
@@ -463,14 +462,21 @@ public class LTSminGMWalker {
                 return true;
             }
             
-            if (!actionsCommute(model, a, t2)) {
+            if (!actionsCommute(model, a, t2, true)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean actionsCommute(LTSminModel model, int t1, int t2) {
+    /**
+     * Gathers all mutual r/w dependent actions and checks their commutativity.
+     * Channels can be considered commuting if one transition reads and the
+     * other writes, and both are enabled. IF the latter condition does not hold
+     * set nochan = true;
+     */
+    private static boolean actionsCommute(LTSminModel model, int t1, int t2,
+                                          boolean nochan) {
 
         LTSminTransition trans1 = model.getTransitions().get(t1);
         LTSminTransition trans2 = model.getTransitions().get(t2);
@@ -498,7 +504,7 @@ public class LTSminGMWalker {
                 
                 for (SimplePredicate spa : allA) {
                     for (SimplePredicate spb : allB) {
-                        if (!is_commuting_assignment(model, spa, spb)) {
+                        if (!is_commuting_assignment(model, spa, spb, nochan)) {
                             return false;
                         }
                     }
@@ -516,11 +522,12 @@ public class LTSminGMWalker {
      * - id1 != id2, or
      * - both assign the same constant, or
      * - both are increment/decrement, or
-     * - read and write to a channel.
+     * - read and write to a channel (provided both are enabled).
      */
     private static boolean is_commuting_assignment(LTSminModel model,
                                                    SimplePredicate p1,
-                                                   SimplePredicate p2) {
+                                                   SimplePredicate p2,
+                                                   boolean nochan) {
         String ref1, ref2;
         try {
             ref1 = p1.getRef(model); // convert to c code string
@@ -535,8 +542,9 @@ public class LTSminGMWalker {
         } else if ((p1.comparison == INCR || p1.comparison == DECR) &&
                    (p2.comparison == INCR || p2.comparison == DECR)) {
             return true;
-        } else if ((p1.comparison == CH_READ && p2.comparison == CH_SEND_SORTED) ||
-                   (p1.comparison == CH_SEND_SORTED && p2.comparison == CH_READ)) {
+        } else if ( !nochan &&
+               (p1.comparison == CH_READ && p2.comparison == CH_SEND_SORTED) ||
+               (p1.comparison == CH_SEND_SORTED && p2.comparison == CH_READ)) {
             return true;
         }
         return false;
