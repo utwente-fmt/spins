@@ -388,11 +388,6 @@ public class LTSminGMWalker {
      *  |         |
      *  v         v
      * s1 --t1--> s1'
-     * 
-     * Roughly, transitions do not accord if:
-     * - they are never coenabled
-     * - they disable each other (and are maybe coenabled as implied by DNS)
-     * - their actions do commute (see is_commuting_assignment)
      */
     private static int generateDoNoAccord(LTSminModel model, GuardInfo guardInfo) {
         int nTrans = model.getTransitions().size();
@@ -402,70 +397,101 @@ public class LTSminGMWalker {
         for (int t1 = 0; t1 < nTrans; t1++) {
             nda.incRead(t1, t1);
             for (int t2 = t1+1; t2 < nTrans; t2++) {
-
-                // check for co-enabledness
-                if (!maybeCoenabled(guardInfo, t1, t2)) {
+                if (transDNA(model , guardInfo, t1, t2)) {
+                    nda.incRead(t1, t2);
+                    nda.incRead(t2, t1);
+                } else {
                     neverDNA++;
-                    continue;
                 }
-
-                if ( canDisable(guardInfo, t1, t2) ||
-                     canDisable(guardInfo, t2, t1)) {
-                    nda.incRead(t1, t2);
-                    nda.incRead(t2, t1);
-                    continue;
-                }
-               
-                if (!actionsCommute(model, t1, t2, false)) {
-                    nda.incRead(t1, t2);
-                    nda.incRead(t2, t1);
-                    continue;
-                }
-
-                // For atomic transitions (internal steps),
-                // we require a more stringent condition
-                // the atomic steps may neither be disabled nor enabled so
-                // that the outcome of the group is not influenced
-                if ( mayAffectAtomic(model, guardInfo, t1, t2) ||
-                     mayAffectAtomic(model, guardInfo, t2, t1)) {
-                    nda.incRead(t1, t2);
-                    nda.incRead(t2, t1);
-                    continue;   
-                }
-                
-                neverDNA++;
             }
         }
         return neverDNA;
     }
 
-    private static boolean mayAffectAtomic (LTSminModel model,
-                                            GuardInfo guardInfo,
-                                            int t1, int t2) {
-        LTSminTransition trans = model.getTransitions().get(t1);
-        for (LTSminTransition atomic : trans.getTransitions()) {
+   /**
+    * Roughly, transitions do not accord if:
+    * - they are never coenabled
+    * - they disable each other (and are maybe coenabled as implied by DNS)
+    * - their actions do commute (see is_commuting_assignment)
+    */
+    private static boolean transDNA (LTSminModel model, GuardInfo guardInfo,
+                                     int t1, int t2) {
+
+        // check for co-enabledness
+        if (!maybeCoenabled(guardInfo, t1, t2)) {
+            return false;
+        }
+
+        // check not mutually disabling
+        if ( canDisable(guardInfo, t1, t2) ||
+             canDisable(guardInfo, t2, t1)) {
+            return true;
+        }
+       
+        // check commutativity
+        if (!actionsCommute(model, t1, t2, false)) {
+            return true;
+        }
+
+        if ( atomicDNA(model, guardInfo, t1, t2) ||
+             atomicDNA(model, guardInfo, t2, t1)) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * check all atomic steps
+     */
+    private static boolean atomicDNA(LTSminModel model, GuardInfo guardInfo,
+                                       int t1, int t2) {
+        List<LTSminTransition> transitions = model.getTransitions();
+        for (LTSminTransition atomic : transitions.get(t1).getTransitions()) {
             int a = atomic.getGroup();
-
-            // NO maybe coenabled check, as the internal guards are invisible
-            // for t2!
-
-            // internal atomic action disabled / enabled by t2
-            // (we may assume t2 to be enabled during atomic sequence;
-            //  if it isn't the nds check below should fail)
-            if ( canDisable(guardInfo, t2, a) ||
-                 canEnable(guardInfo, t2, a)) {
+            if (internalDNA(model, guardInfo, a, t2)) {
                 return true;
             }
-
-            // internal action disables t2
-            if ( canDisable(guardInfo, a, t2) ) {
-                return true;
-            }
-            
-            if (!actionsCommute(model, a, t2, true)) {
-                return true;
+    
+            for (LTSminTransition atomic2 : transitions.get(t2).getTransitions()) {
+                int b = atomic2.getGroup();
+                if (internalDNA(model, guardInfo, a, b)) {
+                    return true;
+                }   
             }
         }
+        return false;
+    }
+
+    /**
+     * For atomic transitions (internal steps),
+     * we require a more stringent condition
+     * the atomic steps may neither be disabled nor enabled so
+     * that the outcome of the group is not influenced
+     */
+    private static boolean internalDNA (LTSminModel model,
+                                      GuardInfo guardInfo,
+                                      int a, int t2) {
+        // NO maybe coenabled check, as the internal guards are invisible
+        // for t2!
+
+        // internal atomic action disabled / enabled by t2
+        // (we may assume t2 to be enabled during atomic sequence;
+        //  if it isn't the nds check below should fail)
+        if ( canDisable(guardInfo, t2, a) ||
+             canEnable(guardInfo, t2, a)) {
+            return true;
+        }
+
+        // internal action disables t2
+        if ( canDisable(guardInfo, a, t2) ) {
+            return true;
+        }
+        
+        if (!actionsCommute(model, a, t2, true)) {
+            return true;
+        }
+        
         return false;
     }
 
