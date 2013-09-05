@@ -124,6 +124,10 @@ public class DepMatrix {
         return getRow(row).getWrites();
     }
 
+    public List<Integer> getDeps(int row) {
+        return getRow(row).getDeps();
+    }
+
     public boolean isWrite(int row, List<Integer> cols) {
         for (int i : cols)
             if (isWrite(row, i)) return true;
@@ -140,4 +144,5 @@ public class DepMatrix {
             if (isRead(row, i)) return true;
         return false;
     }
+
 }

@@ -522,8 +522,8 @@ public class LTSminGMWalker {
                 // extract simple predicates for the actions
                 List<SimplePredicate> allA, allB;
                 try {
-                    allA = allAssigns (model, acta, depsB.getWrites(0));
-                    allB = allAssigns (model, actb, depsA.getWrites(0));
+                    allA = allAssigns (model, acta, depsB);
+                    allB = allAssigns (model, actb, depsA);
                 } catch (ParseException e) {
                     return false;
                 } 
@@ -554,14 +554,7 @@ public class LTSminGMWalker {
                                                    SimplePredicate p1,
                                                    SimplePredicate p2,
                                                    boolean nochan) {
-        String ref1, ref2;
-        try {
-            ref1 = p1.getRef(model); // convert to c code string
-            ref2 = p2.getRef(model);
-        } catch (AssertionError ae) {
-            throw new AssertionError("Serialization of expression "+ p1.id +" or "+ p2.id +" failed: "+ ae);
-        }
-        if (!ref1.equals(ref2)) {
+        if (!compareID(p1.id, p2.id)) {
             return true;
         } else if (p1.comparison == EQ && p2.comparison == EQ) {
             return p1.constant == p2.constant;
@@ -577,6 +570,39 @@ public class LTSminGMWalker {
     }
 
     /**
+     * Checks possibility of overlapping IDs.
+     * an ID can be incomplete in which case true is returned if the other
+     * ID points to the same variable (or a subvariable in it).
+     * Dynamic variable access is threaded as "*".  
+     */
+    private static boolean compareID (Identifier id1, Identifier id2) {
+        Variable var1 = id1.getVariable();
+        Variable var2 = id2.getVariable();
+        if (var1.isHidden() || var2.isHidden()) throw new RuntimeException();
+
+        if (!var1.getName().equals(var2.getName()))
+            return false;
+        
+        Expression ar1 = id1.getArrayExpr();
+        Expression ar2 = id2.getArrayExpr();
+        
+        if (null != ar1) { 
+            try {
+                int c1 = ar1.getConstantValue();
+                int c2 = ar2.getConstantValue();
+                if (c1 != c2) {
+                    return false;
+                }
+            } catch (ParseException pe) {}
+        }
+
+        if (id1.getSub() != null && id2.getSub() != null)
+            return compareID(id1.getSub(), id1.getSub());
+
+        return true;
+    }
+
+    /**
      * Extract simple predicates that help check commutativity:
      * - assignments with constants
      * - increments / decrements
@@ -586,29 +612,24 @@ public class LTSminGMWalker {
      * (see mayMutuallyAffect) writes to these. If this is the case, or if the
      * identifier contains a complex array expression that is written to, we
      * give up, i.e. throw a ParseException.
+     * 
      */
     private static List<SimplePredicate> allAssigns (LTSminModel model,
                                                      Action a,
-                                                     List<Integer> writes) throws ParseException {
+                                                     DepMatrix deps)
+                                                         throws ParseException {
         List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
         if (a instanceof AssignAction) {
             SimplePredicate sp1 = new SimplePredicate();
             AssignAction ae = (AssignAction)a;
-            try {
-                sp1.id = getConstantId(model, ae.getIdentifier(), writes);
-            } catch (ParseException e1) {
-                depCheck(model, a, writes); // may rethrow
-                return sps; // empty
-            }
+            if (!depCheck(model, ae.getIdentifier(), deps.getDeps(0)) &&
+                !depCheck(model, ae.getExpr(), deps.getWrites(0)))
+                return sps;
+            sp1.id = ae.getIdentifier();
             switch (ae.getToken().kind) {
                 case ASSIGN:
                     sp1.comparison = EQ;
-                    try {
-                        sp1.constant = ae.getExpr().getConstantValue();
-                    } catch (ParseException e) {
-                        depCheck(model, ae.getExpr(), writes); // may rethrow
-                        return sps; // empty
-                    }
+                    sp1.constant = ae.getExpr().getConstantValue();
                     break;
                 case INCR:   sp1.comparison = INCR; break;
                 case DECR:   sp1.comparison = DECR; break;
@@ -618,16 +639,20 @@ public class LTSminGMWalker {
         } else if (a instanceof ResetProcessAction) {
             ResetProcessAction rpa = (ResetProcessAction)a;
             Action end = assign(model.sv.getPC(rpa.getProcess()), -1);
-            sps.addAll(allAssigns(model, end, writes));
+            sps.addAll(allAssigns(model, end, deps));
             Action procs = decr(id(LTSminStateVector._NR_PR));
-            sps.addAll(allAssigns(model, procs, writes));
-            // TODO: results in incomplete identifiers
-/*            for (Variable v : rpa.getProcess().getVariables()) {
+            sps.addAll(allAssigns(model, procs, deps));
+            /*for (LTSminSlot slot : model.sv) { //TODO: get from slot to Id
+                LTSminVariable v = slot.getVariable();
                 if (v.getName().equals(C_STATE_PROC_COUNTER)) continue;
+                ProcInstance owner = (ProcInstance)v.getVariable().getOwner();
+                if (owner == null) continue;
+                if ( !owner.getName().equals(rpa.getProcess().getName()) )
+                    continue;
                 Expression e = v.getInitExpr();
                 if (e == null)
                     e = constant(0); 
-                Action init = assign(id(v), e);
+                Action init = assign(slot.getIdentifier(), e);
                 sps.addAll(allAssigns(model, init, writes));
             }*/
         } else if (a instanceof ExprAction) {
@@ -636,12 +661,12 @@ public class LTSminGMWalker {
             
             RunExpression re = (RunExpression)expr;
             Action procs = incr(id(LTSminStateVector._NR_PR));
-            sps.addAll(allAssigns(model, procs, writes));
+            sps.addAll(allAssigns(model, procs, deps));
 
             for (Proctype p : re.getInstances()) {
                 for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
                     Action step = assign(model.sv.getPC(instance), 0);
-                    sps.addAll(allAssigns(model, step, writes));
+                    sps.addAll(allAssigns(model, step, deps));
                 }
                 //write to the arguments of the target process
                 Iterator<Expression> rei = re.getExpressions().iterator();
@@ -650,64 +675,72 @@ public class LTSminGMWalker {
                     if (v.getType() instanceof ChannelType || v.isStatic())
                         continue; //passed by reference or already in state vector
                     Action arg = assign(v, param);
-                    sps.addAll(allAssigns(model, arg, writes));
+                    sps.addAll(allAssigns(model, arg, deps));
                 }
             }
             for (Action rea : re.getInitActions()) {
-                sps.addAll(allAssigns(model, rea, writes));
+                sps.addAll(allAssigns(model, rea, deps));
             }
+        } else if(a instanceof OptionAction) { // options in a d_step sequence
+            if (depCheck(model, a, deps.getWrites(0)))
+                throw new ParseException();
         } else if(a instanceof ChannelSendAction) {
             ChannelSendAction csa = (ChannelSendAction)a;
             Identifier id = csa.getIdentifier();
+
+            for (Expression e : csa.getExprs()) {
+                if (depCheck(model, e, deps.getWrites(0)))
+                    throw new ParseException();
+            }
+
+            if (!depCheck(model, chanLength(id), deps.getDeps(0)))
+                return sps;
+
             SimplePredicate send = new SimplePredicate();
             send.comparison = CH_SEND_SORTED;
-            try {
-                send.id = getConstantId(model, chanLength(id), writes);
-            } catch (ParseException e1) {
-                depCheck(model, a, writes); // may rethrow
-                return sps; // empty
-            }
+            send.id = chanLength(id);
+
             sps.add(send);
-        } else if(a instanceof OptionAction) { // options in a d_step sequence
-            depCheck(model, a, writes); // may rethrow
         } else if(a instanceof ChannelReadAction) {
             ChannelReadAction cra = (ChannelReadAction)a;
             Identifier id = cra.getIdentifier();
-            if (!cra.isPoll()) {
-                SimplePredicate read = new SimplePredicate();
-                read.comparison = CH_READ;
-                try {
-                    read.id = getConstantId(model, chanLength(id), writes);
-                } catch (ParseException e1) {
-                    depCheck(model, a, writes); // may rethrow
-                    return sps; // empty
-                }
-                sps.add(read);
-            } else {
-                depCheck(model, a, writes); // may throw
+            
+            for (Expression e : cra.getExprs()) {
+                if ( e instanceof Identifier &&
+                     depCheck(model, e, deps.getDeps(0)))
+                    throw new ParseException();
             }
+            
+            if (cra.isPoll() || cra.isRandom()) {
+                if (depCheck(model, chanLength(id), deps.getWrites(0)))
+                    throw new ParseException();
+                return sps;
+            }
+                
+            SimplePredicate read = new SimplePredicate();
+            read.comparison = CH_READ;
+            read.id = chanLength(id);
+            sps.add(read);
         } else {
             throw new ParseException();
         }
         return sps;
     }
 
-    private static void depCheck(LTSminModel model, Expression e,
-                                 List<Integer> writes) throws ParseException {
+    private static boolean depCheck(LTSminModel model, Expression e,
+                                    List<Integer> rw) {
+        if (e == null)
+            return false;
         DepMatrix deps = new DepMatrix(1, model.sv.size());
         LTSminDMWalker.walkOneGuard(model, deps, new LTSminGuard(e), 0);
-        if (deps.isRead(0, writes) || deps.isWrite(0, writes)) {
-            throw new ParseException();
-        }
+        return deps.isRead(0, rw);
     }
 
-    private static void depCheck(LTSminModel model, Action a,
-                                 List<Integer> writes) throws ParseException {
+    private static boolean depCheck(LTSminModel model, Action a,
+                                    List<Integer> rw) {
         DepMatrix deps = new DepMatrix(1, model.sv.size());
         LTSminDMWalker.walkOneAction(model, deps, a, 0);
-        if (deps.isRead(0, writes) || deps.isWrite(0, writes)) {
-            throw new ParseException();
-        }
+        return deps.isRead(0, rw) || deps.isWrite(0, rw);
     }
 
     private static boolean maybeCoenabled(GuardInfo guardInfo, int t1, int t2) {
@@ -1075,7 +1108,7 @@ public class LTSminGMWalker {
                 //Action act = seq.iterator().next(); // guaranteed by parser
                 //if (act instanceof ElseAction)
             //}
-        } else if(a instanceof ChannelReadAction) {
+        } else if(a instanceof ChannelReadAction) { //TODO: identifiers
             ChannelReadAction cra = (ChannelReadAction)a;
             Identifier id = cra.getIdentifier();
             if (!cra.isPoll()) {

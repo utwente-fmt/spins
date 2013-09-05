@@ -108,6 +108,8 @@ public class Identifier extends Expression {
 	 * @return The expression that is used for the array
 	 */
 	public Expression getArrayExpr() {
+        if ((null == arrayExpr) != (-1 == var.getArraySize()))
+            throw new AssertionError("Invalid array semantics in expression: "+ this);
 		return arrayExpr;
 	}
 
