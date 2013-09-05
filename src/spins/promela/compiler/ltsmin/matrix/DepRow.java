@@ -157,6 +157,7 @@ public class DepRow {
         fixed = false;
         readsDense = null;
         writesDense = null;
+        depsDense = null;
         for (int j = 0 ; j < reads.size(); j++) {
             reads.set(j, 0);
             writes.set(j, 0);
