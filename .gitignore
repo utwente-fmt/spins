@@ -18,3 +18,4 @@ spins.jar
 *.out
 *.plist
 *.aux
+/tests/models-*
