@@ -155,6 +155,11 @@ public class LTSminGMWalker {
         int ndna = generateDoNoAccord (model, guardInfo);
         int dnaSize = nTrans*nTrans/2;
         debug.say(report(ndna, dnaSize, "!DNA transitions"));
+
+        // generate Commutes Matrix
+        int commuting = generateCommutes (model, guardInfo);
+        int comSize = nTrans*nTrans/2;
+        debug.say(report(commuting, comSize, "Commuting actions"));
         
 		debug.say_indent--;
 		debug.say("Generating guard information done");
@@ -408,6 +413,40 @@ public class LTSminGMWalker {
         return neverDNA;
     }
 
+    private static int generateCommutes(LTSminModel model, GuardInfo guardInfo) {
+        int nTrans = model.getTransitions().size();
+        DepMatrix commutes = new DepMatrix(nTrans, nTrans);
+        guardInfo.setCommutesMatrix(commutes);
+        int commute = 0;
+        for (int t1 = 0; t1 < nTrans; t1++) {
+            for (int t2 = t1; t2 < nTrans; t2++) {
+                if (!transNotCommute(model , guardInfo, t1, t2)) {
+                    commutes.incRead(t1, t2);
+                    commutes.incRead(t2, t1);
+                } else {
+                    commute++;
+                }
+            }
+        }
+        return commute;
+    }
+
+     private static boolean transNotCommute (LTSminModel model, GuardInfo guardInfo,
+                                          int t1, int t2) {
+        
+         // check commutativity
+         if (!actionsCommute(model, t1, t2, false)) {
+             return true;
+         }
+
+         if ( atomicDNA(model, guardInfo, t1, t2) ||
+              atomicDNA(model, guardInfo, t2, t1)) {
+             return true;
+         }
+         
+         return false;
+     }
+    
    /**
     * Roughly, transitions do not accord if:
     * - they are never coenabled

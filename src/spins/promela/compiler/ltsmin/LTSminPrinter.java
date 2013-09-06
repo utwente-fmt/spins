@@ -113,6 +113,7 @@ public class LTSminPrinter {
 	public static final String GM_DM_NAME          = "gm_dm";
     public static final String CO_DM_NAME          = "co_dm";
     public static final String DNA_DM_NAME         = "dna_dm";
+    public static final String COMMUTES_DM_NAME    = "commutes_dm";
 	public static final String NES_DM_NAME         = "nes_dm";
 	public static final String NDS_DM_NAME         = "nds_dm";
 	public static final String GM_TRANS_NAME       = "gm_trans";
@@ -1331,7 +1332,8 @@ public class LTSminPrinter {
 
 		DepMatrix co_matrix = gm.getCoMatrix();
 		DepMatrix dna_matrix = gm.getDNAMatrix();
-
+		DepMatrix commutes_matrix = gm.getCommutesMatrix();
+		
 		w.appendLine("");
 		w.appendLine("// Label(Guard)-Dependency Matrix:");
 		generateDepMatrix(w, gm.getDepMatrix(), GM_DM_NAME, false);
@@ -1343,11 +1345,16 @@ public class LTSminPrinter {
 		w.appendLine("");
 
         w.appendLine("");
-        w.appendLine("// Doo Not Accord Matrix:");
+        w.appendLine("// Do Not Accord Matrix:");
         generateDepMatrix(w, dna_matrix, DNA_DM_NAME, false);
         w.appendLine("");
 
-		w.appendLine("");
+        w.appendLine("");
+        w.appendLine("// Commute Matrix:");
+        generateDepMatrix(w, commutes_matrix, COMMUTES_DM_NAME, false);
+        w.appendLine("");
+
+        w.appendLine("");
 		w.appendLine("// Necessary Enabling Matrix:");
 		generateDepMatrix(w, gm.getNESMatrix(), NES_DM_NAME, false);
 		w.appendLine("");
@@ -1417,6 +1424,14 @@ public class LTSminPrinter {
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
+
+        w.appendLine("const int* spins_get_trans_commutes_matrix(int t) {");
+        w.indent();
+        w.appendLine("assert(t < ",nTrans,", \"spins_get_trans_commutes_matrix: invalid trans index %d\", t);");
+        w.appendLine("return "+ COMMUTES_DM_NAME +"[t];");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
 
         w.appendLine("const int* spins_get_trans_do_not_accord_matrix(int t) {");
         w.indent();
