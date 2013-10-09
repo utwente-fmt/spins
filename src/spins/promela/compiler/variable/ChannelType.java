@@ -17,8 +17,6 @@ package spins.promela.compiler.variable;
 import java.util.ArrayList;
 import java.util.List;
 
-import spins.util.StringWriter;
-
 public class ChannelType extends VariableType {
 	public static final VariableType UNASSIGNED_CHANNEL = new ChannelType(-1, -1);
 
@@ -44,56 +42,6 @@ public class ChannelType extends VariableType {
 		this.bufferSize = bufferSize;
 	}
 
-	private void generateStorableMethods(final StringWriter w) {
-		// w.appendLine("public int encode(byte[] _buffer, int _cnt) {");
-		w.appendLine("public void encode(DataWriter _writer) {");
-		w.indent();
-		// w.appendLine("_buffer[_cnt++] = ", id, ";");
-		w.appendLine("_writer.writeByte(", id, ");");
-		if (bufferSize > 0) {
-			// w.appendLine("_buffer[_cnt++] = (byte)filled;");
-			w.appendLine("_writer.writeByte(filled);");
-			w.appendLine("for(int i = 0; i < filled; i++) {");
-			w.indent();
-			vars.printEncode(w);
-			w.outdent();
-			w.appendLine("}");
-		}
-		// w.appendLine("return _cnt;");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine();
-		w.appendLine("public int getSize() {");
-		w.indent();
-		if (bufferSize > 0) {
-			w.appendLine("return 2 + filled * ", vars.getBufferSize(), ";");
-		} else {
-			w.appendLine("return 1;");
-		}
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine();
-		// w.appendLine("public int decode(byte[] _buffer, int _cnt) {");
-		w.appendLine("public boolean decode(DataReader _reader) {");
-		w.indent();
-		// w.appendLine("if(_buffer[_cnt++] != ", id, ") return -1;");
-		w.appendLine("if(_reader.readByte() != ", id, ") return false;");
-		if (bufferSize > 0) {
-			// w.appendLine("filled = _buffer[_cnt++] & 0xff;");
-			w.appendLine("filled = _reader.readByte();");
-			w.appendLine("first = 0;");
-			w.appendLine("for(int i = 0; i < filled; i++) {");
-			w.indent();
-			vars.printDecode(w);
-			w.outdent();
-			w.appendLine("}");
-		}
-		// w.appendLine("return _cnt;");
-		w.appendLine("return true;");
-		w.outdent();
-		w.appendLine("}");
-	}
-
 	@Override
 	public boolean canConvert(VariableType type) {
 		return type instanceof ChannelType;
@@ -101,36 +49,6 @@ public class ChannelType extends VariableType {
 
 	public int getId() {
 		return id;
-	}
-
-	@Override
-	public void generateClass(StringWriter w) {
-		w.appendLine("public static class Channel", id, " extends Channel {");
-		w.indent();
-		w.appendLine("public Channel", id, "() {");
-		w.indent();
-
-		w.appendPrefix().append("super(new int[] {");
-		for (VariableType type : types) {
-			if (type.getMask() == null) {
-				w.append("0xffffffff");
-			} else {
-				w.append(type.getMask());
-			}
-			w.append(", ");
-		}
-		w.setLength(w.length() - 2);
-		w.append("}, ").append(bufferSize).append(");").appendPostfix();
-
-		// w.appendLine("super(", types.size(), ", ", bufferSize, ");");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine();
-		generateStorableMethods(w);
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine();
-
 	}
 
 	public int getBufferSize() {

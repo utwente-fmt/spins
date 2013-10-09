@@ -14,8 +14,6 @@
 
 package spins.promela.compiler.variable;
 
-import spins.promela.compiler.parser.ParseException;
-import spins.util.StringWriter;
 
 public class CustomVariableType extends VariableType {
 	private final VariableStore store;
@@ -34,14 +32,5 @@ public class CustomVariableType extends VariableType {
 
 	public VariableStore getVariableStore() {
 		return store;
-	}
-
-	@Override
-	public void writeVariableClass(final StringWriter w) throws ParseException {
-		w.appendLine("class ", getJavaName(), " implements Storable {");
-		w.indent();
-		store.printDefinitions(w);
-
-		super.writeVariableClass(w);
 	}
 }

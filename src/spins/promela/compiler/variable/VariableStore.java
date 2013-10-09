@@ -20,9 +20,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import spins.promela.compiler.parser.ParseException;
-import spins.util.StringWriter;
-
 /**
  * A variable container is an object that can hold one or more variables 
  * (e.g. a specification or a proctype is Promela). This container can 
@@ -79,23 +76,6 @@ public class VariableStore implements VariableContainer {
         }
         vars.add(0, var);
     }
-    
-    /**
-     * @return The number of bytes that is needed to store all the 
-     *         variables currently in the container.
-     */
-    public int getBufferSize() {
-        int nrBytes = 0;
-        for (final Variable var : vars) {
-            if (canSkipVar(var)) {
-                continue;
-            }
-            for (int i = 0; i < var.getArraySize(); i++) {
-                nrBytes += (var.getType().getBits() - 1) / 8 + 1;
-            }
-        }
-        return nrBytes;
-    }
 
     /**
      * Returns the variable that is defined by the name that is given.
@@ -137,147 +117,5 @@ public class VariableStore implements VariableContainer {
             }
         }
         return null != getVariableMapping(name);
-    }
-    
-    /**
-     * @return The number of assigned channel variables in the current store.
-     */
-    public int getChannelCount() {
-    	int count = 0;
-    	for (final Variable var : vars) {
-    		if (var instanceof ChannelVariable && var.getType() != ChannelType.UNASSIGNED_CHANNEL) {
-    			count += var.getArraySize();
-    		}
-    	}
-    	return count;
-    }
-
-    /**
-     * Prints the definitions needed to define the variables that are stored in this store.
-     *
-     * @param w
-     *            The StringWriter which is used to print the definition.
-     * @throws ParseException
-     *             When something went wrong while calculating the initializing expression.
-     */
-    public void printDefinitions(final StringWriter w) throws ParseException {
-        for (final Variable var : vars) {
-            final int initValue = var.getInitExpr().getConstantValue();
-            if (var.getArraySize() == 1) {
-                w.appendLine("private ", var.getType().getJavaName(), " ", var.getName(), " = ",
-                    initValue, ";");
-            } else {
-                if (initValue != 0) {
-                    throw new ParseException(
-                        "A initializing expression is not possible for an array declaration.");
-                }
-                w.appendLine("private ", var.getType().getJavaName(), " ", var.getName(),
-                    "[] = new ", var.getType().getJavaName(), "[", var.getArraySize(), "];");
-            }
-        }
-    }
-
-    /**
-     * Creates the java code for encoding the variables in a byte[] name _buffer. It uses a counter
-     * named _cnt for the index of the buffer.
-     */
-    public void printEncode(final StringWriter w) {
-        for (final Variable var : vars) {
-            if (canSkipVar(var)) {
-                continue;
-            }
-            if (var.getType() instanceof CustomVariableType) {
-                w.appendLine(var.getName(), ".encode(_writer);");
-            } else {
-                if (var.getArraySize() > 1) {
-                    w.appendLine("for(int _i = 0; _i < ", var.getArraySize(), "; _i++) {").indent();
-                }
-                w.appendPrefix().append("_writer.write");
-                switch (var.getType().getBits()) {
-                    case 1:
-                        w.append("Boolean");
-                        break;
-                    case 8:
-                        w.append("Byte");
-                        break;
-                    case 16:
-                        w.append("Short");
-                        break;
-                    case 32:
-                        w.append("Int");
-                        break;
-                    default:
-                        throw new Error("Unknown number of bytes: " + var.getType().getBits());
-                }
-                w.append("(")
-                        .append(var.getName())
-                        .appendIf(var.getArraySize() > 1, "[_i]")
-                        .append(");")
-                        .appendPostfix();
-                if (var.getArraySize() > 1) {
-                    w.outdent().appendLine("}");
-                }
-            }
-        }
-    }
-
-    /**
-     * Creates the java code for decoding the variables in a byte[] name _buffer. It uses a counter
-     * named _cnt for the index of the buffer.
-     */
-    public void printDecode(final StringWriter w) {
-        for (final Variable var : vars) {
-            if (canSkipVar(var)) {
-                continue;
-            }
-            if (var.getType() instanceof CustomVariableType) {
-                w.appendLine("if(!", var.getName(), ".decode(_reader)) return false;");
-            } else {
-                if (var.getArraySize() > 1) {
-                    w.appendLine("for(int _i = 0; _i < ", var.getArraySize(), "; _i++) {").indent();
-                }
-                w.appendPrefix().append(var.getName()).appendIf(var.getArraySize() > 1,
-                    "[_i]").append(" = _reader.read");
-                switch (var.getType().getBits()) {
-                    case 1:
-                        w.append("Boolean");
-                        break;
-                    case 8:
-                        w.append("Byte");
-                        break;
-                    case 16:
-                        w.append("Short");
-                        break;
-                    case 32:
-                        w.append("Int");
-                        break;
-                    default:
-                        throw new Error("Unknown number of bytes: " + var.getType().getBits());
-                }
-                w.append("();").appendPostfix();
-                if (var.getArraySize() > 1) {
-                    w.outdent().appendLine("}");
-                }
-            }
-        }
-    }
-
-    /**
-     * Creates the java code for converting the variables to a String using 
-     * a StringWriter called w. Afterwards w contains the java code that 
-     * can convert the variables int to a String.
-     */
-    public void printToString(final StringWriter w) {
-        for (final Variable var : vars) {
-            if (var.getArraySize() == 1) {
-                w.appendLine("sb.append(\"", var.getName(), " = \").append(",
-                    var.getName() + ").append(\'\\t\');");
-            } else {
-                for (int i = 0; i < var.getArraySize(); i++) {
-                    w.appendLine("sb.append(\"", var.getName(), "[", i, "] = \").append(",
-                        var.getName(), "[", i, "]).append(\'\\t\');");
-                }
-            }
-        }
     }
 }
