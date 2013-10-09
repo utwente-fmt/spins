@@ -37,6 +37,8 @@ public class Variable {
 
 	private boolean assignedTo = false;
 
+    private boolean fixed = false;
+
 	private boolean hidden = false;
 
 	private Integer constant = null;
@@ -60,6 +62,7 @@ public class Variable {
 	}
 
 	public void setType(VariableType type) {
+	    assert (!fixed);
 		this.type = type;
 	}
 
@@ -128,11 +131,13 @@ public class Variable {
 	}
 
 	public void unsetInitExpr() {
+	    assert (!fixed);
 		this.initExpr = null;
 		this.constant = null;
 	}
 	
 	public void setInitExpr(final Expression initExpr) throws ParseException {
+	    assert (!fixed);
 		if (!type.canConvert(initExpr.getResultType())) {
 			throw new ParseException("Can not convert initializing expression to desired type for "+ this);
 		}
@@ -143,10 +148,12 @@ public class Variable {
 	}
 
 	public void setRead(final boolean isRead) {
+	    assert (!fixed);
 		this.isRead = isRead;
 	}
 
 	public void setWritten(final boolean isWritten) {
+	    assert (!fixed);
 		this.isWritten = isWritten;
 	}
 
@@ -156,14 +163,17 @@ public class Variable {
 	}
 	
 	public void setOwner(Proctype owner) {
+	    assert (!fixed);
 		this.owner = owner;
 	}
 	
 	public void setName(String name) {
+	    assert (!fixed);
 		this.name = name;
 	}
 
 	public void setRealName(String name2) {
+	    assert (!fixed);
 		this.realName = name2;
 	}
 	
@@ -172,6 +182,7 @@ public class Variable {
 	}
 
 	public void setAssignedTo() {
+	    assert (!fixed);
 		assignedTo = true;
 	}
 	public boolean isNotAssignedTo() {
@@ -179,6 +190,7 @@ public class Variable {
 	}
 
 	public void setConstantValue(int constantValue) {
+	    assert (!fixed);
 		constant  = constantValue;
 	}
 	
@@ -193,6 +205,7 @@ public class Variable {
 	}
 
 	public void setHidden(boolean hidden) {
+	    assert (!fixed);
 		this.hidden = hidden;
 	}
 
@@ -201,6 +214,11 @@ public class Variable {
     }
 
     public void setArrayIndex(int c) {
+        assert (!fixed);
         arrayIndex = c;
+    }
+
+    public void fix() {
+        fixed = true;
     }
 }

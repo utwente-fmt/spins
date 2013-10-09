@@ -428,6 +428,8 @@ public class LTSminTreeWalker {
 		newvar.setOwner(p);
 		newvar.setType(var.getType());
 		newvar.setRealName(var.getRealName());
+		if (!var.isNotAssignedTo())
+		    newvar.setAssignedTo();
 		try {
 			if (null != var.getInitExpr())
 				newvar.setInitExpr(instantiate(var.getInitExpr(), p));
@@ -437,6 +439,7 @@ public class LTSminTreeWalker {
 			try { newvar.setInitExpr(constant(initial_pid));
 			} catch (ParseException e) { assert (false); }
 		}
+		var.fix();
 		return newvar;
 	}
 
@@ -503,10 +506,11 @@ public class LTSminTreeWalker {
 			Identifier id = (Identifier)instantiate(cra.getIdentifier(), p);
 			ChannelReadAction newcra = new ChannelReadAction(cra.getToken(), id, cra.isPoll(), cra.isRandom());
 			for (Expression e : cra.getExprs()) {
-				newcra.addExpression(instantiate(e, p));
-				if (e instanceof Identifier) {
-					((Identifier)e).getVariable().setAssignedTo();
-				}
+				Expression newe = instantiate(e, p);
+				newcra.addExpression(newe);
+				if (newe instanceof Identifier) {
+                    ((Identifier)newe).getVariable().setAssignedTo();
+                }
 			}
 			reads.add(new Pair<ChannelReadAction, Transition>(newcra, t));
 			return newcra;
