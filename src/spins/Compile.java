@@ -78,7 +78,6 @@ public class Compile {
 						System.out.println("After " + opt.getClass().getSimpleName() + ":");
 						System.out.println(proc.getAutomaton());
 					}
-					if (verbose) System.out.println(proc.getAutomaton());
 				}
 				System.out.println("   "+ opt.getClass().getSimpleName() +" changed "+ reduction +" states/transitions.");
 			}
