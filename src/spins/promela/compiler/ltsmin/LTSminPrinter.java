@@ -137,14 +137,13 @@ public class LTSminPrinter {
 
 	static int n_active = 0;
 
-	public static String generateCode(LTSminModel model, boolean no_atomic_loops) {
+	public static String generateCode(LTSminModel model) {
 		StringWriter w = new StringWriter();
-		LTSminPrinter.generateModel(w, model, no_atomic_loops);
+		LTSminPrinter.generateModel(w, model);
 		return w.toString();
 	}
 	
-	private static void generateModel(StringWriter w, LTSminModel model,
-	                                  boolean no_atomic_loops) {
+	private static void generateModel(StringWriter w, LTSminModel model) {
 		generateHeader(w, model);
 		generateNativeTypes(w);
 		generateTypeDef(w, model);
@@ -161,11 +160,14 @@ public class LTSminPrinter {
 		generateGuardFunctions(w, model);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
-		if (no_atomic_loops) {
-		    generateReachNoTable(w, model);
+		if (model.hasAtomicCycles) {
+		    // control flow in atomics contains cycles
+            generateHashTable(w, model);
+            generateReach(w, model);
 		} else {
-		    generateHashTable(w, model);
-		    generateReach(w, model);
+	        // control flow in atomics are DAGs, there is no need for
+		    // duplicate detection
+            generateReachNoTable(w, model);
 		}
 	}
 

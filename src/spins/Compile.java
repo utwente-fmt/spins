@@ -136,10 +136,6 @@ public class Compile {
 			"only write dot output (ltsmin/spins) \n");
 		parser.addOption(dot);
 
-        final BooleanOption no_atomic_loops = new BooleanOption('A',
-            "Turn of the generation of a hash table to detect duplicates in atomic control flow.\n");
-        parser.addOption(no_atomic_loops);
-
 		final BooleanOption ltsmin_ltl = new BooleanOption('L',
 			"sets output to LTSmin LTL semantics \n");
 		parser.addOption(ltsmin_ltl);
@@ -236,7 +232,7 @@ public class Compile {
 			Compile.writeLTSminDotFile(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
 			System.out.println("Written DOT file to " + outputDir + "/" + file.getName()+".spins.dot");
 		} else {
-			Compile.writeLTSMinFiles(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet(), no_atomic_loops.isSet());
+			Compile.writeLTSMinFiles(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
 			System.out.println("Written C model to " + outputDir + "/" + file.getName()+".spins.c");
 		}
 	}
@@ -299,14 +295,14 @@ public class Compile {
 
 	private static void writeLTSMinFiles(final Specification spec,
 										 final String name, final File outputDir,
-										 boolean verbose, boolean ltsmin_ltl,
-										 boolean no_atomic_loops) {
+										 boolean verbose, boolean ltsmin_ltl) {
 		final File javaFile = new File(outputDir, name + ".spins.c");
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
 			LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
 			LTSminModel model = walker.createLTSminModel(name, verbose);
-			fos.write(LTSminPrinter.generateCode(model, no_atomic_loops).getBytes());
+			String code = LTSminPrinter.generateCode(model);
+            fos.write(code.getBytes());
 			fos.flush();
 			fos.close();
 		} catch (final IOException ex) {

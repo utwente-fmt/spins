@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 
 import spins.promela.compiler.Preprocessor;
 import spins.promela.compiler.ProcInstance;
@@ -731,7 +732,7 @@ public class LTSminTreeWalker {
 			State state = p.getAutomaton().getStartState();
 			State ns = null;
 			if (NEVER) ns = spec.getNever().getAutomaton().getStartState();
-			createCrossProduct(state, ns);
+			createCrossProduct(state, ns, -1);
 		}
 
 		for (LTSminTransition lt : model) {
@@ -747,7 +748,8 @@ public class LTSminTreeWalker {
 		if (NEVER && !LTSMIN_LTL) {
 			Automaton never = spec.getNever().getAutomaton();
 			NEVER = false;
-			createCrossProduct(never.getStartState(), null);
+			State start = never.getStartState();
+            createCrossProduct(start, null, 1);
 			NEVER = true;
 			for (State s : never) { // add guards:
 				LTSminState ns = model.getOrAddState(new LTSminState(s, null));
@@ -759,18 +761,29 @@ public class LTSminTreeWalker {
 		}
 	}
 
-	/**
+    /**
 	 * Walks over process automaton (and, if present, over the never automaton
 	 * synchronizing its execution).
 	 * For rendez-vous send actions, all matching read actions are found and 
 	 * synchronized. The control passes to the read action process, which matters
 	 * if this action is in a synchronized block.
 	 */
-	private LTSminState createCrossProduct(State state, State never) {
+	private LTSminState createCrossProduct(State state, State never, int alevel) {
 		LTSminState state2 = new LTSminState(state, never);
 		LTSminState begin = model.getOrAddState(state2);
-		if (begin != state2 || null == state || (NEVER && null == never)) // no outgoing transitions
-			return begin;
+		if (null == state || (NEVER && null == never)) { // no outgoing transitions
+		    return begin;
+		}
+
+	    // update stack numbering for atomic cycle search
+        alevel = atomicLevel(state, alevel);
+		if (begin != state2) { // seen state
+		    atomicCycleCheck (begin, alevel); // check for atomic cycle on stack
+		    return begin;
+		}
+		// update stack table
+        addSearchStack (begin, alevel);
+
 		addEndTransitions(state, never);
 		for (Transition out : state.output) { // trans X (ntrans | {null}):
 		for (Transition nout : getOutTransitionsOrNullSet(never)) {
@@ -782,23 +795,78 @@ public class LTSminTreeWalker {
 				for (LTSminTransition lt : set) {
 					State to = lt.getSync().getTo(); // pass control to read
 					model.addTransition(lt);
-					LTSminState end = createCrossProduct(to, nto);
+					LTSminState end = createCrossProduct(to, nto, alevel);
 					annotate(lt, begin, end);
-					createCrossProduct(out.getTo(), nto);
+	                createCrossProduct(out.getTo(), nto, alevel);
 				}
 			} else if (isRendezVousReadAction(a)) {
 				// skip, a transition is created for the comm. partner
 			} else {
 				LTSminTransition lt = createStateTransition(out, nout);
 				model.addTransition(lt);
-				LTSminState end = createCrossProduct(out.getTo(), nto);
+				State to = out.getTo();
+                LTSminState end = createCrossProduct(to, nto, alevel);
 				annotate(lt, begin, end);
 			}
 		}}
+
+		// update stack table
+		removeSearchStack (begin);
 		return begin;
 	}
 
-	private void addEndTransitions(State state, State never) {
+	/**
+	 * We use the DFS above to detect cycles containing only atomic states.
+	 * The states on the stack are annotated with a number which only grows
+	 * if atomicity changes from one stack state to the next (a transition
+	 * entering or leaving an atomic block is traversed). If a stack state is
+	 * encountered (the DFS found a cycle) with the same counter as the current
+	 * stack counter, an atomic cycle is found.
+	 * We dually use the stack number to indicate atomicity of states to
+	 * simplify the code:
+	 * a negative number is given to non atomic states and a positive number is
+	 * given to atomic states. The absolute value of the integer is incremented. 
+	 */
+    private Map<LTSminState, Integer> stackMap = new HashMap<LTSminState, Integer>();
+
+	private void removeSearchStack(LTSminState begin) {
+        stackMap.remove(begin);
+    }
+
+    private void addSearchStack(LTSminState begin, int alevel) {
+        Integer x = stackMap.put(begin, alevel);
+        if (x != null) throw new RuntimeException("seen: " + x);
+    }
+
+    private void atomicCycleCheck(LTSminState begin, int alevel) {
+        if (alevel < 0) // state is not atomic, cycle cannot be atomic
+            return;
+        Integer x = stackMap.get(begin);
+        if (x == null ||  x.intValue() == alevel) { // self loop or cycle
+            model.hasAtomicCycles = true;
+        }
+    }
+
+    /**
+     * @param newState
+     * @param previous
+     * @return predecessor.atomic == newState.atomic /\ return == previous \/
+     *         predecessor.atomic != newState.atomic /\ abs(return) > abs(previous) /\ return>0 != prevous>0
+     */
+    private int atomicLevel(State newState, int previous) {
+        boolean patomic = previous > 0;
+        if (newState.isInAtomic() == patomic) {
+            return previous;
+        } else {
+            int res = -previous + (previous > 0 ? -1 : 1);
+            if (res <= 0 && newState.isInAtomic()) {
+                throw new RuntimeException("Invariant violated");
+            }
+            return res;
+        }
+    }
+
+    private void addEndTransitions(State state, State never) {
 		if (0 == state.sizeOut())
 			state.newTransition(null);
 		if (null != never && 0 == never.sizeOut()) {

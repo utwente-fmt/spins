@@ -46,6 +46,7 @@ public class LTSminModel implements Iterable<LTSminTransition> {
     private DepMatrix actionDepMatrix;
     private GuardInfo guardInfo;
     private List<String> mtypes;
+    public boolean hasAtomicCycles = false;
 
     // local variables
 	public final Variable index = new Variable(VariableType.INT, "i", -1);
