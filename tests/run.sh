@@ -1,16 +1,34 @@
 #!/bin/bash
 
-DIR=`dirname $0`
-
+## SETTINGS:
 STORAGE="tree";
-STORAGE_SIZE="22";
-THREADS="2"
-LTSMIN="./prom2lts-mc"
-LTSMIN="$HOME/ltsmin/src/pins2lts-mc/prom2lts-mc"
+STORAGE_SIZE="26";
+EXP=$1
+EXTRA=$2
 
-SPINS="$HOME/spins/spins.sh"
-CASESTUDIES="$HOME/spins/tests/case_studies"
+## PATHS:
+RUNDIR=`dirname "$0"`
+RUNDIR=`realpath "$RUNDIR"`
 
+LTSMINDIR="$RUNDIR/../.."
+SPINSDIR="$LTSMINDIR/spins"
+if [ ! -e "$LTSMINDIR/CODING-STANDARDS" ]; then
+    echo place script in LTSmin source code distribution: ltsmin/spins
+    exit 
+fi
+
+LTSMIN="${LTSMINDIR}/src/pins2lts-mc/prom2lts-mc"
+
+if [ ! -e "$LTSMIN" ]; then
+    echo "Compiled LTSmin tool not found (in: ${LTSMIN})." 
+    echo "Using installed tool."
+    LTSMIN=prom2lts-mc
+fi
+
+SPINS="${SPINSDIR}/spins.sh"
+CASESTUDIES="${SPINSDIR}/tests/case_studies"
+
+## COLORS:
 CYAN="\033[0;36m"
 RED="\033[0;31m"
 GREEN="\033[0;32m"
@@ -18,39 +36,38 @@ YELLOW="\033[0;33m"
 LIGHT_CYAN="\033[1;36m"
 NO_COLOR="\033[0m"
 
-EXP=$1
-EXTRA=$2
-POR=1
-
-if [ ! -e $EXP ]; then
-    mkdir $EXP
+if [ -z "$EXP" ]; then
+    echo supply dirname
+    exit
 fi
-if [ ! -e models-$EXP ]; then
-    mkdir models-$EXP
+
+if [ ! -e "$EXP" ]; then
+    mkdir "$EXP"
+fi
+if [ ! -e "models-$EXP" ]; then
+    mkdir "models-$EXP"
 fi
 
 function off {
-    DIR=$1
-    FILE=$2
+    DIR="$1"
+    FILE="$2"
     echo -e "${YELLOW}SKIPPING $FILE"
 }
 
-function por {
-    DIR=$1
-    FILE=$2
-    STATES=$3
-    TRANS=$4
+function runtest {
+    DIR="$1"
+    FILE="$2"
+    STATES="$3"
+    TRANS="$4"
 
     echo -en "$CYAN$FILE$GREEN"
-    
     echo -ne "\t|$STATES\t$TRANS"
     
-    # por
     OUT="$EXP/$FILE-por-r1-$STORAGE-s$STORAGE_SIZE-$THREADS.out"
     if [ ! -e $OUT ]; then
         PINS="models-$EXP/$FILE.spins"
-        EXPLORE=`$LTSMIN --ratio=1 --strategy=dfs --state=$STORAGE --threads=$THREADS \
-             -s$STORAGE_SIZE -v --por $EXTRA $PINS 2>&1 | tee $OUT`
+        EXPLORE=`$LTSMIN --ratio=1 --strategy=dfs --state=$STORAGE \
+             -s$STORAGE_SIZE -v $EXTRA $PINS 2>&1 | tee $OUT`
 
         STATES=`echo "$EXPLORE"|grep "Explored: "|sed 's/.* \([0-9]*\)$/\1/g'`
         TRANS=`echo "$EXPLORE"|grep "Transitions: "|sed 's/.* \([0-9]*\)$/\1/g'`
@@ -65,32 +82,29 @@ function por {
 }
 
 function compile {
-    DIR=$1
-    FILE=$2
-    STATES=$3
-    TRANS=$4
+    DIR="$1"
+    FILE="$2"
     PINS="models-$EXP/$FILE.spins"
-    if [ ! -e $PINS ]; then
-        cd models-$EXP
-        $SPINS $5 $CASESTUDIES/$DIR/$FILE > "$FILE.out"
+    if [ ! -e "$PINS" ]; then
+        cd "models-$EXP"
+        "$SPINS" $5 "$CASESTUDIES/$DIR/$FILE" > "$FILE.out"
         cd ..
     fi
 }
 
 function test {
     compile $@
-    por $@
+    runtest $@
 }
 
 
-if [ "$POR" == "1" ]; then
-    # print header
-    echo -e "$CYAN      \t|NORMAL\t     \t|LTSmin POR  \t|SPIN POR"
-    echo -e "$CYAN Model\t|States\tTrans\t|States\tTrans\t|States\tTrans"
-fi
+# print header
+echo -e "$CYAN      \t|NORMAL\t     \t|LTSmin POR  \t|SPIN POR"
+echo -e "$CYAN Model\t|States\tTrans\t|States\tTrans\t|States\tTrans"
 
 function comment { echo ""
 }
+
 test "Tests" "sort-copies" 659683 3454988 -o3
 test "dbm" "dbm.prm" 5112 20476
 test "x509" "X.509.prm" 9028 35999
