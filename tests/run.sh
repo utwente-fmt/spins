@@ -69,9 +69,12 @@ function runtest {
         EXPLORE=`$LTSMIN --ratio=1 --strategy=dfs --state=$STORAGE \
              -s$STORAGE_SIZE -v $EXTRA $PINS 2>&1 | tee $OUT`
 
-        STATES=`echo "$EXPLORE"|grep "Explored: "|sed 's/.* \([0-9]*\)$/\1/g'`
-        TRANS=`echo "$EXPLORE"|grep "Transitions: "|sed 's/.* \([0-9]*\)$/\1/g'`
-        echo -ne "\t|$STATES\t$TRANS"
+        STATESNEW=`echo "$EXPLORE"|grep "Explored: "|sed 's/.* \([0-9]*\)$/\1/g'`
+        TRANSNEW=`echo "$EXPLORE"|grep "Transitions: "|sed 's/.* \([0-9]*\)$/\1/g'`
+        echo -ne "\t|$STATESNEW\t$TRANSNEW"
+        if [ "$STATES" != "$STATESNEW" -o "$TRANS" != "$TRANSNEW" ]; then
+            echo -n "$RED WRONG STATE/TRANSITION COUNT!"
+        fi
     else
         STATES=`grep "Explored: " $OUT|sed 's/.* \([0-9]*\)$/\1/g'`
         TRANS=`grep "Transitions: " $OUT|sed 's/.* \([0-9]*\)$/\1/g'`
