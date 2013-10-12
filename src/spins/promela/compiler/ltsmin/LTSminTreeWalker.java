@@ -797,8 +797,8 @@ public class LTSminTreeWalker {
 					model.addTransition(lt);
 					LTSminState end = createCrossProduct(to, nto, alevel);
 					annotate(lt, begin, end);
-	                createCrossProduct(out.getTo(), nto, alevel);
 				}
+                createCrossProduct(out.getTo(), nto, alevel);
 			} else if (isRendezVousReadAction(a)) {
 				// skip, a transition is created for the comm. partner
 			} else {
