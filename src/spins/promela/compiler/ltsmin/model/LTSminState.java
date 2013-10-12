@@ -68,6 +68,7 @@ public class LTSminState {
 	}
 
 	private final List<LTSminTransition> out, in;
+
 	public void addOut(LTSminTransition t) {
 		out.add(t);
 	}
@@ -84,5 +85,15 @@ public class LTSminState {
         return state != null && state.isProgressState() ||
                 sync != null &&  sync.isProgressState() ||
                never != null && never.isProgressState();
+    }
+
+    private boolean onCycle = false;
+
+    public void setOnCycle() {
+        onCycle  = true;
+    }
+
+    public boolean liesOnCycle() {
+        return onCycle;
     }
 }

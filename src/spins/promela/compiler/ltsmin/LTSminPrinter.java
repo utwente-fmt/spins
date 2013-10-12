@@ -160,14 +160,15 @@ public class LTSminPrinter {
 		generateGuardFunctions(w, model);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
-		if (model.hasAtomicCycles) {
+
+        // Used when control flow in atomics is a DAGs, i.e. when  there is no
+        // need for duplicate detection
+        generateReachNoTable(w, model);
+
+        if (model.hasAtomicCycles) {
 		    // control flow in atomics contains cycles
             generateHashTable(w, model);
             generateReach(w, model);
-		} else {
-	        // control flow in atomics are DAGs, there is no need for
-		    // duplicate detection
-            generateReachNoTable(w, model);
 		}
 	}
 
@@ -300,9 +301,11 @@ public class LTSminPrinter {
 
 	private static void generateForwardDeclarations(StringWriter w) {
 		w.appendLine("extern inline int spins_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
+		w.appendLine("extern inline int spins_simple_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
 		w.appendLine("extern int spins_get_successor_all (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
 		w.appendLine("extern int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
 		w.appendLine("extern void spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
+        w.appendLine("extern void spins_simple_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
 		w.appendLine("static int "+ SCRATCH_VARIABLE +";");
 		w.appendLine("");
 	}
@@ -394,8 +397,9 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	public static void generateAnAtomicTransition(StringWriter w, LTSminTransition t,
-										   LTSminModel model) {
+	public static void generateAnAtomicTransition(StringWriter w,
+	                                              LTSminTransition t,
+										          LTSminModel model) {
 		w.appendLine("// "+ t.getName());
 		w.appendPrefix().append("if (");
 		int guards = 0;
@@ -413,7 +417,11 @@ public class LTSminPrinter {
 			generateAction(w,a,model, t);
 		// No edge labels! They are discarded anyway!
 		w.appendLine("transition_info.group = "+ t.getGroup() +";");
-		w.appendLine("spins_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +");");
+		if (t.getEnd().liesOnCycle()) {
+		    w.appendLine("spins_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +");");
+		} else {
+		    w.appendLine("spins_simple_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +");");
+		}
 		w.appendLine("++states_emitted;");
 		w.outdent();
 		w.appendLine("}");
@@ -514,7 +522,11 @@ public class LTSminPrinter {
 		if (t.isAtomic()) {
 		    printEdgeLabels (w, model, t);
 			w.appendLine("transition_info.group = "+ t.getGroup() +";");
-			w.appendLine("int count = spins_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +");");
+			if (t.getEnd().liesOnCycle()) {
+			    w.appendLine("int count = spins_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +");");
+			} else {
+			    w.appendLine("int count = spins_simple_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +");");
+			}
 			w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
 		} else {
 			generateACallback(w, model, t);

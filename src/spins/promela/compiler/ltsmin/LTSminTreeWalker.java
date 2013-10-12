@@ -844,6 +844,7 @@ public class LTSminTreeWalker {
         Integer x = stackMap.get(begin);
         if (x == null ||  x.intValue() == alevel) { // self loop or cycle
             model.hasAtomicCycles = true;
+            begin.setOnCycle();
         }
     }
 

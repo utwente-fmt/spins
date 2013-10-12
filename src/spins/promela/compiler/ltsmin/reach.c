@@ -3,17 +3,39 @@
 static const size_t 	DB_INIT_SIZE = 4;
 static const size_t 	DB_MAX_SIZE = 15;
 
-#define cas(a, b, c) __sync_bool_compare_and_swap(a,b,c)
+void
+spins_free_args (void *a)
+{
+    spins_state_db_t    *seen_table;
+    spins_state_db_free (seen_table);
+}
 
-typedef struct spins_args_s {
-	void			   *model;
-	void (*callback)(void* arg, transition_info_t *transition_info, state_t *out);
-	void 			   *arg;
-	size_t 				outs;
-	spins_state_db_t  *seen;
-	int 				sid;
-	transition_info_t  *ti_orig;
-} spins_args_t;
+static pthread_key_t spins_local_key;
+
+__attribute__((constructor)) void
+spins_initialize_key() {
+    pthread_key_create (&spins_local_key, spins_free_args);
+}
+
+__attribute__((destructor)) void
+spins_destroy_key() {
+    pthread_key_delete (spins_local_key);
+}
+
+void
+spins_get_table_from_tls (spins_args_t *args)
+{
+    if (EXPECT_FALSE(args->table == NULL)) {
+        args->table = pthread_getspecific (spins_local_key);
+        if (EXPECT_FALSE(args->table == NULL)) {
+            args->table = spins_state_db_create (spins_get_state_size(),
+                                                 DB_INIT_SIZE, DB_MAX_SIZE);
+            pthread_setspecific (spins_local_key, args->table);
+        } else {
+            spins_state_db_clear (args->table);
+        }
+    }
+}
 
 extern void spins_dfs (spins_args_t *args, state_t *state, int atomic);
 
@@ -28,11 +50,11 @@ spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, in
 		spins_dfs (args, out, atomic);
 	}
 }
-
 void
 spins_dfs (spins_args_t *args, state_t *state, int atomic)
 {
-	int result = spins_state_db_lookup (args->seen, (const int*)state);
+    spins_get_table_from_tls (args);
+	int result = spins_state_db_lookup (args->table, (const int*)state);
 	switch ( result ) {
 	case false: { // new state
 		state_t out;
@@ -52,52 +74,20 @@ spins_dfs (spins_args_t *args, state_t *state, int atomic)
 	}
 }
 
-void
-spins_free_args (void *a)
-{
-    spins_args_t *args = a;
-    spins_state_db_free (args->seen);
-    free (args);
-}
-
-static pthread_key_t spins_local_key;
-
-__attribute__((constructor)) void
-spins_initialize_key() {
-    pthread_key_create (&spins_local_key, spins_free_args);
-}
-
-__attribute__((destructor)) void
-spins_destroy_key() {
-    pthread_key_delete (spins_local_key);
-}
-
-spins_args_t *
-spins_get_tls ()
-{
-	spins_args_t *args = pthread_getspecific (spins_local_key);
-    if (args == NULL) {
-        args = spins_align (SJ_CACHE_LINE_SIZE, sizeof(spins_args_t));
-    	args->seen = spins_state_db_create (spins_get_state_size(), DB_INIT_SIZE, DB_MAX_SIZE);
-        pthread_setspecific (spins_local_key, args);
-    }
-    return args;
-}
-
 inline int
 spins_reach (void* model, transition_info_t *transition_info, state_t *in,
 	   void (*callback)(void* arg, transition_info_t *transition_info, state_t *out),
 	   void *arg, int sid) {
-	spins_args_t *args = spins_get_tls ();
-	args->model = model;
-	args->callback = callback;
-	args->arg = arg;
-	args->outs = 0;
-	args->sid = sid;
-	args->ti_orig = transition_info;
-	spins_state_db_clear (args->seen);
-	spins_dfs (args, in, sid);
-	return args->outs;
+    spins_args_t args;
+    args.table = NULL;
+    args.model = model;
+    args.callback = callback;
+    args.arg = arg;
+    args.outs = 0;
+    args.sid = sid;
+    args.ti_orig = transition_info;
+	spins_dfs (&args, in, sid);
+	return args.outs;
 }
 
 static int spins_to_get;
