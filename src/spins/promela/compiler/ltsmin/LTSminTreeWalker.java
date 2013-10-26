@@ -141,8 +141,10 @@ public class LTSminTreeWalker {
 
 	/**
 	 * generates and returns an LTSminModel from the provided Specification
+	 * @param no_gm skip guard matrices
 	 */
 	public LTSminModel createLTSminModel(String name, boolean verbose,
+	                                     boolean no_gm,
 	                                     Map<String, Expression> exports,
                                          Expression progress) {
 		this.debug = new LTSminDebug(verbose);
@@ -159,7 +161,7 @@ public class LTSminTreeWalker {
 		createModelAssertions();
 		createModelLabels(exports, progress, debug);
 		LTSminDMWalker.walkModel(model, debug);
-		LTSminGMWalker.generateGuardInfo(model, debug);
+		LTSminGMWalker.generateGuardInfo(model, no_gm, debug);
 		return model;
 	}
 

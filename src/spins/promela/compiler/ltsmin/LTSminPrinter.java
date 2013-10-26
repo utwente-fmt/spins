@@ -137,13 +137,14 @@ public class LTSminPrinter {
 
 	static int n_active = 0;
 
-	public static String generateCode(LTSminModel model) {
+	public static String generateCode(LTSminModel model, boolean no_guards) {
 		StringWriter w = new StringWriter();
-		LTSminPrinter.generateModel(w, model);
+		LTSminPrinter.generateModel(w, model, no_guards);
 		return w.toString();
 	}
 	
-	private static void generateModel(StringWriter w, LTSminModel model) {
+	private static void generateModel(StringWriter w, LTSminModel model,
+	                                  boolean no_gm) {
 		generateHeader(w, model);
 		generateNativeTypes(w);
 		generateTypeDef(w, model);
@@ -156,8 +157,8 @@ public class LTSminPrinter {
 		generateTransitionCount(w, model);
 		generateDepMatrix(w, model.getDepMatrix(), DM_NAME, true);
 		generateDMFunctions(w, model.getDepMatrix());
-		generateGuardMatrices(w, model);
-		generateGuardFunctions(w, model);
+		generateGuardMatrices(w, model, no_gm);
+		generateGuardFunctions(w, model, no_gm);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
 
@@ -1340,7 +1341,8 @@ public class LTSminPrinter {
         w.appendLine("");
 	}
 	
-	private static void generateGuardMatrices(StringWriter w, LTSminModel model) {
+	private static void generateGuardMatrices(StringWriter w, LTSminModel model,
+	                                          boolean no_gm) {
 		GuardInfo gm = model.getGuardInfo();
 		if(gm==null) return;
 
@@ -1353,6 +1355,12 @@ public class LTSminPrinter {
 		generateDepMatrix(w, gm.getDepMatrix(), GM_DM_NAME, false);
 		w.appendLine("");
 
+        List<List<Integer>> trans_matrix = gm.getTransMatrix();
+        generateTransGuardMatrix(w, trans_matrix);
+
+		if (no_gm) return;
+
+		// Optional (POR) matrices:
 		w.appendLine("");
 		w.appendLine("// Maybe Co-Enabled Matrix:");
 		generateDepMatrix(w, co_matrix, CO_DM_NAME, false);
@@ -1377,9 +1385,6 @@ public class LTSminPrinter {
 		w.appendLine("// Necessary Disabling Matrix:");
 		generateDepMatrix(w, gm.getNDSMatrix(), NDS_DM_NAME, false);
 		w.appendLine("");
-
-        List<List<Integer>> trans_matrix = gm.getTransMatrix();
-		generateTransGuardMatrix(w, trans_matrix);
 	}
 
 	private static void generateTransGuardMatrix(StringWriter w,
@@ -1406,7 +1411,8 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static void generateGuardFunctions(StringWriter w, LTSminModel model) {
+	private static void generateGuardFunctions(StringWriter w, LTSminModel model,
+	                                           boolean no_gm) {
 	    GuardInfo gm = model.getGuardInfo();
         int nTrans = gm.getTransMatrix().size();
 
@@ -1438,6 +1444,71 @@ public class LTSminPrinter {
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
+
+        w.appendLine("int spins_get_label(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
+        w.indent();
+        w.appendLine("(void)model;");
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label: invalid guard index %d\", g);");
+        w.appendLine("switch(g) {");
+        w.indent();
+        for(int g=0; g<gm.getNumberOfLabels(); ++g) {
+            w.appendPrefix();
+            w.append("case ").append(g).append(": return ");
+            generateGuard(w, model, gm.getLabel(g), in(model));
+            w.append(" != 0;");
+            w.appendPostfix();
+        }
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("return false;");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+
+        w.appendLine("const char *spins_get_label_name(int g) {");
+        w.indent();
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_name: invalid guard index %d\", g);");
+        w.appendLine("switch(g) {");
+        w.indent();
+        for(int g=0; g<gm.getNumberOfLabels(); ++g) {
+            w.appendPrefix();
+            w.append("case "+ g +": return \""+ gm.getLabelName(g) +"\";");
+            w.appendPostfix();
+        }
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("return \"\";");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+        
+        w.appendLine("void spins_get_labels_all(void* model, ",C_STATE,"* ",IN_VAR,", int* label) {");
+        w.indent();
+        w.appendLine("(void)model;");
+        for(int g=0; g<gm.getNumberOfLabels(); ++g) {
+            w.appendPrefix();
+            w.append("label[").append(g).append("] = ");
+            generateGuard(w, model, gm.getLabel(g), in(model));
+            w.append(" != 0;");
+            w.appendPostfix();
+        }
+        w.outdent();
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+
+        w.appendLine("const int* spins_get_label_matrix(int g) {");
+        w.indent();
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_matrix: invalid guard index %d\", g);");
+        w.appendLine("return "+ GM_DM_NAME +"[g];");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+
+        if (no_gm) {
+            w.appendLine("const int* spins_get_label_may_be_coenabled_matrix(int g) { return NULL; };");
+            return;
+        }
 
         w.appendLine("const int* spins_get_trans_commutes_matrix(int t) {");
         w.indent();
@@ -1475,66 +1546,6 @@ public class LTSminPrinter {
 		w.indent();
 		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_nds_matrix: invalid guard index %d\", g);");
 		w.appendLine("return "+ NDS_DM_NAME +"[g];");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("");
-		
-		w.appendLine("const int* spins_get_label_matrix(int g) {");
-		w.indent();
-		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_matrix: invalid guard index %d\", g);");
-		w.appendLine("return "+ GM_DM_NAME +"[g];");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("");
-		
-		w.appendLine("int spins_get_label(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
-		w.indent();
-        w.appendLine("(void)model;");
-		w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label: invalid guard index %d\", g);");
-		w.appendLine("switch(g) {");
-		w.indent();
-		for(int g=0; g<gm.getNumberOfLabels(); ++g) {
-			w.appendPrefix();
-			w.append("case ").append(g).append(": return ");
-			generateGuard(w, model, gm.getLabel(g), in(model));
-			w.append(" != 0;");
-			w.appendPostfix();
-		}
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("return false;");
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine("");
-
-        w.appendLine("const char *spins_get_label_name(int g) {");
-        w.indent();
-        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_name: invalid guard index %d\", g);");
-        w.appendLine("switch(g) {");
-        w.indent();
-        for(int g=0; g<gm.getNumberOfLabels(); ++g) {
-            w.appendPrefix();
-            w.append("case "+ g +": return \""+ gm.getLabelName(g) +"\";");
-            w.appendPostfix();
-        }
-        w.outdent();
-        w.appendLine("}");
-        w.appendLine("return \"\";");
-        w.outdent();
-        w.appendLine("}");
-        w.appendLine("");
-		
-		w.appendLine("void spins_get_labels_all(void* model, ",C_STATE,"* ",IN_VAR,", int* label) {");
-		w.indent();
-		w.appendLine("(void)model;");
-		for(int g=0; g<gm.getNumberOfLabels(); ++g) {
-			w.appendPrefix();
-			w.append("label[").append(g).append("] = ");
-			generateGuard(w, model, gm.getLabel(g), in(model));
-			w.append(" != 0;");
-			w.appendPostfix();
-		}
-		w.outdent();
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");

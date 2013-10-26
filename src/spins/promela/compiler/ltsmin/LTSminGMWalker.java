@@ -103,9 +103,10 @@ public class LTSminGMWalker {
 	/**
 	 * Adds all guards labels and generates the guards matrices for POR
 	 * @param model
+	 * @param no_gm 
 	 * @param debug
 	 */
-	static void generateGuardInfo(LTSminModel model, LTSminDebug debug) {
+	static void generateGuardInfo(LTSminModel model, boolean no_gm, LTSminDebug debug) {
 		debug.say("Generating guard information ...");
 		debug.say_indent++;
 
@@ -131,6 +132,9 @@ public class LTSminGMWalker {
         // generate label / slot read matrix
         generateLabelMatrix (model);
 
+        if (no_gm) {
+            return;
+        }
         // generate Maybe Coenabled matrix
         setTotal(nLabels*nLabels/2);
         int nmce = generateCoenMatrix (model, guardInfo);
