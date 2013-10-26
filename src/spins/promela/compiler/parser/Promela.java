@@ -161,8 +161,9 @@ public class Promela implements PromelaConstants {
 /* Definition of a process */
   final public void proctype() throws ParseException {
         int nrActive = 0;
-        Token n, id;
+        Token n, id, b;
         State s;
+        Expression e;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case IDENTIFIER:
       id = jj_consume_token(IDENTIFIER);
@@ -171,9 +172,13 @@ public class Promela implements PromelaConstants {
                nrActive = 1;
       switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
       case LBRACK:
-        jj_consume_token(LBRACK);
-        n = jj_consume_token(NUMBER);
-                                 nrActive = Integer.parseInt(n.image);
+        b = jj_consume_token(LBRACK);
+        e = expr();
+                   try {
+                   nrActive = e.getConstantValue();
+                   } catch (Exception pe) {
+                       {if (true) throw new MyParseException("Proc requires a constant number of instances, not: "+ e, b);}
+                   }
         jj_consume_token(RBRACK);
         break;
       default:
@@ -2765,31 +2770,6 @@ public class Promela implements PromelaConstants {
     finally { jj_save(58, xla); }
   }
 
-  private boolean jj_3_12() {
-    if (jj_3R_30()) return true;
-    return false;
-  }
-
-  private boolean jj_3_24() {
-    if (jj_3R_32()) return true;
-    return false;
-  }
-
-  private boolean jj_3_11() {
-    if (jj_3R_30()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_41() {
-    if (jj_scan_token(ELSE)) return true;
-    return false;
-  }
-
-  private boolean jj_3_23() {
-    if (jj_3R_31()) return true;
-    return false;
-  }
-
   private boolean jj_3_25() {
     if (jj_3R_33()) return true;
     return false;
@@ -4101,11 +4081,6 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_113() {
-    if (jj_scan_token(LBRACK)) return true;
-    return false;
-  }
-
   private boolean jj_3R_66() {
     if (jj_scan_token(CH_READ)) return true;
     Token xsp;
@@ -4147,20 +4122,8 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_58() {
-    if (jj_scan_token(IDENTIFIER)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_113()) jj_scanpos = xsp;
-    return false;
-  }
-
-  private boolean jj_3R_27() {
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_58()) jj_scanpos = xsp;
-    if (jj_scan_token(PROCTYPE)) return true;
-    if (jj_scan_token(IDENTIFIER)) return true;
+  private boolean jj_3R_113() {
+    if (jj_scan_token(LBRACK)) return true;
     return false;
   }
 
@@ -4187,8 +4150,25 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3R_58() {
+    if (jj_scan_token(IDENTIFIER)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_113()) jj_scanpos = xsp;
+    return false;
+  }
+
   private boolean jj_3_59() {
     if (jj_3R_57()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_27() {
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_58()) jj_scanpos = xsp;
+    if (jj_scan_token(PROCTYPE)) return true;
+    if (jj_scan_token(IDENTIFIER)) return true;
     return false;
   }
 
@@ -4227,11 +4207,6 @@ public class Promela implements PromelaConstants {
     if (jj_scan_token(LPAREN)) return true;
     if (jj_3R_55()) return true;
     if (jj_scan_token(RPAREN)) return true;
-    return false;
-  }
-
-  private boolean jj_3_1() {
-    if (jj_3R_27()) return true;
     return false;
   }
 
@@ -4274,6 +4249,11 @@ public class Promela implements PromelaConstants {
     if (jj_scan_token(LPAREN)) return true;
     if (jj_3R_53()) return true;
     if (jj_scan_token(RPAREN)) return true;
+    return false;
+  }
+
+  private boolean jj_3_1() {
+    if (jj_3R_27()) return true;
     return false;
   }
 
@@ -4514,6 +4494,31 @@ public class Promela implements PromelaConstants {
 
   private boolean jj_3R_42() {
     if (jj_scan_token(GOTO)) return true;
+    return false;
+  }
+
+  private boolean jj_3_12() {
+    if (jj_3R_30()) return true;
+    return false;
+  }
+
+  private boolean jj_3_24() {
+    if (jj_3R_32()) return true;
+    return false;
+  }
+
+  private boolean jj_3_11() {
+    if (jj_3R_30()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_41() {
+    if (jj_scan_token(ELSE)) return true;
+    return false;
+  }
+
+  private boolean jj_3_23() {
+    if (jj_3R_31()) return true;
     return false;
   }
 
