@@ -3983,7 +3983,8 @@ void SkipLexicalActions(Token matchedToken)
                         SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // skip until elif/endif
                 }
                 } catch (Exception e) {
-                    throw new AssertionError("Failed to parse #elif:"+ e);
+                int line1 = input_stream.getEndLine();
+                    throw new AssertionError("Failed to parse #elif at "+ line1 +":"+ e);
                 }
         }
          break;
