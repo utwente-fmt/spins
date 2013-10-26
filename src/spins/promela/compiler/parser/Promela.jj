@@ -834,8 +834,9 @@ void module(): {
 /* Definition of a process */
 void proctype(): {
 	int nrActive = 0;
-	Token n, id;
+	Token n, id, b;
 	State s;
+	Expression e;
 }{
 	(id=<IDENTIFIER> 
 	  {
@@ -843,7 +844,13 @@ void proctype(): {
 	           throw new ParseException("Expected 'active' at line " + id.beginLine +", column "+ id.beginColumn);
 	       nrActive = 1;
 	  }
-	  (<LBRACK> n=<NUMBER> { nrActive = Integer.parseInt(n.image); } <RBRACK>)?
+	  (b=<LBRACK> e=expr()
+	       {
+	           try {                   nrActive = e.getConstantValue();
+	           } catch (Exception pe) {
+	               throw new MyParseException("Proc requires a constant number of instances, not: "+ e, b);	           }
+	       }
+	  <RBRACK>)?
 	)?
 	<PROCTYPE>
 	id=<IDENTIFIER>
