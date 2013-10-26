@@ -5,8 +5,10 @@ package spins.promela.compiler.ltsmin.matrix;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 
 import spins.promela.compiler.expression.Expression;
@@ -28,6 +30,8 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
     private int nguards = 0;
     private boolean fixed = false;
 
+    private Map<String, DepMatrix> matrices = new HashMap<String, DepMatrix>();
+    
 	/**
 	 *        guards >
 	 * guards ...    ...
@@ -244,5 +248,16 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 
     public void setCommutesMatrix(DepMatrix c) {
         commutes_matrix = c;
+    }
+
+    public void setMatrix(String mName, DepMatrix m) {
+        DepMatrix x = matrices.put(mName, m);
+        if (x != null) {
+            throw new AssertionError("Matrix already set: "+ mName);
+        }
+    }
+
+    public DepMatrix getMatrix(String mName) {
+        return matrices.get(mName);
     }
 }
