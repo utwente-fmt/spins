@@ -15,6 +15,7 @@ import static spins.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.and;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.assign;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.calc;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanContentsGuard;
@@ -42,10 +43,10 @@ import java.util.ListIterator;
 import java.util.Map;
 
 import spins.promela.compiler.Preprocessor;
+import spins.promela.compiler.Preprocessor.DefineMapping;
 import spins.promela.compiler.ProcInstance;
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.Specification;
-import spins.promela.compiler.Preprocessor.DefineMapping;
 import spins.promela.compiler.actions.Action;
 import spins.promela.compiler.actions.AssertAction;
 import spins.promela.compiler.actions.AssignAction;
@@ -96,8 +97,8 @@ import spins.promela.compiler.ltsmin.state.LTSminSlot;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.state.LTSminVariable;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
-import spins.promela.compiler.ltsmin.util.LTSminRendezVousException;
 import spins.promela.compiler.ltsmin.util.LTSminDebug.MessageKind;
+import spins.promela.compiler.ltsmin.util.LTSminRendezVousException;
 import spins.promela.compiler.ltsmin.util.LTSminUtil.Pair;
 import spins.promela.compiler.optimizer.RenumberAll;
 import spins.promela.compiler.parser.ParseException;
@@ -141,7 +142,9 @@ public class LTSminTreeWalker {
 	/**
 	 * generates and returns an LTSminModel from the provided Specification
 	 */
-	public LTSminModel createLTSminModel(String name, boolean verbose) {
+	public LTSminModel createLTSminModel(String name, boolean verbose,
+	                                     Map<String, Expression> exports,
+                                         Expression progress) {
 		this.debug = new LTSminDebug(verbose);
 		instantiate();
         LTSminStateVector sv = new LTSminStateVector();
@@ -154,7 +157,7 @@ public class LTSminTreeWalker {
             spec.addWriteAction(p.left, p.right);
 		createModelTransitions();
 		createModelAssertions();
-		createModelLabels(debug);
+		createModelLabels(exports, progress, debug);
 		LTSminDMWalker.walkModel(model, debug);
 		LTSminGMWalker.generateGuardInfo(model, debug);
 		return model;
@@ -177,7 +180,9 @@ public class LTSminTreeWalker {
 	 * Set accepting state, valid end-state and progress-state conditions for this model. 
 	 * Accepting condition semantics are overloaded with valid end state semantics.
 	 */
-    private void createModelLabels(LTSminDebug debug) {
+    private void createModelLabels(Map<String, Expression> exports,
+                                   Expression progress,
+                                   LTSminDebug debug) {
 
         if (!BOOLEAN_TYPE_NAME.equals(VariableType.BOOL.getName()))
              debug.say(MessageKind.FATAL, "Not exporting boolean type as \"bool\" (LTSmin standard)");
@@ -212,9 +217,9 @@ public class LTSminTreeWalker {
             State to = t.getTransition().getTo();
             int id = null == to ? -1 : to.getStateId();
             String valid = to == null || to.isEndingState() ? "valid" : "invalid";
-            String progress = t.isProgress() ? " <progress>" : "";
+            String progr = t.isProgress() ? " <progress>" : "";
             name = "group "+ t.getGroup() +" ("+ t.getProcess().getName() +") "+ 
-                   Preprocessor.getFileName() +":"+ line + progress +
+                   Preprocessor.getFileName() +":"+ line + progr +
                    " (state "+ id +") <"+ valid +" end state> "+ name;
             // group G (PROCESS) FILE:LINE <progress> (state TO) <(in)valid end state> NAME 
             model.addTypeValue(STATEMENT_TYPE_NAME, name);
@@ -248,24 +253,29 @@ public class LTSminTreeWalker {
 		}
 
 		/* Add nonprogress state label and progress edge label */
-        Expression and = null;
-		for (ProcInstance pi : spec) {
-		    for (State s : pi.getAutomaton()) {
-		        if (s.isProgressState()) {
-		            Variable pc = model.sv.getPC(pi);
-		            Expression counter = constant(s.getStateId());
-		            Expression e = compare(PromelaConstants.NEQ, id(pc), counter);
-	                and = and == null ? e : and(and, e) ; // And Not
-		        }
-		    }
-		}
-		if (and != null) {
-		    model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME, new LTSminGuard(and));
+		if (progress == null) {
+            Expression and = null;
+    		for (ProcInstance pi : spec) {
+    		    for (State s : pi.getAutomaton()) {
+    		        if (s.isProgressState()) {
+    		            Variable pc = model.sv.getPC(pi);
+    		            Expression counter = constant(s.getStateId());
+    		            Expression e = compare(PromelaConstants.NEQ, id(pc), counter);
+    	                and = and == null ? e : and(and, e) ; // And Not
+    		        }
+    		    }
+    		}
+    		if (and != null) {
+    		    model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME, new LTSminGuard(and));
+    		}
+		} else {
+            model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME,
+                                new LTSminGuard(not(progress)));
 		}
 
 		/* Export label for valid end states */
 		Expression end = compare(PromelaConstants.EQ, id(_NR_PR), constant(0)); // or
-		and = null;
+        Expression and = null;
     	for (ProcInstance instance : spec) {
 			Variable pc = model.sv.getPC(instance);
             Expression labeled = compare(PromelaConstants.EQ, id(pc), constant(-1));
@@ -279,6 +289,12 @@ public class LTSminTreeWalker {
     	if (and != null)
     	    end = or(end, and); // Or
 		model.addStateLabel(VALID_END_STATE_LABEL_NAME, new LTSminGuard(end));
+
+		// Add export labels
+		for (Map.Entry<String,Expression> export : exports.entrySet()) {
+		    LTSminGuard guard = new LTSminGuard(export.getValue());
+            model.addStateLabel(export.getKey(), guard);
+		}
 	}
 
     private List<String> iCount = new ArrayList<String>();

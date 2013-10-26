@@ -14,20 +14,26 @@
 
 package spins;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import spins.options.BooleanOption;
 import spins.options.MultiStringOption;
 import spins.options.OptionParser;
 import spins.options.StringOption;
 import spins.promela.compiler.Preprocessor;
+import spins.promela.compiler.Preprocessor.DefineMapping;
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.Specification;
+import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.ltsmin.LTSminPrinter;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
@@ -132,6 +138,14 @@ public class Compile {
 			"sets preprocessor macro define value", true);
 		parser.addOption(define);
 
+        final StringOption export = new StringOption('E',
+                "export #define as state label", true);
+        parser.addOption(export);
+
+        final StringOption progress = new StringOption('P',
+                "sets #define as progress state label", false);
+        parser.addOption(progress);
+
 		final BooleanOption dot = new BooleanOption('d',
 			"only write dot output (ltsmin/spins) \n");
 		parser.addOption(dot);
@@ -223,27 +237,69 @@ public class Compile {
 		final Specification spec = 
 			Compile.compile(file, name, !optimalizations.isSet("3"), verbose.isSet());
 
-		if (spec == null) {
-			System.exit(-4);
-		}
+        if (spec == null) {
+            System.exit(-4);
+        }
+
+        Expression progressLabel = null;        
+        String progressLabelName = progress.getValue();
+        if (progressLabelName != null) {
+            progressLabel = parseDefine(spec, progressLabelName);
+            System.out.println("Rewired progress label to '"+ progressLabelName +"'"); 
+        }
+        Map<String, Expression> exportLabels = new HashMap<String, Expression>();
+        for (String defined : export) {
+            Expression label = parseDefine(spec, defined);
+            exportLabels.put(defined, label);
+            System.out.println("Exporting state label '"+ defined +"'"); 
+        }
 
 		File outputDir = new File(System.getProperty("user.dir"));
 		if (dot.isSet()) {
-			Compile.writeLTSminDotFile(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
+			Compile.writeLTSminDotFile(spec, file.getName(), outputDir,
+			                           verbose.isSet(), ltsmin_ltl.isSet(),
+	                                   exportLabels, progressLabel);
 			System.out.println("Written DOT file to " + outputDir + "/" + file.getName()+".spins.dot");
 		} else {
-			Compile.writeLTSMinFiles(spec, file.getName(), outputDir, verbose.isSet(), ltsmin_ltl.isSet());
+			Compile.writeLTSMinFiles(spec, file.getName(), outputDir,
+			                         verbose.isSet(), ltsmin_ltl.isSet(),
+			                         exportLabels, progressLabel);
 			System.out.println("Written C model to " + outputDir + "/" + file.getName()+".spins.c");
 		}
 	}
 
+    private static Expression parseDefine(Specification spec, String name) {
+        DefineMapping def = Preprocessor.defines(name);
+        if (def == null || def.size() > 0) {
+            System.err.println("Could not set '"+ name +"' as progress label.");
+            System.err.println(def == null ? "It does not exist."
+                                           : "It has parameters.");
+            System.exit(-1);
+        }
+        InputStream is = new ByteArrayInputStream(def.defineText.getBytes());
+        final Promela prom = new Promela(spec, is); // start new parser for condition
+        try {
+            Expression expr = prom.expr();
+            return expr;
+        } catch (Exception e) {
+            System.err.println("Could not set "+ name +" as progress label.");
+            System.err.println("Failure in parsing: "+ e.getMessage());
+            e.printStackTrace();
+            System.exit(-1);
+        }
+        return null;
+    }
+
 	private static void writeLTSminDotFile (final Specification spec,
 										final String name, final File outputDir,
-										boolean verbose, boolean ltsmin_ltl) {
+										boolean verbose, boolean ltsmin_ltl,
+										Map<String, Expression> exports,
+										Expression progress) {
 		final File dotFile = new File(outputDir, name + ".spins.dot");
 
 		LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
-		LTSminModel model = walker.createLTSminModel(name, verbose);
+		LTSminModel model = walker.createLTSminModel(name, verbose, exports,
+		                                             progress);
 		String out = "digraph {\n";
 		for (LTSminTransition t : model.getTransitions()) {
 			String s[] = t.getName().split(" X ");
@@ -295,12 +351,15 @@ public class Compile {
 
 	private static void writeLTSMinFiles(final Specification spec,
 										 final String name, final File outputDir,
-										 boolean verbose, boolean ltsmin_ltl) {
+										 boolean verbose, boolean ltsmin_ltl,
+										 Map<String, Expression> exports,
+	                                     Expression progress) {
 		final File javaFile = new File(outputDir, name + ".spins.c");
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
 			LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
-			LTSminModel model = walker.createLTSminModel(name, verbose);
+			LTSminModel model = walker.createLTSminModel(name, verbose,
+			                                             exports, progress);
 			String code = LTSminPrinter.generateCode(model);
             fos.write(code.getBytes());
 			fos.flush();

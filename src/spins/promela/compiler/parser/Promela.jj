@@ -42,6 +42,11 @@ public class Promela {
         copy(this, prom);
     }
 
+    public Promela(Specification spec, java.io.InputStream stream) {
+        this(stream);
+        specification = spec;
+    }
+
 	public Promela(Promela prom, java.io.InputStream stream) {
 	    this(stream);
 	    copy(this, prom);
@@ -529,7 +534,8 @@ SKIP : { // Skip whitespace and comments
             		SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // skip until elif/endif
             	}
 	        } catch (Exception e) {
-	            throw new AssertionError("Failed to parse #elif:"+ e);
+                int line1 = input_stream.getEndLine();
+	            throw new AssertionError("Failed to parse #elif at "+ line1 +":"+ e);
 	        }
         }
     }
@@ -1102,11 +1108,12 @@ State sequence(State start, State breakNode, boolean inAtomic): {
  |	LOOKAHEAD(<IDENTIFIER> <COLON>)
 	id=<IDENTIFIER> <COLON>
 	{
-		if(labels.containsKey(id.image)) {
-			throw new MyParseException("Duplicate label", id);
+        String label = id.image +"_"+ Preprocessor.getLevel();
+		if(labels.containsKey(label)) {
+			throw new MyParseException("Duplicate label: "+ id.image, id);
 		}
-		labels.put(id.image, start);
-		start.addLabel(id.image);
+		labels.put(label, start);
+		start.addLabel(label);
 	}
 	end=sequence(end, breakNode, inAtomic)
  |	LOOKAHEAD(channel_statement())
@@ -1130,7 +1137,13 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 	(end=sequence(end, breakNode, inAtomic))?
  |	t=<GOTO> id=<IDENTIFIER>
 	{
-		gotos.put(start, id);
+        String label = id.image +"_"+ Preprocessor.getLevel();
+        Token tok = new Token(PromelaConstants.IDENTIFIER, label);
+        tok.beginLine = id.beginLine;
+        tok.endLine = id.endLine;
+        tok.beginColumn = id.beginColumn;
+        tok.endColumn = id.endColumn;
+		gotos.put(start, tok);
 		end = new State(automaton, inAtomic);
 	}
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
