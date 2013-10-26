@@ -82,4 +82,12 @@ public abstract class Action {
 
 	@Override
 	public abstract String toString();
+
+	private int nr = -1;
+    public void setNumber(int i) {
+        nr = i;
+    }
+    public int getNumber() {
+        return nr;
+    }
 }
