@@ -99,21 +99,6 @@ public class Preprocessor {
 
 	public static DefineMapping addDefine(String text, boolean inline) {
 		try {
-		    // Establish the constant value whenever possible:
-		    /*// does not work
-		    DefineMapping old = define;
-		    define = new DefineMapping();
-            InputStream is = new ByteArrayInputStream(text.getBytes());
-            Preprocessor.preprocessing.push(null);
-            Preprocessor.files.push(Preprocessor.getFileName());
-            final Promela prom = new Promela(is); // start new parser for condition
-            try {
-                Expression expr = prom.expr();
-                int num = expr.getConstantValue();
-                text = num +"";
-            } catch (Exception e) {}
-            define = old;*/
-		    
 			define.inline = inline;
 			define.defineText = text;
 			DefineMapping put = defines.put(define.name, define);
@@ -133,7 +118,7 @@ public class Preprocessor {
 	public static int getLevel() {
 	    int level = 0;
 	    for (DefineMapping def : current) {
-	        if (def.inline) level++; 
+	        if (def != null && def.inline) level++; 
 	    }
 	    return level;
 	}
