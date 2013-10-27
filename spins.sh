@@ -11,10 +11,13 @@ CP="$script_dir/spins.jar"
 CP="$script_dir/build/classes"
 promela_file=
 no_compile=0
+verbose=0
 
 for option in ${1+"$@"}; do
     if [ "${option:0:2}" == "-I" ]; then
         no_compile=1
+    elif [ "${option:0:2}" == "-v" ]; then
+        verbose=1
     elif [ "${option:0:1}" != "-" ]; then
 		promela_file="$option"
     fi
@@ -45,7 +48,15 @@ if [ $no_compile == 1 ]; then
     exit 0
 fi
 
-gcc -fPIC -shared -O2 -ggdb $CFLAGS $output_file -o $promela_name.spins
+CC="gcc -fPIC -shared -O2 -ggdb $CFLAGS -Wno-unused-variable \
+    -Wno-unused-but-set-variable $output_file -o $promela_name.spins"
+
+if [ $verbose = 1 ]; then
+    echo $CC
+fi
+
+$CC
+
 if [ ! $? -eq 0 ]; then
 	echo "Compilation of $output_file failed"
 else
