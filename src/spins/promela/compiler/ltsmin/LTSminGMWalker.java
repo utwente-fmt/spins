@@ -68,6 +68,7 @@ import spins.promela.compiler.ltsmin.model.ResetProcessAction;
 import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
+import spins.promela.compiler.ltsmin.util.LTSminProgress;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaTokenManager;
 import spins.promela.compiler.variable.ChannelType;
@@ -100,6 +101,8 @@ public class LTSminGMWalker {
 		}
 	}
 
+	static LTSminProgress report;
+	
 	/**
 	 * Adds all guards labels and generates the guards matrices for POR
 	 * @param model
@@ -109,6 +112,7 @@ public class LTSminGMWalker {
 	static void generateGuardInfo(LTSminModel model, boolean no_gm, LTSminDebug debug) {
 		debug.say("Generating guard information ...");
 		debug.say_indent++;
+		report = new LTSminProgress(debug, 50);
 
 		if(model.getGuardInfo()==null)
 			model.setGuardInfo(new GuardInfo(model.getTransitions().size()));
@@ -139,85 +143,56 @@ public class LTSminGMWalker {
         generateDepMatrices (model, guardInfo);
 
         // generate Maybe Coenabled matrix
-        setTotal(nLabels*nLabels/2);
+        report.setTotal(nLabels*nLabels/2);
         int nmce = generateCoenMatrix (model, guardInfo);
-        debug.say(report(nmce, "!MCE guards"));
+        report.overwrite(totals(nmce, "!MCE guards"));
 
-        setTotal(nTrans*nTrans/2);
+        report.setTotal(nTrans*nTrans/2);
         int mct = generateMCtrans (model, guardInfo);
-        debug.say(report(mct, "!MCE transitions"));
+        report.overwrite(totals(mct, "!MCE transitions"));
 
         // generate Maybe Coenabled matrix
-        setTotal(nLabels*nLabels);
+        report.setTotal(nLabels*nLabels);
         int nice = generateICoenMatrix (model, guardInfo);
-        debug.say(report(nice, "!ICE guards"));
+        report.overwrite(totals(nice, "!ICE guards"));
 
         // generate NES matrix
-        setTotal(nTrans*nLabels);
+        report.setTotal(nTrans*nLabels);
         int nnes = generateNESMatrix (model, guardInfo);
-        debug.say(report(nnes, "!NES guards"));
+        report.overwrite(totals(nnes, "!NES guards"));
 
-        setTotal(nTrans*nTrans);
+        report.setTotal(nTrans*nTrans);
         int nnet = generateNEStrans (model, guardInfo);
-        debug.say(report(nnet, "!NES transitions"));
+        report.overwrite(totals(nnet, "!NES transitions"));
 
         // generate NDS matrix
-        setTotal(nTrans*nLabels);
+        report.setTotal(nTrans*nLabels);
         int nnds = generateNDSMatrix (model, guardInfo);
-        debug.say(report( nnds, "!NDS guards"));
+        report.overwrite(totals( nnds, "!NDS guards"));
 
-        setTotal(nTrans*nTrans);
+        report.setTotal(nTrans*nTrans);
         int nndt = generateNDStrans (model, guardInfo);
-        debug.say(report(nndt, "!NDS transitions"));
+        report.overwrite(totals(nndt, "!NDS transitions"));
         
         // generate Do Not Accord Matrix
-        setTotal(nTrans*nTrans/2);
+        report.setTotal(nTrans*nTrans/2);
         int ndna = generateDoNoAccord (model, guardInfo);
-        debug.say(report(ndna, "!DNA transitions"));
+        report.overwrite(totals(ndna, "!DNA transitions"));
 
         // generate Commutes Matrix
-        setTotal(nTrans*nTrans/2);
+        report.setTotal(nTrans*nTrans/2);
         int commuting = generateCommutes (model, guardInfo);
-        debug.say(report(commuting, "Commuting actions"));
+        report.overwrite(totals(commuting, "Commuting actions"));
         
 		debug.say_indent--;
 		debug.say("Generating guard information done");
 		debug.say("");
 	}
 
-	static int total = 0;
-	static int current = 0;
-	static int last = -1;
-    static final int width = 50; // progress bar width in chars
-	private static void setTotal (int total) {
-	    LTSminGMWalker.total = total;
-	    current = 0;
-	    last = -1;
-	}
-
-	static void updateProgress() {
-	    updateProgress(1);
-	}
-    static void updateProgress(int num) {
-        current = current + num;
-        double progressPercentage = ((double)current) / total;
-        int nr = (int)(progressPercentage*width);
-        if (nr == last) return;
-        last = nr < width ? nr : width;
-
-        System.out.print("\r[");
-        int i = 0;
-        for (; i <= (int)nr; i++) 
-            System.out.print(".");
-        for (; i < width; i++)
-            System.out.print(" ");
-        System.out.print("]");
-	 }
-
-    private static String report(int n, String msg) {
-        double perc = ((double)n * 100)/total;
-        return String.format("\rFound %,8d /%,8d (%5.1f%%) %s               ",
-                              n, total, perc, msg);
+    public static String totals(int n, String msg) {
+        double perc = ((double)n * 100) / report.getTotal();
+        return String.format("Found %,10d /%,10d (%5.1f%%) %s               ",
+                             n, report.getTotal(), perc, msg);
     }
 
 	private static void generateLabelMatrix(LTSminModel model) {
@@ -262,10 +237,10 @@ guard_loop:     for (int g1 : guardInfo.getTransMatrix().get(t1)) {
                         }
                     }
                 }
-                updateProgress();
+                report.updateProgress();
             }
         }
-        return total - ce;
+        return report.getTotal() - ce;
     }
 
     static final String NDT = "NDT"; 
@@ -284,10 +259,10 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                         break guard_loop;
                     }
                 }
-                updateProgress();
+                report.updateProgress();
             }
         }
-        return total - ndts;
+        return report.getTotal() - ndts;
     }
 
     static final String NET = "NET"; 
@@ -306,10 +281,10 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                         break guard_loop;
                     }
                 }
-                updateProgress();
+                report.updateProgress();
             }
         }
-        return total - nets;
+        return report.getTotal() - nets;
     }
 
     static final String T2G = "T2G";
@@ -345,7 +320,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 
         DepMatrix t2g = new DepMatrix(nTrans, nLabels);
         guardInfo.setMatrix(T2G, t2g);
-        setTotal(nTrans * nLabels);
+        report.setTotal(nTrans * nLabels);
         int num = 0;
         for (int t = 0; t < nTrans; t++) {
             for (int g = 0; g < nLabels; g++) {
@@ -353,10 +328,10 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                     t2g.incWrite(t, g);
                     num++;
                 }
-                updateProgress();
+                report.updateProgress();
             }
         }
-        System.out.println(report(num, "Transitions writing to guards"));
+        report.overwrite(totals(num, "Transitions writing to guards"));
 
         int nActions = 0;
         List<Action> acts = new ArrayList<Action>();
@@ -371,18 +346,18 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 
         DepMatrix a2s = new DepMatrix(nActions, nSlots);
         guardInfo.setMatrix(A2S, a2s);
-        setTotal(nActions* nSlots);
+        report.setTotal(nActions* nSlots);
         int wrs = 0;
         for (Action a : acts) {
             LTSminDMWalker.walkOneAction(model, a2s, a, a.getNumber());
             wrs += a2s.getWrites(a.getNumber()).size();
-            updateProgress(nSlots);
+            report.updateProgress(nSlots);
         }
-        System.out.println(report(wrs, "Action slot writes"));
+        report.overwrite(totals(wrs, "Action slot writes"));
 
         DepMatrix a2a = new DepMatrix(nActions, nActions);
         guardInfo.setMatrix(A2A, a2a);
-        setTotal(nActions * nActions);
+        report.setTotal(nActions * nActions);
         num = 0;
         for (int a = 0; a < nActions; a++) {
             List<Integer> writes = a2s.getWrites(a);
@@ -391,10 +366,10 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                     a2a.incWrite(a, b);
                     num++;
                 }
-                updateProgress();
+                report.updateProgress();
             }
         }
-        System.out.println(report(num, "Actions writes to action"));
+        report.overwrite(totals(num, "Actions writes to action"));
 
         DepMatrix t2t = new DepMatrix(nTrans, nTrans);
         guardInfo.setMatrix(T2T, t2t);
@@ -431,7 +406,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 		for (int g = 0; g <  nds.getNrRows(); g++) {
             LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
             for (LTSminTransition trans : model.getTransitions()) {
-                updateProgress ();
+                report.updateProgress ();
                 if (!t2g.isWrite(trans.getGroup(), g)) {
                     notNDS += 1;
                     continue;
@@ -466,7 +441,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 		for (int g = 0; g <  nes.getNrRows(); g++) {
             LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
 			for (LTSminTransition trans : model.getTransitions()) {
-                updateProgress ();
+			    report.updateProgress ();
 			    if (!t2g.isWrite(trans.getGroup(), g)) {
                     notNES += 1;
 			        continue;
@@ -640,7 +615,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 } else {
                     neverDNA++;
                 }
-                updateProgress ();
+                report.updateProgress ();
             }
         }
         return neverDNA;
@@ -662,7 +637,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 } else {
                     commute++;
                 }
-                updateProgress ();
+                report.updateProgress ();
             }
         }
         return commute;
@@ -1040,6 +1015,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             co.incRead(g1, g1);
             Expression ge1 = guardInfo.get(g1).getExpr();
             for (int g2 = g1+1; g2 < nlabels; g2++) {
+                report.updateProgress ();
                 if (!g2g.isRead(g1, g2)) { // indepenedent
                     co.incRead(g1, g2);
                     co.incRead(g2, g1);
@@ -1053,7 +1029,6 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 } else {
                     neverCoEnabled++;
                 }
-                updateProgress ();
 			}
 		}
 		return neverCoEnabled;
@@ -1068,6 +1043,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         for (int g1 = 0; g1 < nlabels; g1++) {
             Expression ge1 = guardInfo.get(g1).getExpr();
             for (int g2 = 0; g2 < nlabels; g2++) {
+                report.updateProgress ();
                 if (!g2g.isRead(g1, g2)) { // indepenedent
                     ico.incRead(g1, g2);
                     ico.incRead(g2, g1);
@@ -1081,7 +1057,6 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 } else {
                     neverICoEnabled = neverICoEnabled + 1;
                 }
-                updateProgress ();
             }
         }
 
