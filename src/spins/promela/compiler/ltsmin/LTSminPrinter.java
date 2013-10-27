@@ -1089,10 +1089,8 @@ public class LTSminPrinter {
 			w.append("("+ printVar(_NR_PR, state) +" != "+ (PM_MAX_PROCS-1) +")");
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
-			Variable pc = rr.getPC(null);
-			int num = rr.getLabelId();
-			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
-			generateExpression(w, comp, state);
+            Expression labelExpr = rr.getLabelExpression(null);
+			generateExpression(w, labelExpr, state);
 		} else if(e instanceof EvalExpression) {
 			EvalExpression eval = (EvalExpression)e;
 			generateExpression(w, eval.getExpression(), state);

@@ -1441,10 +1441,8 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 			missed |= extract_conjunct_predicates(model, sp, compare(op, left, right), invert);
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
-			Variable pc = rr.getPC(null);
-			int num = rr.getLabelId();
-			Expression comp = compare(EQ, id(pc), constant(num));
-			missed |= extract_conjunct_predicates(model, sp, comp, invert);
+            Expression labelExpr = rr.getLabelExpression(model);
+			missed |= extract_conjunct_predicates(model, sp, labelExpr, invert);
 		} else if (e instanceof ConstantExpression) {
 		    try {
                 int val = e.getConstantValue();

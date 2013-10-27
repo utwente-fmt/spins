@@ -14,6 +14,12 @@
 
 package spins.promela.compiler.expression;
 
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.compare;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.or;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.constant;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
+import static spins.promela.compiler.parser.PromelaConstants.EQ;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -145,16 +151,30 @@ public class RemoteRef extends Expression {
 		return instance;
 	}
 
-	int num = -1;
-	public int getLabelId() {
-		if (-1 != num)
-			return num;
-		getInstance();
-		for (State s : instance.getAutomaton())
-			if (s.hasLabel(getLabel())) num = s.getStateId();
-		if (-1 == num)
+	Expression labelExpr = null;
+	public Expression getLabelExpression(LTSminModel model) {
+
+        if (labelExpr != null)
+            return labelExpr;
+
+        getInstance();
+        Variable pc = getPC(model);
+
+	    
+		for (State s : instance.getAutomaton()) {
+			if (s.hasLabelPrefix(getLabel() +"_")) {
+			    int num = s.getStateId();
+			    Expression comp = compare(EQ, id(pc), constant(num));
+			    if (labelExpr == null) {
+			        labelExpr = comp;
+			    } else {
+			        labelExpr = or(labelExpr, comp);
+			    }
+			}
+		}
+		if (labelExpr == null)
 			throw new AssertionError("Wrong label: "+ this +
 								     " not found in proc "+ instance);
-		return num;
+		return labelExpr;
 	}
 }

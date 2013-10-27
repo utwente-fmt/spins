@@ -5,8 +5,6 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelBottom;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelIndex;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.compare;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.constant;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
 
 import java.util.List;
@@ -471,10 +469,8 @@ public class LTSminDMWalker {
             params.inTimeOut = false;*/
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
-			Variable pc = rr.getPC(params.model);
-			int num = rr.getLabelId();
-			Expression comp = compare(PromelaConstants.EQ, id(pc), constant(num));
-			walkExpression(params, comp, mark);
+			Expression labelExpr = rr.getLabelExpression(params.model);
+			walkExpression(params, labelExpr, mark);
 		} else if(e instanceof EvalExpression) {
 			EvalExpression eval = (EvalExpression)e;
 			walkExpression(params, eval.getExpression(), mark);
