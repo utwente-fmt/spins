@@ -112,6 +112,15 @@ public class LTSminUtil {
 		return new BooleanExpression(new Token(m,name.substring(1,name.length()-1)), e1);
 	}
 
+	public static Expression negate(Expression progress) {
+        if (progress instanceof BooleanExpression &&
+                progress.getToken().kind ==  PromelaConstants.LNOT) {
+            return ((BooleanExpression) progress).getExpr1();
+        } else {
+            return not(progress);
+        }
+    }
+
 	public static BooleanExpression or(Expression e1, Expression e2) {
 		int m = PromelaConstants.LOR;
 		String name = PromelaConstants.tokenImage[m];

@@ -49,6 +49,7 @@ import spins.promela.compiler.parser.PromelaTokenManager;
 import spins.promela.compiler.parser.SimpleCharStream;
 import spins.promela.compiler.parser.Token;
 import spins.promela.compiler.parser.TokenMgrError;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
 
 public class Compile {
 	private static Specification compile(final File promFile, 
@@ -143,7 +144,7 @@ public class Compile {
         parser.addOption(export);
 
         final StringOption progress = new StringOption('P',
-                "sets #define as progress state label", false);
+                "sets #define as progress state label (prepend a '!' to define non-progress)", false);
         parser.addOption(progress);
 
 		final BooleanOption dot = new BooleanOption('d',
@@ -248,14 +249,20 @@ public class Compile {
         Expression progressLabel = null;        
         String progressLabelName = progress.getValue();
         if (progressLabelName != null) {
+            boolean np = progressLabelName.startsWith("!"); 
+            progressLabelName = np ? progressLabelName.substring(1) : progressLabelName;
             progressLabel = parseDefine(spec, progressLabelName);
-            System.out.println("Rewired progress label to '"+ progressLabelName +"'"); 
+            if (np)
+                progressLabel = not(progressLabel);
+            System.out.println("Rewired progress label to '"+ progressLabelName +"'");
+            System.out.println("");
         }
         Map<String, Expression> exportLabels = new HashMap<String, Expression>();
         for (String defined : export) {
             Expression label = parseDefine(spec, defined);
             exportLabels.put(defined, label);
-            System.out.println("Exporting state label '"+ defined +"'"); 
+            System.out.println("Exporting state label '"+ defined +"'");
+            System.out.println("");
         }
 
 		File outputDir = new File(System.getProperty("user.dir"));

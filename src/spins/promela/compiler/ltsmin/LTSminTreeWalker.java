@@ -5,6 +5,7 @@ import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_EDGE_LABEL_NAME
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ASSERT_ACTION_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.BOOLEAN_TYPE_NAME;
+import static spins.promela.compiler.ltsmin.LTSminPrinter.PROGRESS_STATE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.NON_PROGRESS_STATE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.NO_ACTION_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.PROGRESS_ACTION_NAME;
@@ -15,7 +16,6 @@ import static spins.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.and;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.assign;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.calc;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanContentsGuard;
@@ -31,6 +31,7 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.isRendezVousReadActi
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.isRendezVousSendAction;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.or;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.pcGuard;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -256,23 +257,28 @@ public class LTSminTreeWalker {
 
 		/* Add nonprogress state label and progress edge label */
 		if (progress == null) {
+            Expression or = null;
             Expression and = null;
     		for (ProcInstance pi : spec) {
     		    for (State s : pi.getAutomaton()) {
     		        if (s.isProgressState()) {
     		            Variable pc = model.sv.getPC(pi);
     		            Expression counter = constant(s.getStateId());
-    		            Expression e = compare(PromelaConstants.NEQ, id(pc), counter);
-    	                and = and == null ? e : and(and, e) ; // And Not
+    		            Expression e = compare(PromelaConstants.EQ, id(pc), counter);
+    	                or = or == null ? e : or(or, e);
+                        Expression ne = compare(PromelaConstants.NEQ, id(pc), counter);
+                        and = and == null ? ne : and(and, ne) ;
     		        }
     		    }
     		}
-    		if (and != null) {
-    		    model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME, new LTSminGuard(and));
+    		if (or != null) {
+    		    model.addStateLabel(PROGRESS_STATE_LABEL_NAME, new LTSminGuard(or));
+                model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME, new LTSminGuard(and));
     		}
 		} else {
-            model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME,
-                                new LTSminGuard(not(progress)));
+            model.addStateLabel(PROGRESS_STATE_LABEL_NAME, new LTSminGuard(progress));
+            Expression np = negate(progress);
+            model.addStateLabel(NON_PROGRESS_STATE_LABEL_NAME, new LTSminGuard(np));
 		}
 
 		/* Export label for valid end states */

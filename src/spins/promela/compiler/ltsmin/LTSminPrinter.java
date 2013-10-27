@@ -123,6 +123,7 @@ public class LTSminPrinter {
 	public static final String VALID_END_STATE_LABEL_NAME       = "end_";
     public static final String ACCEPTING_STATE_LABEL_NAME       = "accept_";
     public static final String NON_PROGRESS_STATE_LABEL_NAME    = "np_";
+    public static final String PROGRESS_STATE_LABEL_NAME        = "progress_";
 
     public static final String STATEMENT_EDGE_LABEL_NAME        = "statement";
     public static final String ACTION_EDGE_LABEL_NAME           = "action";
@@ -350,10 +351,11 @@ public class LTSminPrinter {
 		w.appendLine("extern void spins_get_initial_state( state_t *to )");
 		w.appendLine("{");
 		w.indent();
-		w.appendLine("if("+ model.sv.size() +"*",STATE_ELEMENT_SIZE," != sizeof(" + C_STATE + "))");
-		w.indent();
-		w.appendLine("printf(\"state_t SIZE MISMATCH!: state: %zu != %i\",sizeof("+ C_STATE +"),"+ model.sv.size() +"*",STATE_ELEMENT_SIZE,");");
-		w.outdent();
+		w.appendLine("assert("+ model.sv.size() +"*",STATE_ELEMENT_SIZE," == "
+		                      + "sizeof(" + C_STATE + "),");
+		w.appendLine("\t\"state_t SIZE MISMATCH!: state: %zu != %i\", "
+		                    + "\n\t\tsizeof("+ C_STATE +"), "
+		                    + model.sv.size() +"*",STATE_ELEMENT_SIZE,");");
 		w.appendLine("memcpy(to, (char*)&",INITIAL_VAR,", sizeof(" + C_STATE + "));");
 		w.outdent();
 		w.appendLine("}");
