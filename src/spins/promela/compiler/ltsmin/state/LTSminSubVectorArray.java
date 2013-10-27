@@ -17,7 +17,7 @@ public class LTSminSubVectorArray extends LTSminSubVector {
 	}
 
 	protected LTSminSubVector getSubVector(int index) {
-		if (index > (var.array() > -1 ? var.array() : 1))
+		if (index >= (var.array() > -1 ? var.array() : 1))
 			throw new AssertionError("Array index out of bound for: "+ var);
 		return follow(index);
 	}
@@ -32,6 +32,8 @@ public class LTSminSubVectorArray extends LTSminSubVector {
 	private LTSminSubVector follow(int index) {
 		if (var.getType() instanceof LTSminTypeNative)
 			return slot(index);
+        if (index >= (var.array() > -1 ? var.array() : 1))
+            throw new AssertionError("Array index out of bound for: "+ var);
 		int offset = index * var.getType().length();
 		return new LTSminSubVectorStruct(this, var.getType(), offset);
 	}
