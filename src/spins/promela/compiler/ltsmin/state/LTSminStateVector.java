@@ -165,8 +165,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		LTSminTypeStruct process_t = new LTSminTypeStruct(name);
 	
 		// Locals: add locals to the process state struct
-		List<Variable> proc_vars = p.getVariables();
-		for (Variable var : proc_vars) {
+		for (Variable var : p.getVariables()) {
 			addVariable(process_t, var, debug);
 		}
 

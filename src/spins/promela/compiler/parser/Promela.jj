@@ -1010,7 +1010,10 @@ State ivar(VariableContainer store, VariableType type, boolean hidden,
 	   }
 	)?
 	{
-	    store.addVariable(var);
+	    if (store.getVariable(id.image) == null) {	       store.addVariable(var);
+	    } else { // could happen with inlines:	       String inProc = currentProc == null ? "" : " detected in "+ currentProc.getName();
+	       System.out.println("Warning: duplicate variable '"+ id.image +"'"+ inProc);
+        }
         return end;
 	}
 }

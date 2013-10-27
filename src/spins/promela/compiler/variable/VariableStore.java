@@ -14,7 +14,6 @@
 
 package spins.promela.compiler.variable;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -32,6 +31,7 @@ public class VariableStore implements VariableContainer {
         return !(var.isWritten() || var.getType() instanceof ChannelType);
     }
 
+    private final Map<String, Variable> varNames; 
     private final List<Variable> vars;
 
     private final Map<String, String> mapping;
@@ -53,6 +53,7 @@ public class VariableStore implements VariableContainer {
      */
     public VariableStore() {
         vars = new LinkedList<Variable>();
+        varNames = new HashMap<String, Variable>();
         mapping = new HashMap<String, String>();
     }
 
@@ -68,6 +69,7 @@ public class VariableStore implements VariableContainer {
             throw new IllegalArgumentException();
         }
         vars.add(var);
+        varNames.put(var.getName(), var);
     }
     
     public void prependVariable(final Variable var) {
@@ -75,6 +77,7 @@ public class VariableStore implements VariableContainer {
             throw new IllegalArgumentException();
         }
         vars.add(0, var);
+        varNames.put(var.getName(), var);
     }
 
     /**
@@ -86,21 +89,20 @@ public class VariableStore implements VariableContainer {
      *         variable accesable.
      */
     public Variable getVariable(final String name) {
-        for (final Variable var : vars) {
-            if (var.getName().equals(name)) {
-                return var;
-            }
-        }
+        Variable var = varNames.get(name);
+        if (var != null)
+            return var;
     	String to = getVariableMapping(name);
-    	if (null == to) return null;
+    	if (null == to)
+    	    return null;
         return getVariable(to);
     }
 
     /**
-     * @return A new list with all the variables that are stored here.
+     * @return A list with all the variables that are stored here.
      */
     public List<Variable> getVariables() {
-        return new ArrayList<Variable>(vars);
+        return vars;
     }
 
     /**
@@ -111,11 +113,12 @@ public class VariableStore implements VariableContainer {
      * @return True when there was already any variable with that name, otherwise false.
      */
     public boolean hasVariable(final String name) {
-        for (final Variable var : vars) {
-            if (var.getName().equals(name)) {
-                return true;
-            }
-        }
-        return null != getVariableMapping(name);
+        Variable var = varNames.get(name);
+        if (var != null)
+            return true;
+        String to = getVariableMapping(name);
+        if (null == to)
+            return false;
+        return hasVariable(to);
     }
 }

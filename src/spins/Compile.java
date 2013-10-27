@@ -60,10 +60,10 @@ public class Compile {
 			String path = promFile.getAbsoluteFile().getParent();
 			Preprocessor.setDirname(path);
 
-			System.out.print("Start parsing " + promFile.getName() + "...");
+			System.out.println("Parsing " + promFile.getName() + "...");
 			final Promela prom = new Promela(new FileInputStream(promFile));
 			final Specification spec = prom.spec(name);
-			System.out.println("done");
+			System.out.println("Parsing " + promFile.getName() + " done");
 			System.out.println("");
 
 			System.out.println("Optimizing graphs...");

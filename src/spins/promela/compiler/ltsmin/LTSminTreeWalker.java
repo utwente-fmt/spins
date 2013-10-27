@@ -375,8 +375,10 @@ public class LTSminTreeWalker {
 				e.printStackTrace();
 			}
 		}
-		for (String binding : iCount)
+		for (String binding : iCount) {
 			debug.say(MessageKind.NORMAL, "#define __instances_"+ binding);
+		}
+		if (iCount.size() > 0 ) debug.say(MessageKind.NORMAL, "");
 		for (ProcInstance instance : active)
 			instances.add(instance);
 		spec.setInstances(instances);
