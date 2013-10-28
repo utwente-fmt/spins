@@ -12,7 +12,7 @@ import java.util.Set;
 
 import spins.promela.compiler.Specification;
 import spins.promela.compiler.expression.Expression;
-import spins.promela.compiler.ltsmin.matrix.DepMatrix;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix;
 import spins.promela.compiler.ltsmin.matrix.GuardInfo;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
@@ -42,8 +42,9 @@ import spins.util.IndexedSet;
 public class LTSminModel implements Iterable<LTSminTransition> {
 
     private String name;
-    private DepMatrix depMatrix;
-    private DepMatrix actionDepMatrix;
+    private RWMatrix depMatrix;
+    private RWMatrix atomicDepMatrix;
+    private RWMatrix actionDepMatrix;
     private GuardInfo guardInfo;
     private List<String> mtypes;
     public boolean hasAtomicCycles = false;
@@ -92,20 +93,28 @@ public class LTSminModel implements Iterable<LTSminTransition> {
 		return name;
 	}
 
-	public DepMatrix getDepMatrix() {
+	public RWMatrix getDepMatrix() {
 		return depMatrix;
 	}
 
-	public void setDepMatrix(DepMatrix depMatrix) {
+	public void setDepMatrix(RWMatrix depMatrix) {
 		this.depMatrix = depMatrix;
 	}
 
-    public DepMatrix getActionDepMatrix() {
+    public RWMatrix getActionDepMatrix() {
         return actionDepMatrix;
     }
 
-    public void setActionDepMatrix(DepMatrix depMatrix) {
+    public void setActionDepMatrix(RWMatrix depMatrix) {
         this.actionDepMatrix = depMatrix;
+    }
+
+    public RWMatrix getAtomicDepMatrix() {
+        return atomicDepMatrix;
+    }
+
+    public void setAtomicDepMatrix(RWMatrix depMatrix) {
+        this.atomicDepMatrix = depMatrix;
     }
 
 	public GuardInfo getGuardInfo() {

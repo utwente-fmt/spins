@@ -7,6 +7,7 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelIndex;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import spins.promela.compiler.Proctype;
@@ -36,12 +37,13 @@ import spins.promela.compiler.expression.MTypeReference;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
-import spins.promela.compiler.ltsmin.matrix.DepMatrix;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spins.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
 import spins.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
@@ -79,12 +81,11 @@ public class LTSminDMWalker {
 	static public class Params {
 		public final LTSminModel model;
 		public final LTSminStateVector sv;
-		public DepMatrix depMatrix;
+		public RWMatrix depMatrix;
 		public int trans;
 		public boolean inTimeOut = false;
-		public LTSminProgress report = null;
 
-		public Params(LTSminModel model, DepMatrix depMatrix, int trans) {
+		public Params(LTSminModel model, RWMatrix depMatrix, int trans) {
 			this.model = model;
 			this.depMatrix = depMatrix;
 			this.trans = trans;
@@ -92,17 +93,11 @@ public class LTSminDMWalker {
 		}
 	}
 
-	public static void walkOneGuard(LTSminModel model, DepMatrix dm,
+	public static void walkOneGuard(LTSminModel model, RWMatrix dm,
 									LTSminGuardBase g, int num) {
 		Params p = new Params(model, dm, num); 
 		walkGuard (p, g);
 	}
-	
-    public static void walkOneAction(LTSminModel model, DepMatrix dm,
-                                     Action a, int num) {
-         Params p = new Params(model, dm, num); 
-         walkAction (p, a);
-    }
 	
 	static void walkModel(LTSminModel model, LTSminDebug debug) {
 		debug.say("Generating DM information ...");
@@ -112,61 +107,100 @@ public class LTSminDMWalker {
 		    debug.say(MessageKind.FATAL, "Dependency matrix is already set");
 
 		Params params = new Params(model, null, 0);
-		params.depMatrix = new DepMatrix(model.getTransitions().size(), model.sv.size());
+		params.depMatrix = new RWMatrix(model.getTransitions().size(), model.sv.size());
 		model.setDepMatrix(params.depMatrix);
 
-        if (params.report == null)
-            params.report = new LTSminProgress(debug, 50);
-		walkTransitions(params);
+		walkTransitions(params, debug);
 
 		debug.say_indent--;
 		debug.say("Generating DM information done");
 		debug.say("");
 	}
 
-    public static String totals(LTSminProgress report, int n, String msg) {
-        double perc = ((double)n * 100) / report.getTotal();
-        return String.format("Found %,9d /%,9d (%5.1f%%) %s               ",
-                             n, report.getTotal(), perc, msg);
+    public static String totals(LTSminProgress report, int r, int w, String msg) {
+        double percR = ((double)r * 100) / report.getTotal();
+        double percW = ((double)w * 100) / report.getTotal();
+        return String.format("Found %,8d, %,8d / %,9d (%5.1f%%, %5.1f%%) %s               ",
+                             r, w, report.getTotal(), percR, percW, msg);
     }
 
-	static void walkTransitions(Params params) {
-	    params.report.setTotal(params.model.getTransitions().size() *
-	                           params.model.sv.size());
-	    int deps = 0;
+	static void walkTransitions(Params params, LTSminDebug debug) {
+	    int nSlots = params.model.sv.size();
+        int nTrans = params.model.getTransitions().size();
+
+        LTSminProgress report = new LTSminProgress(debug, 50);
+        
+	    // Number actions
+        int nActions = 0;
+        List<Action> acts = new ArrayList<Action>();
+        for(LTSminTransition t: params.model.getTransitions()) {
+            for (Action a : t.getActions()) {
+                if (a.getNumber() == -1) {
+                    a.setNumber(nActions++);
+                    acts.add(a);
+                }
+            }
+        }
+
+        // Individual actions
+        RWMatrix a2s = new RWMatrix(nActions, nSlots);
+        params.model.setActionDepMatrix(a2s);
+        report.setTotal(nActions * nSlots);
+        int reads = 0;
+        int writes = 0;
+        Params p = new Params(params.model, a2s, -1);
+        for (Action a : acts) {
+            p.trans = a.getNumber();
+            walkAction (p, a);
+            RWDepRow row = a2s.getRow(a.getNumber());
+            reads += row.readCardinality();
+            writes += row.writeCardinality();
+            report.updateProgress(nSlots);
+        }
+        report.overwrite(totals(report, reads, writes, "Actions/slot R,W"));
+
+        // Transitions and their atomic followups
+        RWMatrix atomicDep = new RWMatrix(nTrans, nSlots);
+        params.model.setAtomicDepMatrix(atomicDep);
+        report.setTotal(nTrans * nSlots);
+	    reads = 0;
+	    writes = 0;
 		for(LTSminTransition t: params.model.getTransitions()) {
-			params.trans = t.getGroup();
-			walkTransition(params,t);
-			params.report.updateProgress(params.model.sv.size());
-			deps += params.depMatrix.getDeps(t.getGroup()).size();
+			walkTransition(a2s, atomicDep, t);
+			RWDepRow row = atomicDep.getRow(t.getGroup());
+            reads += row.readCardinality();
+            writes += row.writeCardinality();
+			report.updateProgress(nSlots);
 		}
-        params.report.overwrite(totals(params.report, deps, "Actions(s)/slot dependencies"));
+        report.overwrite(totals(report, reads, writes, "Atomics/slot R,W"));
 
         // preserve the dep matrix with only action dependencies!
-        params.model.setActionDepMatrix(params.depMatrix);
         // copy the matrix so that we can add guard dependencies 
-        params.depMatrix = new DepMatrix(params.depMatrix);
+        params.depMatrix = new RWMatrix(atomicDep);
         params.model.setDepMatrix(params.depMatrix);
         
-        params.report.setTotal(params.model.getTransitions().size() *
-                               params.model.sv.size());
-        deps = 0;
+        report.setTotal(nTrans * nSlots);
+        reads = 0;
+        writes = 0;
         for(LTSminTransition t: params.model.getTransitions()) {
             params.trans = t.getGroup();
             walkTransitionGuards(params,t);
-            params.report.updateProgress(params.model.sv.size());
-            deps += params.depMatrix.getDeps(t.getGroup()).size();
+            report.updateProgress(nSlots);
+            RWDepRow row = params.depMatrix.getRow(t.getGroup());
+            reads += row.readCardinality();
+            writes += row.writeCardinality();
         }
-        params.report.overwrite(totals(params.report, deps, "Transition/slot dependencies"));    
+        report.overwrite(totals(report, reads, writes, "Transition/slot R,W"));    
 	}
 
-	static void walkTransition(Params params, LTSminTransition t) {
-		for(Action a : t.getActions())
-			walkAction(params,a);
+	static void walkTransition(RWMatrix a2s, RWMatrix atomicDep, LTSminTransition t) {
+		for (Action a : t.getActions())
+		    atomicDep.orRow(t.getGroup(), a2s.getRow(a.getNumber()));
+
 		// transitively add dependencies of atomic transitions
 		for(LTSminTransition atomic : t.getTransitions()) {
 			for(Action a : atomic.getActions()) {
-				walkAction(params,a);
+	            atomicDep.orRow(t.getGroup(), a2s.getRow(a.getNumber()));
 			}
 		}
 	}

@@ -51,7 +51,7 @@ import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
-import spins.promela.compiler.ltsmin.matrix.DepRow;
+import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 import spins.promela.compiler.ltsmin.matrix.GuardInfo;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
@@ -61,6 +61,8 @@ import spins.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spins.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
 import spins.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
@@ -200,8 +202,10 @@ public class LTSminGMWalker {
 		int nlabels = guardInfo.getNumberOfLabels();
 	    DepMatrix dm = new DepMatrix(nlabels, model.sv.size());
 		guardInfo.setDepMatrix(dm);
+
+		RWMatrix dummy = new RWMatrix(dm, null);
 		for (int i = 0; i < nlabels; i++) {
-			LTSminDMWalker.walkOneGuard(model, dm, guardInfo.get(i), i);
+			LTSminDMWalker.walkOneGuard(model, dummy, guardInfo.get(i), i);
 		}
 
 		int T = model.getDepMatrix().getNrRows();
@@ -210,8 +214,8 @@ public class LTSminGMWalker {
         DepMatrix gm = guardInfo.getDepMatrix();
         for (int t = 0; t < T; t++) {
             for (int gg : guardInfo.getTransMatrix().get(t)) {
-                for (int slot : gm.getRow(gg).getReads()) {
-                    testset.incRead(t, slot);
+                for (int slot : gm.getRow(gg)) {
+                    testset.setDependent(t, slot);
                 }
             }
         }
@@ -225,13 +229,13 @@ public class LTSminGMWalker {
         guardInfo.setMatrix(MCT, mct);
         int ce = 0;
         for (int t1 = 0; t1 < nTrans; t1++) {
-            mct.incRead(t1, t1);
+            mct.setDependent(t1, t1);
             for (int t2 = t1+1; t2 < nTrans; t2++) {
 guard_loop:     for (int g1 : guardInfo.getTransMatrix().get(t1)) { 
                     for (int g2 : guardInfo.getTransMatrix().get(t2)) {  
-                        if (coen.isRead(g1, g2)) {
-                            mct.incRead(t1, t2);
-                            mct.incRead(t2, t1);
+                        if (coen.isDependent(g1, g2)) {
+                            mct.setDependent(t1, t2);
+                            mct.setDependent(t2, t1);
                             ce++;
                             break guard_loop;
                         }
@@ -253,8 +257,8 @@ guard_loop:     for (int g1 : guardInfo.getTransMatrix().get(t1)) {
         for (int t1 = 0; t1 < nTrans; t1++) {
             for (int t2 = 0; t2 < nTrans; t2++) {
 guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) { 
-                    if (nds.isRead(g2, t1)) {
-                        ndt.incRead(t1, t2);
+                    if (nds.isDependent(g2, t1)) {
+                        ndt.setDependent(t1, t2);
                         ndts++;
                         break guard_loop;
                     }
@@ -275,8 +279,8 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         for (int t1 = 0; t1 < nTrans; t1++) {
             for (int t2 = 0; t2 < nTrans; t2++) {
 guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) { 
-                    if (nes.isRead(g2, t1)) {
-                        net.incRead(t1, t2);
+                    if (nes.isDependent(g2, t1)) {
+                        net.setDependent(t1, t2);
                         nets++;
                         break guard_loop;
                     }
@@ -290,30 +294,31 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
     static final String T2G = "T2G";
     static final String G2S = "G2S"; // guard reads slots
     static final String G2G = "G2G"; // guard reads from guard
-    static final String A2S = "A2S";
     static final String A2A = "A2A"; // actions excluding atomics (write dep)
     static final String T2T = "T2T"; // transitions excluding guards, including atomic (write dep)
     private static int generateDepMatrices(LTSminModel model, GuardInfo guardInfo) {
         int nTrans = model.getTransitions().size();
         int nLabels = model.getGuardInfo().getNumberOfLabels();
         int nSlots = model.sv.size();
+        int nActions = model.getActionDepMatrix().getNrRows();
 
-        DepMatrix deps = model.getDepMatrix();
+        RWMatrix deps = model.getDepMatrix();
         DepMatrix g2s = new DepMatrix(nLabels, nSlots);
+        RWMatrix dummy = new RWMatrix(g2s, null);
         guardInfo.setMatrix(G2S, g2s);
         for (int g = 0; g < nLabels; g++) {
             LTSminGuard gguard = guardInfo.get(g);
-            LTSminDMWalker.walkOneGuard(model, g2s, gguard, g);
+            LTSminDMWalker.walkOneGuard(model, dummy, gguard, g);
         }
 
         DepMatrix g2g = new DepMatrix(nLabels, nLabels);
         guardInfo.setMatrix(G2G, g2g);
         for (int g1 = 0; g1 < nLabels; g1++) {
-            g2g.incRead(g1, g1);
+            g2g.setDependent(g1, g1);
             for (int g2 = g1 + 1; g2 < nLabels; g2++) {
-                if (g2s.isRead(g1, g2s.getReads(g2))) {
-                    g2g.incRead(g1, g2);
-                    g2g.incRead(g2, g1);
+                if (g2s.rowsDepenendent(g1, g2)) {
+                    g2g.setDependent(g1, g2);
+                    g2g.setDependent(g2, g1);
                 }
             }
         }
@@ -324,8 +329,8 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         int num = 0;
         for (int t = 0; t < nTrans; t++) {
             for (int g = 0; g < nLabels; g++) {
-                if (deps.isWrite(t, g2s.getReads(g))) {
-                    t2g.incWrite(t, g);
+                if (deps.getRow(t).writes(g2s.getRow(g))) {
+                    t2g.setDependent(t, g);
                     num++;
                 }
                 report.updateProgress();
@@ -333,37 +338,16 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         }
         report.overwrite(totals(num, "Transitions writing to guards"));
 
-        int nActions = 0;
-        List<Action> acts = new ArrayList<Action>();
-        for (int t = 0; t < nTrans; t++) {
-            for (Action a : model.getTransitions().get(t).getActions()) {
-                if (a.getNumber() == -1) {
-                    a.setNumber(nActions++);
-                    acts.add(a);
-                }
-            }
-        }
-
-        DepMatrix a2s = new DepMatrix(nActions, nSlots);
-        guardInfo.setMatrix(A2S, a2s);
-        report.setTotal(nActions* nSlots);
-        int wrs = 0;
-        for (Action a : acts) {
-            LTSminDMWalker.walkOneAction(model, a2s, a, a.getNumber());
-            wrs += a2s.getWrites(a.getNumber()).size();
-            report.updateProgress(nSlots);
-        }
-        report.overwrite(totals(wrs, "Action slot writes"));
-
+        RWMatrix a2s = model.getActionDepMatrix();
         DepMatrix a2a = new DepMatrix(nActions, nActions);
         guardInfo.setMatrix(A2A, a2a);
         report.setTotal(nActions * nActions);
         num = 0;
         for (int a = 0; a < nActions; a++) {
-            List<Integer> writes = a2s.getWrites(a);
+            RWDepRow aRow = a2s.getRow(a);
             for (int b = 0; b < nActions; b++) {
-                if (a2s.isRead(b, writes) || a2s.isWrite(b, writes)) {
-                    a2a.incWrite(a, b);
+                if (aRow.writes(a2s.getRow(b))) {
+                    a2a.setDependent(a, b);
                     num++;
                 }
                 report.updateProgress();
@@ -373,13 +357,13 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 
         DepMatrix t2t = new DepMatrix(nTrans, nTrans);
         guardInfo.setMatrix(T2T, t2t);
-        DepMatrix trans = model.getActionDepMatrix();
+        RWMatrix trans = model.getAtomicDepMatrix();
         num = 0;
         for (int t1 = 0; t1 < nTrans; t1++) {
-            List<Integer> writes = trans.getWrites(t1);
+            RWDepRow t1Row = trans.getRow(t1);
             for (int t2 = 0; t2 < nTrans; t2++) {
-                if (trans.isRead(t2, writes) || trans.isWrite(t2, writes)) {
-                    t2t.incWrite(t1, t2);
+                if (t1Row.writes(trans.getRow(t2))) {
+                    t2t.setDependent(t1, t2);
                     num++;
                 }
             }
@@ -407,18 +391,18 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
             for (LTSminTransition trans : model.getTransitions()) {
                 report.updateProgress ();
-                if (!t2g.isWrite(trans.getGroup(), g)) {
+                if (!t2g.isDependent(trans.getGroup(), g)) {
                     notNDS += 1;
                     continue;
                 }
 
                 boolean ce = true;
                 for (int g1 : guardInfo.getTransMatrix().get(trans.getGroup())) {  
-                    if (!coen.isRead(g, g1)) ce = false;
+                    if (!coen.isDependent(g, g1)) ce = false;
                 }
                 
                 if (ce && atomicNES(model, guardInfo, guard, g, trans, true)) {
-                    nds.incRead(g, trans.getGroup());
+                    nds.setDependent(g, trans.getGroup());
                 } else {
                     notNDS += 1;
                 }
@@ -442,18 +426,18 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
 			for (LTSminTransition trans : model.getTransitions()) {
 			    report.updateProgress ();
-			    if (!t2g.isWrite(trans.getGroup(), g)) {
+			    if (!t2g.isDependent(trans.getGroup(), g)) {
                     notNES += 1;
 			        continue;
 			    }
 
 		        boolean ice = true;
 		        for (int g1 : guardInfo.getTransMatrix().get(trans.getGroup())) {  
-		            if (!icoen.isRead(g, g1)) ice = false;
+		            if (!icoen.isDependent(g, g1)) ice = false;
 		        }
 			    
                 if (ice && atomicNES(model, guardInfo, guard, g, trans, false)) {
-                    nes.incRead(g, trans.getGroup());
+                    nes.setDependent(g, trans.getGroup());
                 } else {
                     notNES += 1;
                 }
@@ -502,14 +486,15 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
      */
     private static boolean limitMCE(LTSminModel model, GuardInfo guardInfo,
                                     int t, LTSminGuard guard, int g, boolean invert) {
-        DepMatrix rw = model.getDepMatrix();
+        RWMatrix rw = model.getDepMatrix();
         DepMatrix g2s = model.getGuardInfo().getMatrix(G2S);
         for (int gg : guardInfo.getTransMatrix().get(t)) {
             LTSminGuard gguard = guardInfo.get(gg);
             Expression gge = gguard.getExpr();            
             
-            if (rw.isWrite(t, g2s.getReads(gg))) {              
-                Boolean coenabled = MCE(model, guard.getExpr(), gge, invert, false, rw.getRow(t), null);
+            RWDepRow row = rw.getRow(t);
+            if (row.writes(g2s.getRow(gg))) {              
+                Boolean coenabled = MCE(model, guard.getExpr(), gge, invert, false, row.write, null);
                 if (coenabled != null && !coenabled) {
                     return false;
                 }
@@ -547,10 +532,11 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
             boolean missed = extract_conjunct_predicates(model, sps, e, invert);
             if (missed) {
-                DepMatrix deps = model.getDepMatrix();
+                RWMatrix deps = model.getDepMatrix();
                 DepMatrix temp = new DepMatrix(1, model.sv.size());
-                LTSminDMWalker.walkOneGuard(model, temp, new LTSminGuard(e), 0);
-                return deps.isWrite(t.getGroup(), temp.getReads(0));
+                RWMatrix dummy = new RWMatrix(temp, null);
+                LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(e), 0);
+                return deps.getRow(t.getGroup()).writes(temp.getRow(0));
             }
             for (SimplePredicate sp : sps) {
                 if (invert)
@@ -568,13 +554,14 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                                    LTSminTransition t, int g,
                                    SimplePredicate sp) {
         DepMatrix testSet = new DepMatrix(1, model.sv.size());
-        DepMatrix a2s = model.getGuardInfo().getMatrix(A2S);
+        RWMatrix a2s = model.getActionDepMatrix();
 
         for (Action a : t.getActions()) {
             testSet.clear();
-            LTSminDMWalker.walkOneGuard(model, testSet, new LTSminGuard(sp.e), 0);
-            DepRow writeSet = a2s.getRow(a.getNumber());
-            if (!testSet.isRead(0, writeSet.getWrites()))
+            RWMatrix dummy = new RWMatrix(testSet, null);
+            LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(sp.e), 0);
+            RWDepRow writeSet = a2s.getRow(a.getNumber());
+            if (!writeSet.writes(testSet.getRow(0)))
                 continue;
 
             boolean conflicts = conflicts(model, a, sp, t, g, false);
@@ -607,11 +594,11 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         DepMatrix ndt = guardInfo.getMatrix(NDT);
         DepMatrix t2t = model.getGuardInfo().getMatrix(T2T);
         for (int t1 = 0; t1 < nTrans; t1++) {
-            nda.incRead(t1, t1);
+            nda.setDependent(t1, t1);
             for (int t2 = t1+1; t2 < nTrans; t2++) {
                 if (transDNA(model, guardInfo, mct, net, ndt, t2t, t1, t2)) {
-                    nda.incRead(t1, t2);
-                    nda.incRead(t2, t1);
+                    nda.setDependent(t1, t2);
+                    nda.setDependent(t2, t1);
                 } else {
                     neverDNA++;
                 }
@@ -632,8 +619,8 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         for (int t1 = 0; t1 < nTrans; t1++) {
             for (int t2 = t1; t2 < nTrans; t2++) {
                 if (!transNotCommute(model, net, ndt, t2t, t1, t2)) {
-                    commutes.incRead(t1, t2);
-                    commutes.incRead(t2, t1);
+                    commutes.setDependent(t1, t2);
+                    commutes.setDependent(t2, t1);
                 } else {
                     commute++;
                 }
@@ -647,7 +634,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                                              DepMatrix net, DepMatrix ndt,
                                              DepMatrix t2t, int t1, int t2) {
 
-         if (!t2t.isWrite(t1, t2) && !t2t.isWrite(t2, t1)) {
+         if (!t2t.isDependent(t1, t2) && !t2t.isDependent(t2, t1)) {
              return false;
          }
     
@@ -675,18 +662,18 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                                      DepMatrix t2t, int t1, int t2) {
 
         // check for co-enabledness
-        if (!mct.isRead(t1, t2)) {
+        if (!mct.isDependent(t1, t2)) {
             return false;
         }
 
         // check not mutually disabling
-        if ( ndt.isRead(t1, t2) ||
-             ndt.isRead(t2, t1)) {
+        if ( ndt.isDependent(t1, t2) ||
+             ndt.isDependent(t2, t1)) {
             return true;
         }
 
         // check independent actions
-        if (!t2t.isWrite(t1, t2) && !t2t.isWrite(t2, t1)) {
+        if (!t2t.isDependent(t1, t2) && !t2t.isDependent(t2, t1)) {
             return false;
         }
 
@@ -741,13 +728,13 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         // internal atomic action disabled / enabled by t2
         // (we may assume t2 to be enabled during atomic sequence;
         //  if it isn't the nds check below should fail)
-        if ( ndt.isRead(t2, a) ||
-             net.isRead(t2, a)) {
+        if ( ndt.isDependent(t2, a) ||
+             net.isDependent(t2, a)) {
             return true;
         }
 
         // internal action disables t2
-        if ( ndt.isRead(a, t2) ) {
+        if ( ndt.isDependent(a, t2) ) {
             return true;
         }
         
@@ -769,20 +756,20 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         
         LTSminTransition trans1 = model.getTransitions().get(t1);
         LTSminTransition trans2 = model.getTransitions().get(t2);
-        DepMatrix a2s = model.getGuardInfo().getMatrix(A2S);
+        RWMatrix a2s = model.getActionDepMatrix();
         DepMatrix a2a = model.getGuardInfo().getMatrix(A2A);
 
         // check for non-commuting actions
         for (Action acta: trans1.getActions()) {
-            DepRow depsA = a2s.getRow(acta.getNumber()); 
+            RWDepRow depsA = a2s.getRow(acta.getNumber()); 
      
             for (Action actb : trans2.getActions()) {
 
-                if (!a2a.isWrite(acta.getNumber(), actb.getNumber()) &&
-                    !a2a.isWrite(actb.getNumber(), acta.getNumber())) {
+                if (!a2a.isDependent(acta.getNumber(), actb.getNumber()) &&
+                    !a2a.isDependent(actb.getNumber(), acta.getNumber())) {
                     continue;
                 }
-                DepRow depsB = a2s.getRow(actb.getNumber());
+                RWDepRow depsB = a2s.getRow(actb.getNumber());
                 
                 // extract simple predicates for the actions
                 List<SimplePredicate> allA, allB;
@@ -881,14 +868,14 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
      */
     private static List<SimplePredicate> allAssigns (LTSminModel model,
                                                      Action a,
-                                                     DepRow deps)
+                                                     RWDepRow deps)
                                                          throws ParseException {
         List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
         if (a instanceof AssignAction) {
             SimplePredicate sp1 = new SimplePredicate();
             AssignAction ae = (AssignAction)a;
-            if (!depCheck(model, ae.getIdentifier(), deps.getDeps()) &&
-                !depCheck(model, ae.getExpr(), deps.getWrites()))
+            if (!depCheck(model, ae.getIdentifier(), deps) &&
+                !depCheck(model, ae.getExpr(), deps.write))
                 return sps;
             sp1.id = ae.getIdentifier();
             switch (ae.getToken().kind) {
@@ -954,11 +941,11 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             Identifier id = csa.getIdentifier();
 
             for (Expression e : csa.getExprs()) {
-                if (depCheck(model, e, deps.getWrites()))
+                if (depCheck(model, e, deps.write))
                     throw new ParseException();
             }
 
-            if (!depCheck(model, chanLength(id), deps.getDeps()))
+            if (!depCheck(model, chanLength(id), deps))
                 return sps;
 
             SimplePredicate send = new SimplePredicate();
@@ -972,12 +959,12 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             
             for (Expression e : cra.getExprs()) {
                 if ( e instanceof Identifier &&
-                     depCheck(model, e, deps.getDeps()))
+                     depCheck(model, e, deps))
                     throw new ParseException();
             }
             
             if (cra.isPoll() || cra.isRandom()) {
-                if (depCheck(model, chanLength(id), deps.getWrites()))
+                if (depCheck(model, chanLength(id), deps.write))
                     throw new ParseException();
                 return sps;
             }
@@ -993,12 +980,23 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
     }
 
     private static boolean depCheck(LTSminModel model, Expression e,
-                                    List<Integer> rw) {
+                                    DepRow rw) {
         if (e == null)
             return false;
         DepMatrix deps = new DepMatrix(1, model.sv.size());
-        LTSminDMWalker.walkOneGuard(model, deps, new LTSminGuard(e), 0);
-        return deps.isRead(0, rw);
+        RWMatrix dummy = new RWMatrix(deps, null);
+        LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(e), 0);
+        return rw.isDependent(deps.getRow(0));
+    }
+
+    private static boolean depCheck(LTSminModel model, Expression e,
+                                    RWDepRow rw) {
+        if (e == null)
+            return false;
+        DepMatrix deps = new DepMatrix(1, model.sv.size());
+        RWMatrix dummy = new RWMatrix(deps, null);
+        LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(e), 0);
+        return rw.dependent(deps.getRow(0));
     }
     
 	/**************
@@ -1012,20 +1010,20 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 		int neverCoEnabled = 0;
         DepMatrix g2g = model.getGuardInfo().getMatrix(G2G);
 		for (int g1 = 0; g1 < nlabels; g1++) {
-            co.incRead(g1, g1);
+            co.setDependent(g1, g1);
             Expression ge1 = guardInfo.get(g1).getExpr();
             for (int g2 = g1+1; g2 < nlabels; g2++) {
                 report.updateProgress ();
-                if (!g2g.isRead(g1, g2)) { // indepenedent
-                    co.incRead(g1, g2);
-                    co.incRead(g2, g1);
+                if (!g2g.isDependent(g1, g2)) { // indepenedent
+                    co.setDependent(g1, g2);
+                    co.setDependent(g2, g1);
                     continue;
                 }
                 Expression ge2 = guardInfo.get(g2).getExpr();
                 Boolean coenabled = MCE(model, ge1, ge2, false, false, null, null);
                 if (coenabled == null || coenabled) {
-                    co.incRead(g1, g2);
-                    co.incRead(g2, g1);
+                    co.setDependent(g1, g2);
+                    co.setDependent(g2, g1);
                 } else {
                     neverCoEnabled++;
                 }
@@ -1044,16 +1042,16 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             Expression ge1 = guardInfo.get(g1).getExpr();
             for (int g2 = 0; g2 < nlabels; g2++) {
                 report.updateProgress ();
-                if (!g2g.isRead(g1, g2)) { // indepenedent
-                    ico.incRead(g1, g2);
-                    ico.incRead(g2, g1);
+                if (!g2g.isDependent(g1, g2)) { // indepenedent
+                    ico.setDependent(g1, g2);
+                    ico.setDependent(g2, g1);
                     continue;
                 }
                 Expression ge2 = guardInfo.get(g2).getExpr();
                 
                 Boolean icoenabled = MCE(model, ge1, ge2, true, false, null, null);
                 if (icoenabled == null || icoenabled) {
-                    ico.incRead(g1, g2);
+                    ico.setDependent(g1, g2);
                 } else {
                     neverICoEnabled = neverICoEnabled + 1;
                 }
@@ -1116,8 +1114,9 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 DepRow limit = limit1 != null ? limit1 : limit2;
                 Expression e = limit1 != null ? e1 : e2;
                 DepMatrix testSet = new DepMatrix(1, model.sv.size());
-                LTSminDMWalker.walkOneGuard(model, testSet, new LTSminGuard(e), 0);
-                if (!testSet.isRead(0, limit.getWrites())) return null;
+                RWMatrix dummy = new RWMatrix(testSet, null);
+                LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(e), 0);
+                if (!testSet.getRow(0).isDependent(limit)) return null;
             }
             List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();
             boolean missed = extract_conjunct_predicates(model, ga_sp, e1, invert1);
@@ -1475,7 +1474,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
      */
     private static Identifier getConstantId(LTSminModel model,
                                             Expression e,
-                                            List<Integer> writes)
+                                            DepRow writes)
                                                     throws ParseException {
         if (e instanceof LTSminIdentifier) {
         } else if (e instanceof Identifier) {

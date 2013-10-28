@@ -1,148 +1,200 @@
 package spins.promela.compiler.ltsmin.matrix;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
+import java.util.Iterator;
 import java.util.List;
 
 /**
  *
  */
-public class DepMatrix {
-	private ArrayList<DepRow> dep_matrix;
-	private int row_length;
+public class DepMatrix{
 
+	private BitSet vector[];
+	private int rows;
+	private int cols;
+
+    private DepRow sparsed[];
 
 	public DepMatrix(int rows, int cols) {
-		dep_matrix = new ArrayList<DepRow>();
-		row_length = cols;
-		for (int i = 0; i < rows; ++i) {
-			dep_matrix.add(i,new DepRow(cols));
-		}
+		vector = new BitSet[rows];
+		for (int i = 0; i < rows; i++)
+		    vector[i] = new BitSet(cols);
+		this.rows = rows;
+		this.cols = cols;
+        sparsed = new DepRow[rows];
+        Arrays.fill(sparsed, null);
 	}
 
-   public DepMatrix(DepMatrix org) {
-       int rows = org.getNrRows();
-       int cols = org.getNrCols();
-       dep_matrix = new ArrayList<DepRow>();
-       row_length = cols;
-       for (int i = 0; i < rows; ++i) {
-           dep_matrix.add(i, new DepRow(org.getRow(i)));
-       }
+    public DepMatrix(DepMatrix org) {
+        this.rows = org.rows;
+        this.cols = org.cols;
+        vector = new BitSet[rows];
+        for (int i = 0; i < rows; i++)
+            vector[i] = (BitSet) org.vector[i].clone();
+        sparsed = new DepRow[rows];
+        Arrays.fill(sparsed, null);  
     }
-	   
-	/**
-	 * Increase the number of reads of the specified dependency by one.
-	 * @param col The dependency to increase.
-	 */
-	public void incRead(int row, int col) {
-		if(row<0 || row>=dep_matrix.size()) return;
-		DepRow dr = dep_matrix.get(row);
-		assert(dr!=null);
-		dr.incRead(col);
+
+    private void check(int row, int col) {
+        if (row < 0 || row >= rows || col < 0 || col >= cols) {
+            throw new AssertionError("Invalid matrix access ("+row+","+col+") for "+rows +"X"+cols +"matrix");
+        }
+        if (sparsed[row] != null) {
+            throw new AssertionError("Changing fixed matrix row "+ row);
+        }
+    }
+
+    public int getNrRows() {
+        return rows;
+    }
+
+    public int getNrCols() {
+        return cols;
+    }
+
+	public void setDependent(int row, int col) {
+	    check(row, col);
+	    vector[row].set(col);
 	}
 
-	/**
-	 * Increase the number of writes of the specified dependency by one.
-	 * @param col The dependency to increase.
-	 */
-	public void incWrite(int row, int col) {
-		if(row<0 || row>=dep_matrix.size()) return;
-		DepRow dr = dep_matrix.get(row);
-		assert(dr!=null);
-		dr.incWrite(col);
-	}
+    public boolean isDependent(int row, int col) {
+        check(row, col);
+        return vector[row].get(col);
+    }
 
-	/**
-	 * Decrease the number of reads of the specified dependency by one.
-	 * @param col The dependency to decrease.
-	 */
-	public void decrRead(int row, int col) {
-		if(row<0 || row>=dep_matrix.size()) return;
-		DepRow dr = dep_matrix.get(row);
-		assert(dr!=null);
-		dr.decrRead(col);
-	}
+    public void clear() {
+        for (int i = 0; i < rows; i++) {
+            vector[i].clear();
+        }
+        Arrays.fill(sparsed, null);
+    }
 
-	/**
-	 * Decrease the number of writes of the specified dependency by one.
-	 * @param col The dependency to decrease.
-	 */
-	public void decrWrite(int row, int col) {
-		if(row<0 || row>=dep_matrix.size()) return;
-		DepRow dr = dep_matrix.get(row);
-		assert(dr!=null);
-		dr.decrWrite(col);
-	}
+    public boolean rowsDepenendent(int g1, int g2) {
+        return getRow(g1).isDependent(getRow(g2));
+    }
 
-	/**
-	 * Ensure the dependency matrix has the specified number of rows.
-	 * Existing rows will not be modified.
-	 * If the requested size is not higher than the current size, nothing
-	 * is done.
-	 * @param size The requested new size of the dependency matrix.
-	 * @ensures getRows()>=size
-	 */
-	public void ensureSize(int size) {
-		for(int i=dep_matrix.size();i<size;++i) {
-			dep_matrix.add(i,new DepRow(row_length));
-		}
-	}
-
-	/**
-	 * Returns the number of rows in the dependency matrix.
-	 * @return The number of rows in the dependency matrix.
-	 */
-	public int getNrRows() {
-		return dep_matrix.size();
-	}
-
-	public int getNrCols() {
-		return row_length;
-	}
-	
+    public void orRow(int row, DepRow read) {
+        vector[row].or(read.getBitSet());
+    }
+    
+    private static final int SPARSE_FACTOR = 6 + 2; // 64 bit in a word +
+                                                    // an extra factor 4
 	/**
 	 * Returns a dependency row in the dependency matrix.
 	 * @param trans The index of the dependency row to return.
 	 * @return The dependency row at the requested index.
 	 */
-	public DepRow getRow(int trans) {
-		return dep_matrix.get(trans);
+	public DepRow getRow(int row) {
+        DepRow mRow = sparsed[row];
+        if (mRow == null) {
+            int c = vector[row].cardinality();
+            if (c < (cols >> SPARSE_FACTOR)) {
+                List<Integer> list = new ArrayList<Integer>(c);
+                for (int i = vector[row].nextSetBit(0); i >= 0; i = vector[row].nextSetBit(i+1)) {
+                    list.add(i);
+                }
+                mRow = new DepRow(this, c, row, list);
+            } else {
+                mRow = new DepRow(this, c, row);
+            }
+        }
+        return mRow;
 	}
 
-    public boolean isRead(int row, int col) {
-        return getRow(row).getRead(col) > 0;
-    }
+    public class DepRow implements Iterable<Integer> {
+        private DepMatrix matrix;
+        private List<Integer> list = null;
+        private int cardinality;
+        private int row;
 
-    public boolean isWrite(int row, int col) {
-        return getRow(row).getWrite(col) > 0;
-    }
+        public DepRow(DepMatrix m, int c, int row) {
+            this.matrix = m;
+            this.cardinality = c;
+            this.row = row;
+        }
 
-    public List<Integer> getReads(int row) {
-        return getRow(row).getReads();
-    }
+        public BitSet getBitSet() {
+            return this.matrix.vector[this.row];
+        }
 
-    public List<Integer> getWrites(int row) {
-        return getRow(row).getWrites();
-    }
+        public DepRow(DepMatrix m, int c, int row, List<Integer> list) {
+            this(m , c, row);
+            this.list = list;
+        }
 
-    public List<Integer> getDeps(int row) {
-        return getRow(row).getDeps();
-    }
+        public boolean isDependent(DepRow other) {
+            if (other.list != null && this.list != null) {
+                return sortedIterableIntersect(list, other.list);
+            } else if (other.list != null) {
+                return sortedIterableIntersect(this, other.list);
+            } else if (this.list != null) {
+                return sortedIterableIntersect(other, this.list);
+            } else {
+                return other.getBitSet().intersects(this.getBitSet());
+            }
+        }
+        
+        public int getCardinality() {
+            return cardinality;
+        }
 
-    public boolean isWrite(int row, List<Integer> cols) {
-        for (int i : cols)
-            if (isWrite(row, i)) return true;
-        return false;
-    }
+        private boolean sortedIterableIntersect(Iterable<Integer> list1,
+                                             List<Integer> list2) {  
+            int j = 0;
+            int b = -1;
+            for (int a : list1) {
+                while (b < a) {
+                    if (list2.size() == j)
+                        return false;
+                    b = list2.get(j);
+                    j++;
+                };
+                if (a == b) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        /**
+         * Make Bitset iterable
+         */
+        public Iterator<Integer> iterator() {
+            if (list != null) {
+                return list.listIterator();           
+            }
 
-    public void clear() {
-        for (int i = 0 ; i < dep_matrix.size(); i++)
-            dep_matrix.get(i).clear();
-    }
+            return new Iterator<Integer>() {
+                int i = 0;
+                public boolean hasNext() {
+                    i = matrix.vector[row].nextSetBit(i);
+                    return i >= 0;
+                }
 
-    public boolean isRead(int row, List<Integer> cols) {
-        for (int i : cols)
-            if (isRead(row, i)) return true;
-        return false;
-    }
+                public Integer next() {
+                    int ret = matrix.vector[row].nextSetBit(i);
+                    i = ret + 1;
+                    return ret;
+                }
 
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
+
+        public int getNrCols() {
+            return matrix.cols;
+        }
+
+        public boolean isDependent(int col) {
+            return matrix.vector[row].get(col);
+        }
+
+        public int intDependent(int col) {
+            return isDependent(col) ? 1 : 0;
+        }
+    }
 }

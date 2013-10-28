@@ -72,10 +72,12 @@ import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
-import spins.promela.compiler.ltsmin.matrix.DepRow;
 import spins.promela.compiler.ltsmin.matrix.GuardInfo;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix;
+import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
 import spins.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
@@ -156,7 +158,7 @@ public class LTSminPrinter {
 		generateGetNext(w, model);
 		generateGetAll(w, model);
 		generateTransitionCount(w, model);
-		generateDepMatrix(w, model.getDepMatrix(), DM_NAME, true);
+		generateDepMatrix(w, model.getDepMatrix(), DM_NAME);
 		generateDMFunctions(w, model.getDepMatrix());
 		generateGuardMatrices(w, model, no_gm);
 		generateGuardFunctions(w, model, no_gm);
@@ -1103,13 +1105,30 @@ public class LTSminPrinter {
 		}
 	}
 
-	private static void generateDepMatrix(StringWriter w, DepMatrix dm, String name, boolean rw) {
-		String dub = rw ? "[2]" : "";
+   private static void generateDepMatrix(StringWriter w, DepMatrix dm, String name) {
+        w.appendPrefix();
+        w.appendLine("int "+ name + "[]["+ dm.getNrCols() +"] = {");
+        w.indent();
+
+        // Iterate over all the rows
+        for(int t = 0; t < dm.getNrRows(); t++) {
+            if (t > 0)
+                w.append(", // "+ (t-1)).appendPostfix();
+            w.appendPrefix();
+
+            DepRow dr = dm.getRow(t);
+            generateRow(w, dr);
+        }
+        w.outdent();
+        // Close array
+        w.appendLine("};");
+    }
+	
+	private static void generateDepMatrix(StringWriter w, RWMatrix dm, String name) {
 		w.appendPrefix();
-		w.appendLine("int "+ name + "[]"+ dub +"["+ dm.getNrCols() +"] = {");
+		w.appendLine("int "+ name + "[][2]["+ dm.getNrCols() +"] = {");
 		w.indent();
-		if (rw)
-			w.appendLine("// { ... read ...}, { ... write ...}");
+		w.appendLine("// { ... read ...}, { ... write ...}");
 
 		// Iterate over all the rows
 		for(int t = 0; t < dm.getNrRows(); t++) {
@@ -1117,36 +1136,32 @@ public class LTSminPrinter {
 				w.append(", // "+ (t-1)).appendPostfix();
 			w.appendPrefix();
 
-			DepRow dr = dm.getRow(t);
-			if (rw) { // both read and write
-				w.append("{");
-				generateRow(w, dr, true);
-				w.append(",");
-				generateRow(w, dr, false);			
-				w.append("}");
-			} else {
-				generateRow(w, dr, true);
-			}
+			RWDepRow dr = dm.getRow(t);
+			w.append("{");
+			generateRow(w, dr.read);
+			w.append(",");
+			generateRow(w, dr.write);			
+			w.append("}");
 		}
 		w.outdent();
 		// Close array
 		w.appendLine("};");
 	}
 
-	private static void generateRow(StringWriter w, DepRow dr, boolean read) {
+	private static void generateRow(StringWriter w, DepRow dr) {
 		w.append("{");
 		
 		// Insert all read dependencies of the current row
-		for(int s=0; s < dr.getSize(); s++) {
-			if(s > 0)
+		for (int col = 0; col < dr.getNrCols(); col++) {
+			if (col > 0)
 				w.append(",");
-			w.append(read ? dr.getReadB(s) : dr.getWriteB(s));
+			w.append(dr.intDependent(col));
 		}
 
 		w.append("}");
 	}
 
-	private static void generateDMFunctions(StringWriter w, DepMatrix dm) {
+	private static void generateDMFunctions(StringWriter w, RWMatrix dm) {
 		// Function to access the dependency matrix
 		w.appendLine("");
 		w.appendLine("extern const int* spins_get_transition_read_dependencies(int t)");
@@ -1352,7 +1367,7 @@ public class LTSminPrinter {
 		
 		w.appendLine("");
 		w.appendLine("// Label(Guard)-Dependency Matrix:");
-		generateDepMatrix(w, gm.getDepMatrix(), GM_DM_NAME, false);
+		generateDepMatrix(w, gm.getDepMatrix(), GM_DM_NAME);
 		w.appendLine("");
 
         List<List<Integer>> trans_matrix = gm.getTransMatrix();
@@ -1363,27 +1378,27 @@ public class LTSminPrinter {
 		// Optional (POR) matrices:
 		w.appendLine("");
 		w.appendLine("// Maybe Co-Enabled Matrix:");
-		generateDepMatrix(w, co_matrix, CO_DM_NAME, false);
+		generateDepMatrix(w, co_matrix, CO_DM_NAME);
 		w.appendLine("");
 
         w.appendLine("");
         w.appendLine("// Do Not Accord Matrix:");
-        generateDepMatrix(w, dna_matrix, DNA_DM_NAME, false);
+        generateDepMatrix(w, dna_matrix, DNA_DM_NAME);
         w.appendLine("");
 
         w.appendLine("");
         w.appendLine("// Commute Matrix:");
-        generateDepMatrix(w, commutes_matrix, COMMUTES_DM_NAME, false);
+        generateDepMatrix(w, commutes_matrix, COMMUTES_DM_NAME);
         w.appendLine("");
 
         w.appendLine("");
 		w.appendLine("// Necessary Enabling Matrix:");
-		generateDepMatrix(w, gm.getNESMatrix(), NES_DM_NAME, false);
+		generateDepMatrix(w, gm.getNESMatrix(), NES_DM_NAME);
 		w.appendLine("");
 
 		w.appendLine("");
 		w.appendLine("// Necessary Disabling Matrix:");
-		generateDepMatrix(w, gm.getNDSMatrix(), NDS_DM_NAME, false);
+		generateDepMatrix(w, gm.getNDSMatrix(), NDS_DM_NAME);
 		w.appendLine("");
 	}
 
