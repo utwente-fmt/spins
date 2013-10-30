@@ -30,11 +30,11 @@ public class ElseTransition extends Transition {
 	}
 
 	/**
-	 * @see spins.promela.compiler.automaton.Transition#duplicate()
+	 * @see spins.promela.compiler.automaton.Transition#duplicateFrom(State)
 	 */
 	@Override
-	public Transition duplicate() {
-		final Transition t = new ElseTransition(getFrom(), getTo());
+	public Transition duplicateFrom(State from) {
+		final Transition t = new ElseTransition(from, getTo());
 		return t;
 	}
 

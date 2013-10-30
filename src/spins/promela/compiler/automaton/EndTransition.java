@@ -33,11 +33,11 @@ public class EndTransition extends Transition {
 	}
 
 	/**
-	 * @see spins.promela.compiler.automaton.Transition#duplicate()
+	 * @see spins.promela.compiler.automaton.Transition#duplicateFrom(State)
 	 */
 	@Override
-	public Transition duplicate() {
-		final Transition t = new EndTransition(getFrom());
+	public Transition duplicateFrom(State from) {
+		final Transition t = new EndTransition(from);
 		return t;
 	}
 

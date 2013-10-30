@@ -47,7 +47,6 @@ public class StateMerging implements GraphOptimizer {
 					in.getFrom().addLabels(state.getLabels());
 					
 					state.delete();
-					it = graph.iterator();
 					merged++;
 				}
 			}

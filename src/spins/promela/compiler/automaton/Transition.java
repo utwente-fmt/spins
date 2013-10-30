@@ -178,10 +178,11 @@ public abstract class Transition implements ActionContainer {
 	/**
 	 * Duplicates this Transition. After this function returns, the from State should have to
 	 * different Transitions as output that behave exactly the same.
+	 * @param from TODO
 	 * 
 	 * @return The duplicated Transition.
 	 */
-	public abstract Transition duplicate();
+	public abstract Transition duplicateFrom(State from);
 
 	/**
 	 * Returns the number of action that were added to this {@link Transition}. By default zero is

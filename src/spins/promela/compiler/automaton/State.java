@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 
 import spins.promela.compiler.actions.Action;
 import spins.util.UnModifiableIterator;
@@ -66,7 +67,17 @@ public class State {
 	 */
 	public final Iterable<Transition> input = new Iterable<Transition>() {
         public Iterator<Transition> iterator() {
-            return new UnModifiableIterator<Transition>(in.iterator());
+            return new UnModifiableIterator<Transition>() {
+                ListIterator<Transition> it;
+
+                public boolean hasNext() { return it.hasNext(); }
+                public Transition next() { return it.next(); }
+
+                @Override
+                public void init() {
+                    it = in.listIterator();
+                }
+            };
         };
 	};
 
@@ -76,7 +87,17 @@ public class State {
 	 */
 	public final Iterable<Transition> output = new Iterable<Transition>() {
 	    public Iterator<Transition> iterator() {
-	        return new UnModifiableIterator<Transition>(out.iterator());
+            return new UnModifiableIterator<Transition>() {
+                ListIterator<Transition> it;
+
+                public boolean hasNext() { return it.hasNext(); }
+                public Transition next() { return it.next(); }
+
+                @Override
+                public void init() {
+                    it = out.listIterator();
+                }
+            };
 		};
 	};
 
@@ -135,13 +156,13 @@ public class State {
 	 */
 	public void delete() {
 		// Remove all input and output transitions
-        for (Transition t : in) {
-		    t.delete();
-		}
+        while (!in.isEmpty()) { // iterator causes concurrent modification exception
+            in.get(0).delete();
+        }
 
-		for (Transition t : out) {
-			t.delete();
-		}
+        while (!out.isEmpty()) {
+            out.get(0).delete();
+        }
 	}
 
 	/**

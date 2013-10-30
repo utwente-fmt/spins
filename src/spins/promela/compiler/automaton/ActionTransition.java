@@ -49,11 +49,11 @@ public class ActionTransition extends Transition {
 	}
 
 	/**
-	 * @see spins.promela.compiler.automaton.Transition#duplicate()
+	 * @see spins.promela.compiler.automaton.Transition#duplicateFrom(State)
 	 */
 	@Override
-	public Transition duplicate() {
-		final ActionTransition t = new ActionTransition(getFrom(), getTo());
+	public Transition duplicateFrom(State from) {
+		final ActionTransition t = new ActionTransition(from, getTo());
 		t.sequence.add(sequence);
 		return t;
 	}

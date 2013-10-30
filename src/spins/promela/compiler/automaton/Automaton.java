@@ -14,13 +14,17 @@
 
 package spins.promela.compiler.automaton;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.Stack;
 
 import spins.promela.compiler.Proctype;
 import spins.util.StringWriter;
+import spins.util.UnModifiableIterator;
 
 /**
  * An Automaton is a simple LTS that holds {@link State}s and {@link Transition}s. It can be used
@@ -89,54 +93,33 @@ public class Automaton implements Iterable<State> {
 	 * @see java.lang.Iterable#iterator()
 	 */
 	public Iterator<State> iterator() {
-		return new Iterator<State>() {
-			private Stack<State> stack = null;
+		return new UnModifiableIterator<State>() {
 
-			private final Set<State> done = new HashSet<State>();
+		    private Iterator<State> it;
 
-			private void findNext(State last) {
-				if (stack.isEmpty()) {
-					return;
+            public boolean hasNext() { return it.hasNext(); }
+            public State next()      { return it.next(); }
+
+			public void init() {
+			    List<State> list = new ArrayList<State>();
+			    Stack<State> stack = new Stack<State>();
+	            Set<State> states = new HashSet<State>(Collections.singleton(startState));
+
+			    stack.push(startState);
+				while (!stack.isEmpty()) {
+					State next = stack.pop();
+					list.add(next);
+    				for (final Transition out : next.output) {
+                        if (out.getTo() != null && states.add(out.getTo())) {
+                            stack.push(out.getTo());
+    					}
+    				}
 				}
 
-				State next = null;
-				for (final Transition out : stack.peek().output) {
-					if (last != null) {
-						if (last == out.getTo()) {
-							last = null;
-						}
-					} else if (!done.contains(out.getTo())) {
-						next = out.getTo();
-						break;
-					}
-				}
-				if (next == null) {
-					findNext(stack.pop());
-				} else {
-					done.add(next);
-					stack.push(next);
-				}
+				states = null;
+				stack = null;
+				it = list.listIterator();
 			}
-
-			public boolean hasNext() {
-				if (stack == null) {
-					done.add(getStartState());
-					stack = new Stack<State>();
-					stack.push(getStartState());
-				} else {
-					findNext(null);
-				}
-				return !stack.isEmpty();
-			}
-
-			public State next() {
-				return stack.peek();
-			}
-
-			public void remove() {
-				throw new UnsupportedOperationException();
-			}
-
 		};
 	}
 
