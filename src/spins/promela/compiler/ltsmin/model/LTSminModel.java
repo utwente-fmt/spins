@@ -230,4 +230,23 @@ public class LTSminModel implements Iterable<LTSminTransition> {
     public int getEdgeIndex(String edge) {
         return edgeLabels.get(edge);
     }
+
+    private List<Action> actions = null;
+
+    public List<Action> getActions() {
+        if (actions == null) {
+            // Number actions (filters duplicates and establishes count)
+            int nActions = 0;
+            actions = new ArrayList<Action>();
+            for(LTSminTransition t : getTransitions()) {
+                for (Action a : t.getActions()) {
+                    if (a.getIndex() == -1) {
+                        a.setIndex(nActions++);
+                        actions.add(a);
+                    }
+                }
+            }
+        }
+        return actions;
+    }
 }

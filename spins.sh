@@ -60,5 +60,5 @@ $CC
 if [ ! $? -eq 0 ]; then
 	echo "Compilation of $output_file failed"
 else
-	echo "Compiled C model to $promela_name.spins"
+	echo "Compiled C code to PINS library $promela_name.spins"
 fi

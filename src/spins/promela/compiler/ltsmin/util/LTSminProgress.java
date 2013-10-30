@@ -1,6 +1,8 @@
 package spins.promela.compiler.ltsmin.util;
 
 public class LTSminProgress {
+    public static int DEFAULT_WIDTH = 50;
+
     int total = 0;
     int current = 0;
     int last = -1;
@@ -10,6 +12,10 @@ public class LTSminProgress {
     public LTSminProgress(LTSminDebug debug, int width) { 
         this.width = width;
         this.debug = debug;
+    }
+
+    public LTSminProgress(LTSminDebug debug) { 
+        this(debug, DEFAULT_WIDTH);
     }
 
     public void setTotal (int total) {
@@ -22,11 +28,11 @@ public class LTSminProgress {
         updateProgress(1);
     }
 
-    public void updateProgress(int num) {
+    public LTSminProgress updateProgress(int num) {
         current = current + num;
         double progressPercentage = ((double)current) / total;
         int nr = (int)(progressPercentage*width);
-        if (nr == last) return;
+        if (nr == last) return this;
         last = nr;
         nr = nr < width ? nr : width;
 
@@ -39,6 +45,7 @@ public class LTSminProgress {
             debug.add(" ");
         debug.add("]");
         debug.addDone();
+        return this;
     }
 
     public void overwrite(String msg) {
@@ -48,5 +55,44 @@ public class LTSminProgress {
 
     public int getTotal() {
         return total;
+    }
+
+    public String totals(int n, String msg) {
+        double perc = ((double)n * 100) / getTotal();
+        return String.format("Found %,10d /%,11d (%5.1f%%) %s               ",
+                             n, getTotal(), perc, msg);
+    }
+
+    public void overwriteReport(int num, String msg) {
+        overwrite(totals(num, msg));
+    }
+
+    long nano = 0;
+
+    public LTSminProgress resetTimer() {
+        nano = 0;
+        return this;
+    }
+    
+    public LTSminProgress startTimer() {
+        nano += System.nanoTime();
+        return this;
+    }
+
+    public LTSminProgress stopTimer() {
+        nano = System.nanoTime() - nano;
+        return this;
+    }
+
+    public String micro() {
+        return String.format("%.1f", ((double)nano) / 1000);
+    }
+
+    public String millis() {
+        return String.format("%.1f", ((double)nano) / 1000000);
+    }
+
+    public String sec() {
+        return String.format("%.1f", ((double)nano) / 1000000000);
     }
 }

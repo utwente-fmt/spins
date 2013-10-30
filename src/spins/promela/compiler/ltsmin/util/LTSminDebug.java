@@ -16,17 +16,24 @@ public class LTSminDebug {
 	public int say_indent = 0;
 	private boolean verbose;
     private boolean said = true;
+    private boolean silent = false;
 
 	public LTSminDebug(boolean verbose) {
 		this.verbose = verbose;
 	}
 
-	
-	public void say(String s) {
-		say(MessageKind.NORMAL, s);
+    public LTSminDebug(boolean verbose, boolean silent) {
+        this.verbose = verbose;
+        this.silent = silent;
+    }
+
+	public LTSminDebug say(Object s) {
+		say(MessageKind.NORMAL, s.toString());
+		return this;
 	}
 
-	public void say(MessageKind k, String s) {
+	public LTSminDebug say(MessageKind k, Object s) {
+	    if (silent) return this;
 		switch (k) {
 		case DEBUG:
 			if (!verbose) break;
@@ -46,6 +53,7 @@ public class LTSminDebug {
 		default: throw new AssertionError("Unimplemented debug message kind: "+ k);
 		}
 		said = true;
+		return this;
 	}
 
     private void tabs(PrintStream stream) {
@@ -56,11 +64,13 @@ public class LTSminDebug {
         }
     }
 
-    public void carReturn() {
+    public LTSminDebug carReturn() {
         carReturn(MessageKind.NORMAL);
+        return this;
     }
 
-    public void carReturn(MessageKind k) {
+    public LTSminDebug carReturn(MessageKind k) {
+        if (silent) return this;
         switch (k) {
         case DEBUG:
             if (!verbose) break;
@@ -74,13 +84,16 @@ public class LTSminDebug {
             break;
         default: throw new AssertionError("Unimplemented debug message kind: "+ k);
         }
+        return this;
     }
 
-    public void add(String s) {
+    public LTSminDebug add(String s) {
         add(MessageKind.NORMAL, s);
+        return this;
     }
 
-    public void add(MessageKind k, String s) {
+    public LTSminDebug add(MessageKind k, String s) {
+        if (silent) return this;
         switch (k) {
         case DEBUG:
             if (!verbose) break;
@@ -97,9 +110,19 @@ public class LTSminDebug {
         default: throw new AssertionError("Unimplemented debug message kind: "+ k);
         }
         said = false;
+        return this;
     }
 
-    public void addDone() {
+    public LTSminDebug addDone() {
         said = true;
+        return this;
+    }
+
+    public LTSminDebug say(String string, Object ... objs) {
+        return say(String.format(string, objs));
+    }
+
+    public LTSminDebug add(String string, Object ... objs) {
+        return add(String.format(string, objs));
     }
 }

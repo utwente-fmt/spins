@@ -65,9 +65,14 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	 * Creates the state vector and required types
 	 */
 	public void createVectorStructs(Specification spec, LTSminDebug debug) {
+	    debug.say("Creating state vector");
+	    debug.say_indent++;
+
 		addSpecification(state_t, spec, debug);	
 		flattenStateVector(state_t, "");
 		state_t.fix();
+
+        debug.say_indent--;
 	}
 	
 	List<LTSminTypeStruct> types = null;
@@ -180,15 +185,14 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		if (var.isHidden()) return;
 		String name = var.getName();
 		LTSminVariable lvar = null;
-		debug.say_indent++;
-		
+
 		// Create LTSminType for the Variable
 		if(var instanceof ChannelVariable) {
 			ChannelVariable cv = (ChannelVariable)var;
 			ChannelType ct = cv.getType();
 			//skip channels references (ie proc arguments) and rendez-vous channels
 			if (ct.isRendezVous() || ct.getBufferSize() == -1)
-				{ debug.say_indent--; return; }
+				return;
 			debug.say(MessageKind.DEBUG, var.getName() + (var.getArraySize() == -1 ? "" : "["+ var.getArraySize() +"]") +
 					" of {"+ ct.getTypes().size() +"} ["+ ct.getBufferSize() +"]");
 			LTSminTypeI infoType = new LTSminTypeChanStruct(cv);
@@ -206,7 +210,6 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 			throw new AssertionError("ERROR: Unable to handle: " + var.getType().getName());
 		}
 
-		debug.say_indent--;
 		// Add it to the struct
 		struct.addMember(lvar);
 	}

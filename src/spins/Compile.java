@@ -14,6 +14,8 @@
 
 package spins;
 
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -38,6 +40,9 @@ import spins.promela.compiler.ltsmin.LTSminPrinter;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
+import spins.promela.compiler.ltsmin.util.LTSminDebug;
+import spins.promela.compiler.ltsmin.util.LTSminDebug.MessageKind;
+import spins.promela.compiler.ltsmin.util.LTSminProgress;
 import spins.promela.compiler.optimizer.GraphOptimizer;
 import spins.promela.compiler.optimizer.RemoveUselessActions;
 import spins.promela.compiler.optimizer.RemoveUselessGotos;
@@ -49,25 +54,28 @@ import spins.promela.compiler.parser.PromelaTokenManager;
 import spins.promela.compiler.parser.SimpleCharStream;
 import spins.promela.compiler.parser.Token;
 import spins.promela.compiler.parser.TokenMgrError;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
 
 public class Compile {
 	private static Specification compile(final File promFile, 
 	                                     final String name,
 		                                 final boolean useStateMerging,
 		                                 final boolean verbose) {
+        LTSminDebug debug = new LTSminDebug(verbose);
 		try {
 			Preprocessor.setFilename(promFile.getName());
 			String path = promFile.getAbsoluteFile().getParent();
 			Preprocessor.setDirname(path);
 
-			System.out.println("Parsing " + promFile.getName() + "...");
+	        LTSminProgress report = new LTSminProgress(debug).startTimer();
+			debug.say("Parsing " + promFile.getName() + "...");
 			final Promela prom = new Promela(new FileInputStream(promFile));
 			final Specification spec = prom.spec(name);
-			System.out.println("Parsing " + promFile.getName() + " done");
-			System.out.println("");
+			debug.say("Parsing " + promFile.getName() + " done (%s sec)",
+			           report.stopTimer().sec());
+			debug.say("");
 
-			System.out.println("Optimizing graphs...");
+			report.resetTimer().startTimer();
+			debug.say("Optimizing graphs...");
 			final GraphOptimizer[] optimizers = new GraphOptimizer[] {
 					useStateMerging ? new StateMerging() : null, new RemoveUselessActions(),
 					new RemoveUselessGotos(), new RenumberAll(),
@@ -76,43 +84,35 @@ public class Compile {
 				if (opt == null) continue;
 				int reduction = 0;
 				for (final Proctype proc : spec.getProcs()) {
-					if (verbose) {
-						System.out.println("Initial graph for process " + proc + ":");
-						System.out.println(proc.getAutomaton());
-					}
+					debug.say(MessageKind.DEBUG, "Initial graph for process " + proc + ":");
+					debug.say(MessageKind.DEBUG, proc.getAutomaton());
 					reduction += opt.optimize(proc.getAutomaton());
-					if (verbose) {
-						System.out.println("After " + opt.getClass().getSimpleName() + ":");
-						System.out.println(proc.getAutomaton());
-					}
+					debug.say(MessageKind.DEBUG, "After " + opt.getClass().getSimpleName() + ":");
+					debug.say(MessageKind.DEBUG, proc.getAutomaton());
 				}
-				System.out.println("   "+ opt.getClass().getSimpleName() +" changed "+ reduction +" states/transitions.");
+				debug.say("   "+ opt.getClass().getSimpleName() +" changed "+ reduction +" states/transitions.");
 			}
 
 			final Proctype never = spec.getNever();
 			if (never != null) {
-				if (verbose) {
-					System.out.println("Initial graph for never claim:");
-					System.out.println(never.getAutomaton());
-				}
+				debug.say(MessageKind.DEBUG, "Initial graph for never claim:");
+				debug.say(MessageKind.DEBUG, never.getAutomaton());
 				for (final GraphOptimizer opt : optimizers) {
 					if (opt == null) continue;
 					int reduction = opt.optimize(never.getAutomaton());
-					System.out.println("   "+ opt.getClass().getSimpleName() +" reduces "+ reduction +" states");
-					if (verbose) {
-						System.out.println("After " + opt.getClass().getSimpleName() + ":");
-						System.out.println(never.getAutomaton());
-					}
+					debug.say("   "+ opt.getClass().getSimpleName() +" reduces "+ reduction +" states");
+					debug.say(MessageKind.DEBUG, "After " + opt.getClass().getSimpleName() + ":");
+					debug.say(MessageKind.DEBUG, never.getAutomaton());
 				}
-				if (verbose) System.out.println(never.getAutomaton());
+				debug.say(MessageKind.DEBUG, never.getAutomaton());
 			}
-			System.out.println("Optimization done");
-			System.out.println("");
+			debug.say("Optimization done (%s sec)", report.stopTimer().sec());
+			debug.say("");
 			return spec;
 		} catch (final FileNotFoundException ex) {
-			System.out.println("Promela file " + promFile.getName() + " could not be found.");
+			debug.say("Promela file " + promFile.getName() + " could not be found.");
 		} catch (final ParseException ex) {
-			System.out.println("Parse exception in file " + Preprocessor.getFileName() + ": "
+			debug.say("Parse exception in file " + Preprocessor.getFileName() + ": "
 								+ ex.getMessage());
 		}
 		return null;
@@ -123,9 +123,14 @@ public class Compile {
 		final String  shortd  = 
 			"SpinS Promela Compiler - version " + Version.VERSION + " (" + Version.DATE + ")\n" +
 			"(C) University of Twente, Formal Methods and Tools group";
-		final String  longd   = 
-			"SpinS Promela Compiler: this compiler converts a Promela source file\n" +
-			"to a Java model that can be checked by the SpinS Model Checker." ;
+		String  longd   = 
+			"SpinS Promela Compiler: compiles a library from a Promela model.\n" ;
+
+		longd += "The library implements the PINS interface:\n";
+		longd += "    - a next-state and state-label function\n";
+		longd += "    - transition read/write dependency matrices (used for symbolic exploration)\n";
+		longd += "    - guard dependency matrices (used for partial-order reduction)\n";
+		longd += "Consult http://fmt.cs.utwente.nl/tools/ltsmin/ for details.\n";
 
 		final OptionParser parser = 
 			new OptionParser("java spins.Compiler", shortd, longd, true);
@@ -185,12 +190,14 @@ public class Compile {
 		if (files.size() != 1) {
 			System.out.println("Please specify one file that is to be compiled!");
 			parser.printUsage();
+	        System.exit(-1);
 		}
 
 		final File file = new File(files.get(0));
 		if (!file.exists() || !file.isFile()) {
 			System.out.println("File " + file.getName() + " does not exist or is not a valid file!");
 			parser.printUsage();
+	        System.exit(-1);
 		}
 
         if (textbook_ltl.isSet()) {
@@ -277,7 +284,7 @@ public class Compile {
 			                         verbose.isSet(), ltsmin_ltl.isSet(),
                                      no_guards.isSet(),
 			                         exportLabels, progressLabel);
-			System.out.println("Written C model to " + outputDir + "/" + file.getName()+".spins.c");
+			System.out.println("Written C code to " + outputDir + "/" + file.getName()+".spins.c");
 		}
 	}
 

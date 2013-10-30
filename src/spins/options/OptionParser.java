@@ -71,10 +71,12 @@ public class OptionParser {
     
     			final Option option = options.get(c);
     			if (option == null) {
-    				if (c != '?') {
-    					System.out.println("Option not recognized: " + arg);
-    				}
     				printUsage();
+
+                    if (c != '?') {
+                        System.out.println("Option not recognized: " + arg +"\n");
+                    }
+                    System.exit(-1);
     			}
     			option.parseOption(arg.substring(2));
     		}
@@ -92,6 +94,5 @@ public class OptionParser {
 			System.out.println(o.toString());
 		}
 		System.out.println();
-		System.exit(-1);
 	}
 }

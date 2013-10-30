@@ -98,6 +98,7 @@ import spins.promela.compiler.ltsmin.state.LTSminSlot;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.state.LTSminVariable;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
+import spins.promela.compiler.ltsmin.util.LTSminProgress;
 import spins.promela.compiler.ltsmin.util.LTSminDebug.MessageKind;
 import spins.promela.compiler.ltsmin.util.LTSminRendezVousException;
 import spins.promela.compiler.ltsmin.util.LTSminUtil.Pair;
@@ -147,14 +148,25 @@ public class LTSminTreeWalker {
 	                                     Map<String, Expression> exports,
                                          Expression progress) {
 		this.debug = new LTSminDebug(verbose);
+        debug.say("Generating next-state function ...");
+        debug.say_indent++;
+        LTSminProgress report = new LTSminProgress(debug).startTimer();
+
 		instantiate();
         LTSminStateVector sv = new LTSminStateVector();
 		sv.createVectorStructs(spec, debug);
 		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
+
 		createModelTransitions();
 		createModelAssertions();
-		createModelLabels(exports, progress, debug);
+		createModelLabels(exports, progress);
+
+        debug.say_indent--;
+        debug.say("Generating next-state function done (%s sec)",
+                  report.stopTimer().sec());
+        debug.say("");
+
 		LTSminDMWalker.walkModel(model, debug);
 		LTSminGMWalker.generateGuardInfo(model, no_gm, debug);
 		return model;
@@ -178,9 +190,10 @@ public class LTSminTreeWalker {
 	 * Accepting condition semantics are overloaded with valid end state semantics.
 	 */
     private void createModelLabels(Map<String, Expression> exports,
-                                   Expression progress,
-                                   LTSminDebug debug) {
+                                   Expression progress) {
 
+        debug.say("Creating state labels");
+        
         if (!BOOLEAN_TYPE_NAME.equals(VariableType.BOOL.getName()))
              debug.say(MessageKind.FATAL, "Not exporting boolean type as \"bool\" (LTSmin standard)");
         /* always add the bool type */
@@ -333,8 +346,13 @@ public class LTSminTreeWalker {
 	 * local variable _pid . Active processes are always instantiated in the
 	 * order in which they appear in the model, so that the first such process
 	 * (whether it is declared as an active process or as an init process) will
-	 * receive the lowest instantiation number, which is zero. */
+	 * receive the lowest instantiation number, which is zero. 
+	 * @param debug */
 	private void instantiate() {
+
+        debug.say("Instantiation processes");
+        debug.say_indent++;
+	    
 		List<ProcInstance> instances = new ArrayList<ProcInstance>();
 		List<ProcInstance> active = new ArrayList<ProcInstance>();
 
@@ -376,10 +394,11 @@ public class LTSminTreeWalker {
 		for (String binding : iCount) {
 			debug.say(MessageKind.NORMAL, "#define __instances_"+ binding);
 		}
-		if (iCount.size() > 0 ) debug.say(MessageKind.NORMAL, "");
 		for (ProcInstance instance : active)
 			instances.add(instance);
 		spec.setInstances(instances);
+
+        debug.say_indent--;
 	}
 
 	/**
@@ -635,7 +654,9 @@ public class LTSminTreeWalker {
 	 * Binds any channel type arguments of all RunExpressions by reference.
 	 */
 	private void bindByReferenceCalls() {
-		debug.say(MessageKind.DEBUG, "");
+	    debug.say("Statically binding references");
+        debug.say_indent++;
+
 		if (spec.runs.size() > 0)
 			LTSminStateVector._NR_PR.setAssignedTo();
 		for (Proctype p : spec.getProcs()) {
@@ -668,13 +689,14 @@ public class LTSminTreeWalker {
 				}
 			}
 		}
-        debug.say(MessageKind.NORMAL, "");
 
 		// Update the spec with the results
         spec.clearReadActions();
         spec.clearWriteActions();
         for (ReadAction ra : reads) spec.addReadAction(ra);
         for (SendAction rs : writes) spec.addWriteAction(rs);
+
+        debug.say_indent--;
 	}
 
 	private void bindArguments(RunExpression re, ProcInstance target,
@@ -746,7 +768,8 @@ public class LTSminTreeWalker {
 	 * Creates the state transitions.
 	 */
 	private void createModelTransitions() {
-		debug.say(MessageKind.DEBUG, "");
+        debug.say("Creating transitions");
+        debug.say_indent++;
 
 		for (ProcInstance p : spec) {
 			debug.say(MessageKind.DEBUG, "[Proc] " + p.getName());
@@ -780,6 +803,8 @@ public class LTSminTreeWalker {
 				}
 			}
 		}
+
+		debug.say_indent--;
 	}
 
     /**

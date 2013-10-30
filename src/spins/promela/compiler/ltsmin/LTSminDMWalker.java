@@ -7,7 +7,6 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelIndex;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import spins.promela.compiler.Proctype;
@@ -37,12 +36,12 @@ import spins.promela.compiler.expression.MTypeReference;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
-import spins.promela.compiler.ltsmin.matrix.RWMatrix;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spins.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
 import spins.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
@@ -100,47 +99,39 @@ public class LTSminDMWalker {
 	}
 	
 	static void walkModel(LTSminModel model, LTSminDebug debug) {
-		debug.say("Generating DM information ...");
+        int nTrans = model.getTransitions().size();
+        int nSlots = model.sv.size();
+        LTSminProgress report = new LTSminProgress(debug);
+		debug.say("Generating transitions/state dependency matrices (%d / %d slots) ... ", nTrans, nSlots);
+		report.resetTimer().startTimer();
 		debug.say_indent++;
-
+        
 		if (model.getDepMatrix() != null)
 		    debug.say(MessageKind.FATAL, "Dependency matrix is already set");
 
 		Params params = new Params(model, null, 0);
-		params.depMatrix = new RWMatrix(model.getTransitions().size(), model.sv.size());
+        params.depMatrix = new RWMatrix(nTrans, model.sv.size());
 		model.setDepMatrix(params.depMatrix);
 
-		walkTransitions(params, debug);
+		walkTransitions(params, report);
 
 		debug.say_indent--;
-		debug.say("Generating DM information done");
+		debug.say("Generating transition/state dependency matrices done (%s sec)",
+		          report.stopTimer().sec());
 		debug.say("");
 	}
 
     public static String totals(LTSminProgress report, int r, int w, String msg) {
         double percR = ((double)r * 100) / report.getTotal();
         double percW = ((double)w * 100) / report.getTotal();
-        return String.format("Found %,8d, %,8d / %,9d (%5.1f%%, %5.1f%%) %s               ",
+        return String.format("Found %,9d, %,9d / %,9d (%5.1f%%, %5.1f%%) %s               ",
                              r, w, report.getTotal(), percR, percW, msg);
     }
 
-	static void walkTransitions(Params params, LTSminDebug debug) {
+	static void walkTransitions(Params params, LTSminProgress report) {
 	    int nSlots = params.model.sv.size();
         int nTrans = params.model.getTransitions().size();
-
-        LTSminProgress report = new LTSminProgress(debug, 50);
-        
-	    // Number actions
-        int nActions = 0;
-        List<Action> acts = new ArrayList<Action>();
-        for(LTSminTransition t: params.model.getTransitions()) {
-            for (Action a : t.getActions()) {
-                if (a.getNumber() == -1) {
-                    a.setNumber(nActions++);
-                    acts.add(a);
-                }
-            }
-        }
+        int nActions = params.model.getActions().size();
 
         // Individual actions
         RWMatrix a2s = new RWMatrix(nActions, nSlots);

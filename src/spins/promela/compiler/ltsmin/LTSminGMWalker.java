@@ -112,10 +112,6 @@ public class LTSminGMWalker {
 	 * @param debug
 	 */
 	static void generateGuardInfo(LTSminModel model, boolean no_gm, LTSminDebug debug) {
-		debug.say("Generating guard information ...");
-		debug.say_indent++;
-		report = new LTSminProgress(debug, 50);
-
 		if(model.getGuardInfo()==null)
 			model.setGuardInfo(new GuardInfo(model.getTransitions().size()));
 		GuardInfo guardInfo = model.getGuardInfo();
@@ -125,20 +121,28 @@ public class LTSminGMWalker {
 		generateTransitionGuardLabels (params);
 
 		// add the normal state labels
+        // We extend the NES and NDS matrices to include all labels
+        // The special labels, e.g. progress and valid end, can then be used in
+        // LTL properties with precise (in)visibility information.
         for (Map.Entry<String, LTSminGuard> label : model.getLabels()) {
             guardInfo.addLabel(label.getKey(), label.getValue());
         }
 
-        // We extend the NES and NDS matrices to include all labels
-        // The special labels, e.g. progress and valid end, can then be used in
-        // LTL properties with precise (in)visibility information.
         int nLabels = guardInfo.getNumberOfLabels();
         int nTrans = model.getTransitions().size();
 
+        report = new LTSminProgress(debug);
+        debug.say("Generating guard dependency matrices (%d guards) ...", nLabels);
+        report.resetTimer().startTimer();
+        debug.say_indent++;
+
         // generate label / slot read matrix
-        generateLabelMatrix (model);
+        generateLabelMatrix (model, guardInfo);
 
         if (no_gm) {
+            debug.say_indent--;
+            debug.say("Generating guard dependency matrices done (%s sec)",
+                      report.stopTimer().sec()).say("");
             return;
         }
 
@@ -187,38 +191,49 @@ public class LTSminGMWalker {
         report.overwrite(totals(commuting, "Commuting actions"));
         
 		debug.say_indent--;
-		debug.say("Generating guard information done");
-		debug.say("");
+		debug.say("Generating guard dependency matrices done (%s sec)",
+		          report.stopTimer().sec()).say("");
 	}
 
     public static String totals(int n, String msg) {
         double perc = ((double)n * 100) / report.getTotal();
-        return String.format("Found %,10d /%,10d (%5.1f%%) %s               ",
+        return String.format("Found %,10d /%,11d (%5.1f%%) %s               ",
                              n, report.getTotal(), perc, msg);
     }
 
-	private static void generateLabelMatrix(LTSminModel model) {
-        GuardInfo guardInfo = model.getGuardInfo();
-		int nlabels = guardInfo.getNumberOfLabels();
-	    DepMatrix dm = new DepMatrix(nlabels, model.sv.size());
+	private static void generateLabelMatrix(LTSminModel model,
+	                                        GuardInfo guardInfo) {
+	    int nLabels = guardInfo.getNumberOfLabels();
+        int nSlots = model.sv.size();
+        int nTrans = model.getDepMatrix().getNrRows();
+
+        DepMatrix dm = new DepMatrix(nLabels, nSlots);
 		guardInfo.setDepMatrix(dm);
-
 		RWMatrix dummy = new RWMatrix(dm, null);
-		for (int i = 0; i < nlabels; i++) {
+		int reads = 0;
+        report.setTotal(nLabels * nSlots);
+		for (int i = 0; i < nLabels; i++) {
 			LTSminDMWalker.walkOneGuard(model, dummy, guardInfo.get(i), i);
+			reads += dm.getRow(i).getCardinality();
+			report.updateProgress(nSlots);
 		}
+        report.overwrite(totals(reads, "Guard/slot reads"));
 
-		int T = model.getDepMatrix().getNrRows();
-        DepMatrix testset = new DepMatrix(T, model.sv.size());
+        DepMatrix testset = new DepMatrix(nTrans, nSlots);
         guardInfo.setTestSetMatrix(testset);
         DepMatrix gm = guardInfo.getDepMatrix();
-        for (int t = 0; t < T; t++) {
+        int tests = 0;
+        report.setTotal(nTrans * nSlots);
+        for (int t = 0; t < nTrans; t++) {
             for (int gg : guardInfo.getTransMatrix().get(t)) {
                 for (int slot : gm.getRow(gg)) {
                     testset.setDependent(t, slot);
                 }
             }
+            tests += testset.getRow(t).getCardinality();
+            report.updateProgress(nSlots);
         }
+        report.overwrite(totals(tests, "Transition/slot tests"));
 	}
 
 	static final String MCT = "MCT"; 
@@ -292,39 +307,36 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
     }
 
     static final String T2G = "T2G";
-    static final String G2S = "G2S"; // guard reads slots
     static final String G2G = "G2G"; // guard reads from guard
     static final String T2T = "T2T"; // transitions excluding guards, including atomic (write dep)
-    private static void generateDepMatrices(LTSminModel model, GuardInfo guardInfo) {
+    private static void generateDepMatrices(LTSminModel model,
+                                            GuardInfo guardInfo) {
         int nTrans = model.getTransitions().size();
         int nLabels = model.getGuardInfo().getNumberOfLabels();
-        int nSlots = model.sv.size();
-
-        RWMatrix deps = model.getDepMatrix();
-        DepMatrix g2s = new DepMatrix(nLabels, nSlots);
-        RWMatrix dummy = new RWMatrix(g2s, null);
-        guardInfo.setMatrix(G2S, g2s);
-        for (int g = 0; g < nLabels; g++) {
-            LTSminGuard gguard = guardInfo.get(g);
-            LTSminDMWalker.walkOneGuard(model, dummy, gguard, g);
-        }
+        DepMatrix g2s = guardInfo.getDepMatrix();
 
         DepMatrix g2g = new DepMatrix(nLabels, nLabels);
         guardInfo.setMatrix(G2G, g2g);
+        report.setTotal(nLabels * nLabels / 2);
+        int num = 0;
         for (int g1 = 0; g1 < nLabels; g1++) {
             g2g.setDependent(g1, g1);
             for (int g2 = g1 + 1; g2 < nLabels; g2++) {
                 if (g2s.rowsDepenendent(g1, g2)) {
                     g2g.setDependent(g1, g2);
                     g2g.setDependent(g2, g1);
+                    num++;
                 }
+                report.updateProgress();
             }
         }
+        report.overwrite(totals(num, "Guard/guard dependencies"));
 
+        RWMatrix deps = model.getDepMatrix();
         DepMatrix t2g = new DepMatrix(nTrans, nLabels);
         guardInfo.setMatrix(T2G, t2g);
         report.setTotal(nTrans * nLabels);
-        int num = 0;
+        num = 0;
         for (int t = 0; t < nTrans; t++) {
             for (int g = 0; g < nLabels; g++) {
                 if (deps.getRow(t).writes(g2s.getRow(g))) {
@@ -334,12 +346,13 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 report.updateProgress();
             }
         }
-        report.overwrite(totals(num, "Transitions writing to guards"));
+        report.overwrite(totals(num, "Transition/guard writes"));
 
         DepMatrix t2t = new DepMatrix(nTrans, nTrans);
         guardInfo.setMatrix(T2T, t2t);
         RWMatrix trans = model.getAtomicDepMatrix();
         num = 0;
+        report.setTotal(nTrans * nTrans);
         for (int t1 = 0; t1 < nTrans; t1++) {
             RWDepRow t1Row = trans.getRow(t1);
             for (int t2 = 0; t2 < nTrans; t2++) {
@@ -349,6 +362,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 }
             }
         }
+        report.overwrite(totals(num, "Transition/transition writes"));
     }
     
 	/**************
@@ -467,7 +481,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
     private static boolean limitMCE(LTSminModel model, GuardInfo guardInfo,
                                     int t, LTSminGuard guard, int g, boolean invert) {
         RWMatrix rw = model.getDepMatrix();
-        DepMatrix g2s = model.getGuardInfo().getMatrix(G2S);
+        DepMatrix g2s = model.getGuardInfo().getDepMatrix();
         for (int gg : guardInfo.getTransMatrix().get(t)) {
             LTSminGuard gguard = guardInfo.get(gg);
             Expression gge = gguard.getExpr();            
