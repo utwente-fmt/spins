@@ -294,13 +294,11 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
     static final String T2G = "T2G";
     static final String G2S = "G2S"; // guard reads slots
     static final String G2G = "G2G"; // guard reads from guard
-    static final String A2A = "A2A"; // actions excluding atomics (write dep)
     static final String T2T = "T2T"; // transitions excluding guards, including atomic (write dep)
     private static void generateDepMatrices(LTSminModel model, GuardInfo guardInfo) {
         int nTrans = model.getTransitions().size();
         int nLabels = model.getGuardInfo().getNumberOfLabels();
         int nSlots = model.sv.size();
-        int nActions = model.getActionDepMatrix().getNrRows();
 
         RWMatrix deps = model.getDepMatrix();
         DepMatrix g2s = new DepMatrix(nLabels, nSlots);
@@ -337,23 +335,6 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             }
         }
         report.overwrite(totals(num, "Transitions writing to guards"));
-
-        RWMatrix a2s = model.getActionDepMatrix();
-        DepMatrix a2a = new DepMatrix(nActions, nActions);
-        guardInfo.setMatrix(A2A, a2a);
-        report.setTotal(nActions * nActions);
-        num = 0;
-        for (int a = 0; a < nActions; a++) {
-            RWDepRow aRow = a2s.getRow(a);
-            for (int b = 0; b < nActions; b++) {
-                if (aRow.writes(a2s.getRow(b))) {
-                    a2a.setDependent(a, b);
-                    num++;
-                }
-                report.updateProgress();
-            }
-        }
-        report.overwrite(totals(num, "Actions writes to action"));
 
         DepMatrix t2t = new DepMatrix(nTrans, nTrans);
         guardInfo.setMatrix(T2T, t2t);
@@ -756,20 +737,18 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         LTSminTransition trans1 = model.getTransitions().get(t1);
         LTSminTransition trans2 = model.getTransitions().get(t2);
         RWMatrix a2s = model.getActionDepMatrix();
-        DepMatrix a2a = model.getGuardInfo().getMatrix(A2A);
 
         // check for non-commuting actions
         for (Action acta: trans1.getActions()) {
             RWDepRow depsA = a2s.getRow(acta.getNumber()); 
      
             for (Action actb : trans2.getActions()) {
+                RWDepRow depsB = a2s.getRow(actb.getNumber());
 
-                if (!a2a.isDependent(acta.getNumber(), actb.getNumber()) &&
-                    !a2a.isDependent(actb.getNumber(), acta.getNumber())) {
+                if (!depsB.writes(depsA) && !depsA.writes(depsB)) {
                     continue;
                 }
-                RWDepRow depsB = a2s.getRow(actb.getNumber());
-                
+
                 // extract simple predicates for the actions
                 List<SimplePredicate> allA, allB;
                 try {
