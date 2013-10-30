@@ -54,9 +54,7 @@ public class ActionTransition extends Transition {
 	@Override
 	public Transition duplicate() {
 		final ActionTransition t = new ActionTransition(getFrom(), getTo());
-		for (final Action a : sequence) {
-			t.addAction(a);
-		}
+		t.sequence.add(sequence);
 		return t;
 	}
 

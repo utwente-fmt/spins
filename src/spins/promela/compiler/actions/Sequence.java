@@ -56,6 +56,10 @@ public class Sequence extends Action implements ActionContainer {
 		actions.add(sub);
 	}
 
+	public void add(Sequence o) {
+        actions.addAll(o.actions);
+    }
+
 	public Iterator<Action> iterator() {
 		return Collections.unmodifiableList(actions).iterator();
 	}
