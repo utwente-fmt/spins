@@ -19,3 +19,4 @@ spins.jar
 *.plist
 *.aux
 /tests/models-*
+src/depcache/dependencies.txt

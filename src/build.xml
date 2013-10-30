@@ -4,8 +4,8 @@
 		<property name="name"           value="spins" />
 		<property name="version"        value="0.9"  />
 
-		<property name="spins"         value="spins" />
-		<property name="spins_parser"  value="spins/promela/compiler/parser" />
+        <property name="srcdir"         value="." />
+		<property name="spins_parser"   value="spins/promela/compiler/parser" />
 
 		<property name="build"          value="../build" />
 		<property name="dist"           value="../dist" />
@@ -43,13 +43,33 @@ public class Promela</replacevalue>
         </replace>
     </target>
 
+<!--
+	<property environment="env" />
+	<property name="java5.boot.classpath" value="${env.JAVA5_BOOTCLASSES}" />
+
+     target="1.5" source="1.5"
+            bootclasspath="${java5.boot.classpath}"
+-->
+
 	<target name="compile" description="Compiles all java files" depends="build">
-		<javac destdir="${build}/classes"  source="1.5" debug="on" debuglevel="lines,vars,source" srcdir="${spins}" includeantruntime="false">
-			  <compilerarg line="-XDignore.symbol.file" />	
+		<depend srcdir="${srcdir}"
+		        destdir="${build}/classes"
+		        cache="depcache"
+		        closure="yes"/>
+		<javac srcdir="${srcdir}"
+			   destdir="${build}/classes"
+		       debug="on"
+			   debuglevel="lines,vars,source"
+			   excludes="spins/test/**"
+			   includeantruntime="yes">
+			  <compilerarg line="-Xprefer:newer -XDignore.symbol.file" />
 		</javac>
-		<copy file="${spins}/promela/compiler/ltsmin/reach.c"  todir="${build}/classes/${spins}/promela/compiler/ltsmin/" />
-		<copy file="${spins}/promela/compiler/ltsmin/reach2.c"  todir="${build}/classes/${spins}/promela/compiler/ltsmin/" />
-		<copy file="${spins}/promela/compiler/ltsmin/hashtable.c"  todir="${build}/classes/${spins}/promela/compiler/ltsmin/" />
+		<copy file="${srcdir}/spins/promela/compiler/ltsmin/reach.c"
+			  todir="${build}/classes/spins/promela/compiler/ltsmin/" />
+		<copy file="${srcdir}/spins/promela/compiler/ltsmin/reach2.c"
+			  todir="${build}/classes/spins/promela/compiler/ltsmin/" />
+		<copy file="${srcdir}/spins/promela/compiler/ltsmin/hashtable.c"
+			  todir="${build}/classes/spins/promela/compiler/ltsmin/" />
 	</target>
 
 	<target name="jar" description="Generates jar-file" depends="compile">
@@ -69,7 +89,7 @@ public class Promela</replacevalue>
 
 	<target name="javadocs" description="Generates the Javadoc of the SpinS library" depends="prepare">
 		<javadoc destdir="${doc}/api" author="true" version="true" windowtitle="SpinS API">
-			<fileset dir="${spins}" defaultexcludes="yes">
+			<fileset dir="${srcdir}" defaultexcludes="yes">
 				<include name="**/*.java" />
 			</fileset>
 		</javadoc>
@@ -92,6 +112,7 @@ public class Promela</replacevalue>
 				includes="*.java" 
 				excludes="MyParseException.java,OptionsResult.java,SequenceResult.java" 
 			/>
+            <fileset dir="depcache" />
 		</delete>
 	</target>
 
@@ -120,5 +141,24 @@ public class Promela</replacevalue>
 
 	<target name="dist" description="Builds the binary and source distributions" depends="src_dist">
 	</target>
+
+	<!-- Requires EqualsVerifier and junit.jar in the environment's CLASPATH -->
+    <target name="junit" depends="init">
+        <javac srcdir="${srcdir}"
+        	   destdir="${build}/classes"
+        	   debug="on"
+               debuglevel="lines,vars,source"
+               includes="spins/test/**" includeantruntime="true">
+              <compilerarg line="-Xprefer:newer -XDignore.symbol.file" />
+        </javac>
+        <junit printsummary="no" haltonfailure="yes" showoutput="yes"
+        	   includeantruntime="true">
+           <formatter type="brief" usefile="false"/>
+           <classpath location="${build}/classes" />
+           <batchtest fork="yes">
+                <fileset dir="${build}/classes" includes="spins/test/**.class"/>
+           </batchtest>
+       </junit>
+    </target>
 
 </project>
