@@ -16,9 +16,11 @@ package spins.promela.compiler.automaton;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 
 import spins.promela.compiler.actions.Action;
+import spins.util.UnModifiableIterator;
 
 /**
  * A {@link State} within a {@link Automaton} is simply a state that contains the following
@@ -63,25 +65,9 @@ public class State {
 	 * input transitions.
 	 */
 	public final Iterable<Transition> input = new Iterable<Transition>() {
-		public Iterator<Transition> iterator() {
-			return new Iterator<Transition>() {
-				private int index = 0;
-
-				private int size = in.size();
-
-				public boolean hasNext() {
-					return index < size;
-				}
-
-				public Transition next() {
-					return in.get(index++);
-				}
-
-				public void remove() {
-					throw new UnsupportedOperationException();
-				}
-			};
-		};
+        public Iterator<Transition> iterator() {
+            return new UnModifiableIterator<Transition>(in.iterator());
+        };
 	};
 
 	/**
@@ -89,24 +75,8 @@ public class State {
 	 * output transitions.
 	 */
 	public final Iterable<Transition> output = new Iterable<Transition>() {
-		public Iterator<Transition> iterator() {
-			return new Iterator<Transition>() {
-				private int index = 0;
-
-				private int size = out.size();
-
-				public boolean hasNext() {
-					return index < size;
-				}
-
-				public Transition next() {
-					return out.get(index++);
-				}
-
-				public void remove() {
-					throw new UnsupportedOperationException();
-				}
-			};
+	    public Iterator<Transition> iterator() {
+	        return new UnModifiableIterator<Transition>(out.iterator());
 		};
 	};
 
@@ -122,21 +92,11 @@ public class State {
 		this.automaton = automaton;
 		this.inAtomic = inAtomic;
 		this.stateId = StateIdCounter.nextId();
-		out = new ArrayList<Transition>();
-		in = new ArrayList<Transition>();
+		out = new LinkedList<Transition>();
+		in = new LinkedList<Transition>();
 		labels = new ArrayList<String>();
 	}
-/*
-	public boolean equals(Object o) {
-		if (!(o instanceof State)) return false;
-		State other = (State)o;
-		return stateId == other.stateId && automaton == other.automaton;
-	}
 
-	public int hashCode() {
-		return stateId * 37 + automaton.hashCode();
-	}
-*/ // States are unique!
 	/**
 	 * Adds a certain label to this state.
 	 * @param label
@@ -175,12 +135,12 @@ public class State {
 	 */
 	public void delete() {
 		// Remove all input and output transitions
-		while (!in.isEmpty()) {
-			in.get(0).delete();
+        for (Transition t : in) {
+		    t.delete();
 		}
 
-		while (!out.isEmpty()) {
-			out.get(0).delete();
+		for (Transition t : out) {
+			t.delete();
 		}
 	}
 
