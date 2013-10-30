@@ -19,7 +19,6 @@ import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.variable.ChannelVariable;
 import spins.promela.compiler.variable.VariableAccess;
-import spins.util.StringWriter;
 
 public class ExprAction extends Action {
 	private final Expression expr;
@@ -27,9 +26,6 @@ public class ExprAction extends Action {
 	public ExprAction(final Expression expr) {
 		super(expr.getToken());
 		this.expr = expr;
-		for (final VariableAccess var : expr.readVariables()) {
-			var.getVar().setRead(true);
-		}
 	}
 
 	@Override
@@ -53,21 +49,6 @@ public class ExprAction extends Action {
         if (null != expr.getSideEffect())
             return false;
 		return super.isLocal(proc);
-	}
-
-	@Override
-	public void printTakeStatement(final StringWriter w) throws ParseException {
-		final String sideEffect = expr.getSideEffect();
-		if (sideEffect != null) {
-			w.appendLine(sideEffect, ";");
-		}
-	}
-
-	@Override
-	public void printUndoStatement(final StringWriter w) throws ParseException {
-		if (expr.getSideEffect() != null) {
-			w.appendLine("endProcess();");
-		}
 	}
 
 	@Override

@@ -35,9 +35,9 @@ public class Identifier extends Expression {
 	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -5928789117017713005L;
 
-	private Variable var = null;
+	private final Variable var;
 
-	private Expression arrayExpr = null;
+	private final Expression arrayExpr;
 
 	private int instanceIndex = -1; // no instance index 
 
@@ -62,6 +62,9 @@ public class Identifier extends Expression {
 	public Identifier(final Token token, final Variable var, Identifier sub) {
 		super(token);
 		this.var = var;
+        if (var == null) {
+            throw new AssertionError("Identifier without variable: "+ var);
+        }
 		arrayExpr = null;
 		this.sub = sub;
 	}
@@ -81,6 +84,9 @@ public class Identifier extends Expression {
 			Identifier sub) {
 		super(token);
 		this.var = var;
+        if (var == null) {
+            throw new AssertionError("Identifier without variable: "+ var);
+        }
 		this.arrayExpr = arrayExpr;
 		this.sub = sub;
 	}
@@ -88,6 +94,9 @@ public class Identifier extends Expression {
 	public Identifier(final Variable var) {
 		super(null);
 		this.var = var;
+        if (var == null) {
+            throw new AssertionError("Identifier without variable: "+ var);
+        }
 		arrayExpr = null;
 		this.sub = null;
 	}
@@ -162,7 +171,7 @@ public class Identifier extends Expression {
             res += var.getOwner().getName();
             res += "[" + getInstanceIndex() + "]";
             res += ":";
-            res += var.getRealName();
+            res += var.toString();
             if (var.getArraySize() > -1) {
                 if (arrayExpr != null) {
                     res += "[" + arrayExpr.toString() + "]";
@@ -188,7 +197,7 @@ public class Identifier extends Expression {
 		return res;
 	}
 	
-	public boolean equals(Object o) {
+	public final boolean equals(Object o) {
 		if (!(o instanceof Identifier)) 
 			return false;
 		Identifier oi = (Identifier)o;
@@ -199,8 +208,13 @@ public class Identifier extends Expression {
 		return arrayExpr.equals(oi.arrayExpr);
 	}
 
+    public final int hashCode() {
+        return var.hashCode() * 37 +
+               (arrayExpr == null ? 0 : arrayExpr.hashCode());
+    }
+
 	/**
-	 * Vor remote variable ref
+	 * For remote variable ref
 	 * @return
 	 */
     public int getInstanceIndex() {

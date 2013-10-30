@@ -14,7 +14,6 @@
 
 package spins.promela.compiler.automaton;
 
-import spins.util.StringWriter;
 
 public class ElseTransition extends Transition {
 
@@ -53,17 +52,6 @@ public class ElseTransition extends Transition {
 	@Override
 	public boolean isUseless() {
 		return false;
-	}
-
-	/**
-	 * Returns the transition code using the getJavaStatement(), getJavaExpression() and
-	 * getJavaPrint() functions.
-	 */
-	@Override
-	public void printTransition(final StringWriter w) {
-		w.appendLine("new ElseTransitionFactory(",/* from.getAutomaton().getProctype().getName(),
-			".this, ",*/ getTransId(), ", ", getFrom().getStateId(), ", ", getTo().getStateId(),
-			", ", takesAtomicToken(), ")");
 	}
 
 	/**

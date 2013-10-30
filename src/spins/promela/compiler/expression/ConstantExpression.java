@@ -64,13 +64,17 @@ public class ConstantExpression extends Expression {
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public final boolean equals(Object o) {
 		if (o == null)
 			return false;
 		if (!(o instanceof ConstantExpression))
 			return false;
 		ConstantExpression ce = (ConstantExpression)o;
-		return getToken().kind == ce.getToken().kind && nr == ce.nr;
+		return nr == ce.nr;
+	}
+
+	public final int hashCode() {
+	    return nr * 83;
 	}
 	
 	@Override

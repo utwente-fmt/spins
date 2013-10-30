@@ -14,33 +14,22 @@
 
 package spins.promela.compiler.variable;
 
-import spins.util.StringWriter;
+import spins.promela.compiler.Proctype;
 
 public class ChannelVariable extends Variable {
 
-	private static boolean channelsUsed = false, rendezvousUsed = false;
 
-	public static boolean isChannelsUsed() {
-		return channelsUsed;
+    public ChannelVariable(final String name, final int arraySize, Proctype owner) {
+        super(ChannelType.UNASSIGNED_CHANNEL, name, arraySize, owner);
+    }
+
+	public ChannelVariable(VariableType ct, final String name, final int arraySize, Proctype owner) {
+		super(ct, name, arraySize, owner);
 	}
 
-	public static boolean isRendezvousUsed() {
-		return rendezvousUsed;
-	}
-
-	public ChannelVariable(final String name, final int arraySize) {
-		super(ChannelType.UNASSIGNED_CHANNEL, name, arraySize);
-		ChannelVariable.channelsUsed = true;
-	}
-
-	private void addChannelInit(final StringWriter w, final String addition) {
-		if (getType() == ChannelType.UNASSIGNED_CHANNEL) {
-			w.appendLine(getName(), addition, " = (byte)-1; ");
-		} else {
-			w.appendLine(getName(), addition, " = ", "addChannel(new Channel", getType().getId(),
-				"());");
-		}
-	}
+    public ChannelVariable(final Variable var) {
+        super(var);
+    }
 
 	@Override
 	public ChannelType getType() {
@@ -53,19 +42,5 @@ public class ChannelVariable extends Variable {
 			throw new IllegalArgumentException("Type must be a ChannelType");
 		}
 		super.setType(type);
-	}
-
-	@Override
-	public void printInitExpr(final StringWriter w) {
-		if (getArraySize() > -1) {
-			w.appendLine(getName(), " = new ", getType().getJavaName(), "[", getArraySize(), "];");
-			w.appendLine("for(int _i = 0; _i < ", getArraySize(), "; _i++) {");
-			w.indent();
-			addChannelInit(w, "[_i]");
-			w.outdent();
-			w.appendLine("}");
-		} else {
-			addChannelInit(w, "");
-		}
 	}
 }

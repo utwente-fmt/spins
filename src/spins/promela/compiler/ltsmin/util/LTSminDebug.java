@@ -1,5 +1,7 @@
 package spins.promela.compiler.ltsmin.util;
 
+import java.io.PrintStream;
+
 public class LTSminDebug {
 	static final String TAB = "   ";
 	
@@ -29,16 +31,16 @@ public class LTSminDebug {
 		case DEBUG:
 			if (!verbose) break;
 		case NORMAL:
-            tabs();
+            tabs(System.out);
 			System.out.println(s);
 			break;
 		case WARNING:
 		case ERROR:
-			tabs();
+			tabs(System.err);
 			System.err.println(s);
 			break;
 		case FATAL:
-			tabs();
+			tabs(System.err);
 			System.err.println(s);
 			System.exit(-100);
 		default: throw new AssertionError("Unimplemented debug message kind: "+ k);
@@ -46,10 +48,10 @@ public class LTSminDebug {
 		said = true;
 	}
 
-    private void tabs() {
+    private void tabs(PrintStream stream) {
         if (said) {
-            for(int n=say_indent; n > 0; n--) {
-            	System.err.print(TAB);
+            for (int n = say_indent; n > 0; n--) {
+                stream.print(TAB);
             }
         }
     }
@@ -83,13 +85,13 @@ public class LTSminDebug {
         case DEBUG:
             if (!verbose) break;
         case NORMAL:
-            tabs();
+            tabs(System.out);
             System.out.print(s);
             break;
         case WARNING:
         case ERROR:
         case FATAL:
-            tabs();
+            tabs(System.err);
             System.err.print(s);
             break;
         default: throw new AssertionError("Unimplemented debug message kind: "+ k);

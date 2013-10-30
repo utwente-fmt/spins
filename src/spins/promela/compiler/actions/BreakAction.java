@@ -16,7 +16,6 @@ package spins.promela.compiler.actions;
 
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
-import spins.util.StringWriter;
 
 public class BreakAction extends Action {
 	private OptionAction loop;
@@ -30,13 +29,6 @@ public class BreakAction extends Action {
 	public String getEnabledExpression() throws ParseException {
 		return null;
 	}
-
-	@Override
-	public void printTakeStatement(StringWriter w) throws ParseException {
-		w.appendLine("break;");
-	}
-
-	@Override
 	public String toString() {
 		return "break";
 	}

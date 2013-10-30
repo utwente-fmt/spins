@@ -27,9 +27,6 @@ import java.util.Map;
  * @author Marc de Jonge
  */
 public class VariableStore implements VariableContainer {
-    public static boolean canSkipVar(Variable var) {
-        return !(var.isWritten() || var.getType() instanceof ChannelType);
-    }
 
     private final Map<String, Variable> varNames; 
     private final List<Variable> vars;

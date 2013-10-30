@@ -20,7 +20,6 @@ import java.util.Set;
 import java.util.Stack;
 
 import spins.promela.compiler.Proctype;
-import spins.promela.compiler.parser.ParseException;
 import spins.util.StringWriter;
 
 /**
@@ -43,41 +42,6 @@ public class Automaton implements Iterable<State> {
 	public Automaton(final Proctype proctype) {
 		this.proctype = proctype;
 		startState = new State(this, false);
-	}
-
-	/**
-	 * Generates the transition table in java code.
-	 * @param w
-	 *            The {@link StringWriter} that can be used to write the data to.
-	 * @throws ParseException
-	 *             When something went wrong while converting the input.
-	 */
-	public void generateTable(final StringWriter w) throws ParseException {
-		assert (w != null);
-		w.appendLine("PromelaTransitionFactory factory;");
-		for (final State state : this) {
-			w.setSavePoint();
-			int cnt = 0;
-			for (Transition trans : state.output) {
-				if (cnt == 0) {
-					w.appendLine("factory = ");
-				} else {
-					w.appendLine("factory.append(");
-				}
-				w.indent();
-				trans.printTransition(w);
-				w.outdent();
-				w.removePostfix().append(cnt == 0 ? ";" : ");").appendPostfix();
-				cnt++;
-			}
-			if (cnt == 0) {
-				w.appendLine("factory = null;");
-			}
-			w.appendLine("_stateTable[", state.getStateId(), "] = new State(",
-				getProctype().getName(), ".this, factory, ", state.isEndingState(), ", ",
-				state.isProgressState(), ", ", state.isAcceptState(), ");");
-			w.appendLine();
-		}
 	}
 
 	/**

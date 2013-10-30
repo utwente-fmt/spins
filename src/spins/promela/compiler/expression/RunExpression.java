@@ -61,6 +61,21 @@ public class RunExpression extends Expression implements CompoundExpression {
 		exprs = new ArrayList<Expression>();
 	}
 
+    public final boolean equals(Object o) {
+        if (!(o instanceof RunExpression))
+            return false;
+        RunExpression other = (RunExpression)o;
+        return (proc == null || proc.equals(other.proc)) &&
+               id.equals(other.id) && 
+               exprs.equals(other.exprs);
+    }
+
+    public final int hashCode() {
+        return (proc == null ? 0 : proc.hashCode() * 37) +
+               id.hashCode() * 13 +
+               exprs.hashCode();
+    }
+	
 	public RunExpression(final Token token, final Proctype proc) {
 		super(token);
 		this.id = proc.getName();

@@ -22,7 +22,7 @@ package spins.promela.compiler;
  */
 public class ProcInstance extends Proctype {
 	
-	private int instance;
+	private final int instance;
 
 	public ProcInstance(Proctype p, int instance, int id) {
 		super(p.getSpecification(), id, p.getNrActive(), p.getName());
@@ -42,24 +42,26 @@ public class ProcInstance extends Proctype {
 		return super.getName();
 	}
 
-	public boolean equals(Object o) {
+	public final boolean equals(Object o) {
 		if (o == null || !(o instanceof ProcInstance))
 			return false;
 		ProcInstance p = (ProcInstance)o;
-		return p.getName().equals(name) && instance == p.instance;
+		return p.canEqual(this) &&
+		      super.equals(p) && instance == p.instance;
 	}
+
+    public final boolean canEqual(Object other) {
+        return (other instanceof ProcInstance);
+    }
+
+    public final int hashCode() {
+        return name.hashCode() + instance * 37; 
+    }
 
     /**
      * @return the instance
      */
     public int getInstance() {
         return instance;
-    }
-
-    /**
-     * @param instance the instance to set
-     */
-    public void setInstance(int instance) {
-        this.instance = instance;
     }
 }

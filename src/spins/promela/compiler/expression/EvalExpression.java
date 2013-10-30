@@ -63,6 +63,20 @@ public class EvalExpression extends Expression {
 		return expr.readVariables();
 	}
 
+    @Override
+    public final boolean equals(Object o) {
+        if (o == null)
+            return false;
+        if (!(o instanceof EvalExpression))
+            return false;
+        EvalExpression e = (EvalExpression)o;
+        return e.expr.equals(expr);
+    }
+
+    public final int hashCode() {
+        return expr.hashCode();
+    }
+
 	@Override
 	public String toString() {
 		return "eval(" + expr.toString() + ")";

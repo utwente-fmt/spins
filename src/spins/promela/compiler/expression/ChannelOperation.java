@@ -56,6 +56,22 @@ public class ChannelOperation extends Expression {
 		}
 	}
 
+    @Override
+    public final boolean equals(Object o) {
+        if (o == null)
+            return false;
+        if (!(o instanceof ChannelOperation))
+            return false;
+        ChannelOperation e = (ChannelOperation)o;
+        if (e.getToken().kind != getToken().kind)
+            return false;
+        return e.expr.equals(expr);
+    }
+
+    public final int hashCode() {
+        return getToken().kind * 37 + expr.hashCode();
+    }
+
 	@Override
 	public VariableType getResultType() {
 		return VariableType.BOOL;

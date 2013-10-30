@@ -35,10 +35,10 @@ import spins.promela.compiler.variable.VariableType;
 
 public class RemoteRef extends Expression {
 	
-	private String processName;
+	private final String processName;
 	private Proctype process;
-	private String label;
-	private Expression expr;
+	private final String label;
+	private final Expression expr;
 
 	public RemoteRef(final Token id, final Token label, Expression e) {
 		super(id);
@@ -69,7 +69,7 @@ public class RemoteRef extends Expression {
 		return processName +"["+ expr.toString() +"]@"+ label;
 	}
 
-	public boolean equals(Object o) {
+	public final boolean equals(Object o) {
 	    if (!(o instanceof RemoteRef))
 	        return false;
 	    RemoteRef other = (RemoteRef)o;
@@ -78,6 +78,12 @@ public class RemoteRef extends Expression {
 	           (expr == other.expr ||
 	           (expr != null && other.expr != null && expr.equals(other.expr)));
 	}
+
+    public final int hashCode() {
+        return processName.hashCode() * 37 +
+               label.hashCode() * 13 +
+               (expr == null ? 0 : expr.hashCode());
+    }
 
 	@Override
 	public VariableType getResultType() {
@@ -95,24 +101,12 @@ public class RemoteRef extends Expression {
 		return expr;
 	}
 
-	public void setExpr(Expression expr) {
-		this.expr = expr;
-	}
-
 	public String getLabel() {
 		return label;
 	}
 
-	public void setLabel(String label) {
-		this.label = label;
-	}
-
 	public String getProcessName() {
 		return processName;
-	}
-
-	public void setProcess(String process) {
-		this.processName = process;
 	}
 
 	public void setProcess(Proctype process) {

@@ -188,7 +188,7 @@ public class AritmicExpression extends Expression {
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public final boolean equals(Object o) {
 		if (o == null)
 			return false;
 		if (!(o instanceof AritmicExpression))
@@ -206,6 +206,13 @@ public class AritmicExpression extends Expression {
 			return ex3 == ae.ex3;
 		return ex3.equals(ae.ex3);
 	}
+
+    public final int hashCode() {
+        return getToken().kind * 37 +
+                ex1.hashCode() * 13 +
+                (ex2 == null ? 0 : ex2.hashCode() * 59) +
+                (ex3 == null ? 0 : ex3.hashCode());
+    }
 
 	@Override
 	public VariableType getResultType() {

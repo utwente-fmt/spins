@@ -559,7 +559,7 @@ public class Promela implements PromelaConstants {
       jj_la1[22] = jj_gen;
       ;
     }
-                var = new ChannelVariable(id.image, arraySize);
+                var = new ChannelVariable(id.image, arraySize, currentProc);
                 var.setHidden(hidden);
                 var.setOwner(currentProc);
                 if (null != currentProc && currentProc.isArgument()) {
@@ -589,14 +589,13 @@ public class Promela implements PromelaConstants {
       id = jj_consume_token(IDENTIFIER);
                 store.addVariableMapping(var.getName(), id.image);
         Variable var2 = store.getVariable(id.image);
-        var2.setRead(true);
       break;
     case LBRACK:
       jj_consume_token(LBRACK);
       size = constant();
       jj_consume_token(RBRACK);
       jj_consume_token(OF);
-                ctype = specification.newChannelType(size.getConstantValue());
+                ctype = new ChannelType(size.getConstantValue());
                 var.setType(ctype);
       jj_consume_token(LCURLY);
       type = typename();
@@ -616,7 +615,7 @@ public class Promela implements PromelaConstants {
           ctype.addType(type);
       }
       jj_consume_token(RCURLY);
-          store.addVariable(var); var.setRead(true);
+          store.addVariable(var);
       break;
     default:
       jj_la1[25] = jj_gen;
@@ -1706,6 +1705,7 @@ public class Promela implements PromelaConstants {
         Expression expr = null;
         Expression expr2 = null;
         Identifier ident;
+        Variable var = null;
     if (getToken(1).kind == IDENTIFIER &&
                      specification.getProcess(getToken(1).image) != null) {
       proc = jj_consume_token(IDENTIFIER);
@@ -1759,13 +1759,16 @@ public class Promela implements PromelaConstants {
           ;
         }
                 if (null == context) {
-                        if (currentProc != null && currentProc.hasVariable(id.image)) {
-                                ident = new Identifier(id, currentProc.getVariable(id.image), expr, null);
-                        } else if (specification.getVariableStore().hasVariable(id.image)) {
-                                ident = new Identifier(id, specification.getVariableStore().getVariable(id.image), expr, null);
-                        } else {
+                        if (currentProc != null) {
+                var = currentProc.getVariable(id.image);
+                        }
+                        if (var == null) {
+                                var = specification.getVariableStore().getVariable(id.image);
+                        }
+                        if (var == null) {
                    {if (true) throw new MyParseException("Undeclared identifier: " + id.image, id);}
                 }
+                ident = new Identifier(id, var, expr, null);
             } else {
                CustomVariableType cvt;
             try {
@@ -1773,11 +1776,11 @@ public class Promela implements PromelaConstants {
             } catch (ClassCastException cce) {
                 {if (true) throw new MyParseException("Variable is not a struct " + context, context.getToken());}
             }
-            if (cvt.getVariableStore().hasVariable(id.image)) {
-                ident = new Identifier(id, cvt.getVariableStore().getVariable(id.image), expr, null);
-            } else {
+            var = cvt.getVariableStore().getVariable(id.image);
+            if (var == null) {
                 {if (true) throw new MyParseException("Struct "+ cvt +" has no member " + id.image, id);}
             }
+            ident = new Identifier(id, var, expr, null);
             }
         if ((null == expr) != (-1 == ident.getVariable().getArraySize())) {
             {if (true) throw new MyParseException("Invalid array semantics in expression: "+ id, id);}
@@ -2775,6 +2778,11 @@ public class Promela implements PromelaConstants {
     finally { jj_save(58, xla); }
   }
 
+  private boolean jj_3R_40() {
+    if (jj_3R_32()) return true;
+    return false;
+  }
+
   private boolean jj_3R_39() {
     if (jj_3R_31()) return true;
     return false;
@@ -3291,14 +3299,14 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3_50() {
-    if (jj_3R_49()) return true;
-    return false;
-  }
-
   private boolean jj_3R_159() {
     if (jj_scan_token(ASSIGN)) return true;
     if (jj_3R_53()) return true;
+    return false;
+  }
+
+  private boolean jj_3_50() {
+    if (jj_3R_49()) return true;
     return false;
   }
 
@@ -3336,6 +3344,11 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3R_169() {
+    if (jj_scan_token(IDENTIFIER)) return true;
+    return false;
+  }
+
   private boolean jj_3R_141() {
     if (jj_scan_token(COMMA)) return true;
     if (jj_3R_140()) return true;
@@ -3354,8 +3367,18 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_169() {
-    if (jj_scan_token(IDENTIFIER)) return true;
+  private boolean jj_3R_168() {
+    if (jj_3R_128()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_163() {
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_168()) {
+    jj_scanpos = xsp;
+    if (jj_3R_169()) return true;
+    }
     return false;
   }
 
@@ -3376,24 +3399,19 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_168() {
-    if (jj_3R_128()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_163() {
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_168()) {
-    jj_scanpos = xsp;
-    if (jj_3R_169()) return true;
-    }
-    return false;
-  }
-
   private boolean jj_3_4() {
     if (jj_scan_token(COMMA)) return true;
     if (jj_scan_token(IDENTIFIER)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_154() {
+    if (jj_scan_token(NUMBER)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_153() {
+    if (jj_scan_token(SKIP_)) return true;
     return false;
   }
 
@@ -3424,43 +3442,13 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_154() {
-    if (jj_scan_token(NUMBER)) return true;
-    return false;
-  }
-
-  private boolean jj_3_44() {
-    if (jj_3R_50()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_153() {
-    if (jj_scan_token(SKIP_)) return true;
-    return false;
-  }
-
-  private boolean jj_3_43() {
-    if (jj_3R_50()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_87() {
-    if (jj_scan_token(LCURLY)) return true;
-    return false;
-  }
-
   private boolean jj_3R_152() {
     if (jj_scan_token(FALSE)) return true;
     return false;
   }
 
-  private boolean jj_3_42() {
+  private boolean jj_3_44() {
     if (jj_3R_50()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_86() {
-    if (jj_scan_token(D_STEP)) return true;
     return false;
   }
 
@@ -3485,13 +3473,13 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3_40() {
+  private boolean jj_3_43() {
     if (jj_3R_50()) return true;
     return false;
   }
 
-  private boolean jj_3R_85() {
-    if (jj_scan_token(ATOMIC)) return true;
+  private boolean jj_3R_87() {
+    if (jj_scan_token(LCURLY)) return true;
     return false;
   }
 
@@ -3511,6 +3499,21 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3_42() {
+    if (jj_3R_50()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_86() {
+    if (jj_scan_token(D_STEP)) return true;
+    return false;
+  }
+
+  private boolean jj_3_40() {
+    if (jj_3R_50()) return true;
+    return false;
+  }
+
   private boolean jj_3R_114() {
     if (jj_scan_token(IDENTIFIER)) return true;
     if (jj_scan_token(LCURLY)) return true;
@@ -3522,14 +3525,19 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3_39() {
-    if (jj_3R_50()) return true;
+  private boolean jj_3R_85() {
+    if (jj_scan_token(ATOMIC)) return true;
     return false;
   }
 
   private boolean jj_3R_143() {
     if (jj_scan_token(COMMA)) return true;
     if (jj_3R_142()) return true;
+    return false;
+  }
+
+  private boolean jj_3_39() {
+    if (jj_3R_50()) return true;
     return false;
   }
 
@@ -3543,6 +3551,11 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3R_33() {
+    if (jj_3R_53()) return true;
+    return false;
+  }
+
   private boolean jj_3_38() {
     if (jj_3R_50()) return true;
     return false;
@@ -3550,11 +3563,6 @@ public class Promela implements PromelaConstants {
 
   private boolean jj_3R_84() {
     if (jj_scan_token(BREAK)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_33() {
-    if (jj_3R_53()) return true;
     return false;
   }
 
@@ -3583,6 +3591,12 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3R_96() {
+    if (jj_scan_token(LOR)) return true;
+    if (jj_3R_95()) return true;
+    return false;
+  }
+
   private boolean jj_3R_118() {
     if (jj_3R_140()) return true;
     Token xsp;
@@ -3598,12 +3612,6 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_96() {
-    if (jj_scan_token(LOR)) return true;
-    if (jj_3R_95()) return true;
-    return false;
-  }
-
   private boolean jj_3_3() {
     if (jj_scan_token(MTYPE)) return true;
     if (jj_3R_29()) return true;
@@ -3615,13 +3623,13 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3_35() {
-    if (jj_3R_50()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_82() {
-    if (jj_scan_token(PRINT)) return true;
+  private boolean jj_3R_53() {
+    if (jj_3R_95()) return true;
+    Token xsp;
+    while (true) {
+      xsp = jj_scanpos;
+      if (jj_3R_96()) { jj_scanpos = xsp; break; }
+    }
     return false;
   }
 
@@ -3636,8 +3644,24 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3_35() {
+    if (jj_3R_50()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_82() {
+    if (jj_scan_token(PRINT)) return true;
+    return false;
+  }
+
   private boolean jj_3_48() {
     if (jj_3R_52()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_155() {
+    if (jj_scan_token(SEMICOLON)) return true;
+    if (jj_3R_28()) return true;
     return false;
   }
 
@@ -3656,19 +3680,8 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_53() {
-    if (jj_3R_95()) return true;
-    Token xsp;
-    while (true) {
-      xsp = jj_scanpos;
-      if (jj_3R_96()) { jj_scanpos = xsp; break; }
-    }
-    return false;
-  }
-
-  private boolean jj_3R_155() {
-    if (jj_scan_token(SEMICOLON)) return true;
-    if (jj_3R_28()) return true;
+  private boolean jj_3R_59() {
+    if (jj_scan_token(HIDDEN)) return true;
     return false;
   }
 
@@ -3677,13 +3690,9 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_59() {
-    if (jj_scan_token(HIDDEN)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_80() {
-    if (jj_scan_token(ELSE)) return true;
+  private boolean jj_3R_127() {
+    if (jj_scan_token(LAND)) return true;
+    if (jj_3R_126()) return true;
     return false;
   }
 
@@ -3701,6 +3710,11 @@ public class Promela implements PromelaConstants {
     if (jj_3R_61()) return true;
     }
     }
+    return false;
+  }
+
+  private boolean jj_3R_80() {
+    if (jj_scan_token(ELSE)) return true;
     return false;
   }
 
@@ -3725,17 +3739,6 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_127() {
-    if (jj_scan_token(LAND)) return true;
-    if (jj_3R_126()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_79() {
-    if (jj_3R_52()) return true;
-    return false;
-  }
-
   private boolean jj_3R_95() {
     if (jj_3R_126()) return true;
     Token xsp;
@@ -3746,8 +3749,19 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3R_79() {
+    if (jj_3R_52()) return true;
+    return false;
+  }
+
   private boolean jj_3R_78() {
     if (jj_3R_51()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_150() {
+    if (jj_scan_token(BOR)) return true;
+    if (jj_3R_149()) return true;
     return false;
   }
 
@@ -3766,9 +3780,13 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_150() {
-    if (jj_scan_token(BOR)) return true;
+  private boolean jj_3R_126() {
     if (jj_3R_149()) return true;
+    Token xsp;
+    while (true) {
+      xsp = jj_scanpos;
+      if (jj_3R_150()) { jj_scanpos = xsp; break; }
+    }
     return false;
   }
 
@@ -3782,18 +3800,14 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_126() {
-    if (jj_3R_149()) return true;
-    Token xsp;
-    while (true) {
-      xsp = jj_scanpos;
-      if (jj_3R_150()) { jj_scanpos = xsp; break; }
-    }
+  private boolean jj_3_45() {
+    if (jj_3R_28()) return true;
     return false;
   }
 
-  private boolean jj_3_45() {
-    if (jj_3R_28()) return true;
+  private boolean jj_3R_162() {
+    if (jj_scan_token(XOR)) return true;
+    if (jj_3R_161()) return true;
     return false;
   }
 
@@ -3807,9 +3821,13 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_162() {
-    if (jj_scan_token(XOR)) return true;
+  private boolean jj_3R_149() {
     if (jj_3R_161()) return true;
+    Token xsp;
+    while (true) {
+      xsp = jj_scanpos;
+      if (jj_3R_162()) { jj_scanpos = xsp; break; }
+    }
     return false;
   }
 
@@ -3819,16 +3837,6 @@ public class Promela implements PromelaConstants {
     if (jj_scan_token(19)) {
     jj_scanpos = xsp;
     if (jj_scan_token(20)) return true;
-    }
-    return false;
-  }
-
-  private boolean jj_3R_149() {
-    if (jj_3R_161()) return true;
-    Token xsp;
-    while (true) {
-      xsp = jj_scanpos;
-      if (jj_3R_162()) { jj_scanpos = xsp; break; }
     }
     return false;
   }
@@ -3904,11 +3912,6 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_70() {
-    if (jj_scan_token(DECR)) return true;
-    return false;
-  }
-
   private boolean jj_3R_161() {
     if (jj_3R_166()) return true;
     Token xsp;
@@ -3919,14 +3922,13 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_69() {
-    if (jj_scan_token(INCR)) return true;
+  private boolean jj_3R_70() {
+    if (jj_scan_token(DECR)) return true;
     return false;
   }
 
-  private boolean jj_3R_68() {
-    if (jj_scan_token(ASSIGN)) return true;
-    if (jj_3R_53()) return true;
+  private boolean jj_3R_69() {
+    if (jj_scan_token(INCR)) return true;
     return false;
   }
 
@@ -3941,26 +3943,18 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3R_68() {
+    if (jj_scan_token(ASSIGN)) return true;
+    if (jj_3R_53()) return true;
+    return false;
+  }
+
   private boolean jj_3R_166() {
     if (jj_3R_175()) return true;
     Token xsp;
     while (true) {
       xsp = jj_scanpos;
       if (jj_3R_176()) { jj_scanpos = xsp; break; }
-    }
-    return false;
-  }
-
-  private boolean jj_3R_32() {
-    if (jj_3R_55()) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_68()) {
-    jj_scanpos = xsp;
-    if (jj_3R_69()) {
-    jj_scanpos = xsp;
-    if (jj_3R_70()) return true;
-    }
     }
     return false;
   }
@@ -3979,6 +3973,20 @@ public class Promela implements PromelaConstants {
     }
     }
     if (jj_3R_178()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_32() {
+    if (jj_3R_55()) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_68()) {
+    jj_scanpos = xsp;
+    if (jj_3R_69()) {
+    jj_scanpos = xsp;
+    if (jj_3R_70()) return true;
+    }
+    }
     return false;
   }
 
@@ -4020,6 +4028,17 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3R_183() {
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_scan_token(71)) {
+    jj_scanpos = xsp;
+    if (jj_scan_token(67)) return true;
+    }
+    if (jj_3R_182()) return true;
+    return false;
+  }
+
   private boolean jj_3R_67() {
     if (jj_scan_token(CH_READ_RAND)) return true;
     Token xsp;
@@ -4036,24 +4055,6 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_183() {
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_scan_token(71)) {
-    jj_scanpos = xsp;
-    if (jj_scan_token(67)) return true;
-    }
-    if (jj_3R_182()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_122() {
-    if (jj_scan_token(LT)) return true;
-    if (jj_3R_49()) return true;
-    if (jj_scan_token(GT)) return true;
-    return false;
-  }
-
   private boolean jj_3R_180() {
     if (jj_3R_182()) return true;
     Token xsp;
@@ -4064,19 +4065,15 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3_28() {
+  private boolean jj_3R_122() {
+    if (jj_scan_token(LT)) return true;
     if (jj_3R_49()) return true;
+    if (jj_scan_token(GT)) return true;
     return false;
   }
 
-  private boolean jj_3R_66() {
-    if (jj_scan_token(CH_READ)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3_28()) {
-    jj_scanpos = xsp;
-    if (jj_3R_122()) return true;
-    }
+  private boolean jj_3_28() {
+    if (jj_3R_49()) return true;
     return false;
   }
 
@@ -4094,9 +4091,14 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_65() {
-    if (jj_scan_token(CH_SEND_SORTED)) return true;
-    if (jj_3R_121()) return true;
+  private boolean jj_3R_66() {
+    if (jj_scan_token(CH_READ)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3_28()) {
+    jj_scanpos = xsp;
+    if (jj_3R_122()) return true;
+    }
     return false;
   }
 
@@ -4110,6 +4112,12 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3R_65() {
+    if (jj_scan_token(CH_SEND_SORTED)) return true;
+    if (jj_3R_121()) return true;
+    return false;
+  }
+
   private boolean jj_3R_64() {
     if (jj_scan_token(LNOT)) return true;
     if (jj_3R_121()) return true;
@@ -4118,6 +4126,17 @@ public class Promela implements PromelaConstants {
 
   private boolean jj_3R_113() {
     if (jj_scan_token(LBRACK)) return true;
+    return false;
+  }
+
+  private boolean jj_3_59() {
+    if (jj_3R_57()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_187() {
+    if (jj_scan_token(LNOT)) return true;
+    if (jj_3R_184()) return true;
     return false;
   }
 
@@ -4135,17 +4154,6 @@ public class Promela implements PromelaConstants {
     }
     }
     }
-    return false;
-  }
-
-  private boolean jj_3_59() {
-    if (jj_3R_57()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_187() {
-    if (jj_scan_token(LNOT)) return true;
-    if (jj_3R_184()) return true;
     return false;
   }
 
@@ -4207,16 +4215,6 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_120() {
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_scan_token(58)) {
-    jj_scanpos = xsp;
-    if (jj_scan_token(60)) return true;
-    }
-    return false;
-  }
-
   private boolean jj_3R_110() {
     if (jj_scan_token(PC_VALUE)) return true;
     if (jj_scan_token(LPAREN)) return true;
@@ -4240,23 +4238,18 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3_21() {
-    if (jj_3R_30()) return true;
+  private boolean jj_3R_120() {
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_scan_token(58)) {
+    jj_scanpos = xsp;
+    if (jj_scan_token(60)) return true;
+    }
     return false;
   }
 
   private boolean jj_3R_108() {
     if (jj_scan_token(NP_)) return true;
-    return false;
-  }
-
-  private boolean jj_3_20() {
-    if (jj_3R_30()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_48() {
-    if (jj_scan_token(LCURLY)) return true;
     return false;
   }
 
@@ -4272,8 +4265,8 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3_1() {
-    if (jj_3R_27()) return true;
+  private boolean jj_3_21() {
+    if (jj_3R_30()) return true;
     return false;
   }
 
@@ -4282,21 +4275,26 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3_20() {
+    if (jj_3R_30()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_48() {
+    if (jj_scan_token(LCURLY)) return true;
+    return false;
+  }
+
+  private boolean jj_3_1() {
+    if (jj_3R_27()) return true;
+    return false;
+  }
+
   private boolean jj_3R_191() {
     if (jj_scan_token(CH_READ_RAND)) return true;
     if (jj_scan_token(LBRACK)) return true;
     if (jj_3R_49()) return true;
     if (jj_scan_token(RBRACK)) return true;
-    return false;
-  }
-
-  private boolean jj_3_19() {
-    if (jj_3R_30()) return true;
-    return false;
-  }
-
-  private boolean jj_3_18() {
-    if (jj_3R_30()) return true;
     return false;
   }
 
@@ -4310,8 +4308,8 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_47() {
-    if (jj_scan_token(D_STEP)) return true;
+  private boolean jj_3_19() {
+    if (jj_3R_30()) return true;
     return false;
   }
 
@@ -4333,13 +4331,13 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3_17() {
+  private boolean jj_3_18() {
     if (jj_3R_30()) return true;
     return false;
   }
 
-  private boolean jj_3R_46() {
-    if (jj_scan_token(ATOMIC)) return true;
+  private boolean jj_3R_47() {
+    if (jj_scan_token(D_STEP)) return true;
     return false;
   }
 
@@ -4368,16 +4366,21 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
+  private boolean jj_3_17() {
+    if (jj_3R_30()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_46() {
+    if (jj_scan_token(ATOMIC)) return true;
+    return false;
+  }
+
   private boolean jj_3R_104() {
     if (jj_scan_token(LEN)) return true;
     if (jj_scan_token(LPAREN)) return true;
     if (jj_3R_55()) return true;
     if (jj_scan_token(RPAREN)) return true;
-    return false;
-  }
-
-  private boolean jj_3_16() {
-    if (jj_3R_30()) return true;
     return false;
   }
 
@@ -4388,8 +4391,8 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_45() {
-    if (jj_scan_token(BREAK)) return true;
+  private boolean jj_3_16() {
+    if (jj_3R_30()) return true;
     return false;
   }
 
@@ -4444,13 +4447,13 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3_15() {
-    if (jj_3R_30()) return true;
+  private boolean jj_3R_45() {
+    if (jj_scan_token(BREAK)) return true;
     return false;
   }
 
-  private boolean jj_3R_44() {
-    if (jj_scan_token(ASSERT)) return true;
+  private boolean jj_3_15() {
+    if (jj_3R_30()) return true;
     return false;
   }
 
@@ -4459,14 +4462,19 @@ public class Promela implements PromelaConstants {
     return false;
   }
 
-  private boolean jj_3R_43() {
-    if (jj_scan_token(PRINT)) return true;
+  private boolean jj_3R_44() {
+    if (jj_scan_token(ASSERT)) return true;
     return false;
   }
 
   private boolean jj_3R_146() {
     if (jj_scan_token(DOT)) return true;
     if (jj_3R_55()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_43() {
+    if (jj_scan_token(PRINT)) return true;
     return false;
   }
 
@@ -4519,11 +4527,6 @@ public class Promela implements PromelaConstants {
     if (jj_scan_token(LBRACK)) return true;
     if (jj_3R_53()) return true;
     if (jj_scan_token(RBRACK)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_40() {
-    if (jj_3R_32()) return true;
     return false;
   }
 

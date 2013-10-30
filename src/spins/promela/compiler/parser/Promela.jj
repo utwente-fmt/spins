@@ -1027,7 +1027,7 @@ void ivar_chan(VariableContainer store, boolean hidden): {
 	id=<IDENTIFIER>
 	(<LBRACK> c=constant() <RBRACK> { arraySize = c.getNumber(); })? 
 	{
-		var = new ChannelVariable(id.image, arraySize);
+		var = new ChannelVariable(id.image, arraySize, currentProc);
 		var.setHidden(hidden);
 		var.setOwner(currentProc);
 		if (null != currentProc && currentProc.isArgument()) {
@@ -1049,12 +1049,11 @@ void ch_init(Token as, VariableContainer store, ChannelVariable var): {
     id=<IDENTIFIER>
     {
 		store.addVariableMapping(var.getName(), id.image);
-        Variable var2 = store.getVariable(id.image);
-        var2.setRead(true);    }
+        Variable var2 = store.getVariable(id.image);    }
   |
 	<LBRACK> size=constant() <RBRACK> <OF> 
 	{ 
-		ctype = specification.newChannelType(size.getConstantValue());
+		ctype = new ChannelType(size.getConstantValue());
 		var.setType(ctype); 
 	}
 	<LCURLY> type=typename() 
@@ -1062,7 +1061,7 @@ void ch_init(Token as, VariableContainer store, ChannelVariable var): {
 	(<COMMA> type=typename()
 	{ ctype.addType(type); }
 	)* <RCURLY>
-	{ store.addVariable(var); var.setRead(true); }
+	{ store.addVariable(var); }
 }
 
 VariableType typename(): {
@@ -1477,6 +1476,7 @@ Expression varref(Identifier context): {
 	Expression expr = null;
 	Expression expr2 = null;
 	Identifier ident;
+	Variable var = null;
 }{
     LOOKAHEAD( { getToken(1).kind == IDENTIFIER &&
                  specification.getProcess(getToken(1).image) != null } )
@@ -1509,13 +1509,16 @@ Expression varref(Identifier context): {
 	(<LBRACK> expr=lor_expr() <RBRACK>)?
 	{
 		if (null == context) {
-			if (currentProc != null && currentProc.hasVariable(id.image)) {
-				ident = new Identifier(id, currentProc.getVariable(id.image), expr, null);
-			} else if (specification.getVariableStore().hasVariable(id.image)) {
-				ident = new Identifier(id, specification.getVariableStore().getVariable(id.image), expr, null);
-			} else {
+			if (currentProc != null) {
+                var = currentProc.getVariable(id.image);
+			}
+			if (var == null) {
+				var = specification.getVariableStore().getVariable(id.image);
+			}
+			if (var == null) {
 	           throw new MyParseException("Undeclared identifier: " + id.image, id);
 	        }
+	        ident = new Identifier(id, var, expr, null);
 	    } else {
 	       CustomVariableType cvt;
             try {
@@ -1523,11 +1526,11 @@ Expression varref(Identifier context): {
             } catch (ClassCastException cce) {
                 throw new MyParseException("Variable is not a struct " + context, context.getToken());
             }
-            if (cvt.getVariableStore().hasVariable(id.image)) {
-                ident = new Identifier(id, cvt.getVariableStore().getVariable(id.image), expr, null);
-            } else {
+            var = cvt.getVariableStore().getVariable(id.image);
+            if (var == null) {
                 throw new MyParseException("Struct "+ cvt +" has no member " + id.image, id);
             }
+            ident = new Identifier(id, var, expr, null);
 	    }
         if ((null == expr) != (-1 == ident.getVariable().getArraySize())) {
             throw new MyParseException("Invalid array semantics in expression: "+ id, id);

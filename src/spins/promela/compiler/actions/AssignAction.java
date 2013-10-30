@@ -14,19 +14,12 @@
 
 package spins.promela.compiler.actions;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.expression.AritmicExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
-import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaConstants;
 import spins.promela.compiler.parser.Token;
-import spins.promela.compiler.variable.VariableAccess;
-import spins.util.StringWriter;
 
 public class AssignAction extends Action {
 	private final Identifier id;
@@ -41,17 +34,6 @@ public class AssignAction extends Action {
 		super(token);
 		this.id = id;
 		this.expr = expr;
-		if (expr != null) {
-			for (final VariableAccess var : expr.readVariables()) {
-				var.getVar().setRead(true);
-			}
-		}
-
-		id.getVariable().setWritten(true);
-		if ((getToken().kind == PromelaConstants.INCR)
-			|| (getToken().kind == PromelaConstants.DECR)) {
-			id.getVariable().setRead(true);
-		}
 	}
 
 	@Override
@@ -68,66 +50,6 @@ public class AssignAction extends Action {
 		if (expr != null && !(new ExprAction(expr)).isLocal(proc))
 		    return false;
         return proc.hasVariable(id.getVariable().getName()) && super.isLocal(proc);
-	}
-
-	@Override
-	public Collection<Identifier> getChangedVariables() {
-		List<Identifier> res = new ArrayList<Identifier>(1);
-		res.add(id);
-		return res;
-	}
-
-	@Override
-	public void printTakeStatement(final StringWriter w) throws ParseException {
-		final String mask = id.getVariable().getType().getMask();
-		switch (getToken().kind) {
-			case PromelaConstants.ASSIGN:
-				try {
-					int value = expr.getConstantValue();
-					w.appendLine(id.getIntExpression(), " = ", value
-																& id.getVariable()
-																		.getType()
-																		.getMaskInt(), ";");
-				} catch (ParseException ex) {
-					// Could not get Constant value
-					w.appendLine(id.getIntExpression(), " = ", expr.getIntExpression(),
-						(mask == null ? "" : " & " + mask), ";");
-				}
-				break;
-			case PromelaConstants.INCR:
-				if (mask == null) {
-					w.appendLine(id.getIntExpression(), "++;");
-				} else {
-					w.appendLine(id.getIntExpression(), " = (", id.getIntExpression(), " + 1) & ",
-						mask, ";");
-				}
-				break;
-			case PromelaConstants.DECR:
-				if (mask == null) {
-					w.appendLine(id.getIntExpression(), "--;");
-				} else {
-					w.appendLine(id.getIntExpression(), " = (", id.getIntExpression(), " - 1) & ",
-						mask, ";");
-				}
-				break;
-			default:
-				throw new ParseException("unknown assignment type");
-		}
-	}
-
-	@Override
-	public void printUndoStatement(final StringWriter w) throws ParseException {
-		switch (getToken().kind) {
-			case PromelaConstants.ASSIGN:
-				if (expr.getSideEffect() != null) {
-					w.appendLine("endProcess();");
-				}
-			case PromelaConstants.INCR:
-			case PromelaConstants.DECR:
-				break;
-			default:
-				throw new ParseException("unknown assignment type");
-		}
 	}
 
 	@Override

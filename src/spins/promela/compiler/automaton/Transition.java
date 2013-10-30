@@ -25,7 +25,6 @@ import spins.promela.compiler.actions.ChannelSendAction;
 import spins.promela.compiler.actions.ExprAction;
 import spins.promela.compiler.expression.ConstantExpression;
 import spins.promela.compiler.expression.Expression;
-import spins.promela.compiler.parser.ParseException;
 import spins.util.StringWriter;
 
 /**
@@ -264,57 +263,6 @@ public abstract class Transition implements ActionContainer {
 	@SuppressWarnings("unchecked")
 	public Iterator<Action> iterator() {
 		return Collections.EMPTY_LIST.iterator();
-	}
-
-	/**
-	 * Returns the transition code using the getJavaStatement(), getJavaExpression() and
-	 * getJavaPrint() functions.
-	 * 
-	 * @param w
-	 *            The {@link StringWriter} that can be used to write the java code.
-	 * @throws ParseException
-	 *             When something went wrong while parsing the input.
-	 */
-	public void printTransition(final StringWriter w) throws ParseException {
-		w.appendLine("new PromelaTransitionFactory(", /*
-														 * from.getAutomaton().getProctype().getName(),
-														 * ".this, ",
-														 */isLocal(), ", ", transId, ", ", from.getStateId(), ", ", to.getStateId(), ", \"",
-			getText(), "\") {").indent();
-		if (getActionCount() > 0) {
-			getAction(0).printEnabledFunction(w);
-			getAction(0).printExtraFunctions(w);
-		}
-
-		w.appendLine("public final PromelaTransition newTransition() {").indent();
-		if (from.getAutomaton().getProctype().getSpecification().usesAtomic()) {
-			w.appendLine("return new AtomicTransition(", takesAtomicToken(), ") {").indent();
-		} else {
-			w.appendLine("return new NonAtomicTransition() {").indent();
-		}
-
-		int length = w.length() - 2 - w.getPostfix().length();
-		if (!printTransitionImpl(w)) {
-			w.setLength(length);
-			w.outdent().append(";").appendPostfix();
-		} else {
-			w.removePostfix().outdent().appendLine("};");
-		}
-		w.outdent().appendLine("}");
-		
-		if (getText().indexOf("timeout") >= 0) {
-			w.appendLine("public final boolean canTimeout() {").indent();
-			w.appendLine("return true;");
-			w.outdent().appendLine("}");
-			w.appendLine("public final boolean isLocal() {").indent();
-			w.appendLine("return false;");
-			w.outdent().appendLine("}");
-		}
-		w.outdent().appendLine("}");
-	}
-
-	public boolean printTransitionImpl(final StringWriter w) throws ParseException {
-		return false;
 	}
 
 	/**

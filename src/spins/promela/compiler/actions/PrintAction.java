@@ -80,15 +80,6 @@ public class PrintAction extends Action implements CompoundExpression {
 	}
 
 	@Override
-	public void printTakeStatement(final StringWriter w) throws ParseException {
-		w.appendPrefix().append("printf(").append(string);
-		for (final Expression expr : exprs) {
-			w.append(", ").append(expr.getIntExpression());
-		}
-		w.append(");").appendPostfix();
-	}
-
-	@Override
 	public String toString() {
 		final StringWriter w = new StringWriter();
 		try {

@@ -14,17 +14,13 @@
 
 package spins.promela.compiler.automaton;
 
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 
 import spins.promela.compiler.actions.Action;
 import spins.promela.compiler.actions.ExprAction;
 import spins.promela.compiler.actions.Sequence;
 import spins.promela.compiler.expression.Expression;
-import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.parser.ParseException;
-import spins.promela.compiler.variable.Variable;
 import spins.util.StringWriter;
 
 /**
@@ -124,56 +120,6 @@ public class ActionTransition extends Transition {
 	@Override
 	public Iterator<Action> iterator() {
 		return sequence.iterator();
-	}
-
-	@Override
-	public boolean printTransitionImpl(StringWriter w) throws ParseException {
-		Map<Variable, Identifier> changes = new HashMap<Variable, Identifier>();
-		boolean isComplex = sequence.getBackupVariables(changes);
-		boolean addedSome = false;
-		if (isComplex) {
-			w.appendLine("private byte[] _backup;").appendLine();
-			addedSome = true;
-		} else if (!changes.isEmpty()) {
-			for (Variable var : changes.keySet()) {
-				w.appendLine("private int _backup_", var.getName(), ";");
-				addedSome = true;
-			}
-			w.appendLine();
-		}
-
-		w.setSavePoint();
-		w.appendLine("public final void takeImpl() throws ValidationException {").indent();
-		int length = w.length();
-		if (isComplex) {
-			w.appendLine("_backup = getProcess().getModel().encode();");
-		}
-		sequence.printTakeStatement(w);
-		w.outdent();
-		if (w.length() > length) {
-			w.appendLine("}").appendLine();
-			addedSome = true;
-		} else {
-			w.revertToSavePoint();
-		}
-
-		w.setSavePoint();
-		w.appendLine("public final void undoImpl() {").indent();
-		length = w.length();
-		if (isComplex) {
-			w.appendLine("if(!getProcess().getModel().decode(_backup)) throw new Error(\"Could not decode the backup!\");");
-		} else {
-			sequence.printUndoStatement(w);
-		}
-		w.outdent();
-		if (w.length() > length) {
-			w.appendLine("}").appendLine();
-			addedSome = true;
-		} else {
-			w.revertToSavePoint();
-		}
-
-		return addedSome;
 	}
 
 	@Override

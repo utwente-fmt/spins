@@ -14,13 +14,8 @@
 
 package spins.promela.compiler.actions;
 
-import java.util.Collections;
-import java.util.List;
-
-import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
-import spins.util.StringWriter;
 
 public class ElseAction extends Action {
 
@@ -32,36 +27,7 @@ public class ElseAction extends Action {
 	public String getEnabledExpression() throws ParseException {
 		return "false";
 	}
-
-	@Override
-	public void printTakeStatement(final StringWriter w) throws ParseException {
-		// Does nothing
-	}
-
-	@Override
-	public List<Identifier> getChangedVariables() {
-		return Collections.emptyList();
-	}
-
-	@Override
 	public String toString() {
 		return "else";
-	}
-
-	@Override
-	public void printExtraFunctions(StringWriter w) throws ParseException {
-		w.appendLine("public boolean isElse() {").indent();
-		w.appendLine("return true;");
-		w.outdent().appendLine("}").appendLine();
-
-		w.appendLine("public final boolean isLocal() {").indent();
-		w.appendLine(
-			"for(PromelaTransitionFactory holder = getState().getFirst(); holder != null && holder.getProcess() == getProcess(); holder = holder.getNext()) {").indent();
-		w.appendLine("if(holder != this && !holder.isLocal()) {").indent();
-		w.appendLine("return false;");
-		w.outdent().appendLine("}");
-		w.outdent().appendLine("}");
-		w.appendLine("return true;");
-		w.outdent().appendLine("}").appendLine();
 	}
 }

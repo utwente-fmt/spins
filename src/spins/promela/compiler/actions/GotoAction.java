@@ -16,7 +16,6 @@ package spins.promela.compiler.actions;
 
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
-import spins.util.StringWriter;
 
 /**
  * Gotos within d_steps! (Outside of d_steps, we generate automaton transitions)
@@ -37,12 +36,6 @@ public class GotoAction extends Action {
 		return null;
 	}
 
-	@Override
-	public void printTakeStatement(StringWriter w) throws ParseException {
-		w.appendLine("goto "+ id +";");
-	}
-
-	@Override
 	public String toString() {
 		return "goto "+ id +";";
 	}

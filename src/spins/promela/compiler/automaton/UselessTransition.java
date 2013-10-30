@@ -14,7 +14,6 @@
 
 package spins.promela.compiler.automaton;
 
-import spins.util.StringWriter;
 
 /**
  * @author Marc de Jonge
@@ -52,14 +51,6 @@ public class UselessTransition extends Transition {
 	@Override
 	public boolean isUseless() {
 		return true;
-	}
-
-	/**
-	 * @see spins.promela.compiler.automaton.Transition#printTransition(spins.util.StringWriter)
-	 */
-	@Override
-	public void printTransition(final StringWriter w) {
-		throw new IllegalStateException("Useless actions should be removed before generating code!");
 	}
 
 	/**

@@ -14,14 +14,9 @@
 
 package spins.promela.compiler.actions;
 
-import java.util.Collection;
-import java.util.Collections;
-
 import spins.promela.compiler.Proctype;
-import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
-import spins.util.StringWriter;
 
 public abstract class Action {
 
@@ -42,43 +37,6 @@ public abstract class Action {
 	public boolean isLocal(final Proctype proc) {
 		return true;
 	}
-
-	public void printEnabledFunction(final StringWriter w) throws ParseException {
-		final String e = getEnabledExpression();
-		if (e != null) {
-			w.appendLine("public final boolean isEnabled() { ");
-			w.indent();
-			w.appendLine("return ", e, ";");
-			w.outdent();
-			w.appendLine("}");
-			w.appendLine();
-		}
-	}
-
-	public void printExtraFunctions(final StringWriter w) throws ParseException {
-		// By default there are no extra functions
-	}
-
-	public Collection<Identifier> getChangedVariables() {
-		return Collections.emptyList();
-	}
-
-	public boolean isComplex() {
-		return false;
-	}
-
-	public abstract void printTakeStatement(StringWriter w) throws ParseException;
-
-	public void printUndoStatement(final StringWriter w) throws ParseException {
-	}
-
-	// public void setTransition(Transition transition) {
-	// this.transition = transition;
-	// }
-	//
-	// public Transition getTransition() {
-	// return transition;
-	// }
 
 	@Override
 	public abstract String toString();

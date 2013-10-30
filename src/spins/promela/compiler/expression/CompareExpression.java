@@ -55,7 +55,7 @@ public class CompareExpression extends Expression {
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public final boolean equals(Object o) {
 		if (o == null)
 			return false;
 		if (!(o instanceof CompareExpression))
@@ -64,6 +64,11 @@ public class CompareExpression extends Expression {
 		return getToken().kind == ce.getToken().kind &&
 				ex1.equals(ce.ex1) && ex2.equals(ce.ex2);
 	}
+
+    public final int hashCode() {
+        return getToken().kind * 37 +
+               ex1.hashCode() * 13 +  ex2.hashCode();
+    }
 	
 	@Override
 	public String getBoolExpression() throws ParseException {

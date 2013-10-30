@@ -14,16 +14,10 @@
 
 package spins.promela.compiler.actions;
 
-import java.util.Collections;
-import java.util.List;
-
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.expression.Expression;
-import spins.promela.compiler.expression.Identifier;
-import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
 import spins.promela.compiler.variable.VariableAccess;
-import spins.util.StringWriter;
 
 public class AssertAction extends Action {
 	private final Expression expr;
@@ -46,17 +40,6 @@ public class AssertAction extends Action {
 			}
 		}
 		return super.isLocal(proc);
-	}
-
-	@Override
-	public void printTakeStatement(final StringWriter w) throws ParseException {
-		w.appendLine("if(!", expr.getBoolExpression(), ") throw new AssertionException(\"",
-			expr.toString(), "\");");
-	}
-
-	@Override
-	public List<Identifier> getChangedVariables() {
-		return Collections.emptyList();
 	}
 
 	@Override

@@ -23,16 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import spins.promela.compiler.actions.ChannelReadAction;
-import spins.promela.compiler.actions.ChannelSendAction;
-import spins.promela.compiler.automaton.Transition;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.ltsmin.model.ReadAction;
 import spins.promela.compiler.ltsmin.model.SendAction;
 import spins.promela.compiler.ltsmin.util.LTSminUtil;
 import spins.promela.compiler.parser.ParseException;
-import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.CustomVariableType;
 import spins.promela.compiler.variable.Variable;
 import spins.promela.compiler.variable.VariableStore;
@@ -42,8 +38,6 @@ public class Specification implements Iterable<ProcInstance> {
 	private final String name;
 
 	private final List<Proctype> procs;
-
-	private final List<ChannelType> channelTypes;
 
 	private final Map<String, CustomVariableType> userTypes;
 
@@ -61,7 +55,6 @@ public class Specification implements Iterable<ProcInstance> {
 	public Specification(final String name) {
 		this.name = name;
 		procs = new ArrayList<Proctype>();
-		channelTypes = new ArrayList<ChannelType>();
 		userTypes = new HashMap<String, CustomVariableType>();
 		varStore = new VariableStore();
 		channelReads = new HashMap<Variable, List<ReadAction>>();
@@ -88,39 +81,28 @@ public class Specification implements Iterable<ProcInstance> {
         channelWrites.clear();
     }
 
-	public void addReadAction(ChannelReadAction cra, Transition t) {
-		if (!LTSminUtil.isRendezVousReadAction(cra)) return;
-		Variable cv = cra.getIdentifier().getVariable();
+	public void addReadAction(ReadAction cr) {
+		if (!LTSminUtil.isRendezVousReadAction(cr.cra)) return;
+
+		Variable cv = cr.cra.getIdentifier().getVariable();
 		List<ReadAction> raw = channelReads.get(cv);
 		if (raw == null) {
 			raw = new ArrayList<ReadAction>();
 			channelReads.put(cv, raw);
 		}
-		raw.add(new ReadAction(cra, t, t.getProc()));
+		raw.add(cr);
 	}
 
-    public void addWriteAction(ChannelSendAction cwa, Transition t) {
-        if (!LTSminUtil.isRendezVousSendAction(cwa)) return;
-        Variable cv = cwa.getIdentifier().getVariable();
+    public void addWriteAction(SendAction cs) {
+        if (!LTSminUtil.isRendezVousSendAction(cs.csa)) return;
+
+        Variable cv = cs.csa.getIdentifier().getVariable();
         List<SendAction> raw = channelWrites.get(cv);
         if (raw == null) {
             raw = new ArrayList<SendAction>();
             channelWrites.put(cv, raw);
         }
-        raw.add(new SendAction(cwa, t, t.getProc()));
     }
-
-	/**
-	 * Creates a new Channel type for in this Specification.
-	 * 
-	 * @param bufferSize
-	 * @return The new ChannelType
-	 */
-	public ChannelType newChannelType(int bufferSize) {
-		ChannelType type = new ChannelType(channelTypes.size(), bufferSize);
-		channelTypes.add(type);
-		return type;
-	}
 
 	/**
 	 * Creates a new Custom type for in this Specification.
@@ -134,15 +116,6 @@ public class Specification implements Iterable<ProcInstance> {
 		CustomVariableType type = new CustomVariableType(name);
 		userTypes.put(name, type);
 		return type;
-	}
-	
-	public boolean usesRendezvousChannel() {
-		for (ChannelType t : channelTypes) {
-			if (t.getBufferSize() < 1) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	public void addMType(final String name) {
@@ -197,16 +170,6 @@ public class Specification implements Iterable<ProcInstance> {
 		return varStore;
 	}
 
-	public boolean usesAtomic() {
-		for (final Proctype p : procs) {
-			if (p.getAutomaton().hasAtomic()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-
 	private List<ProcInstance> instances = null;
 
     public Set<RemoteRef> remoteRefs = new HashSet<RemoteRef>();
@@ -218,9 +181,6 @@ public class Specification implements Iterable<ProcInstance> {
 	}
 
 	public void setNever(final Proctype never) throws ParseException {
-		//if (this.never != null) {
-		//	throw new ParseException("Duplicate never claim");
-		//}
 		this.never = never;
 	}
 

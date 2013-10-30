@@ -65,7 +65,7 @@ public class BooleanExpression extends Expression {
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public final boolean equals(Object o) {
 		if (o == null)
 			return false;
 		if (!(o instanceof BooleanExpression))
@@ -74,7 +74,13 @@ public class BooleanExpression extends Expression {
 		return getToken().kind == ce.getToken().kind && ex1.equals(ce.getExpr1()) &&
 				(ex2==null && ce.getExpr2()==null || ex2.equals(ce.getExpr2()));
 	}
-	
+
+    public final int hashCode() {
+        return getToken().kind * 37 +
+                ex1.hashCode() * 13 +
+                (ex2 == null ? 0 : ex2.hashCode());
+    }
+
 	@Override
 	public String getBoolExpression() throws ParseException {
 		if (ex2 == null) {

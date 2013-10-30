@@ -119,10 +119,8 @@ import spins.promela.compiler.variable.VariableType;
  */
 public class LTSminTreeWalker {
 
-    public List<Pair<ChannelReadAction,Transition>> reads =
-	        new ArrayList<Pair<ChannelReadAction,Transition>>();
-    public List<Pair<ChannelSendAction,Transition>> writes =
-            new ArrayList<Pair<ChannelSendAction,Transition>>();
+    public List<ReadAction> reads = new ArrayList<ReadAction>();
+    public List<SendAction> writes = new ArrayList<SendAction>();
     
 	private final Specification spec;
 	static boolean NEVER;
@@ -154,10 +152,6 @@ public class LTSminTreeWalker {
 		sv.createVectorStructs(spec, debug);
 		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
-		for (Pair<ChannelReadAction,Transition> p : reads)
-			spec.addReadAction(p.left, p.right);
-        for (Pair<ChannelSendAction,Transition> p : writes)
-            spec.addWriteAction(p.left, p.right);
 		createModelTransitions();
 		createModelAssertions();
 		createModelLabels(exports, progress, debug);
@@ -343,8 +337,6 @@ public class LTSminTreeWalker {
 	private void instantiate() {
 		List<ProcInstance> instances = new ArrayList<ProcInstance>();
 		List<ProcInstance> active = new ArrayList<ProcInstance>();
-		spec.clearReadActions();
-        spec.clearWriteActions();
 
 		int id = 0;
 		for (Proctype p : spec.getProcs()) { // add active processes (including init)
@@ -449,14 +441,9 @@ public class LTSminTreeWalker {
 			return var;
 		if (!p.getTypeName().equals(var.getOwner().getName()))
 			throw new AssertionError("Expected instance of type "+ var.getOwner().getName() +" not of "+ p.getTypeName());
-		Variable newvar = var instanceof ChannelVariable ?
-				new ChannelVariable(var.getName(), var.getArraySize()) :
-				new Variable(var.getType(), var.getName(), var.getArraySize());
-		newvar.setOwner(p);
-		newvar.setType(var.getType());
-		newvar.setRealName(var.getRealName());
-		if (!var.isNotAssignedTo())
-		    newvar.setAssignedTo();
+        Variable newvar = var instanceof ChannelVariable ?
+                new ChannelVariable(var) : new Variable(var);
+        newvar.setOwner(p);
 		try {
 			if (null != var.getInitExpr())
 				newvar.setInitExpr(instantiate(var.getInitExpr(), p));
@@ -466,7 +453,6 @@ public class LTSminTreeWalker {
 			try { newvar.setInitExpr(constant(initial_pid));
 			} catch (ParseException e) { assert (false); }
 		}
-		var.fix();
 		return newvar;
 	}
 
@@ -526,7 +512,7 @@ public class LTSminTreeWalker {
 			ChannelSendAction newcsa = new ChannelSendAction(csa.getToken(), id);
 			for (Expression e : csa.getExprs())
 				newcsa.addExpression(instantiate(e, p));
-            writes.add(new Pair<ChannelSendAction, Transition>(newcsa, t));
+            writes.add(new SendAction(newcsa, t, t.getProc()));
 			return newcsa;
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
@@ -539,7 +525,7 @@ public class LTSminTreeWalker {
                     ((Identifier)newe).getVariable().setAssignedTo();
                 }
 			}
-			reads.add(new Pair<ChannelReadAction, Transition>(newcra, t));
+			reads.add(new ReadAction(newcra, t, t.getProc()));
 			return newcra;
 		} else { // Handle not yet implemented action
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+a.getClass().getName());
@@ -555,6 +541,7 @@ public class LTSminTreeWalker {
 		if (e instanceof Identifier) { // also: LTSminIdentifier
 			Identifier id = (Identifier)e;
 			Variable var = id.getVariable();
+			Variable newVar = var;
 			if (null != var.getOwner()) {
 			    if (id.getInstanceIndex() != -1) {
 			        for (ProcInstance i : var.getOwner().getInstances() ) {
@@ -564,11 +551,14 @@ public class LTSminTreeWalker {
 			    } else if (!p.getTypeName().equals(var.getOwner().getName())) {
 					throw new AssertionError("Expected instance of type "+ var.getOwner().getName() +" not of "+ p.getTypeName());
 				}
-				var = p.getVariable(var.getName()); // load copied variable
+				newVar = p.getVariable(var.getName()); // load copied variable
+				if (newVar == null) {
+				    throw new AssertionError("Could not locate instantiated variable: "+ var);
+				}
 			}
 			Expression arrayExpr = instantiate(id.getArrayExpr(), p);
 			Identifier sub = (Identifier)instantiate(id.getSub(), p);
-			return new Identifier(id.getToken(), var, arrayExpr, sub);
+			return new Identifier(id.getToken(), newVar, arrayExpr, sub);
 		} else if (e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
 			Expression ex1 = instantiate(ae.getExpr1(), p);
@@ -678,6 +668,13 @@ public class LTSminTreeWalker {
 				}
 			}
 		}
+        debug.say(MessageKind.NORMAL, "");
+
+		// Update the spec with the results
+        spec.clearReadActions();
+        spec.clearWriteActions();
+        for (ReadAction ra : reads) spec.addReadAction(ra);
+        for (SendAction rs : writes) spec.addWriteAction(rs);
 	}
 
 	private void bindArguments(RunExpression re, ProcInstance target,
@@ -708,8 +705,7 @@ public class LTSminTreeWalker {
 							"Change the proctype's arguments or unroll the loop with run expressions in the model.");
 				String name = v.getName();
 				debug.say(MessageKind.DEBUG, "Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
-				//List<ReadAction> ras = spec.getReadActions(v);
-				v.setRealName(v.getName()); //TODO: this is also a variable mapping
+				v.setDisplayName(v.getName());
 				v.setType(varParameter.getType());
 				v.setOwner(varParameter.getOwner());
 				v.setName(varParameter.getName());
@@ -721,7 +717,6 @@ public class LTSminTreeWalker {
                         throw new AssertionError("Cannot () statically bind "+ target.getTypeName() +" to the run expressions without constant channel array index.");
                     }
 				}
-				//if (null != ras) spec.addReadActions(v.ras);
 			} else if (!dynamic) {
 				try {
 					v.setInitExpr(param);
@@ -1116,7 +1111,7 @@ public class LTSminTreeWalker {
         List<LTSminTransition> set = new ArrayList<LTSminTransition>();
         List<SendAction> writeActions = spec.getWriteActions(cv);
         if (null == writeActions) {
-            debug.say("No writes found for "+ csa);
+            debug.say("No rendez-vous writes found for "+ csa);
             return set;
         }
         ReadAction ra = new ReadAction(csa, t, (ProcInstance)t.getProc());
@@ -1134,7 +1129,7 @@ public class LTSminTreeWalker {
 		List<LTSminTransition> set = new ArrayList<LTSminTransition>();
 		List<ReadAction> readActions = spec.getReadActions(cv);
 		if (null == readActions) {
-			debug.say("No reads found for "+ csa);
+			debug.say("No rendez-vous reads found for "+ csa);
 			return set;
 		}
 		SendAction sa = new SendAction(csa, t, (ProcInstance)t.getProc());

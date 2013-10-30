@@ -216,15 +216,6 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 		return labels.get(i);
 	}
 
-    public boolean maybeCoEnabled(int trans, int guard) {
-        for (int g2 : trans_guard_matrix.get(trans)) {
-            if (!co_matrix.isDependent(guard, g2)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     public void setTestSetMatrix(DepMatrix dm2) {
         testset = dm2;
     }

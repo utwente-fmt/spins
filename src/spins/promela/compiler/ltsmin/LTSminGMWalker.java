@@ -10,7 +10,7 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.constant;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.decr;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.incr;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
 import static spins.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spins.promela.compiler.parser.PromelaConstants.CH_READ;
 import static spins.promela.compiler.parser.PromelaConstants.CH_SEND_SORTED;
@@ -296,7 +296,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
     static final String G2G = "G2G"; // guard reads from guard
     static final String A2A = "A2A"; // actions excluding atomics (write dep)
     static final String T2T = "T2T"; // transitions excluding guards, including atomic (write dep)
-    private static int generateDepMatrices(LTSminModel model, GuardInfo guardInfo) {
+    private static void generateDepMatrices(LTSminModel model, GuardInfo guardInfo) {
         int nTrans = model.getTransitions().size();
         int nLabels = model.getGuardInfo().getNumberOfLabels();
         int nSlots = model.sv.size();
@@ -368,7 +368,6 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 }
             }
         }
-        return -1;
     }
     
 	/**************
@@ -1597,7 +1596,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 			for (LTSminGuardBase gb : (LTSminGuardContainer)guard) {
 			    Expression expr = gb.getExpression();
 			    if (expr == null) continue;
-                params.guardMatrix.addGuard(t.getGroup(), not(expr));
+                params.guardMatrix.addGuard(t.getGroup(), negate(expr));
 			}
 		} else if (guard instanceof LTSminGuardOr) {
 		    LTSminGuardOr g = (LTSminGuardOr)guard;

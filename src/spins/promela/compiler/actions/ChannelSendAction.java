@@ -15,14 +15,12 @@
 package spins.promela.compiler.actions;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.expression.CompoundExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
-import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
 import spins.promela.compiler.variable.ChannelVariable;
 import spins.promela.compiler.variable.Variable;
@@ -42,9 +40,6 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 
 	public void addExpression(final Expression expr) {
 		exprs.add(expr);
-		for (final VariableAccess va : expr.readVariables()) {
-			va.getVar().setRead(true);
-		}
 	}
 
 	public boolean isRendezVous() {
@@ -73,41 +68,6 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 			}
 		}
 		return super.isLocal(proc);
-	}
-
-	@Override
-	public void printExtraFunctions(final StringWriter w) {
-		w.appendLine("public int[] getRendezvous() {");
-		w.indent();
-		w.appendLine("if(!_channels[", id, "].isRendezVous()) return null;");
-		w.appendPrefix().append("return new int[]{").append(id);
-		for (final Expression expr : exprs) {
-			w.append(", ").append(expr.toString());
-		}
-		w.append("};").appendPostfix();
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine();
-	}
-
-	@Override
-	public void printTakeStatement(final StringWriter w) throws ParseException {
-		w.appendPrefix().append("_channels[").append(id).append("].send(");
-		for (final Expression expr : exprs) {
-			w.append(expr.getIntExpression()).append(", ");
-		}
-		w.setLength(w.length() - 2);
-		w.append(");").appendPostfix();
-	}
-
-	@Override
-	public List<Identifier> getChangedVariables() {
-		return Collections.emptyList();
-	}
-
-	@Override
-	public void printUndoStatement(final StringWriter w) {
-		w.appendLine("_channels[", id, "].readLast();");
 	}
 
 	@Override

@@ -374,6 +374,7 @@ public class LTSminDMWalker {
 				try {
 					sub.mark(this, id);
 				} catch (AssertionError ae) {
+				    ae.printStackTrace();
 					throw new AssertionError("Marking expression "+ id +" failed with: "+ ae);
 				}
 			} else {

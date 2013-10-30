@@ -33,7 +33,7 @@ public class LTSminProgress {
         debug.carReturn();
         debug.add("[");
         int i = 0;
-        for (; i < (int)nr; i++)
+        for (; i < nr; i++)
             debug.add(".");
         for (; i < width; i++)
             debug.add(" ");

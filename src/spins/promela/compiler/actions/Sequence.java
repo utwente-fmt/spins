@@ -15,19 +15,13 @@
 package spins.promela.compiler.actions;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import spins.promela.compiler.Proctype;
-import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
-import spins.promela.compiler.variable.Variable;
-import spins.util.StringWriter;
 
 public class Sequence extends Action implements ActionContainer {
 	private final List<Action> actions;
@@ -87,87 +81,6 @@ public class Sequence extends Action implements ActionContainer {
 		} else {
 			return actions.get(0).getEnabledExpression();
 		}
-	}
-
-	@Override
-	public void printTakeStatement(StringWriter w) throws ParseException {
-		printTakeStatement(w, !isComplex());
-	}
-
-	public void printTakeStatement(final StringWriter w, boolean generateBackup)
-		throws ParseException {
-		boolean first = true;
-		for (final Action a : this) {
-			if (generateBackup) {
-				for (Identifier id : a.getChangedVariables()) {
-					w.appendLine("_backup_", id.getVariable().getName(), " = ",
-						id.getIntExpression(), ";");
-				}
-			}
-			a.printTakeStatement(w);
-			if (!first) {
-				String enabled = a.getEnabledExpression();
-				if (enabled != null) {
-					w.appendLine("if(!", enabled,
-						") throw new ValidationException(\"Non-enabled action during a d_step\");");
-				}
-			}
-			first = true;
-		}
-	}
-
-	@Override
-	public void printUndoStatement(StringWriter w) throws ParseException {
-		printUndoStatement(w, !isComplex());
-	}
-
-	public void printUndoStatement(StringWriter w, boolean generateBackup) throws ParseException {
-		for(int i = actions.size() - 1; i >= 0; i--) {
-			final Action a = actions.get(i);
-			a.printUndoStatement(w);
-			if (generateBackup) {
-				for (final Identifier id : a.getChangedVariables()) {
-					w.appendLine(id.getIntExpression(), " = _backup_", id.getVariable().getName(),
-						";");
-				}
-			}
-		}
-	}
-
-	@Override
-	public boolean isComplex() {
-		return getBackupVariables(new HashMap<Variable, Identifier>());
-	}
-
-	@Override
-	public Collection<Identifier> getChangedVariables() {
-		Map<Variable, Identifier> changes = new HashMap<Variable, Identifier>();
-		getBackupVariables(changes);
-		return changes.values();
-	}
-
-	public boolean getBackupVariables(Map<Variable, Identifier> output) {
-		return getBackupVariables(output, false);
-	}
-
-	private boolean getBackupVariables(Map<Variable, Identifier> output, final boolean isComplex) {
-		output.clear();
-		for (final Action a : this) {
-			if (!isComplex && a.isComplex()) {
-				output.clear();
-				return getBackupVariables(output, true);
-			}
-			for (final Identifier id : a.getChangedVariables()) {
-				Variable var = id.getVariable();
-				if (!output.containsKey(var)) {
-					output.put(var, id);
-				} else if (!isComplex) {
-					output.clear();
-					return getBackupVariables(output, true);
-				}
-			}
-		}
-		return isComplex;
 	}
 
 	public Action getAction(int index) {

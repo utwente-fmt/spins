@@ -21,7 +21,6 @@ import spins.promela.compiler.Proctype;
 import spins.promela.compiler.expression.CompoundExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
-import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
 import spins.promela.compiler.variable.ChannelVariable;
 import spins.promela.compiler.variable.Variable;
@@ -50,13 +49,6 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 
 	public void addExpression(final Expression expr) {
 		exprs.add(expr);
-		if (!(expr instanceof Identifier)) {
-			for (final VariableAccess va : expr.readVariables()) {
-				va.getVar().setRead(true);
-			}
-		} else {
-			((Identifier) expr).getVariable().setWritten(true);
-		}
 	}
 
 	@Override
@@ -64,9 +56,8 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 		return "false";
 	}
 
-	@Override
 	public boolean isLocal(final Proctype proc) {
-		if (!proc.isXR(id.getVariable())) {
+		if (!proc.isXR(id.getVariable())) { //TODO: optimize using dependencies
 			return false;
 		}
 		for (final Expression expr : exprs) {
@@ -84,97 +75,6 @@ public class ChannelReadAction extends Action implements CompoundExpression {
 			}
 		}
 		return super.isLocal(proc);
-	}
-
-	@Override
-	public void printEnabledFunction(final StringWriter w) throws ParseException {
-		w.appendLine("public boolean isEnabled() {");
-		w.indent();
-		w.appendLine("if(", id, " == -1 || _channels[", id, "].isRendezVous() || !_channels[",
-			id, "].canRead()) {");
-		w.indent();
-		w.appendLine("return false;");
-		w.outdent();
-		w.appendLine("} else {");
-		w.indent();
-
-		w.appendLine("int[] _tmp = _channels[", id, "].peek();");
-		w.appendLine("if(_tmp.length != ", exprs.size(),
-			") throw new UnexpectedStateException(\"Channel returned the wrong number of variables\");");
-		boolean first = true;
-		for (int i = 0; i < exprs.size(); i++) {
-			final Expression expr = exprs.get(i);
-			if (!(expr instanceof Identifier)) {
-				w.appendLine(first ? "return " : " && ", "_tmp[", i, "] == ",
-					expr.getIntExpression());
-				first = false;
-			}
-		}
-		if (first) {
-			w.appendLine("return true;");
-		} else {
-			w.removePostfix().append(";").appendPostfix();
-		}
-		w.outdent();
-		w.appendLine("}");
-		w.outdent();
-		w.appendLine("}");
-	}
-
-	@Override
-	public void printExtraFunctions(final StringWriter w) throws ParseException {
-		w.appendLine();
-		w.appendLine("public boolean canReadRendezvous(int[] _values) {");
-		w.indent();
-		w.appendLine("return _channels[", id, "].isRendezVous()");
-		w.appendLine("         && _values.length == ", exprs.size() + 1);
-		w.appendLine("         && _values[0] == ", id);
-		for (int i = 0; i < exprs.size(); i++) {
-			if (!(exprs.get(i) instanceof Identifier)) {
-				w.appendLine("         && _values[", i + 1, "] == ", exprs.get(i)
-						.getIntExpression());
-			}
-		}
-		w.removePostfix().append(";").appendPostfix();
-		w.outdent();
-		w.appendLine("}");
-		w.appendLine();
-	}
-
-	@Override
-	public List<Identifier> getChangedVariables() {
-		List<Identifier> res = new ArrayList<Identifier>(exprs.size());
-		for (Expression expr : exprs) {
-			if (expr instanceof Identifier) {
-				res.add((Identifier) expr);
-			}
-		}
-		return res;
-	}
-
-	@Override
-	public void printTakeStatement(final StringWriter w) throws ParseException {
-		w.appendLine("int[] _tmp = _channels[", id, "].read();");
-		for (int i = 0; i < exprs.size(); i++) {
-			final Expression expr = exprs.get(i);
-			if (expr instanceof Identifier) {
-				String mask = expr.getResultType().getMask();
-				w.appendLine(expr.getIntExpression(), " = _tmp[", i, "]", mask == null	? ""
-																						: " & "
-																							+ mask,
-					"; ");
-			}
-		}
-	}
-
-	@Override
-	public void printUndoStatement(final StringWriter w) throws ParseException {
-		w.appendPrefix().append("_channels[").append(id).append("].sendFirst(");
-		for (final Expression expr : exprs) {
-			w.append(expr.getIntExpression()).append(", ");
-		}
-		w.setLength(w.length() - 2);
-		w.append(");").appendPostfix();
 	}
 
 	@Override

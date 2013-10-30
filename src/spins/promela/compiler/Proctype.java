@@ -130,11 +130,15 @@ public class Proctype implements VariableContainer {
 	}
 	
 	public boolean equals(Object o) {
-		if (o == null || !(o instanceof Proctype))
-			return false;
-		Proctype p = (Proctype)o;
-		return p.getName().equals(name);
+        if (o == null || !(o instanceof Proctype))
+            return false;
+        Proctype p = (Proctype)o;
+        return p.canEqual(this) && p.name.equals(name);
 	}
+
+    public boolean canEqual(Object other) {
+        return (other instanceof Proctype);
+    }
 
 	public int hashCode() {
 		return name.hashCode(); 
@@ -155,7 +159,6 @@ public class Proctype implements VariableContainer {
 		varStore.addVariable(var);
 		if (isArgument) {
 			arguments.add(var);
-			var.setWritten(true);
 		}
 	}
 
@@ -163,7 +166,6 @@ public class Proctype implements VariableContainer {
 		varStore.prependVariable(var);
 		if (isArgument) {
 			arguments.add(var);
-			var.setWritten(true);
 		}
 	}
 

@@ -14,7 +14,6 @@
 
 package spins.promela.compiler.automaton;
 
-import spins.util.StringWriter;
 
 /**
  * Represents an ending transition, that generates to code the end the current proctype in Promela.
@@ -56,15 +55,6 @@ public class EndTransition extends Transition {
 	@Override
 	public boolean isUseless() {
 		return false;
-	}
-
-	/**
-	 * Returns the transition code using the getJavaStatement(), getJavaExpression() and
-	 * getJavaPrint() functions.
-	 */
-	@Override
-	public void printTransition(final StringWriter w) {
-		w.appendLine("new EndTransitionFactory(",/* from.getAutomaton().getProctype().getName(), ".this, ",*/ getTransId(), ")");
 	}
 
 	/**

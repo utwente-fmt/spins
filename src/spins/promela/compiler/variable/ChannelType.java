@@ -18,13 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ChannelType extends VariableType {
-	public static final VariableType UNASSIGNED_CHANNEL = new ChannelType(-1, -1);
-
-	public static boolean rendezvousUsed = false;
-
-	public static boolean isRendezvousUsed() {
-		return rendezvousUsed;
-	}
+	public static final VariableType UNASSIGNED_CHANNEL = new ChannelType(-1);
 
 	private final int bufferSize;
 
@@ -32,23 +26,16 @@ public class ChannelType extends VariableType {
 
 	private final List<VariableType> types;
 
-	private final int id;
-
-	public ChannelType(int id, int bufferSize) {
+	public ChannelType(int bufferSize) {
 		super("chan", "int", 8);
 		vars = new VariableStore();
 		types = new ArrayList<VariableType>();
-		this.id = id;
 		this.bufferSize = bufferSize;
 	}
 
 	@Override
 	public boolean canConvert(VariableType type) {
 		return type instanceof ChannelType;
-	}
-
-	public int getId() {
-		return id;
 	}
 
 	public int getBufferSize() {
@@ -58,8 +45,6 @@ public class ChannelType extends VariableType {
 	public void addType(final VariableType type) {
 		final Variable var = new Variable(type, "buffer[(i+first)%buffer.length][" + types.size()
 												+ "]", -1);
-		var.setRead(true);
-		var.setWritten(true);
 		vars.addVariable(var);
 		types.add(type);
 	}

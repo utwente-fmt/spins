@@ -50,6 +50,20 @@ public class ChannelLengthExpression extends Expression {
 		return expr.readVariables();
 	}
 
+    @Override
+    public final boolean equals(Object o) {
+        if (o == null)
+            return false;
+        if (!(o instanceof ChannelLengthExpression))
+            return false;
+        ChannelLengthExpression e = (ChannelLengthExpression)o;
+        return e.expr.equals(expr);
+    }
+
+    public final int hashCode() {
+        return expr.hashCode();
+    }
+
 	@Override
 	public String toString() {
 		return "len(" + expr.toString() + ")";

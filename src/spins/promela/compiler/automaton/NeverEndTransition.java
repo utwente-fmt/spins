@@ -14,7 +14,6 @@
 
 package spins.promela.compiler.automaton;
 
-import spins.util.StringWriter;
 
 /**
  * Represents an ending transition of a neverclaim, that generates to code the end the current
@@ -41,14 +40,5 @@ public class NeverEndTransition extends EndTransition {
 	public Transition duplicate() {
 		final Transition t = new NeverEndTransition(getFrom());
 		return t;
-	}
-
-	/**
-	 * @see spins.promela.compiler.automaton.EndTransition#printTransition(spins.util.StringWriter)
-	 */
-	@Override
-	public void printTransition(final StringWriter w) {
-		w.appendLine("new NeverEndTransitionFactory(",/* from.getAutomaton().getProctype().getName(),
-			".this, ",*/ getTransId(), ")");
 	}
 }

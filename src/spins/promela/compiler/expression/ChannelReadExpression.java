@@ -41,13 +41,6 @@ public class ChannelReadExpression extends Expression implements CompoundExpress
 
 	public void addExpression(final Expression expr) {
 		exprs.add(expr);
-		if (!(expr instanceof Identifier)) {
-			for (final VariableAccess va : expr.readVariables()) {
-				va.getVar().setRead(true);
-			}
-		} else {
-			((Identifier) expr).getVariable().setWritten(true);
-		}
 	}
 
 	@Override
@@ -65,6 +58,24 @@ public class ChannelReadExpression extends Expression implements CompoundExpress
 		w.setLength(w.length() - 1);
 		return w.toString();
 	}
+
+    @Override
+    public final boolean equals(Object o) {
+        if (o == null)
+            return false;
+        if (!(o instanceof ChannelReadExpression))
+            return false;
+        ChannelReadExpression e = (ChannelReadExpression)o;
+        if (e.random != random)
+            return false;
+        if (!id.equals(e.id))
+            return false;
+        return e.exprs.equals(exprs);
+    }
+
+    public final int hashCode() {
+        return (random? 1 : 37) * exprs.hashCode() + id.hashCode() * 37;
+    }
 
 	public Identifier getIdentifier() {
 		return id;

@@ -15,13 +15,11 @@ import spins.promela.compiler.automaton.Transition;
 import spins.promela.compiler.expression.CompareExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
-import spins.promela.compiler.ltsmin.LTSminTreeWalker;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spins.promela.compiler.ltsmin.matrix.LTSminPCGuard;
 import spins.promela.compiler.parser.PromelaConstants;
-import spins.util.StringWriter;
 
 /**
  *
@@ -117,25 +115,6 @@ public class LTSminTransition implements LTSminGuardContainer {
 
 	public void addAction(Action action) {
 		actions.add(action);
-	}
-
-	public void prettyPrint(StringWriter w, LTSminTreeWalker printer) {
-		w.appendLine("[",name,"]");
-		w.indent();
-		w.appendLine("Guards:");
-		w.indent();
-		for(LTSminGuardBase g: guards) {
-			g.prettyPrint(w);
-		}
-		w.outdent();
-		w.appendLine("Actions:");
-		w.indent();
-		for(Action a: actions) {
-			w.appendLine(a.toString());
-		}
-		w.outdent();
-		w.outdent();
-
 	}
 
 	public boolean leavesAtomic() {
