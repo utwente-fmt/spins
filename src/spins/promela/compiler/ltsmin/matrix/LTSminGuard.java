@@ -13,7 +13,8 @@ import spins.util.StringWriter;
  * @author Freark van der Berg
  */
 public class LTSminGuard extends LTSminGuardBase implements LTSminModelFeature {
-	public Expression expr;
+
+    public final Expression expr;
 
 	public LTSminGuard(Expression expr) {
 		this.expr = expr;
@@ -23,17 +24,13 @@ public class LTSminGuard extends LTSminGuardBase implements LTSminModelFeature {
 		return expr;
 	}
 	
-	public boolean equals(Object o) {
+	public final boolean equals(Object o) {
 		if (o == null)
 			return false;
 		if (!(o instanceof LTSminGuard))
 			return false;
 		LTSminGuard g = (LTSminGuard)o;
 		return expr.equals(g.getExpr());
-	}
-
-	public void setExpr(Expression expr) {
-		this.expr = expr;
 	}
 
 	public boolean isDefinitelyTrue() {
@@ -44,6 +41,10 @@ public class LTSminGuard extends LTSminGuardBase implements LTSminModelFeature {
 		}
 		return false;
 	}
+
+    public final int hashCode() {
+        return expr.hashCode();
+    }
 
 	public boolean isDefinitelyFalse() {
 		try {

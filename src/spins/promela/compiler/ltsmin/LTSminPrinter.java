@@ -1312,7 +1312,7 @@ public class LTSminPrinter {
 		w.appendLine("static const char* edge_names[] = {");
 		w.indent();
         for (String edge : edges) {
-			if (edge != edges.getIndex(0))
+			if (edge != edges.get(0))
 				w.append(",").appendPostfix();
 			w.appendPrefix();
 			w.append("\""+ edge +"\"");

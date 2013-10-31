@@ -350,7 +350,7 @@ public class LTSminTreeWalker {
 	 * @param debug */
 	private void instantiate() {
 
-        debug.say("Instantiation processes");
+        debug.say("Instantiating processes");
         debug.say_indent++;
 	    
 		List<ProcInstance> instances = new ArrayList<ProcInstance>();

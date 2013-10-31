@@ -14,6 +14,7 @@ import java.util.Map.Entry;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
+import spins.util.IndexedSet;
 
 /**
  * Guards are (boolean) state labels
@@ -27,9 +28,9 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	 * labels ...
 	 *   v    ...
 	 */
-	private List<LTSminGuard> labels;
+	private IndexedSet<LTSminGuard> labels;
     private List<String> label_names;
-    private int nguards = 0;
+    private int         nguards = 0;
     private boolean fixed = false;
 
     private Map<String, DepMatrix> matrices = new HashMap<String, DepMatrix>();
@@ -95,7 +96,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
     private DepMatrix testset;
 
 	public GuardInfo(int width) {
-		labels = new ArrayList<LTSminGuard>();
+		labels = new IndexedSet<LTSminGuard>();
 		label_names = new ArrayList<String>();
 		trans_guard_matrix = new ArrayList< List<Integer> >();
 		for (int i = 0; i < width; i++) {
@@ -109,31 +110,26 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 
 	public void addGuard(int trans, LTSminGuard g) {
 	    if (fixed)
-	        throw new AssertionError("Mixing guards and otgher state labels!");
-		int idx = getGuard(g);
-		if (idx == -1) {
-			labels.add(g);
-			idx = labels.size() - 1;
-			g.setIndex(nguards);
+	        throw new AssertionError("Mixing guards and other state labels!");
+		int idx = labels.get2(g);
+	    if (idx == -1) {
+		    idx = labels.addGet(g);
+		    nguards++;
+            g.setIndex(idx);
             label_names.add("guard_"+ idx);
-            nguards++;
 		}
 		trans_guard_matrix.get(trans).add(idx);
 	}
 
     public void addLabel(String name, LTSminGuard g) {
         fixed = true;
-        labels.add(g);
+        labels.add2(g); // allow duplicates
         label_names.add(name);
     }
 
-	public int getGuard(LTSminGuard g) { //TODO: HashSet + equals() + hash()
-		for (int i = 0; i < labels.size(); i++) {
-			LTSminGuard other = get(i);
-			if (other.equals(g))
-				return i;
-		}
-		return -1;
+	public int getGuard(LTSminGuard g) {
+		Integer result = labels.get(g);
+		return result == null ? -1 : result.intValue();
 	}
 
 	public DepMatrix getDepMatrix() {
@@ -256,6 +252,6 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
     }
 
     public List<LTSminGuard> getLabels() {
-        return labels;
+        return labels.list();
     }
 }

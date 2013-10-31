@@ -177,7 +177,7 @@ public class LTSminModel implements Iterable<LTSminTransition> {
     }
 
     public String getType(int index) {
-        return types.getIndex(index);
+        return types.get(index);
     }
 
     public IndexedSet<String> getTypeValues(int index) {

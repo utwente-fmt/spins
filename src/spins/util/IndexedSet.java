@@ -29,18 +29,18 @@ public class IndexedSet<T> implements Set<T> {
     /**
      * @param key
      * @return
-     * @see java.util.Map#containsKey(java.lang.Object)
+     * @see java.util.Map#containsKey(T)
      */
-    public boolean containsKey(Object key) {
+    public boolean containsKey(T key) {
         return map.containsKey(key);
     }
 
     /**
      * @param value
      * @return
-     * @see java.util.Map#containsValue(java.lang.Object)
+     * @see java.util.Map#containsValue(T)
      */
-    public boolean containsValue(Object value) {
+    public boolean containsValue(T value) {
         if (value instanceof Integer)
             return ((Integer)value).intValue() < list.size();
         else return false;
@@ -49,18 +49,23 @@ public class IndexedSet<T> implements Set<T> {
     /**
      * @param key
      * @return
-     * @see java.util.Map#get(java.lang.Object)
+     * @see java.util.Map#get(T)
      */
-    public Integer get(Object key) {
+    public Integer get(T key) {
         return map.get(key);
+    }
+
+    public int get2(T key) {
+        Integer result = map.get(key);
+        return result == null ? -1 : result.intValue();
     }
 
     /**
      * @param key
      * @return
-     * @see java.util.Map#get(java.lang.Object)
+     * @see java.util.Map#get(index)
      */
-    public T getIndex(int index) {
+    public T get(int index) {
         return list.get(index);
     }
 
@@ -75,6 +80,20 @@ public class IndexedSet<T> implements Set<T> {
         if (n != null) throw new AssertionError("Adding the same key twice to indexed set:" +key);
         list.add(key);
         return true;
+    }
+
+    public boolean add2(T key) {
+        map.put(key, list.size());
+        list.add(key);
+        return true;
+    }
+
+    public int addGet(T key) {
+        int index = list.size();
+        Integer result = map.put(key, index);
+        if (result != null) throw new AssertionError("Adding the same key twice to indexed set:" +key);
+        list.add(key);
+        return index;
     }
 
     /**
@@ -154,5 +173,9 @@ public class IndexedSet<T> implements Set<T> {
 
     public boolean removeAll(Collection<?> c) {
         throw new UnsupportedOperationException();
+    }
+
+    public List<T> list() {
+        return list;
     }
 }
