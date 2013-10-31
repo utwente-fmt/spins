@@ -3,9 +3,10 @@ package spins.promela.compiler.ltsmin.state;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.ltsmin.LTSminDMWalker.IdMarker;
+import spins.promela.compiler.ltsmin.model.LTSminModelFeature;
 
 
-public class LTSminSlot extends LTSminSubVector {
+public class LTSminSlot extends LTSminSubVector implements LTSminModelFeature {
 	private LTSminVariable var;
 	private int index;
 	String fullName;

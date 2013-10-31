@@ -11,10 +11,12 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import spins.promela.compiler.Specification;
+import spins.promela.compiler.actions.Action;
 import spins.promela.compiler.expression.Expression;
-import spins.promela.compiler.ltsmin.matrix.RWMatrix;
-import spins.promela.compiler.ltsmin.matrix.GuardInfo;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix;
+import spins.promela.compiler.ltsmin.model.LTSminModelFeature.ModelFeature;
+import spins.promela.compiler.ltsmin.state.LTSminSlot;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.util.LTSminUtil.Pair;
 import spins.promela.compiler.variable.Variable;
@@ -249,4 +251,32 @@ public class LTSminModel implements Iterable<LTSminTransition> {
         }
         return actions;
     }
+
+    public final ModelFeature<LTSminGuard> GUARDS =
+            new ModelFeature<LTSminGuard>("Guard") {
+                public List<LTSminGuard> getInstances() {
+                    return guardInfo.getLabels();
+                }
+            };
+
+    public final ModelFeature<LTSminTransition> TRANSITIONS =
+            new ModelFeature<LTSminTransition>("Transition") {
+                public List<LTSminTransition> getInstances() {
+                    return getTransitions();
+                }
+            };
+
+    public final ModelFeature<LTSminSlot> SLOTS =
+            new ModelFeature<LTSminSlot>("Slot") {
+                public List<LTSminSlot> getInstances() {
+                    return sv.getSlots();
+                }
+            };
+
+    public final ModelFeature<Action> ACTIONS =
+            new ModelFeature<Action>("Action") {
+                public List<Action> getInstances() {
+                    return getActions();
+                }
+            };
 }

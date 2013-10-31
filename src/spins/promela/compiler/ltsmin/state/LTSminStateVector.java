@@ -219,6 +219,10 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		return stateVector.iterator();
 	}
 
+    public List<LTSminSlot> getSlots() {
+        return stateVector;
+    }
+
 	public int size() {
 		return stateVector.size();
 	}

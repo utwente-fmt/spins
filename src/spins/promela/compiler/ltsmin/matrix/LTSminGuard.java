@@ -3,6 +3,7 @@ package spins.promela.compiler.ltsmin.matrix;
 import spins.promela.compiler.expression.CompareExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
+import spins.promela.compiler.ltsmin.model.LTSminModelFeature;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaConstants;
 import spins.util.StringWriter;
@@ -11,7 +12,7 @@ import spins.util.StringWriter;
  *
  * @author Freark van der Berg
  */
-public class LTSminGuard extends LTSminGuardBase {
+public class LTSminGuard extends LTSminGuardBase implements LTSminModelFeature {
 	public Expression expr;
 
 	public LTSminGuard(Expression expr) {
@@ -69,5 +70,14 @@ public class LTSminGuard extends LTSminGuardBase {
         if (!(ce.getExpr1() instanceof Identifier)) return false;
         Identifier id = (Identifier)ce.getExpr1();
         return id.isPC(); 
+    }
+
+	private int index = -2;
+    public void setIndex(int index) {
+        this.index = index;
+    }
+
+    public int getIndex() {
+        return index;
     }
 }

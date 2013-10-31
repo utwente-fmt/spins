@@ -15,10 +15,11 @@
 package spins.promela.compiler.actions;
 
 import spins.promela.compiler.Proctype;
+import spins.promela.compiler.ltsmin.model.LTSminModelFeature;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
 
-public abstract class Action {
+public abstract class Action implements LTSminModelFeature  {
 
 	private final Token token;
 
@@ -41,11 +42,13 @@ public abstract class Action {
 	@Override
 	public abstract String toString();
 
-	private int nr = -1;
-    public void setNumber(int i) {
-        nr = i;
+	private int index = -1;
+
+	public void setIndex(int i) {
+        index = i;
     }
-    public int getNumber() {
-        return nr;
+
+    public int getIndex() {
+        return index;
     }
 }

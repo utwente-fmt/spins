@@ -25,7 +25,8 @@ import spins.promela.compiler.parser.PromelaConstants;
  *
  * @author Freark van der Berg, Alfons Laarman
  */
-public class LTSminTransition implements LTSminGuardContainer {
+public class LTSminTransition implements LTSminGuardContainer,
+                                         LTSminModelFeature {
 
 	private int group = -1;
 	
@@ -232,5 +233,9 @@ public class LTSminTransition implements LTSminGuardContainer {
     public boolean isProgress() {
         return begin.isProgress() ||
                State.hasLabelPrefix(original.getLabels(), State.LABEL_PROGRESS);
+    }
+
+    public int getIndex() {
+        return group;
     }
 }

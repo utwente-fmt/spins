@@ -52,7 +52,6 @@ import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
-import spins.promela.compiler.ltsmin.matrix.GuardInfo;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
@@ -61,8 +60,10 @@ import spins.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spins.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
+import spins.promela.compiler.ltsmin.matrix.ModelMatrixGenerator;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
+import spins.promela.compiler.ltsmin.model.GuardInfo;
 import spins.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
@@ -176,6 +177,7 @@ public class LTSminGMWalker {
         int nnds = generateNDSMatrix (model, guardInfo);
         report.overwrite(totals( nnds, "!NDS guards"));
 
+        ModelMatrixGenerator.debug = debug;
         report.setTotal(nTrans*nTrans);
         int nndt = generateNDStrans (model, guardInfo);
         report.overwrite(totals(nndt, "!NDS transitions"));
@@ -554,7 +556,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             testSet.clear();
             RWMatrix dummy = new RWMatrix(testSet, null);
             LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(sp.e), 0);
-            RWDepRow writeSet = a2s.getRow(a.getNumber());
+            RWDepRow writeSet = a2s.getRow(a.getIndex());
             if (!writeSet.writes(testSet.getRow(0)))
                 continue;
 
@@ -754,10 +756,10 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 
         // check for non-commuting actions
         for (Action acta: trans1.getActions()) {
-            RWDepRow depsA = a2s.getRow(acta.getNumber()); 
+            RWDepRow depsA = a2s.getRow(acta.getIndex()); 
      
             for (Action actb : trans2.getActions()) {
-                RWDepRow depsB = a2s.getRow(actb.getNumber());
+                RWDepRow depsB = a2s.getRow(actb.getIndex());
 
                 if (!depsB.writes(depsA) && !depsA.writes(depsB)) {
                     continue;

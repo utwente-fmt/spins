@@ -1,7 +1,7 @@
 /**
  * 
  */
-package spins.promela.compiler.ltsmin.matrix;
+package spins.promela.compiler.ltsmin.model;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import spins.promela.compiler.expression.Expression;
+import spins.promela.compiler.ltsmin.matrix.DepMatrix;
+import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 
 /**
  * Guards are (boolean) state labels
@@ -112,6 +114,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 		if (idx == -1) {
 			labels.add(g);
 			idx = labels.size() - 1;
+			g.setIndex(nguards);
             label_names.add("guard_"+ idx);
             nguards++;
 		}
@@ -250,5 +253,9 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 
     public DepMatrix getMatrix(String mName) {
         return matrices.get(mName);
+    }
+
+    public List<LTSminGuard> getLabels() {
+        return labels;
     }
 }

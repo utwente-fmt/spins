@@ -140,10 +140,10 @@ public class LTSminDMWalker {
         int reads = 0;
         int writes = 0;
         Params p = new Params(params.model, a2s, -1);
-        for (Action a : acts) {
-            p.trans = a.getNumber();
+        for (Action a : params.model.getActions()) {
+            p.trans = a.getIndex();
             walkAction (p, a);
-            RWDepRow row = a2s.getRow(a.getNumber());
+            RWDepRow row = a2s.getRow(a.getIndex());
             reads += row.readCardinality();
             writes += row.writeCardinality();
             report.updateProgress(nSlots);
@@ -186,12 +186,12 @@ public class LTSminDMWalker {
 
 	static void walkTransition(RWMatrix a2s, RWMatrix atomicDep, LTSminTransition t) {
 		for (Action a : t.getActions())
-		    atomicDep.orRow(t.getGroup(), a2s.getRow(a.getNumber()));
+		    atomicDep.orRow(t.getGroup(), a2s.getRow(a.getIndex()));
 
 		// transitively add dependencies of atomic transitions
 		for(LTSminTransition atomic : t.getTransitions()) {
 			for(Action a : atomic.getActions()) {
-	            atomicDep.orRow(t.getGroup(), a2s.getRow(a.getNumber()));
+	            atomicDep.orRow(t.getGroup(), a2s.getRow(a.getIndex()));
 			}
 		}
 	}
