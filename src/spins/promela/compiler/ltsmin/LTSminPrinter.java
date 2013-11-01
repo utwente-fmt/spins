@@ -1574,10 +1574,7 @@ public class LTSminPrinter {
         w.appendLine("}");
         w.appendLine("");
 
-        if (no_gm) {
-            w.appendLine("const int* spins_get_label_may_be_coenabled_matrix(int g) { return NULL; };");
-            return;
-        }
+        if (no_gm) return;
 
         w.appendLine("const int* spins_get_trans_commutes_matrix(int t) {");
         w.indent();

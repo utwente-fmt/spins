@@ -152,7 +152,7 @@ spins_mce()
 	int g = spins_get_label_count();
 	for (i = 0; i < g; i++) {
 		printf("!%d)\t", i);
-		const int *mce = spins_get_label_may_be_coenabled_matrix(i);
+		const int *mce = NULL;//spins_get_label_may_be_coenabled_matrix(i);
 		for (j = i+1; j < g; j++) {
 			if (!mce[j]) printf("%d, ", j);
 		}
