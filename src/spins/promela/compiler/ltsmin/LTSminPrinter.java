@@ -452,6 +452,7 @@ public class LTSminPrinter {
 			List<LTSminTransition> transitions = model.getTransitions();
 			for(LTSminTransition t : transitions) {
 				if (t.getProcess() != p) continue;
+				if (!t.isBeginAtomic()) continue;
 				generateAnAtomicTransition(w, t, model);
 			}
 			w.appendLine("return states_emitted;");

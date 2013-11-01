@@ -29,7 +29,7 @@ public class LTSminTransition implements LTSminGuardContainer,
                                          LTSminModelFeature {
 
 	private int group = -1;
-	
+
 	public LTSminTransition() {}
 
 	public int getGroup() {
@@ -41,7 +41,7 @@ public class LTSminTransition implements LTSminGuardContainer,
 	public void setGroup(int trans) {
 		this.group = trans;
 	}
-	
+
 	private String name;
 	private	List<LTSminGuardBase> guards;
 	private List<Action> actions;
@@ -51,7 +51,7 @@ public class LTSminTransition implements LTSminGuardContainer,
 	private LTSminState begin;
 	private LTSminState end;
 	public boolean buchi = false;
-	
+
 	public Set<LTSminTransition> getTransitions() {
 		return null == end ? new HashSet<LTSminTransition>() : end.getTransitions();
 	}
@@ -118,10 +118,14 @@ public class LTSminTransition implements LTSminGuardContainer,
 		actions.add(action);
 	}
 
+    public boolean isBeginAtomic() {
+        return begin.isAtomic();
+    }
+
 	public boolean leavesAtomic() {
 		return begin.isAtomic() && !isAtomic();
 	}
-	
+
 	public boolean isAtomic() {
 		return null != end && end.isAtomic();
 	}
@@ -145,7 +149,7 @@ public class LTSminTransition implements LTSminGuardContainer,
 	public void setSync(Transition sync) {
 		this.sync = sync;
 	}
-	
+
 	public String makeTranstionName(Transition t) {
 		String t_name = t.getFrom().getAutomaton().getProctype().getName();
 		t_name += "("+ t.getFrom().getStateId() +"-->";
