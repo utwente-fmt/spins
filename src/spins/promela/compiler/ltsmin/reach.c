@@ -1,4 +1,3 @@
-#include <pthread.h>
 
 static const size_t 	DB_INIT_SIZE = 4;
 static const size_t 	DB_MAX_SIZE = 15;

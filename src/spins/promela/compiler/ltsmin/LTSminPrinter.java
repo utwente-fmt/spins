@@ -72,10 +72,10 @@ import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
+import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix;
-import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
 import spins.promela.compiler.ltsmin.model.GuardInfo;
 import spins.promela.compiler.ltsmin.model.LTSminIdentifier;
@@ -101,7 +101,7 @@ import spins.util.StringWriter;
 
 /**
  * Generates C code from the LTSminModel
- * 
+ *
  * @author FIB, Alfons Laarman
  */
 public class LTSminPrinter {
@@ -129,7 +129,7 @@ public class LTSminPrinter {
 
     public static final String STATEMENT_EDGE_LABEL_NAME        = "statement";
     public static final String ACTION_EDGE_LABEL_NAME           = "action";
-    
+
     public static final String STATEMENT_TYPE_NAME              = "statement";
     public static final String ACTION_TYPE_NAME                 = "action";
     public static final String BOOLEAN_TYPE_NAME                = "bool";
@@ -145,7 +145,7 @@ public class LTSminPrinter {
 		LTSminPrinter.generateModel(w, model, no_guards);
 		return w.toString();
 	}
-	
+
 	private static void generateModel(StringWriter w, LTSminModel model,
 	                                  boolean no_gm) {
 		generateHeader(w, model);
@@ -211,6 +211,7 @@ public class LTSminPrinter {
 		w.appendLine(" */");
 		w.appendLine("");
 
+		w.appendLine("#include <pthread.h>");
 		w.appendLine("#include <stdio.h>");
 		w.appendLine("#include <string.h>");
 		w.appendLine("#include <stdint.h>");
@@ -221,19 +222,19 @@ public class LTSminPrinter {
 		w.appendLine("#define EXPECT_FALSE(e) __builtin_expect(e, 0)\n");
 		w.appendLine("#define EXPECT_TRUE(e) __builtin_expect(e, 1)");
 		w.appendLine(
-    		"#ifdef DNDEBUG\n" + 
-    		"#define assert(e,...)    ((void)0);\n" + 
-    		"#else\n" + 
-    		"#define assert(e,...) \\\n" + 
-    		"    if (EXPECT_FALSE(!(e))) {\\\n" + 
-    		"        char buf[4096];\\\n" + 
-    		"        if (#__VA_ARGS__[0])\\\n" + 
-    		"            snprintf(buf, 4096, \": \" __VA_ARGS__);\\\n" + 
-    		"        else\\\n" + 
-    		"            buf[0] = '\\0';\\\n" + 
-    		"        printf(\"assertion \\\"%s\\\" failed%s\", #e, buf);\\\n" + 
+    		"#ifdef DNDEBUG\n" +
+    		"#define assert(e,...)    ((void)0);\n" +
+    		"#else\n" +
+    		"#define assert(e,...) \\\n" +
+    		"    if (EXPECT_FALSE(!(e))) {\\\n" +
+    		"        char buf[4096];\\\n" +
+    		"        if (#__VA_ARGS__[0])\\\n" +
+    		"            snprintf(buf, 4096, \": \" __VA_ARGS__);\\\n" +
+    		"        else\\\n" +
+    		"            buf[0] = '\\0';\\\n" +
+    		"        printf(\"assertion \\\"%s\\\" failed%s\", #e, buf);\\\n" +
     		"        exit(-1);\\\n" +
-    		"    }\n" + 
+    		"    }\n" +
     		"#endif"
 		);
 		w.appendLine("");
@@ -246,7 +247,7 @@ public class LTSminPrinter {
 		w.appendLine("} transition_info_t;");
 		w.appendLine("");
 	}
-	
+
 	public static <T> String readTextFile(Class<T> clazz, String resourceName) throws IOException {
 	  	StringBuffer sb = new StringBuffer(1024);
 		BufferedInputStream inStream = new BufferedInputStream(clazz.getResourceAsStream(resourceName));
@@ -257,7 +258,7 @@ public class LTSminPrinter {
 	  	inStream.close();
 	  	return sb.toString();
 	}
-	
+
 	private static void generateHashTable(StringWriter w, LTSminModel model) {
 		//if (!model.hasAtomic()) return;
 		try {
@@ -310,6 +311,7 @@ public class LTSminPrinter {
 		w.appendLine("extern int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
 		w.appendLine("extern void spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
         w.appendLine("extern void spins_simple_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
+        w.appendLine("extern int *spins_get_guards (state_t *in);");
 		w.appendLine("static int "+ SCRATCH_VARIABLE +";");
 		w.appendLine("");
 	}
@@ -324,7 +326,7 @@ public class LTSminPrinter {
 				w.append(", // "+ (slot.getIndex()-1));
 			w.appendPostfix().appendPrefix();
 			String name = slot.fullName();
-			
+
             char[] chars = new char[Math.max(40 - name.length(),0)];
             Arrays.fill(chars, ' ');
             String prefix = new String(chars);
@@ -344,12 +346,12 @@ public class LTSminPrinter {
 					throw new AssertionError("Cannot parse initial value of state vector: "+ e);
 				}
 			}
-			
+
 		}
 		w.outdent().appendPostfix();
 		w.appendLine("};");
 		w.appendLine("");
-		
+
 		w.appendLine("extern void spins_get_initial_state( state_t *to )");
 		w.appendLine("{");
 		w.indent();
@@ -363,7 +365,7 @@ public class LTSminPrinter {
 		w.appendLine("}");
 		w.appendLine("");
 	}
-	
+
 	private static void generateACallback(StringWriter w, LTSminModel model,
 	                                      LTSminTransition t) {
         printEdgeLabels(w, model, t);
@@ -413,8 +415,7 @@ public class LTSminPrinter {
 		        w.appendPostfix().appendPrefix().append("&&");
 			guards += generateGuard(w, model, g, in(model));
 		}
-		if (guards == 0) w.append("true");
-		w.append(") {").appendPostfix();
+		if (guards == 0) w.append("true");	w.append(") {").appendPostfix();
 		w.indent();
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
 		List<Action> actions = t.getActions();
@@ -479,6 +480,7 @@ public class LTSminPrinter {
         w.appendLine("int transition_labels["+ model.getEdges().size() +"] = {"+ edge_array +"};");
 		w.appendLine("transition_info_t transition_info = { transition_labels, -1 };");
 		w.appendLine("int states_emitted = 0;");
+	    w.appendLine("int *__guards = spins_get_guards(in);");
 		w.appendLine("state_t tmp;");
 		w.appendLine("state_t *"+ OUT_VAR +" = &tmp;");
 		for (Variable local : model.getLocals()) {
@@ -510,14 +512,27 @@ public class LTSminPrinter {
 										   LTSminModel model, boolean many) {
 		w.appendLine("// "+ t.getName());
         w.appendPrefix().append("if (");
-        int guards = 0;
-		for(LTSminGuardBase g: t.getGuards()) {
-			if (g != t.getGuards().get(0))
-			    w.appendPostfix().appendPrefix().append("&&");
-			if (many) guards += generateGuardMany(w, model, g, in(model));
-			else      guards += generateGuard(w, model, g, in(model));
+        w.indent();
+
+        int guards = 0;	if (many) {
+		    List<Integer> list = model.getGuardInfo().getTransMatrix().get(t.getGroup());
+            for (int g : list) {
+                w.append("__guards["+ g +"]");
+                if (list.size() != ++guards) {
+                    w.append(" &&").appendPostfix().appendPrefix();
+                }
+		    }	} else {
+	           LTSminGuardBase last = t.getGuards().get(t.getGuards().size() - 1);
+            for (LTSminGuardBase g : t.getGuards()) {
+    			guards += generateGuard(w, model, g, in(model));
+                if (g != last) {
+                    w.append(" &&").appendPostfix().appendPrefix();
+                }
+    		}
 		}
+
 		if (guards == 0) w.append("true");
+		w.outdent();
 		w.append(") {").appendPostfix();
 		w.indent();
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
@@ -598,18 +613,8 @@ public class LTSminPrinter {
 		w.appendLine();
 	}
 
-    private static int generateGuardMany(StringWriter w, LTSminModel model,
-                                      LTSminGuardBase guard, LTSminPointer state) {
-        if (guard.isDeadlock()) {
-            w.append("0 == states_emitted");
-        } else {
-            return generateGuard(w ,model, guard, state);
-        }
-        return 1;
-    }
-
 	private static int generateGuard(StringWriter w, LTSminModel model,
-								      LTSminGuardBase guard, LTSminPointer state) {
+								     LTSminGuardBase guard, LTSminPointer state) {
         Expression expression = guard.getExpression();
         if (expression == null) return 0;
         generateExpression(w, expression, state);
@@ -750,7 +755,7 @@ public class LTSminPrinter {
 			w2.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
 			w2.appendLine("	exit (1);");
 			w2.appendLine("}");
-			
+
 			//set pid
 			Action update_pid = assign(model.sv.getPID(instance),
 										id(LTSminStateVector._NR_PR));
@@ -760,7 +765,7 @@ public class LTSminPrinter {
 			Action update_pc = assign(model.sv.getPC(instance), 0);
 			generateAction(w2, update_pc, model, t);
 			w2.appendLine("++("+ printVar(_NR_PR, out(model)) +");");
-			
+
 			List<Variable> args = instance.getArguments();
 			Iterator<Expression> eit = re.getExpressions().iterator();
 			if (args.size() != re.getExpressions().size())
@@ -768,7 +773,7 @@ public class LTSminPrinter {
 			// write to the arguments of the target process
 			for (Variable v : args) {
 				Expression e = eit.next();
-				// channels are passed by reference: TreeWalker.bindByReferenceCalls 
+				// channels are passed by reference: TreeWalker.bindByReferenceCalls
 				if (!(v.getType() instanceof ChannelType) && !v.isStatic()) {
 					Action aa = assign(v, e);
 					generateAction(w2, aa, model, t);
@@ -780,7 +785,7 @@ public class LTSminPrinter {
 			String ccode = w2.toString();
 			if (re.getInstances().size() > 1) {
 				String struct = model.sv.getMember(instance.getName()).getType().toString();
-				ccode = ccode.replace(OUT_VAR +"->"+ instance.getName(), 
+				ccode = ccode.replace(OUT_VAR +"->"+ instance.getName(),
 					"(("+ struct +"*)&"+ OUT_VAR +"->"+ instance.getName() +")[__active_" + n_active + "]");
 			}
 			w.append(ccode);
@@ -879,7 +884,7 @@ public class LTSminPrinter {
 				w.appendLine("break;");
 				w.outdent();
 				w.appendLine("}");
-			} 
+			}
 			if (!cra.isPoll()) {
 				String j = print(jndex, out(model));
 				Identifier index = new LTSminIdentifier(model.index);
@@ -917,7 +922,7 @@ public class LTSminPrinter {
 		public ExprPrinter(LTSminPointer start) {
 			this.start = start;
 		}
-		
+
 		public String print(Expression e) {
 			if (null == e)
 				return null;
@@ -1014,7 +1019,7 @@ public class LTSminPrinter {
 			ChannelType ct = (ChannelType)id.getVariable().getType();
 			if (ct.isRendezVous())
 				throw new AssertionError("ChannelReadAction on rendez-vous channel.");
-			
+
 			w.append("((");
 			int max = cre.isRandom() ? ct.getBufferSize() : 1;
 			for (int b = 0 ; b < max; b++) {
@@ -1123,7 +1128,7 @@ public class LTSminPrinter {
         // Close array
         w.appendLine("};");
     }
-	
+
 	private static void generateDepMatrix(StringWriter w, RWMatrix dm, String name) {
 		w.appendPrefix();
 		w.appendLine("int "+ name + "[][2]["+ dm.getNrCols() +"] = {");
@@ -1140,7 +1145,7 @@ public class LTSminPrinter {
 			w.append("{");
 			generateRow(w, dr.read);
 			w.append(",");
-			generateRow(w, dr.write);			
+			generateRow(w, dr.write);
 			w.append("}");
 		}
 		w.outdent();
@@ -1150,7 +1155,7 @@ public class LTSminPrinter {
 
 	private static void generateRow(StringWriter w, DepRow dr) {
 		w.append("{");
-		
+
 		// Insert all read dependencies of the current row
 		for (int col = 0; col < dr.getNrCols(); col++) {
 			if (col > 0)
@@ -1230,7 +1235,7 @@ public class LTSminPrinter {
 		w.appendLine("-1");
 		w.outdent();
 		w.appendLine("};");
-	
+
 		w.appendLine("");
 		for (int i = 0; i < types.size(); i++) {
 		    String s = model.getType(i);
@@ -1245,7 +1250,7 @@ public class LTSminPrinter {
 			w.appendLine("};");
 			w.appendLine("");
 		}
-		
+
 		w.appendLine("static const char* const * const var_type_values[] = {");
 		w.indent();
 		for (String s : types)
@@ -1355,7 +1360,7 @@ public class LTSminPrinter {
         w.appendLine("}");
         w.appendLine("");
 	}
-	
+
 	private static void generateGuardMatrices(StringWriter w, LTSminModel model,
 	                                          boolean no_gm) {
 		GuardInfo gm = model.getGuardInfo();
@@ -1364,7 +1369,7 @@ public class LTSminPrinter {
 		DepMatrix co_matrix = gm.getCoMatrix();
 		DepMatrix dna_matrix = gm.getDNAMatrix();
 		DepMatrix commutes_matrix = gm.getCommutesMatrix();
-		
+
 		w.appendLine("");
 		w.appendLine("// Label(Guard)-Dependency Matrix:");
 		generateDepMatrix(w, gm.getDepMatrix(), GM_DM_NAME);
@@ -1444,7 +1449,7 @@ public class LTSminPrinter {
         w.outdent();
         w.appendLine("}");
         w.appendLine("");
-		
+
 		w.appendLine("const int* spins_get_labels(int t) {");
 		w.indent();
         w.appendLine("assert(t < ",nTrans,", \"spins_get_labels: invalid transition index %d\", t);");
@@ -1496,11 +1501,14 @@ public class LTSminPrinter {
         w.outdent();
         w.appendLine("}");
         w.appendLine("");
-        
-        w.appendLine("void spins_get_labels_all(void* model, ",C_STATE,"* ",IN_VAR,", int* label) {");
+
+        w.appendLine("void spins_get_labels_many (void* model, ",C_STATE,"* ",IN_VAR,", int* label, bool guards_only) {");
         w.indent();
         w.appendLine("(void)model;");
         for(int g=0; g<gm.getNumberOfLabels(); ++g) {
+            if (g == gm.getNumberOfGuards()) {
+                w.appendLine("if (guards_only) return;");
+            }
             w.appendPrefix();
             w.append("label[").append(g).append("] = ");
             generateGuard(w, model, gm.getLabel(g), in(model));
@@ -1508,6 +1516,52 @@ public class LTSminPrinter {
             w.appendPostfix();
         }
         w.outdent();
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+
+        w.appendLine("void spins_get_labels_all(void* model, ",C_STATE,"* ",IN_VAR,", int* label) {");
+        w.indent();
+        w.appendLine("(void)model;");
+        w.appendLine("spins_get_labels_many(model, "+ IN_VAR +", label, false);");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+
+        w.appendLine("void spins_get_guards_all(void* model, ",C_STATE,"* ",IN_VAR,", int* label) {");
+        w.indent();
+        w.appendLine("(void)model;");
+        w.appendLine("spins_get_labels_many(model, "+ IN_VAR +", label, true);");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine("");
+
+        w.appendLine(
+            "static pthread_key_t spins_local_key2;\n" +
+            "\n" +
+            "__attribute__((constructor)) void spins_initialize_key2() {\n" +
+            "    pthread_key_create (&spins_local_key2, NULL);\n" +
+            "}\n" +
+            "\n" +
+            "__attribute__((destructor)) void spins_destroy_key2() {\n" +
+            "    pthread_key_delete (spins_local_key2);\n" +
+            "}\n" +
+            "\n" +
+            "static int *spins_get_guards_array () {\n" +
+            "    int *array = pthread_getspecific (spins_local_key2);\n" +
+            "    if (EXPECT_FALSE(array == NULL)) {\n" +
+            "        array = malloc(sizeof(int[spins_get_guard_count()]));\n" +
+            "        pthread_setspecific (spins_local_key2, array);\n" +
+            "    }\n" +
+            "    return array;\n" +
+            "}"
+        );
+
+        w.appendLine("int *spins_get_guards(",C_STATE,"* ",IN_VAR,") {");
+        w.indent();
+        w.appendLine("int *guards = spins_get_guards_array();");
+        w.appendLine("spins_get_guards_all(NULL, "+ IN_VAR +", guards);");
+        w.appendLine("return guards;");
         w.outdent();
         w.appendLine("}");
         w.appendLine("");
