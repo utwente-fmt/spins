@@ -86,6 +86,15 @@ public final class StringWriter {
 	}
 
 	/**
+	 * Copy stringwriter with same indentation (and empty buffer)
+	 * @param w
+	 */
+	public StringWriter(StringWriter w) {
+        this(w.preprefix, w.prefix, w.postfix, w.buffer.length);
+        this.indented = w.indented;
+    }
+
+    /**
 	 * Appends the object converted to a String to this StringWriter.
 	 * 
 	 * @param obj

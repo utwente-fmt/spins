@@ -112,6 +112,7 @@ public class LTSminPrinter {
 
 	public static final int    PM_MAX_PROCS        = 256;
 	public static final String DM_NAME             = "transition_dependency";
+    public static final String DM_ACTIONS_NAME     = "actions_read_dependency";
 	public static final String GM_DM_NAME          = "gm_dm";
     public static final String CO_DM_NAME          = "co_dm";
     public static final String DNA_DM_NAME         = "dna_dm";
@@ -155,9 +156,11 @@ public class LTSminPrinter {
 		generateStateCount(w, model);
 		generateInitialState(w, model);
 		generateLeavesAtomic(w, model);
+		generateGetActions(w, model);
 		generateGetNext(w, model);
 		generateGetAll(w, model);
 		generateTransitionCount(w, model);
+        generateDepMatrix(w, model.getAtomicDepMatrix().read, DM_ACTIONS_NAME);
 		generateDepMatrix(w, model.getDepMatrix(), DM_NAME);
 		generateDMFunctions(w, model.getDepMatrix());
 		generateGuardMatrices(w, model, no_gm);
@@ -309,7 +312,8 @@ public class LTSminPrinter {
 		w.appendLine("extern inline int spins_simple_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
 		w.appendLine("extern int spins_get_successor_all (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
 		w.appendLine("extern int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
-		w.appendLine("extern void spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
+		w.appendLine("extern int spins_get_actions (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
+        w.appendLine("extern void spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
         w.appendLine("extern void spins_simple_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
         w.appendLine("extern int *spins_get_guards (state_t *in);");
 		w.appendLine("static int "+ SCRATCH_VARIABLE +";");
@@ -515,7 +519,8 @@ public class LTSminPrinter {
         w.appendPrefix().append("if (");
         w.indent();
 
-        int guards = 0;	if (many) {
+        int guards = 0;
+        if (many) {
 		    List<Integer> list = model.getGuardInfo().getTransMatrix().get(t.getGroup());
             for (int g : list) {
                 w.append("__guards["+ g +"]");
@@ -536,7 +541,19 @@ public class LTSminPrinter {
 		w.outdent();
 		w.append(") {").appendPostfix();
 		w.indent();
-		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
+		//generateActions(w, t, model);
+		w.appendLine("states_emitted += spins_get_actions (model, "+ t.getGroup() +", in, callback, arg);");
+	    if (many && (hasAssert(t.getActions()) || t.isProgress())) {
+		    int index = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
+		    w.appendLine("transition_labels["+ index +"] = "+ 0 +";");
+	    }
+		w.outdent();
+		w.appendLine("}");
+	}
+
+    private static void generateActions(StringWriter w, LTSminTransition t,
+                                        LTSminModel model) {
+        w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
 		List<Action> actions = t.getActions();
 		for(Action a : actions)
 			generateAction(w,a,model, t);
@@ -552,16 +569,7 @@ public class LTSminPrinter {
 		} else {
 			generateACallback(w, model, t);
 		}
-		if (many) { // reset transition_labels
-		    boolean hasAssert = hasAssert(t.getActions());
-		    if (hasAssert) {
-    		    int index = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
-    		    w.appendLine("transition_labels["+ index +"] = "+ 0 +";");
-		    }
-		}
-		w.outdent();
-		w.appendLine("}");
-	}
+    }
 
     private static boolean hasAssert(List<Action> as) {
         for(Action a : as) {
@@ -578,7 +586,7 @@ public class LTSminPrinter {
     }
 
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
-		w.appendLine("int spins_get_successor( void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+		w.appendLine("int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
 		w.indent();
 		String edge_array = "";
         for (int i = 0; i < model.getEdges().size(); i++)
@@ -613,6 +621,44 @@ public class LTSminPrinter {
 		w.appendLine("}");
 		w.appendLine();
 	}
+
+    private static void generateGetActions(StringWriter w, LTSminModel model) {
+        w.appendLine("int spins_get_actions (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+        w.indent();
+        String edge_array = "";
+        for (int i = 0; i < model.getEdges().size(); i++)
+            edge_array += "0, ";
+        w.appendLine("int transition_labels["+ model.getEdges().size() +"] = {"+ edge_array +"};");
+        w.appendLine("transition_info_t transition_info = { transition_labels, t };");
+        w.appendLine("int states_emitted = 0;");
+        w.appendLine("int minus_one = -1;");
+        w.appendLine("int *atomic = &minus_one;");
+        w.appendLine(C_STATE," local_state;");
+        w.appendLine(C_STATE,"* ",OUT_VAR," = &local_state;");
+        for (Variable local : model.getLocals()) {
+            w.appendLine("int "+ local.getName() +";");
+        }
+        generateAssertions(w, model);
+        w.appendLine();
+        w.appendLine("switch(t) {");
+        List<LTSminTransition> transitions = model.getTransitions();
+        int trans = 0;
+        for(LTSminTransition t : transitions) {
+            w.appendLine("case ",trans,": {");
+            w.indent();
+            w.appendLine("// "+ t.getName());
+            generateActions (w, t, model);
+            w.appendLine("return states_emitted;");
+            w.outdent();
+            w.appendLine("}");
+            ++trans;
+        }
+        w.appendLine("}");
+        w.appendLine("return 0;");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine();
+    }
 
 	private static int generateGuard(StringWriter w, LTSminModel model,
 								     LTSminGuardBase guard, LTSminPointer state) {
@@ -749,7 +795,7 @@ public class LTSminPrinter {
 				w.appendLine("}");
 			//}
 
-			StringWriter w2 = new StringWriter();
+			StringWriter w2 = new StringWriter(w);
 			//only one dynamic process supported atm
 			w2.appendLine("if (-1 != "+ printPC(instance, out(model)) +") {");
 			w2.appendLine("	printf (\"Instance %d of process "+ instance.getTypeName() +" was already started.\\n\", __active_" + n_active + ");");
@@ -767,6 +813,7 @@ public class LTSminPrinter {
 			generateAction(w2, update_pc, model, t);
 			w2.appendLine("++("+ printVar(_NR_PR, out(model)) +");");
 
+			
 			List<Variable> args = instance.getArguments();
 			Iterator<Expression> eit = re.getExpressions().iterator();
 			if (args.size() != re.getExpressions().size())
@@ -1182,6 +1229,12 @@ public class LTSminPrinter {
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 		w.appendLine("");
+        w.appendLine("extern const int* spins_get_actions_read_dependencies(int t)");
+        w.appendLine("{");
+        w.appendLine("  if (t>=0 && t < "+ dm.getNrRows() +") return "+ DM_ACTIONS_NAME +"[t];");
+        w.appendLine("  return NULL;");
+        w.appendLine("}");
+        w.appendLine("");
 	}
 
 	private static void generateStateDescriptors(StringWriter w, LTSminModel model) {

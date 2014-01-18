@@ -150,7 +150,7 @@ public class LTSminDMWalker {
         }
         report.overwrite(totals(report, reads, writes, "Actions/slot R,W"));
 
-        // Transitions and their atomic followups
+        // Transitions and their atomic follow-ups
         RWMatrix atomicDep = new RWMatrix(nTrans, nSlots);
         params.model.setAtomicDepMatrix(atomicDep);
         report.setTotal(nTrans * nSlots);
