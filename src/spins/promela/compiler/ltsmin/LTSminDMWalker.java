@@ -6,8 +6,10 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelBottom;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelIndex;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
 
 import java.util.List;
+import java.util.Map;
 
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.actions.Action;
@@ -36,13 +38,18 @@ import spins.promela.compiler.expression.MTypeReference;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
+import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
+import spins.promela.compiler.ltsmin.matrix.LTSminGuardNand;
+import spins.promela.compiler.ltsmin.matrix.LTSminGuardNor;
+import spins.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spins.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
+import spins.promela.compiler.ltsmin.model.GuardInfo;
 import spins.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
@@ -81,11 +88,14 @@ public class LTSminDMWalker {
 		public final LTSminModel model;
 		public final LTSminStateVector sv;
 		public RWMatrix depMatrix;
+		public GuardInfo gi;
 		public int trans;
 		public boolean inTimeOut = false;
 
-		public Params(LTSminModel model, RWMatrix depMatrix, int trans) {
+		public Params(LTSminModel model, GuardInfo gi, RWMatrix depMatrix,
+		              int trans) {
 			this.model = model;
+			this.gi = gi;
 			this.depMatrix = depMatrix;
 			this.trans = trans;
 			this.sv = model.sv;
@@ -94,25 +104,42 @@ public class LTSminDMWalker {
 
 	public static void walkOneGuard(LTSminModel model, RWMatrix dm,
 									LTSminGuardBase g, int num) {
-		Params p = new Params(model, dm, num); 
+		Params p = new Params(model, null, dm, num); 
 		walkGuard (p, g);
 	}
 	
 	static void walkModel(LTSminModel model, LTSminDebug debug) {
         int nTrans = model.getTransitions().size();
         int nSlots = model.sv.size();
+
+        if(model.getGuardInfo()==null)
+            model.setGuardInfo(new GuardInfo(model.getTransitions().size()));
+        GuardInfo guardInfo = model.getGuardInfo();
+        if (model.getDepMatrix() != null)
+            debug.say(MessageKind.FATAL, "Dependency matrix is already set");
+        model.setDepMatrix(new RWMatrix(nTrans, nSlots));
+
         LTSminProgress report = new LTSminProgress(debug);
-		debug.say("Generating transitions/state dependency matrices (%d / %d slots) ... ", nTrans, nSlots);
-		report.resetTimer().startTimer();
-		debug.say_indent++;
-        
-		if (model.getDepMatrix() != null)
-		    debug.say(MessageKind.FATAL, "Dependency matrix is already set");
+        debug.say("Generating transitions/state dependency matrices (%d / %d slots) ... ", nTrans, nSlots);
+        report.resetTimer().startTimer();
+        debug.say_indent++;
 
-		Params params = new Params(model, null, 0);
-        params.depMatrix = new RWMatrix(nTrans, model.sv.size());
-		model.setDepMatrix(params.depMatrix);
+        // extact guards
+        generateTransitionGuardLabels (model, guardInfo, debug);
 
+        // add the normal state labels
+        // We extend the NES and NDS matrices to include all labels
+        // The special labels, e.g. progress and valid end, can then be used in
+        // LTL properties with precise (in)visibility information.
+        for (Map.Entry<String, LTSminGuard> label : model.getLabels()) {
+            guardInfo.addLabel(label.getKey(), label.getValue());
+        }
+
+        // generate label / slot read matrix
+        generateLabelMatrix (model, guardInfo, report);
+
+
+        Params params = new Params(model, guardInfo, model.getDepMatrix(), 0);
 		walkTransitions(params, report);
 
 		debug.say_indent--;
@@ -121,11 +148,85 @@ public class LTSminDMWalker {
 		debug.say("");
 	}
 
-    public static String totals(LTSminProgress report, int r, int w, String msg) {
-        double percR = ((double)r * 100) / report.getTotal();
-        double percW = ((double)w * 100) / report.getTotal();
-        return String.format("Found %,9d, %,9d / %,9d (%5.1f%%, %5.1f%%) %s               ",
-                             r, w, report.getTotal(), percR, percW, msg);
+    private static void generateLabelMatrix(LTSminModel model,
+                                            GuardInfo guardInfo,
+                                            LTSminProgress report) {
+        int nLabels = guardInfo.getNumberOfLabels();
+        int nSlots = model.sv.size();
+        int nTrans = model.getDepMatrix().getNrRows();
+
+        DepMatrix gm = new DepMatrix(nLabels, nSlots);
+        guardInfo.setDepMatrix(gm);
+        RWMatrix dummy = new RWMatrix(gm, null);
+        int reads = 0;
+        report.setTotal(nLabels * nSlots);
+        for (int i = 0; i < nLabels; i++) {
+            LTSminDMWalker.walkOneGuard(model, dummy, guardInfo.get(i), i);
+            reads += gm.getRow(i).getCardinality();
+            report.updateProgress(nSlots);
+        }
+        report.overwriteTotals(reads, "Guard/slot reads");
+
+        DepMatrix testset = new DepMatrix(nTrans, nSlots);
+        guardInfo.setTestSetMatrix(testset);
+        int tests = 0;
+        report.setTotal(nTrans * nSlots);
+        for (int t = 0; t < nTrans; t++) {
+            for (int gg : guardInfo.getTransMatrix().get(t)) {
+                testset.orRow(t, gm.getRow(gg));
+            }
+            tests += testset.getRow(t).getCardinality();
+            report.updateProgress(nSlots);
+        }
+        report.overwriteTotals(tests, "Transition/slot tests");
+    }
+
+    static void generateTransitionGuardLabels(LTSminModel model,
+                                              GuardInfo gi,
+                                              LTSminDebug debug) {
+        for(LTSminTransition t : model.getTransitions()) {
+            walkTransition(model, gi, debug, t);
+        }
+    }
+
+    static void walkTransition(LTSminModel model, GuardInfo gi,
+                               LTSminDebug debug, LTSminTransition t) {
+        for (LTSminGuardBase g : t.getGuards()) {
+            walkGuard(model, gi, debug, t, g);
+        } // we do not have to handle atomic actions since the first guard only matters
+    }
+
+    /* Split guards */
+    static void walkGuard(LTSminModel model, GuardInfo gi, LTSminDebug debug,
+                          LTSminTransition t, LTSminGuardBase guard) {
+        if (guard instanceof LTSminLocalGuard) { // Nothing
+        } else if (guard instanceof LTSminGuard) {
+            LTSminGuard g = (LTSminGuard)guard;
+            if (g.getExpression() == null)
+                return;
+            gi.addGuard(t.getGroup(), g);
+        } else if (guard instanceof LTSminGuardAnd) {
+            for(LTSminGuardBase gb : (LTSminGuardContainer)guard)
+                walkGuard(model, gi, debug, t, gb);
+        } else if (guard instanceof LTSminGuardNand) {
+            LTSminGuardNand g = (LTSminGuardNand)guard;
+            Expression e = g.getExpression();
+            if (e == null) return;
+            gi.addGuard(t.getGroup(), e);
+        } else if (guard instanceof LTSminGuardNor) { // DeMorgan
+            for (LTSminGuardBase gb : (LTSminGuardContainer)guard) {
+                Expression expr = gb.getExpression();
+                if (expr == null) continue;
+                gi.addGuard(t.getGroup(), negate(expr));
+            }
+        } else if (guard instanceof LTSminGuardOr) {
+            LTSminGuardOr g = (LTSminGuardOr)guard;
+            Expression e = g.getExpression();
+            if (e == null) return;
+            gi.addGuard(t.getGroup(), e);
+        } else {
+            throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());
+        }
     }
 
 	static void walkTransitions(Params params, LTSminProgress report) {
@@ -139,7 +240,7 @@ public class LTSminDMWalker {
         report.setTotal(nActions * nSlots);
         int reads = 0;
         int writes = 0;
-        Params p = new Params(params.model, a2s, -1);
+        Params p = new Params(params.model, null, a2s, -1);
         for (Action a : params.model.getActions()) {
             p.trans = a.getIndex();
             walkAction (p, a);
@@ -148,63 +249,57 @@ public class LTSminDMWalker {
             writes += row.writeCardinality();
             report.updateProgress(nSlots);
         }
-        report.overwrite(totals(report, reads, writes, "Actions/slot R,W"));
+        report.overwriteTotals(reads, writes, "Actions/slot R,W");
 
-        // Transitions and their atomic follow-ups
+        // Transitions and their atomic follow-ups (including guards of follow-ups)
         RWMatrix atomicDep = new RWMatrix(nTrans, nSlots);
         params.model.setAtomicDepMatrix(atomicDep);
         report.setTotal(nTrans * nSlots);
 	    reads = 0;
 	    writes = 0;
-		for(LTSminTransition t: params.model.getTransitions()) {
-			walkTransition(a2s, atomicDep, t);
+		for(LTSminTransition t : params.model.getTransitions()) {
+			walkTransition(params, a2s, atomicDep, t);
 			RWDepRow row = atomicDep.getRow(t.getGroup());
             reads += row.readCardinality();
             writes += row.writeCardinality();
 			report.updateProgress(nSlots);
 		}
-        report.overwrite(totals(report, reads, writes, "Atomics/slot R,W"));
+        report.overwriteTotals(reads, writes, "Atomics/slot R,W");
 
         // preserve the dep matrix with only action dependencies!
         // copy the matrix so that we can add guard dependencies 
         params.depMatrix = new RWMatrix(atomicDep);
         params.model.setDepMatrix(params.depMatrix);
-        
+
+        // For complete R/W, we only need to add guards to atomicDep
         report.setTotal(nTrans * nSlots);
         reads = 0;
         writes = 0;
-        for(LTSminTransition t: params.model.getTransitions()) {
-            params.trans = t.getGroup();
-            walkTransitionGuards(params,t);
+        DepMatrix t2g = params.gi.getTestSetMatrix();
+        for(LTSminTransition t : params.model.getTransitions()) {
+            params.depMatrix.read.orRow(t.getGroup(), t2g.getRow(t.getGroup()));
             report.updateProgress(nSlots);
             RWDepRow row = params.depMatrix.getRow(t.getGroup());
             reads += row.readCardinality();
             writes += row.writeCardinality();
         }
-        report.overwrite(totals(report, reads, writes, "Transition/slot R,W"));    
+        report.overwriteTotals(reads, writes, "Transition/slot R,W");    
 	}
 
-	static void walkTransition(RWMatrix a2s, RWMatrix atomicDep, LTSminTransition t) {
-		for (Action a : t.getActions())
+	static void walkTransition(Params params, RWMatrix a2s, RWMatrix atomicDep,
+	                           LTSminTransition t) {
+		for (Action a : t.getActions()) {
 		    atomicDep.orRow(t.getGroup(), a2s.getRow(a.getIndex()));
+		}
 
+        DepMatrix t2g = params.gi.getTestSetMatrix();
 		// transitively add dependencies of atomic transitions
 		for(LTSminTransition atomic : t.getTransitions()) {
 			for(Action a : atomic.getActions()) {
 	            atomicDep.orRow(t.getGroup(), a2s.getRow(a.getIndex()));
 			}
+            atomicDep.read.orRow(t.getGroup(), t2g.getRow(atomic.getGroup()));
 		}
-	}
-
-	static void walkTransitionGuards(Params params, LTSminTransition t) {
-        for(LTSminGuardBase g : t.getGuards())
-            walkGuard(params,g);
-        // transitively add dependencies of atomic transitions
-        for(LTSminTransition atomic : t.getTransitions()) {
-            for(LTSminGuardBase g : atomic.getGuards()) {
-                walkGuard(params,g);
-            }
-        }
 	}
 
 	static void walkGuard(Params params, LTSminGuardBase guard) {

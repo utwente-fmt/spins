@@ -10,7 +10,6 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.constant;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.decr;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.incr;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
 import static spins.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spins.promela.compiler.parser.PromelaConstants.CH_READ;
 import static spins.promela.compiler.parser.PromelaConstants.CH_SEND_SORTED;
@@ -27,7 +26,6 @@ import static spins.promela.compiler.parser.PromelaConstants.tokenImage;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import spins.promela.compiler.ProcInstance;
 import spins.promela.compiler.Proctype;
@@ -53,13 +51,6 @@ import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
-import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
-import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
-import spins.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
-import spins.promela.compiler.ltsmin.matrix.LTSminGuardNand;
-import spins.promela.compiler.ltsmin.matrix.LTSminGuardNor;
-import spins.promela.compiler.ltsmin.matrix.LTSminGuardOr;
-import spins.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
 import spins.promela.compiler.ltsmin.matrix.ModelMatrixGenerator;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
@@ -116,29 +107,7 @@ public class LTSminGMWalker {
 		if(model.getGuardInfo()==null)
 			model.setGuardInfo(new GuardInfo(model.getTransitions().size()));
 		GuardInfo guardInfo = model.getGuardInfo();
-		Params params = new Params(model, guardInfo, debug);
-
-		// extact guards
-		generateTransitionGuardLabels (params);
-
-		// add the normal state labels
-        // We extend the NES and NDS matrices to include all labels
-        // The special labels, e.g. progress and valid end, can then be used in
-        // LTL properties with precise (in)visibility information.
-        for (Map.Entry<String, LTSminGuard> label : model.getLabels()) {
-            guardInfo.addLabel(label.getKey(), label.getValue());
-        }
-
-        int nLabels = guardInfo.getNumberOfLabels();
-        int nTrans = model.getTransitions().size();
-
         report = new LTSminProgress(debug);
-        debug.say("Generating guard dependency matrices (%d guards) ...", nLabels);
-        report.resetTimer().startTimer();
-        debug.say_indent++;
-
-        // generate label / slot read matrix
-        generateLabelMatrix (model, guardInfo);
 
         if (no_gm) {
             debug.say_indent--;
@@ -147,95 +116,61 @@ public class LTSminGMWalker {
             return;
         }
 
+        int nLabels = guardInfo.getNumberOfLabels();
+        int nTrans = model.getTransitions().size();
+
+        debug.say("Generating guard dependency matrices (%d guards) ...", nLabels);
+        report.resetTimer().startTimer();
+        debug.say_indent++;
+
         generateDepMatrices (model, guardInfo);
 
         // generate Maybe Coenabled matrix
         report.setTotal(nLabels*nLabels/2);
         int nmce = generateCoenMatrix (model, guardInfo);
-        report.overwrite(totals(nmce, "!MCE guards"));
+        report.overwriteTotals(nmce, "!MCE guards");
 
         report.setTotal(nTrans*nTrans/2);
         int mct = generateMCtrans (model, guardInfo);
-        report.overwrite(totals(mct, "!MCE transitions"));
+        report.overwriteTotals(mct, "!MCE transitions");
 
         // generate Maybe Coenabled matrix
         report.setTotal(nLabels*nLabels);
         int nice = generateICoenMatrix (model, guardInfo);
-        report.overwrite(totals(nice, "!ICE guards"));
+        report.overwriteTotals(nice, "!ICE guards");
 
         // generate NES matrix
         report.setTotal(nTrans*nLabels);
         int nnes = generateNESMatrix (model, guardInfo);
-        report.overwrite(totals(nnes, "!NES guards"));
+        report.overwriteTotals(nnes, "!NES guards");
 
         report.setTotal(nTrans*nTrans);
         int nnet = generateNEStrans (model, guardInfo);
-        report.overwrite(totals(nnet, "!NES transitions"));
+        report.overwriteTotals(nnet, "!NES transitions");
 
         // generate NDS matrix
         report.setTotal(nTrans*nLabels);
         int nnds = generateNDSMatrix (model, guardInfo);
-        report.overwrite(totals( nnds, "!NDS guards"));
+        report.overwriteTotals( nnds, "!NDS guards");
 
         ModelMatrixGenerator.debug = debug;
         report.setTotal(nTrans*nTrans);
         int nndt = generateNDStrans (model, guardInfo);
-        report.overwrite(totals(nndt, "!NDS transitions"));
+        report.overwriteTotals(nndt, "!NDS transitions");
         
         // generate Do Not Accord Matrix
         report.setTotal(nTrans*nTrans/2);
         int ndna = generateDoNoAccord (model, guardInfo);
-        report.overwrite(totals(ndna, "!DNA transitions"));
+        report.overwriteTotals(ndna, "!DNA transitions");
 
         // generate Commutes Matrix
         report.setTotal(nTrans*nTrans/2);
         int commuting = generateCommutes (model, guardInfo);
-        report.overwrite(totals(commuting, "Commuting actions"));
+        report.overwriteTotals(commuting, "Commuting actions");
         
 		debug.say_indent--;
 		debug.say("Generating guard dependency matrices done (%s sec)",
 		          report.stopTimer().sec()).say("");
-	}
-
-    public static String totals(int n, String msg) {
-        double perc = ((double)n * 100) / report.getTotal();
-        return String.format("Found %,10d /%,11d (%5.1f%%) %s               ",
-                             n, report.getTotal(), perc, msg);
-    }
-
-	private static void generateLabelMatrix(LTSminModel model,
-	                                        GuardInfo guardInfo) {
-	    int nLabels = guardInfo.getNumberOfLabels();
-        int nSlots = model.sv.size();
-        int nTrans = model.getDepMatrix().getNrRows();
-
-        DepMatrix dm = new DepMatrix(nLabels, nSlots);
-		guardInfo.setDepMatrix(dm);
-		RWMatrix dummy = new RWMatrix(dm, null);
-		int reads = 0;
-        report.setTotal(nLabels * nSlots);
-		for (int i = 0; i < nLabels; i++) {
-			LTSminDMWalker.walkOneGuard(model, dummy, guardInfo.get(i), i);
-			reads += dm.getRow(i).getCardinality();
-			report.updateProgress(nSlots);
-		}
-        report.overwrite(totals(reads, "Guard/slot reads"));
-
-        DepMatrix testset = new DepMatrix(nTrans, nSlots);
-        guardInfo.setTestSetMatrix(testset);
-        DepMatrix gm = guardInfo.getDepMatrix();
-        int tests = 0;
-        report.setTotal(nTrans * nSlots);
-        for (int t = 0; t < nTrans; t++) {
-            for (int gg : guardInfo.getTransMatrix().get(t)) {
-                for (int slot : gm.getRow(gg)) {
-                    testset.setDependent(t, slot);
-                }
-            }
-            tests += testset.getRow(t).getCardinality();
-            report.updateProgress(nSlots);
-        }
-        report.overwrite(totals(tests, "Transition/slot tests"));
 	}
 
 	static final String MCT = "MCT"; 
@@ -332,7 +267,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 report.updateProgress();
             }
         }
-        report.overwrite(totals(num, "Guard/guard dependencies"));
+        report.overwriteTotals(num, "Guard/guard dependencies");
 
         RWMatrix deps = model.getDepMatrix();
         DepMatrix t2g = new DepMatrix(nTrans, nLabels);
@@ -348,7 +283,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 report.updateProgress();
             }
         }
-        report.overwrite(totals(num, "Transition/guard writes"));
+        report.overwriteTotals(num, "Transition/guard writes");
 
         DepMatrix t2t = new DepMatrix(nTrans, nTrans);
         guardInfo.setMatrix(T2T, t2t);
@@ -364,7 +299,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 }
             }
         }
-        report.overwrite(totals(num, "Transition/transition writes"));
+        report.overwriteTotals(num, "Transition/transition writes");
     }
     
 	/**************
@@ -428,7 +363,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 			    }
 
 		        boolean ice = true;
-		        for (int g1 : guardInfo.getTransMatrix().get(trans.getGroup())) {  
+		        for (int g1 : guardInfo.getTransMatrix().get(trans.getGroup())) {
 		            if (!icoen.isDependent(g, g1)) ice = false;
 		        }
 			    
@@ -1557,49 +1492,5 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 	        }
 	    }
 	    return !no_conflict;
-	}
-
-	static void generateTransitionGuardLabels(Params params) {
-		for(LTSminTransition t : params.model.getTransitions()) {
-			walkTransition(params, t);
-		}
-	}
-
-	static void walkTransition(Params params, LTSminTransition t) {
-		for (LTSminGuardBase g : t.getGuards()) {
-			walkGuard(params, t, g);
-		} // we do not have to handle atomic actions since the first guard only matters
-	}
-
-	/* Split guards */
-	static void walkGuard(Params params, LTSminTransition t, LTSminGuardBase guard) {
-		if (guard instanceof LTSminLocalGuard) { // Nothing
-		} else if (guard instanceof LTSminGuard) {
-			LTSminGuard g = (LTSminGuard)guard;
-			if (g.getExpression() == null)
-			    return;
-            params.guardMatrix.addGuard(t.getGroup(), g);
-		} else if (guard instanceof LTSminGuardAnd) {
-			for(LTSminGuardBase gb : (LTSminGuardContainer)guard)
-				walkGuard(params, t, gb);
-        } else if (guard instanceof LTSminGuardNand) {
-            LTSminGuardNand g = (LTSminGuardNand)guard;
-            Expression e = g.getExpression();
-            if (e == null) return;
-            params.guardMatrix.addGuard(t.getGroup(), e);
-		} else if (guard instanceof LTSminGuardNor) { // DeMorgan
-			for (LTSminGuardBase gb : (LTSminGuardContainer)guard) {
-			    Expression expr = gb.getExpression();
-			    if (expr == null) continue;
-                params.guardMatrix.addGuard(t.getGroup(), negate(expr));
-			}
-		} else if (guard instanceof LTSminGuardOr) {
-		    LTSminGuardOr g = (LTSminGuardOr)guard;
-			Expression e = g.getExpression();
-            if (e == null) return;
-			params.guardMatrix.addGuard(t.getGroup(), e);
-		} else {
-			throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());
-		}
 	}
 }

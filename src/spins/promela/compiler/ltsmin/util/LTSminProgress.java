@@ -95,4 +95,20 @@ public class LTSminProgress {
     public String sec() {
         return String.format("%.1f", ((double)nano) / 1000000000);
     }
+
+
+    public void overwriteTotals(int n, String msg) {
+        double perc = ((double)n * 100) / getTotal();
+        String s = String.format("Found %,10d /%,11d (%5.1f%%) %s               ",
+                                 n, getTotal(), perc, msg);
+        overwrite(s);
+    }
+
+    public void overwriteTotals( int r, int w, String msg) {
+        double percR = ((double)r * 100) / getTotal();
+        double percW = ((double)w * 100) / getTotal();
+        String s = String.format("Found %,9d, %,9d / %,9d (%5.1f%%, %5.1f%%) %s               ",
+                                 r, w, getTotal(), percR, percW, msg);
+        overwrite(s);
+    }
 }
