@@ -57,51 +57,6 @@ public abstract class LTSminSubVector implements Iterable<LTSminSlot> {
 		}
 	}
 
-	/**
-	 * 
-	 * @param query a query string, like: "a.b.c[1].d[*].x" 
-	 * @return a subvector
-	public LTSminSubVector sub(String query) {
-		LTSminSubVector next;
-		int len = query.length();
-		if (query.equals("")) {
-			return this;
-		} else if (query.startsWith("[")) {
-			int brace = query.indexOf(']');
-			if (brace == -1)
-				throw new AssertionError("Malformed query: "+ query);
-			String path = query.substring(1, brace);
-			int index;
-			try {
-				index = Integer.parseInt(path);
-			} catch (NumberFormatException nfe) {
-				throw new AssertionError("Malformed query: "+ query);
-			}
-			next = getSubVector(index);
-			return next.sub(query.substring(brace < len ? brace+1 : len));
-		} else {
-			int dot = query.indexOf('.');
-			int brace = query.indexOf('[');
-			if (dot == -1 || (brace != -1 && brace < dot))
-				dot = brace;
-			if (dot == -1)
-				dot = len;
-			String path = query.substring(0, dot);
-			try {
-				next = getSubVector(path);
-			} catch (AssertionError err) {
-				try {
-					next = follow();
-				} catch (AssertionError ae) {
-					throw new AssertionError("Query failed: "+ query +". "+ ae.getMessage()+". "+ err.getMessage());
-				}
-				next = next.sub(path);
-			};
-			return next.sub(query.substring(dot < len ? (dot == brace ? dot : dot+1 ) : len));
-		}
-	}
-	 */
-
 	protected LTSminSlot slot(int offset) {
 		return root.get(this.offset + offset);
 	}

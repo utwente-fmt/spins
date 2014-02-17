@@ -38,6 +38,7 @@ import spins.promela.compiler.Specification;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.ltsmin.LTSminPrinter;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker;
+import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
@@ -160,6 +161,10 @@ public class Compile {
             "speed up compilation by skipping guards \n");
         parser.addOption(no_guards);
 
+        final BooleanOption must_write = new BooleanOption('W',
+            "Strengthen write dependencies to must-write (maybe-write will become R+W) \n");
+        parser.addOption(must_write);
+
 		final BooleanOption ltsmin_ltl = new BooleanOption('L',
 			"sets output to LTSmin LTL semantics \n");
 		parser.addOption(ltsmin_ltl);
@@ -272,17 +277,18 @@ public class Compile {
             System.out.println("");
         }
 
+        Options opts = new Options(verbose.isSet(), no_guards.isSet(),
+                                   must_write.isSet());
+
 		File outputDir = new File(System.getProperty("user.dir"));
 		if (dot.isSet()) {
 			Compile.writeLTSminDotFile(spec, file.getName(), outputDir,
-			                           verbose.isSet(), ltsmin_ltl.isSet(),
-			                           no_guards.isSet(),
+			                           ltsmin_ltl.isSet(), opts,
 	                                   exportLabels, progressLabel);
 			System.out.println("Written DOT file to " + outputDir + "/" + file.getName()+".spins.dot");
 		} else {
 			Compile.writeLTSMinFiles(spec, file.getName(), outputDir,
-			                         verbose.isSet(), ltsmin_ltl.isSet(),
-                                     no_guards.isSet(),
+			                         ltsmin_ltl.isSet(), opts,
 			                         exportLabels, progressLabel);
 			System.out.println("Written C code to " + outputDir + "/" + file.getName()+".spins.c");
 		}
@@ -312,14 +318,14 @@ public class Compile {
 
 	private static void writeLTSminDotFile (final Specification spec,
 										final String name, final File outputDir,
-										boolean verbose, boolean ltsmin_ltl,
-										boolean no_guards,
+										boolean ltsmin_ltl,
+										Options opts,
 										Map<String, Expression> exports,
 										Expression progress) {
 		final File dotFile = new File(outputDir, name + ".spins.dot");
 
 		LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
-		LTSminModel model = walker.createLTSminModel(name, verbose, no_guards,
+		LTSminModel model = walker.createLTSminModel(name, opts,
 		                                             exports, progress);
 		String out = "digraph {\n";
 		for (LTSminTransition t : model.getTransitions()) {
@@ -372,17 +378,16 @@ public class Compile {
 
 	private static void writeLTSMinFiles(final Specification spec,
 										 final String name, final File outputDir,
-										 boolean verbose, boolean ltsmin_ltl,
-	                                     boolean no_guards,
+										 boolean ltsmin_ltl, Options opts,
 										 Map<String, Expression> exports,
 	                                     Expression progress) {
 		final File javaFile = new File(outputDir, name + ".spins.c");
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
 			LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
-			LTSminModel model = walker.createLTSminModel(name, verbose, no_guards,
+			LTSminModel model = walker.createLTSminModel(name, opts,
 			                                             exports, progress);
-			String code = LTSminPrinter.generateCode(model, no_guards);
+			String code = LTSminPrinter.generateCode(model, opts);
             fos.write(code.getBytes());
 			fos.flush();
 			fos.close();

@@ -71,6 +71,7 @@ import spins.promela.compiler.expression.MTypeReference;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
+import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
@@ -141,9 +142,9 @@ public class LTSminPrinter {
 
 	static int n_active = 0;
 
-	public static String generateCode(LTSminModel model, boolean no_guards) {
+	public static String generateCode(LTSminModel model, Options opts) {
 		StringWriter w = new StringWriter();
-		LTSminPrinter.generateModel(w, model, no_guards);
+		LTSminPrinter.generateModel(w, model, opts. no_gm);
 		return w.toString();
 	}
 

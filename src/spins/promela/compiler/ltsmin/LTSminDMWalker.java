@@ -38,6 +38,7 @@ import spins.promela.compiler.expression.MTypeReference;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
+import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
@@ -89,26 +90,29 @@ public class LTSminDMWalker {
 		public final LTSminStateVector sv;
 		public RWMatrix depMatrix;
 		public GuardInfo gi;
+		public Options opts;
 		public int trans;
 		public boolean inTimeOut = false;
 
 		public Params(LTSminModel model, GuardInfo gi, RWMatrix depMatrix,
-		              int trans) {
+		              int trans, Options opts) {
 			this.model = model;
 			this.gi = gi;
 			this.depMatrix = depMatrix;
 			this.trans = trans;
 			this.sv = model.sv;
+			this.opts = opts;
 		}
 	}
 
 	public static void walkOneGuard(LTSminModel model, RWMatrix dm,
-									LTSminGuardBase g, int num) {
-		Params p = new Params(model, null, dm, num); 
-		walkGuard (p, g);
+									Expression e, int num) {
+	    Options opts = new Options(false, false, false); // WRITE DM is irrelevant for reads 
+		Params p = new Params(model, null, dm, num, opts); 
+        walkExpression(p, e, MarkAction.READ);
 	}
-	
-	static void walkModel(LTSminModel model, LTSminDebug debug) {
+
+	static void walkModel(LTSminModel model, LTSminDebug debug, Options opts) {
         int nTrans = model.getTransitions().size();
         int nSlots = model.sv.size();
 
@@ -139,7 +143,8 @@ public class LTSminDMWalker {
         generateLabelMatrix (model, guardInfo, report);
 
 
-        Params params = new Params(model, guardInfo, model.getDepMatrix(), 0);
+        Params params = new Params(model, guardInfo, model.getDepMatrix(), 0,
+                                   opts);
 		walkTransitions(params, report);
 
 		debug.say_indent--;
@@ -161,7 +166,8 @@ public class LTSminDMWalker {
         int reads = 0;
         report.setTotal(nLabels * nSlots);
         for (int i = 0; i < nLabels; i++) {
-            LTSminDMWalker.walkOneGuard(model, dummy, guardInfo.get(i), i);
+            LTSminGuard g = guardInfo.get(i);
+            LTSminDMWalker.walkOneGuard(model, dummy, g.expr, i);
             reads += gm.getRow(i).getCardinality();
             report.updateProgress(nSlots);
         }
@@ -240,7 +246,7 @@ public class LTSminDMWalker {
         report.setTotal(nActions * nSlots);
         int reads = 0;
         int writes = 0;
-        Params p = new Params(params.model, null, a2s, -1);
+        Params p = new Params(params.model, null, a2s, -1, params.opts);
         for (Action a : params.model.getActions()) {
             p.trans = a.getIndex();
             walkAction (p, a);
@@ -257,7 +263,7 @@ public class LTSminDMWalker {
         report.setTotal(nTrans * nSlots);
 	    reads = 0;
 	    writes = 0;
-		for(LTSminTransition t : params.model.getTransitions()) {
+		for (LTSminTransition t : params.model.getTransitions()) {
 			walkTransition(params, a2s, atomicDep, t);
 			RWDepRow row = atomicDep.getRow(t.getGroup());
             reads += row.readCardinality();
@@ -276,7 +282,7 @@ public class LTSminDMWalker {
         reads = 0;
         writes = 0;
         DepMatrix t2g = params.gi.getTestSetMatrix();
-        for(LTSminTransition t : params.model.getTransitions()) {
+        for (LTSminTransition t : params.model.getTransitions()) {
             params.depMatrix.read.orRow(t.getGroup(), t2g.getRow(t.getGroup()));
             report.updateProgress(nSlots);
             RWDepRow row = params.depMatrix.getRow(t.getGroup());
@@ -439,7 +445,7 @@ public class LTSminDMWalker {
 	 */
 	public static class IdMarker {
 		MarkAction mark;
-		Params params;
+		public Params params;
 		public IdMarker(Params params, MarkAction mark) {
 			this.params = params;
 			this.mark = mark;
@@ -473,6 +479,9 @@ public class LTSminDMWalker {
 		}
         public boolean isStrict() {
             return mark.strict;
+        }
+        public boolean isWrite() {
+            return mark == MarkAction.WRITE || mark == MarkAction.EWRITE;
         }
 	}
 

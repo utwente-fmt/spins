@@ -5,10 +5,10 @@ import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_EDGE_LABEL_NAME
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ASSERT_ACTION_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.BOOLEAN_TYPE_NAME;
-import static spins.promela.compiler.ltsmin.LTSminPrinter.PROGRESS_STATE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.NON_PROGRESS_STATE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.NO_ACTION_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.PROGRESS_ACTION_NAME;
+import static spins.promela.compiler.ltsmin.LTSminPrinter.PROGRESS_STATE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.STATEMENT_EDGE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.STATEMENT_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.VALID_END_STATE_LABEL_NAME;
@@ -29,9 +29,9 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.getOutTransitionsOrN
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.isRendezVousReadAction;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.isRendezVousSendAction;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.or;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.pcGuard;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -98,8 +98,8 @@ import spins.promela.compiler.ltsmin.state.LTSminSlot;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.state.LTSminVariable;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
-import spins.promela.compiler.ltsmin.util.LTSminProgress;
 import spins.promela.compiler.ltsmin.util.LTSminDebug.MessageKind;
+import spins.promela.compiler.ltsmin.util.LTSminProgress;
 import spins.promela.compiler.ltsmin.util.LTSminRendezVousException;
 import spins.promela.compiler.ltsmin.util.LTSminUtil.Pair;
 import spins.promela.compiler.optimizer.RenumberAll;
@@ -139,15 +139,25 @@ public class LTSminTreeWalker {
 		NEVER = null != spec.getNever();
 	}
 
+	public static class Options {
+	    public Options(boolean verbose, boolean no_gm, boolean must_write) {
+	        this.verbose = verbose;
+	        this.no_gm = no_gm;
+	        this.must_write = must_write;
+        }
+        public boolean verbose = false;
+	    public boolean no_gm = false;
+	    public boolean must_write = false;
+	}
+	
 	/**
 	 * generates and returns an LTSminModel from the provided Specification
 	 * @param no_gm skip guard matrices
 	 */
-	public LTSminModel createLTSminModel(String name, boolean verbose,
-	                                     boolean no_gm,
+	public LTSminModel createLTSminModel(String name, Options opts,
 	                                     Map<String, Expression> exports,
                                          Expression progress) {
-		this.debug = new LTSminDebug(verbose);
+		this.debug = new LTSminDebug(opts.verbose);
         debug.say("Generating next-state function ...");
         debug.say_indent++;
         LTSminProgress report = new LTSminProgress(debug).startTimer();
@@ -167,8 +177,8 @@ public class LTSminTreeWalker {
                   report.stopTimer().sec());
         debug.say("");
 
-		LTSminDMWalker.walkModel(model, debug);
-		LTSminGMWalker.generateGuardInfo(model, no_gm, debug);
+		LTSminDMWalker.walkModel(model, debug, opts);
+		LTSminGMWalker.generateGuardInfo(model, opts, debug);
 		return model;
 	}
 

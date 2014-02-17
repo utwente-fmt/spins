@@ -48,6 +48,7 @@ import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
+import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
@@ -100,16 +101,16 @@ public class LTSminGMWalker {
 	/**
 	 * Adds all guards labels and generates the guards matrices for POR
 	 * @param model
-	 * @param no_gm 
 	 * @param debug
 	 */
-	static void generateGuardInfo(LTSminModel model, boolean no_gm, LTSminDebug debug) {
+	static void generateGuardInfo(LTSminModel model, Options opts,
+	                              LTSminDebug debug) {
 		if(model.getGuardInfo()==null)
 			model.setGuardInfo(new GuardInfo(model.getTransitions().size()));
 		GuardInfo guardInfo = model.getGuardInfo();
         report = new LTSminProgress(debug);
 
-        if (no_gm) {
+        if (opts.no_gm) {
             debug.say_indent--;
             debug.say("Generating guard dependency matrices done (%s sec)",
                       report.stopTimer().sec()).say("");
@@ -466,7 +467,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 RWMatrix deps = model.getDepMatrix();
                 DepMatrix temp = new DepMatrix(1, model.sv.size());
                 RWMatrix dummy = new RWMatrix(temp, null);
-                LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(e), 0);
+                LTSminDMWalker.walkOneGuard(model, dummy, e, 0);
                 return deps.getRow(t.getGroup()).writes(temp.getRow(0));
             }
             for (SimplePredicate sp : sps) {
@@ -490,7 +491,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         for (Action a : t.getActions()) {
             testSet.clear();
             RWMatrix dummy = new RWMatrix(testSet, null);
-            LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(sp.e), 0);
+            LTSminDMWalker.walkOneGuard(model, dummy, sp.e, 0);
             RWDepRow writeSet = a2s.getRow(a.getIndex());
             if (!writeSet.writes(testSet.getRow(0)))
                 continue;
@@ -914,7 +915,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             return false;
         DepMatrix deps = new DepMatrix(1, model.sv.size());
         RWMatrix dummy = new RWMatrix(deps, null);
-        LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(e), 0);
+        LTSminDMWalker.walkOneGuard(model, dummy, e, 0);
         return rw.isDependent(deps.getRow(0));
     }
 
@@ -924,7 +925,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             return false;
         DepMatrix deps = new DepMatrix(1, model.sv.size());
         RWMatrix dummy = new RWMatrix(deps, null);
-        LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(e), 0);
+        LTSminDMWalker.walkOneGuard(model, dummy, e, 0);
         return rw.dependent(deps.getRow(0));
     }
     
@@ -1044,7 +1045,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 Expression e = limit1 != null ? e1 : e2;
                 DepMatrix testSet = new DepMatrix(1, model.sv.size());
                 RWMatrix dummy = new RWMatrix(testSet, null);
-                LTSminDMWalker.walkOneGuard(model, dummy, new LTSminGuard(e), 0);
+                LTSminDMWalker.walkOneGuard(model, dummy, e, 0);
                 if (!testSet.getRow(0).isDependent(limit)) return null;
             }
             List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();

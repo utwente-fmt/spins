@@ -45,6 +45,8 @@ public class LTSminSubVectorStruct extends LTSminSubVector {
 		    if (idMarker.isStrict()) {
 		        throw new AssertionError("Inconclusive identifier for: "+ type);
 		    } else {
+		        if (idMarker.params.opts.must_write && idMarker.isWrite()) 
+	                throw new AssertionError("Inconclusive WRITE for: "+ type);
 		        for (LTSminSlot slot : this) {
 		            slot.mark(idMarker, id);
 		        }
