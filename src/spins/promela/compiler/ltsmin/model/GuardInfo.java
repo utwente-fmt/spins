@@ -3,6 +3,8 @@
  */
 package spins.promela.compiler.ltsmin.model;
 
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
+
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,9 +13,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import spins.promela.compiler.expression.BooleanExpression;
 import spins.promela.compiler.expression.Expression;
+import spins.promela.compiler.ltsmin.LTSminDMWalker;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
+import spins.promela.compiler.ltsmin.matrix.RWMatrix;
+import spins.promela.compiler.parser.PromelaConstants;
 import spins.util.IndexedSet;
 
 /**
@@ -94,18 +100,67 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
      *   V    ...    ...
      */
     private DepMatrix testset;
+    private LTSminModel m;
 
-	public GuardInfo(int width) {
+	public GuardInfo(LTSminModel m) {
 		labels = new IndexedSet<LTSminGuard>();
 		label_names = new ArrayList<String>();
+		this.m = m;
 		trans_guard_matrix = new ArrayList< List<Integer> >();
-		for (int i = 0; i < width; i++) {
+		for (int i = 0; i < m.getTransitions().size(); i++) {
 			trans_guard_matrix.add(new ArrayList<Integer>());
 		}
 	}
 
+    private boolean isDependent(Expression e1, Expression e2) {
+        DepMatrix temp1 = new DepMatrix(1, m.sv.size());
+        RWMatrix dummy1 = new RWMatrix(temp1, null);
+        LTSminDMWalker.walkOneGuard(m, dummy1, e1, 0);
+
+        DepMatrix temp2 = new DepMatrix(1, m.sv.size());
+        RWMatrix dummy2 = new RWMatrix(temp2, null);
+        LTSminDMWalker.walkOneGuard(m, dummy2, e2, 0);
+        return temp1.getRow(0).isDependent(temp2.getRow(0));
+    }
+
+    public void walkGuard(int trans, Expression e, boolean invert) {
+        if (e instanceof BooleanExpression) {
+             BooleanExpression be = (BooleanExpression)e;
+             switch (be.getToken().kind) {
+             case PromelaConstants.LNOT:
+                 walkGuard(trans, be.getExpr1(), !invert);
+                 break;
+             case PromelaConstants.LOR:
+                 if (invert && !isDependent(be.getExpr1(), be.getExpr2())) {
+                     // DeMorgan: NOT OR -->  AND NOT
+                     walkGuard(trans, be.getExpr1(), !invert);
+                     walkGuard(trans, be.getExpr2(), !invert);
+                 } else {
+                     if (invert)
+                         e = negate(e); // invert
+                     addGuard(trans, new LTSminGuard(e));
+                 }
+                 break;
+             case PromelaConstants.LAND:
+                 if (!invert && !isDependent(be.getExpr1(), be.getExpr2())) {
+                     walkGuard(trans, be.getExpr1(), invert);
+                     walkGuard(trans, be.getExpr2(), invert);
+                 } else {
+                     if (invert)
+                         e = negate(e); // invert
+                    addGuard(trans, new LTSminGuard(e));
+                 }
+                 break;
+             }
+	    } else {
+	        if (invert)
+	            e = negate(e); // invert
+	        addGuard(trans, new LTSminGuard(e));
+	    }
+	}
+
     public void addGuard(int trans, Expression e) {
-        addGuard(trans, new LTSminGuard(e));
+        walkGuard(trans, e, false);
     }
 
 	public void addGuard(int trans, LTSminGuard g) {

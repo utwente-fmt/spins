@@ -3,7 +3,13 @@ package spins.promela.compiler.ltsmin.util;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_FILL_VAR;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
+import static spins.promela.compiler.parser.PromelaConstants.EQ;
+import static spins.promela.compiler.parser.PromelaConstants.GT;
+import static spins.promela.compiler.parser.PromelaConstants.GTE;
 import static spins.promela.compiler.parser.PromelaConstants.IDENTIFIER;
+import static spins.promela.compiler.parser.PromelaConstants.LT;
+import static spins.promela.compiler.parser.PromelaConstants.LTE;
+import static spins.promela.compiler.parser.PromelaConstants.NEQ;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -112,13 +118,29 @@ public class LTSminUtil {
 		return new BooleanExpression(new Token(m,name.substring(1,name.length()-1)), e1);
 	}
 
-	public static Expression negate(Expression progress) {
-        if (progress instanceof BooleanExpression &&
-                progress.getToken().kind ==  PromelaConstants.LNOT) {
-            return ((BooleanExpression) progress).getExpr1();
+	public static Expression negate(Expression e) {
+        if (e instanceof BooleanExpression &&
+                e.getToken().kind ==  PromelaConstants.LNOT) {
+            return ((BooleanExpression) e).getExpr1();
+        } else if (e instanceof CompareExpression) {
+            CompareExpression ae = (CompareExpression)e;
+            switch(ae.getToken().kind) {
+                case LT:    return new CompareExpression(ae, GTE);
+                case LTE:   return new CompareExpression(ae, GT);
+                case EQ:    return new CompareExpression(ae, NEQ);
+                case NEQ:   return new CompareExpression(ae, EQ);
+                case GT:    return new CompareExpression(ae, LTE);
+                case GTE:   return new CompareExpression(ae, LT);
+                default: throw new AssertionError("Unknown arithmetic expression kind: "+ ae.getToken());
+            }
         } else {
-            return not(progress);
+            return not(e);
         }
+    }
+
+	public static String getName(int kind) {
+        String name = PromelaConstants.tokenImage[kind];
+        return name.substring(1, name.length() - 1);
     }
 
 	public static BooleanExpression or(Expression e1, Expression e2) {

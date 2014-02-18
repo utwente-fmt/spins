@@ -1,8 +1,5 @@
 package spins.promela.compiler.ltsmin.matrix;
 
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.and;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.or;
 import spins.promela.compiler.expression.Expression;
 import spins.util.StringWriter;
 
@@ -24,50 +21,5 @@ public abstract class LTSminGuardBase {
         this.deadlock = true;
     }
 
-    public Expression getExpression() {
-        LTSminGuardBase gb = this;
-        Expression e = null;
-        if (gb instanceof LTSminGuard) {
-            e = ((LTSminGuard)gb).getExpr();
-        } else if (gb instanceof LTSminGuardAnd) {
-            LTSminGuardAnd g = (LTSminGuardAnd)gb;
-            for (LTSminGuardBase sub : g) {
-                Expression sube = sub.getExpression();
-                if (sube == null) continue;
-                if (e == null) e = sube;
-                else           e = and(sube, e);
-            }
-        } else if (gb instanceof LTSminGuardOr) {
-            LTSminGuardOr g = (LTSminGuardOr)gb;
-            for (LTSminGuardBase sub : g) {
-                Expression sube = sub.getExpression();
-                if (sube == null) continue;
-                if (e == null) e = sube;
-                else           e = or(sube, e);
-            }
-        } else if (gb instanceof LTSminGuardNor) {
-            LTSminGuardNor g = (LTSminGuardNor)gb;
-            for (LTSminGuardBase sub : g) {
-                Expression sube = sub.getExpression();
-                if (sube == null) continue;
-                if (e == null) e = sube;
-                else           e = or(sube, e);
-            }
-            if (e != null)
-                e = not(e);
-        } else if (gb instanceof LTSminGuardNand) {
-            LTSminGuardNand g = (LTSminGuardNand)gb;
-            for (LTSminGuardBase sub : g) {
-                Expression sube = sub.getExpression();
-                if (sube == null) continue;
-                if (e == null) e = sube;
-                else           e = and(sube, e);
-            }
-            if (e != null)
-                e = not(e);
-        } else {
-            throw new AssertionError("UNSUPPORTED " + gb.getClass().getSimpleName());                 
-        }
-        return e;
-    }
+    public abstract Expression getExpression();
 }

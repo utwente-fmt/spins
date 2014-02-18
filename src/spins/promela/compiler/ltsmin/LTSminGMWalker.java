@@ -106,7 +106,7 @@ public class LTSminGMWalker {
 	static void generateGuardInfo(LTSminModel model, Options opts,
 	                              LTSminDebug debug) {
 		if(model.getGuardInfo()==null)
-			model.setGuardInfo(new GuardInfo(model.getTransitions().size()));
+			model.setGuardInfo(new GuardInfo(model));
 		GuardInfo guardInfo = model.getGuardInfo();
         report = new LTSminProgress(debug);
 

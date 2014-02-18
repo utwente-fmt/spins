@@ -81,4 +81,9 @@ public class LTSminGuard extends LTSminGuardBase implements LTSminModelFeature {
     public int getIndex() {
         return index;
     }
+
+
+    public Expression getExpression() {
+        return getExpr();
+    }    
 }

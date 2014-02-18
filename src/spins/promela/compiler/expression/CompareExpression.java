@@ -14,6 +14,8 @@
 
 package spins.promela.compiler.expression;
 
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.getName;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -54,7 +56,13 @@ public class CompareExpression extends Expression {
 		ex2 = right;
 	}
 
-	@Override
+    public CompareExpression(CompareExpression ae, int kind) {
+        super(new Token(kind, getName(kind)));
+        this.ex1 = ae.ex1;
+        this.ex2 = ae.ex2;
+    }
+
+    @Override
 	public final boolean equals(Object o) {
 		if (o == null)
 			return false;

@@ -81,7 +81,14 @@ public class AritmicExpression extends Expression {
 		ex3 = third;
 	}
 
-	@Override
+	public AritmicExpression(AritmicExpression ae, int kind) {
+        super(new Token(kind, PromelaConstants.tokenImage[kind]));
+	    this.ex1 = ae.ex1;
+        this.ex2 = ae.ex2;
+        this.ex3 = ae.ex3;
+    }
+
+    @Override
 	public String getBoolExpression() throws ParseException {
 		if (ex2 == null) {
 			return "(" + getToken().image + ex1.getIntExpression() + " != 0)";

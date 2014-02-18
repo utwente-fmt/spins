@@ -1,5 +1,7 @@
 package spins.promela.compiler.ltsmin.matrix;
 
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.and;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -70,4 +72,15 @@ public class LTSminGuardAnd extends LTSminGuardBase implements LTSminGuardContai
 	public int guardCount() {
 		return guards.size();
 	}
+
+    public Expression getExpression() {
+        Expression e = null;
+        for (LTSminGuardBase sub : this) {
+            Expression sube = sub.getExpression();
+            if (sube == null) continue;
+            if (e == null) e = sube;
+            else           e = and(sube, e);
+        }
+        return e;
+    }
 }

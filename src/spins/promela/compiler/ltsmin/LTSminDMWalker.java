@@ -117,7 +117,7 @@ public class LTSminDMWalker {
         int nSlots = model.sv.size();
 
         if(model.getGuardInfo()==null)
-            model.setGuardInfo(new GuardInfo(model.getTransitions().size()));
+            model.setGuardInfo(new GuardInfo(model));
         GuardInfo guardInfo = model.getGuardInfo();
         if (model.getDepMatrix() != null)
             debug.say(MessageKind.FATAL, "Dependency matrix is already set");
@@ -348,12 +348,12 @@ public class LTSminDMWalker {
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
-			walkExpression(params,e, MarkAction.READ);
+			walkExpression(params, e, MarkAction.READ);
 		} else if(a instanceof PrintAction) {
 			PrintAction pa = (PrintAction)a;
 			List<Expression> exprs = pa.getExprs();
 			for (final Expression expr : exprs) {
-				walkExpression(params,expr, MarkAction.READ);
+				walkExpression(params, expr, MarkAction.READ);
 			}
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
@@ -528,36 +528,36 @@ public class LTSminDMWalker {
 			Expression ex2 = ae.getExpr2();
 			Expression ex3 = ae.getExpr3();
 			if (ex2 == null) {
-				walkExpression(params,ex1, mark);
+				walkExpression(params, ex1, mark);
 			} else if (ex3 == null) {
 				if (ae.getToken().image.equals("%")) {
 					// Modulo takes a special notation to make sure that it
 					// returns a positive value
-					walkExpression(params,ex1, mark);
-					walkExpression(params,ex2, mark);
+					walkExpression(params, ex1, mark);
+					walkExpression(params, ex2, mark);
 				} else {
-					walkExpression(params,ex1, mark);
-					walkExpression(params,ex2, mark);
+					walkExpression(params, ex1, mark);
+					walkExpression(params, ex2, mark);
 				}
 			} else {
-				walkExpression(params,ex1, mark);
-				walkExpression(params,ex2, mark);
-				walkExpression(params,ex3, mark);
+				walkExpression(params, ex1, mark);
+				walkExpression(params, ex2, mark);
+				walkExpression(params, ex3, mark);
 			}
 		} else if(e instanceof BooleanExpression) {
 			BooleanExpression be = (BooleanExpression)e;
 			Expression ex1 = be.getExpr1();
 			Expression ex2 = be.getExpr2();
 			if (ex2 == null) {
-				walkExpression(params,ex1, mark);
+				walkExpression(params, ex1, mark);
 			} else {
-				walkExpression(params,ex1, mark);
-				walkExpression(params,ex2, mark);
+				walkExpression(params, ex1, mark);
+				walkExpression(params, ex2, mark);
 			}
 		} else if(e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
-			walkExpression(params,ce.getExpr1(), mark);
-			walkExpression(params,ce.getExpr2(), mark);
+			walkExpression(params, ce.getExpr1(), mark);
+			walkExpression(params, ce.getExpr2(), mark);
 		} else if(e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
