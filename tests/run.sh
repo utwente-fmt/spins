@@ -72,7 +72,7 @@ function runtest {
         STATESNEW=`echo "$EXPLORE"|grep "Elements: "|sed 's/.* \([0-9]*\)$/\1/g'`
         TRANSNEW=`echo "$EXPLORE"|grep ": Explored"|sed 's/.*states \([0-9]*\) trans.*/\1/g'`
         echo -ne "\t|$STATESNEW\t$TRANSNEW"
-        if [ "$STATES" != "$STATESNEW" -o "$TRANS" != "$TRANSNEW" ]; then
+        if [[ -z "$EXTRA" ]] && [[ "$STATES" != "$STATESNEW" || "$TRANS" != "$TRANSNEW" ]]; then
             echo -n "$RED WRONG STATE/TRANSITION COUNT!"
         fi
     else

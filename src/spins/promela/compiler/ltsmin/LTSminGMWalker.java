@@ -466,8 +466,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             if (missed) {
                 RWMatrix deps = model.getDepMatrix();
                 DepMatrix temp = new DepMatrix(1, model.sv.size());
-                RWMatrix dummy = new RWMatrix(temp, null);
-                LTSminDMWalker.walkOneGuard(model, dummy, e, 0);
+                LTSminDMWalker.walkOneGuard(model, temp, e, 0);
                 return deps.getRow(t.getGroup()).writes(temp.getRow(0));
             }
             for (SimplePredicate sp : sps) {
@@ -490,8 +489,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 
         for (Action a : t.getActions()) {
             testSet.clear();
-            RWMatrix dummy = new RWMatrix(testSet, null);
-            LTSminDMWalker.walkOneGuard(model, dummy, sp.e, 0);
+            LTSminDMWalker.walkOneGuard(model, testSet, sp.e, 0);
             RWDepRow writeSet = a2s.getRow(a.getIndex());
             if (!writeSet.writes(testSet.getRow(0)))
                 continue;
@@ -914,8 +912,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         if (e == null)
             return false;
         DepMatrix deps = new DepMatrix(1, model.sv.size());
-        RWMatrix dummy = new RWMatrix(deps, null);
-        LTSminDMWalker.walkOneGuard(model, dummy, e, 0);
+        LTSminDMWalker.walkOneGuard(model, deps, e, 0);
         return rw.isDependent(deps.getRow(0));
     }
 
@@ -924,8 +921,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         if (e == null)
             return false;
         DepMatrix deps = new DepMatrix(1, model.sv.size());
-        RWMatrix dummy = new RWMatrix(deps, null);
-        LTSminDMWalker.walkOneGuard(model, dummy, e, 0);
+        LTSminDMWalker.walkOneGuard(model, deps, e, 0);
         return rw.dependent(deps.getRow(0));
     }
     
@@ -1044,8 +1040,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 DepRow limit = limit1 != null ? limit1 : limit2;
                 Expression e = limit1 != null ? e1 : e2;
                 DepMatrix testSet = new DepMatrix(1, model.sv.size());
-                RWMatrix dummy = new RWMatrix(testSet, null);
-                LTSminDMWalker.walkOneGuard(model, dummy, e, 0);
+                LTSminDMWalker.walkOneGuard(model, testSet, e, 0);
                 if (!testSet.getRow(0).isDependent(limit)) return null;
             }
             List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();

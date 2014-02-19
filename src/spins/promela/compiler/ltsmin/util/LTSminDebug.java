@@ -125,4 +125,8 @@ public class LTSminDebug {
     public LTSminDebug add(String string, Object ... objs) {
         return add(String.format(string, objs));
     }
+
+    public boolean isVerbose() {
+        return verbose;
+    }
 }

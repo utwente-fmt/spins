@@ -157,6 +157,10 @@ public class Compile {
 			"only write dot output (ltsmin/spins) \n");
 		parser.addOption(dot);
 
+        final BooleanOption no_cnf = new BooleanOption('C',
+            "Do not rewrite guards to CNF\n");
+        parser.addOption(no_cnf);
+
         final BooleanOption no_guards = new BooleanOption('S',
             "speed up compilation by skipping guards \n");
         parser.addOption(no_guards);
@@ -278,7 +282,7 @@ public class Compile {
         }
 
         Options opts = new Options(verbose.isSet(), no_guards.isSet(),
-                                   must_write.isSet());
+                                   must_write.isSet(), !no_cnf.isSet());
 
 		File outputDir = new File(System.getProperty("user.dir"));
 		if (dot.isSet()) {

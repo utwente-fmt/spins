@@ -100,6 +100,10 @@ public class DepMatrix {
                 public void init()       { oldSize = size(); }
             };
         }
+
+        protected void unlock() {
+            lock();
+        }
     }
 
     // We maintain _solely_ a sparse array up to its cardinality reaches SPARSE_MIN
@@ -217,13 +221,59 @@ public class DepMatrix {
         }
     }
 
-	public DepRow getRow(int row) {
+    // Does not lock the row
+    public void orRow(int row, DepMatrix matrix, int j) {
+        for (int col : matrix.getIterator(j)) {
+            setDependent(row, col);
+        }       
+    }
+
+	private Iterable<Integer> getIterator(final int row) {
+        if (sparse[row] != null) {
+            return sparse[row];
+        }
+
+        return new Iterable<Integer>() {
+            public Iterator<Integer> iterator() {
+                return new Iterator<Integer>() {
+                    int i = 0;
+                    public boolean hasNext() {
+                        i = vector[row].nextSetBit(i);
+                        return i >= 0;
+                    }
+        
+                    public Integer next() {
+                        int ret = vector[row].nextSetBit(i);
+                        i = ret + 1;
+                        return ret;
+                    }
+        
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        };
+	}
+
+    public DepRow getRow(int row) {
 	    if (sparse[row] != null) {
 	        vector[row] = null;
 	        sparse[row].sort();
 	    }
         return new DepRow(this, row);
-	}
+    }
+
+    // unlocks after
+    public boolean isDependent(int i, DepMatrix matrix, int j) {
+        DepRow row1 = getRow(i);
+        DepRow row2 = matrix.getRow(j);
+        boolean b = row1.isDependent(row2);
+        row1.unlock();
+        row2.unlock();
+        return b;
+    }
+
 
     public class DepRow implements Iterable<Integer> {
         private DepMatrix matrix;
@@ -232,6 +282,13 @@ public class DepMatrix {
         public DepRow(DepMatrix m, int row) {
             this.matrix = m;
             this.row = row;
+        }
+
+        public void unlock() {
+            AList list = matrix.sparse[row];
+            if (list == null)
+                return;
+            list.unlock();
         }
 
         private BitSet getBitSet() {
@@ -287,23 +344,7 @@ public class DepMatrix {
                 return getSorted().iterator();
             }
 
-            return new Iterator<Integer>() {
-                int i = 0;
-                public boolean hasNext() {
-                    i = matrix.vector[row].nextSetBit(i);
-                    return i >= 0;
-                }
-
-                public Integer next() {
-                    int ret = matrix.vector[row].nextSetBit(i);
-                    i = ret + 1;
-                    return ret;
-                }
-
-                public void remove() {
-                    throw new UnsupportedOperationException();
-                }
-            };
+            return getIterator(row).iterator();
         }
 
         public int getNrCols() {

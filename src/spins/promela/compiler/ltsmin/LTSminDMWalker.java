@@ -56,7 +56,6 @@ import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
 import spins.promela.compiler.ltsmin.model.ResetProcessAction;
 import spins.promela.compiler.ltsmin.state.LTSminSlot;
-import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.state.LTSminSubVector;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
 import spins.promela.compiler.ltsmin.util.LTSminDebug.MessageKind;
@@ -86,8 +85,7 @@ public class LTSminDMWalker {
 	static final Identifier STAR = new LTSminIdentifier(new Variable(VariableType.INT, "STAR", -1));
 	
 	static public class Params {
-		public final LTSminModel model;
-		public final LTSminStateVector sv;
+		public LTSminModel model;
 		public RWMatrix depMatrix;
 		public GuardInfo gi;
 		public Options opts;
@@ -100,16 +98,18 @@ public class LTSminDMWalker {
 			this.gi = gi;
 			this.depMatrix = depMatrix;
 			this.trans = trans;
-			this.sv = model.sv;
 			this.opts = opts;
 		}
 	}
 
-	public static void walkOneGuard(LTSminModel model, RWMatrix dm,
+	private static Params sParams = new Params(null, null, new RWMatrix(null, null),
+	                                           0, new Options(false, false, false, false));
+	public static void walkOneGuard(LTSminModel model, DepMatrix dm,
 									Expression e, int num) {
-	    Options opts = new Options(false, false, false); // WRITE DM is irrelevant for reads 
-		Params p = new Params(model, null, dm, num, opts); 
-        walkExpression(p, e, MarkAction.READ);
+	    sParams.model = model;
+	    sParams.depMatrix.read = dm;
+	    sParams.trans = num;
+        walkExpression(sParams, e, MarkAction.READ);
 	}
 
 	static void walkModel(LTSminModel model, LTSminDebug debug, Options opts) {
@@ -129,7 +129,7 @@ public class LTSminDMWalker {
         debug.say_indent++;
 
         // extact guards
-        generateTransitionGuardLabels (model, guardInfo, debug);
+        generateTransitionGuardLabels (model, guardInfo, debug, opts);
 
         // add the normal state labels
         // We extend the NES and NDS matrices to include all labels
@@ -162,12 +162,11 @@ public class LTSminDMWalker {
 
         DepMatrix gm = new DepMatrix(nLabels, nSlots);
         guardInfo.setDepMatrix(gm);
-        RWMatrix dummy = new RWMatrix(gm, null);
         int reads = 0;
         report.setTotal(nLabels * nSlots);
         for (int i = 0; i < nLabels; i++) {
             LTSminGuard g = guardInfo.get(i);
-            LTSminDMWalker.walkOneGuard(model, dummy, g.expr, i);
+            LTSminDMWalker.walkOneGuard(model, gm, g.expr, i);
             reads += gm.getRow(i).getCardinality();
             report.updateProgress(nSlots);
         }
@@ -189,47 +188,44 @@ public class LTSminDMWalker {
 
     static void generateTransitionGuardLabels(LTSminModel model,
                                               GuardInfo gi,
-                                              LTSminDebug debug) {
+                                              LTSminDebug debug,
+                                              Options opts) {
         for(LTSminTransition t : model.getTransitions()) {
-            walkTransition(model, gi, debug, t);
+            for (LTSminGuardBase g : t.getGuards()) {
+                walkGuard(model, gi, debug, t, g, opts);
+            } // we do not have to handle atomic actions since the first guard only matters
         }
-    }
-
-    static void walkTransition(LTSminModel model, GuardInfo gi,
-                               LTSminDebug debug, LTSminTransition t) {
-        for (LTSminGuardBase g : t.getGuards()) {
-            walkGuard(model, gi, debug, t, g);
-        } // we do not have to handle atomic actions since the first guard only matters
     }
 
     /* Split guards */
     static void walkGuard(LTSminModel model, GuardInfo gi, LTSminDebug debug,
-                          LTSminTransition t, LTSminGuardBase guard) {
+                          LTSminTransition t, LTSminGuardBase guard,
+                          Options opts) {
         if (guard instanceof LTSminLocalGuard) { // Nothing
         } else if (guard instanceof LTSminGuard) {
             LTSminGuard g = (LTSminGuard)guard;
             if (g.getExpression() == null)
                 return;
-            gi.addGuard(t.getGroup(), g);
+            gi.addGuard(t.getGroup(), g.getExpression(), debug, opts);
         } else if (guard instanceof LTSminGuardAnd) {
             for(LTSminGuardBase gb : (LTSminGuardContainer)guard)
-                walkGuard(model, gi, debug, t, gb);
+                walkGuard(model, gi, debug, t, gb, opts);
         } else if (guard instanceof LTSminGuardNand) {
             LTSminGuardNand g = (LTSminGuardNand)guard;
             Expression e = g.getExpression();
             if (e == null) return;
-            gi.addGuard(t.getGroup(), e);
+            gi.addGuard(t.getGroup(), e, debug, opts);
         } else if (guard instanceof LTSminGuardNor) { // DeMorgan
             for (LTSminGuardBase gb : (LTSminGuardContainer)guard) {
                 Expression expr = gb.getExpression();
                 if (expr == null) continue;
-                gi.addGuard(t.getGroup(), negate(expr));
+                gi.addGuard(t.getGroup(), negate(expr), debug, opts);
             }
         } else if (guard instanceof LTSminGuardOr) {
             LTSminGuardOr g = (LTSminGuardOr)guard;
             Expression e = g.getExpression();
             if (e == null) return;
-            gi.addGuard(t.getGroup(), e);
+            gi.addGuard(t.getGroup(), e, debug, opts);
         } else {
             throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());
         }
@@ -462,7 +458,7 @@ public class LTSminDMWalker {
 				Identifier id = (Identifier)e;
 				if (id.getVariable().isHidden())
 					return;
-				LTSminSubVector sub = params.sv.sub(id.getVariable());
+				LTSminSubVector sub = params.model.sv.sub(id.getVariable());
 				try {
 					sub.mark(this, id);
 				} catch (AssertionError ae) {
@@ -632,17 +628,17 @@ public class LTSminDMWalker {
 	}
 
 	private static void DMIncReadPC(Params params, Proctype p) {
-		Variable pc = params.sv.getPC(p);
+		Variable pc = params.model.sv.getPC(p);
 		DMIncRead(params, pc);
 	}
 
 	private static void DMIncWritePC(Params params, Proctype p) {
-		Variable pc = params.sv.getPC(p);
+		Variable pc = params.model.sv.getPC(p);
 		DMIncWrite(params, pc);
 	}
 
 	private static void DMIncWritePID(Params params, Proctype p) {
-		Variable pc = params.sv.getPID(p);
+		Variable pc = params.model.sv.getPID(p);
 		DMIncWrite(params, pc);
 	}
 	

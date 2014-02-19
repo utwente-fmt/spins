@@ -140,14 +140,17 @@ public class LTSminTreeWalker {
 	}
 
 	public static class Options {
-	    public Options(boolean verbose, boolean no_gm, boolean must_write) {
+	    public Options(boolean verbose, boolean no_gm, boolean must_write,
+	                   boolean cnf) {
 	        this.verbose = verbose;
 	        this.no_gm = no_gm;
 	        this.must_write = must_write;
+	        this.cnf = cnf;
         }
         public boolean verbose = false;
 	    public boolean no_gm = false;
 	    public boolean must_write = false;
+        public boolean cnf = false;
 	}
 	
 	/**
