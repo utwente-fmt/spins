@@ -143,8 +143,7 @@ public class LTSminDMWalker {
         generateLabelMatrix (model, guardInfo, report);
 
 
-        Params params = new Params(model, guardInfo, model.getDepMatrix(), 0,
-                                   opts);
+        Params params = new Params(model, guardInfo, model.getDepMatrix(), 0, opts);
 		walkTransitions(params, report);
 
 		debug.say_indent--;
