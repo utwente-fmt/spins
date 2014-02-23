@@ -1,5 +1,7 @@
 package spins.promela.compiler.ltsmin.model;
 
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -16,8 +18,12 @@ import spins.promela.compiler.expression.CompareExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
+import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
+import spins.promela.compiler.ltsmin.matrix.LTSminGuardNand;
+import spins.promela.compiler.ltsmin.matrix.LTSminGuardNor;
+import spins.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spins.promela.compiler.ltsmin.matrix.LTSminPCGuard;
 import spins.promela.compiler.parser.PromelaConstants;
 
@@ -82,12 +88,8 @@ public class LTSminTransition implements LTSminGuardContainer,
 		this.actions = actions;
 	}
 
-	public List<LTSminGuardBase> getGuards() {
-		return guards;
-	}
-
-	public void setGuards(List<LTSminGuardBase> guards) {
-		this.guards = guards;
+	public List<? extends LTSminGuardBase> getGuards() {
+		return (List<? extends LTSminGuardBase>) guards;
 	}
 
 	public void addGuard(Expression e) {
@@ -101,7 +103,11 @@ public class LTSminTransition implements LTSminGuardContainer,
 	            }
 	        }
 	    }
-		addGuard(new LTSminGuard(e));
+		LTSminGuard guard = new LTSminGuard(e);
+        if (guard.isDefinitelyTrue()) {
+            return;
+        }
+        addGuard(guard);
 	}
 
     private List<LTSminPCGuard> pcGuard = new LinkedList<LTSminPCGuard>();
@@ -109,9 +115,28 @@ public class LTSminTransition implements LTSminGuardContainer,
         if (guard instanceof LTSminPCGuard) {
             pcGuard.add((LTSminPCGuard) guard);
         }
-		if(!guard.isDefinitelyTrue()) {
-			guards.add(guard);
-		}
+
+        if (guard.isDefinitelyTrue()) {
+            return;
+        }
+
+        if (guard instanceof LTSminGuard) {
+            guards.add(guard);
+        }  else if (guard instanceof LTSminGuardAnd) {
+            for(LTSminGuardBase gb : (LTSminGuardContainer)guard)
+                addGuard(gb);
+        } else if (guard instanceof LTSminGuardNand) {
+            LTSminGuardNand g = (LTSminGuardNand)guard;
+            addGuard(g.getExpression());
+        } else if (guard instanceof LTSminGuardNor) { // DeMorgan
+            for (LTSminGuardBase gb : (LTSminGuardContainer)guard)
+                addGuard(negate(gb.getExpression()));
+        } else if (guard instanceof LTSminGuardOr) {
+            LTSminGuardOr g = (LTSminGuardOr)guard;
+            addGuard(g.getExpression());
+        } else {
+            guards.add(new LTSminGuard(guard.getExpression()));
+        }
 	}
 
 	public void addAction(Action action) {

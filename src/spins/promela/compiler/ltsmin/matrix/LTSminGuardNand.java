@@ -74,7 +74,7 @@ public class LTSminGuardNand extends LTSminGuardBase implements LTSminGuardConta
 		return guards.size();
 	}
 
-    public void addGuards(List<LTSminGuardBase> guards2) {
+    public void addGuards(List<? extends LTSminGuardBase> guards2) {
         guards.addAll(guards2);
     }
     

@@ -6,7 +6,6 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelBottom;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelIndex;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
 
 import java.util.List;
 import java.util.Map;
@@ -41,9 +40,6 @@ import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
-import spins.promela.compiler.ltsmin.matrix.LTSminGuardNand;
-import spins.promela.compiler.ltsmin.matrix.LTSminGuardNor;
-import spins.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spins.promela.compiler.ltsmin.matrix.LTSminLocalGuard;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
@@ -203,25 +199,6 @@ public class LTSminDMWalker {
             if (g.getExpression() == null)
                 return;
             gi.addGuard(t.getGroup(), g.getExpression(), debug, opts);
-        } else if (guard instanceof LTSminGuardAnd) {
-            for(LTSminGuardBase gb : (LTSminGuardContainer)guard)
-                walkGuard(model, gi, debug, t, gb, opts);
-        } else if (guard instanceof LTSminGuardNand) {
-            LTSminGuardNand g = (LTSminGuardNand)guard;
-            Expression e = g.getExpression();
-            if (e == null) return;
-            gi.addGuard(t.getGroup(), e, debug, opts);
-        } else if (guard instanceof LTSminGuardNor) { // DeMorgan
-            for (LTSminGuardBase gb : (LTSminGuardContainer)guard) {
-                Expression expr = gb.getExpression();
-                if (expr == null) continue;
-                gi.addGuard(t.getGroup(), negate(expr), debug, opts);
-            }
-        } else if (guard instanceof LTSminGuardOr) {
-            LTSminGuardOr g = (LTSminGuardOr)guard;
-            Expression e = g.getExpression();
-            if (e == null) return;
-            gi.addGuard(t.getGroup(), e, debug, opts);
         } else {
             throw new AssertionError("UNSUPPORTED: " + guard.getClass().getSimpleName());
         }
