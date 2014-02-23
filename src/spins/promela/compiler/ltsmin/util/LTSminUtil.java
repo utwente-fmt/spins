@@ -209,15 +209,19 @@ public class LTSminUtil {
 	}
 
 	public static Expression chanContentsGuard(Identifier id, int i) {
-		Expression left;
-		try {
-			left = new ChannelLengthExpression(null, id);
-		} catch (ParseException e1) {
-			throw new AssertionError(e1);
-		}
-		Expression e = compare(PromelaConstants.GT, left, constant(i));
-		return e;
+		return chanContentsGuard(id, PromelaConstants.GT, i);
 	}
+
+	public static Expression chanContentsGuard(Identifier id, int C, int i) {
+        Expression left;
+        try {
+            left = new ChannelLengthExpression(null, id);
+        } catch (ParseException e1) {
+            throw new AssertionError(e1);
+        }
+        Expression e = compare(C, left, constant(i));
+        return e;
+    }
 
 	/** Strings **/
 	public static String printPC(Proctype process, LTSminPointer out) {

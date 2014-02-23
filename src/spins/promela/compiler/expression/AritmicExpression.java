@@ -29,7 +29,7 @@ import spins.promela.compiler.variable.VariableType;
  * 
  * @author Marc de Jonge
  */
-public class AritmicExpression extends Expression {
+public class AritmicExpression extends NAryExpression {
 	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -4022528945025403911L;
 
@@ -279,4 +279,19 @@ public class AritmicExpression extends Expression {
 		return ex3;
 	}
 
+    @Override
+    protected int totalExpressions() {
+        return (ex2 == null ? 1 :
+               (ex3 == null ? 2 : 3));
+    }
+
+    @Override
+    protected Expression getExpression(int i) {
+        switch (i) {
+        case 0: return ex1;
+        case 1: return ex2;
+        case 2: return ex3;
+        }
+        throw new AssertionError("Wrong number of expressions.");
+    }
 }

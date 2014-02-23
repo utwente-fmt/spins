@@ -32,7 +32,7 @@ import spins.promela.compiler.variable.VariableType;
  * 
  * @author Marc de Jonge
  */
-public class CompareExpression extends Expression {
+public class CompareExpression extends NAryExpression {
 	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -7625932622450298223L;
 
@@ -142,4 +142,18 @@ public class CompareExpression extends Expression {
 	public Expression getExpr2() {
 		return ex2;
 	}
+
+    @Override
+    protected int totalExpressions() {
+        return 2;
+    }
+
+    @Override
+    protected Expression getExpression(int i) {
+        switch (i) {
+        case 0: return ex1;
+        case 1: return ex2;
+        }
+        throw new AssertionError("Wrong number of expressions.");
+    }
 }

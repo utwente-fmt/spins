@@ -14,6 +14,13 @@
 
 package spins.promela.compiler.expression;
 
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.bool;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.compare;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.constant;
+import static spins.promela.compiler.parser.PromelaConstants.EQ;
+import static spins.promela.compiler.parser.PromelaConstants.NEQ;
+
 import java.util.Set;
 
 import spins.promela.compiler.parser.MyParseException;
@@ -24,7 +31,8 @@ import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.VariableAccess;
 import spins.promela.compiler.variable.VariableType;
 
-public class ChannelOperation extends Expression {
+public class ChannelOperation extends Expression
+                              implements TranslatableExpression {
 	private final Expression expr;
 
 	public ChannelOperation(final Token token, final Expression expr) throws ParseException {
@@ -52,7 +60,7 @@ public class ChannelOperation extends Expression {
 			case PromelaConstants.NFULL:
 				return "isNotFull()";
 			default:
-				throw new MyParseException("Unknow kind of operation on the channel", getToken());
+				throw new MyParseException("Unknown kind of operation on the channel", getToken());
 		}
 	}
 
@@ -85,4 +93,33 @@ public class ChannelOperation extends Expression {
 	public Expression getExpression() {
 		return expr;
 	}
+
+    public Expression translate() {
+        String name = getToken().image;
+        Identifier id = (Identifier)getExpression();
+        if (((ChannelType)id.getVariable().getType()).isRendezVous())
+            return bool(true); // Spin returns true in this case (see garp model)
+        VariableType type = id.getVariable().getType();
+        int buffer = ((ChannelType)type).getBufferSize();
+        Expression left = chanLength(id);
+        Expression right = null;
+        int op = -1;
+        if (name.equals("empty")) {
+            op = EQ;
+            right = constant (0);
+        } else if (name.equals("nempty")) {
+            op = NEQ;
+            right = constant (0);
+        } else if (name.equals("full")) {
+            op = EQ;
+            right = constant (buffer);
+        } else if (name.equals("nfull")) {
+            op = NEQ;
+            right = constant (buffer);
+        } else {
+            throw new AssertionError();
+        }
+        return compare(op, left, right);
+    }
+   
 }

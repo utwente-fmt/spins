@@ -1042,10 +1042,10 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
     }
 
     private static boolean mce(LTSminModel model, Expression e2,
-                               SimplePredicate a, boolean invert2) {
+                               SimplePredicate a, boolean invert) {
         List<SimplePredicate> gb_sp = new ArrayList<SimplePredicate>();
-        boolean missed = extract_conjunct_predicates(model, gb_sp, e2, invert2);
-        if (invert2) {
+        boolean missed = extract_conjunct_predicates(model, gb_sp, e2, invert);
+        if (invert) {
             if (missed)
                 return true; // don't know
             for(SimplePredicate b : gb_sp) {

@@ -35,7 +35,6 @@ import spins.promela.compiler.actions.OptionAction;
 import spins.promela.compiler.expression.AritmicExpression;
 import spins.promela.compiler.expression.BooleanExpression;
 import spins.promela.compiler.expression.ChannelLengthExpression;
-import spins.promela.compiler.expression.ChannelOperation;
 import spins.promela.compiler.expression.ChannelReadExpression;
 import spins.promela.compiler.expression.CompareExpression;
 import spins.promela.compiler.expression.ConstantExpression;
@@ -44,6 +43,7 @@ import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
+import spins.promela.compiler.expression.TranslatableExpression;
 import spins.promela.compiler.ltsmin.LTSminDMWalker;
 import spins.promela.compiler.ltsmin.LTSminPrinter;
 import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
@@ -59,7 +59,6 @@ import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.Variable;
-import spins.promela.compiler.variable.VariableType;
 
 
 public class SimplePredicate {
@@ -294,33 +293,10 @@ public class SimplePredicate {
                     missed = true; // missed one!
                 }
             }
-        } else if (e instanceof ChannelOperation) {
-            ChannelOperation co = (ChannelOperation)e;
-            String name = co.getToken().image;
-            Identifier id = (Identifier)co.getExpression();
-            if (((ChannelType)id.getVariable().getType()).isRendezVous())
-                return false; // Spin returns true in this case (see garp model)
-            VariableType type = id.getVariable().getType();
-            int buffer = ((ChannelType)type).getBufferSize();
-            Expression left = chanLength(id);
-            Expression right = null;
-            int op = -1;
-            if (name.equals("empty")) {
-                op = EQ;
-                right = constant (0);
-            } else if (name.equals("nempty")) {
-                op = NEQ;
-                right = constant (0);
-            } else if (name.equals("full")) {
-                op = EQ;
-                right = constant (buffer);
-            } else if (name.equals("nfull")) {
-                op = NEQ;
-                right = constant (buffer);
-            } else {
-                throw new AssertionError();
-            }
-            missed |= extract_conjunct_predicates(model, sp, compare(op, left, right), invert);
+        } else if (e instanceof TranslatableExpression) {
+            TranslatableExpression te = (TranslatableExpression)e;
+            Expression ee = te.translate();
+            missed |= extract_conjunct_predicates(model, sp, ee, invert);
         } else if (e instanceof RemoteRef) {
             RemoteRef rr = (RemoteRef)e;
             Expression labelExpr = rr.getLabelExpression(model);

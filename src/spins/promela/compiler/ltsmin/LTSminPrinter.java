@@ -58,8 +58,6 @@ import spins.promela.compiler.actions.PrintAction;
 import spins.promela.compiler.actions.Sequence;
 import spins.promela.compiler.expression.AritmicExpression;
 import spins.promela.compiler.expression.BooleanExpression;
-import spins.promela.compiler.expression.ChannelLengthExpression;
-import spins.promela.compiler.expression.ChannelOperation;
 import spins.promela.compiler.expression.ChannelReadExpression;
 import spins.promela.compiler.expression.CompareExpression;
 import spins.promela.compiler.expression.CompoundExpression;
@@ -71,6 +69,7 @@ import spins.promela.compiler.expression.MTypeReference;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
+import spins.promela.compiler.expression.TranslatableExpression;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
@@ -96,7 +95,6 @@ import spins.promela.compiler.parser.PromelaConstants;
 import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.ChannelVariable;
 import spins.promela.compiler.variable.Variable;
-import spins.promela.compiler.variable.VariableType;
 import spins.util.IndexedSet;
 import spins.util.StringWriter;
 
@@ -1058,10 +1056,9 @@ public class LTSminPrinter {
 			w.append(" ").append(ce.getToken().image).append(" ");
 			generateExpression(w, ce.getExpr2(), state);
 			w.append(")");
-		} else if(e instanceof ChannelLengthExpression) {
-			ChannelLengthExpression cle = (ChannelLengthExpression)e;
-			Identifier id = (Identifier)cle.getExpression();
-			generateExpression(w, chanLength(id), state);
+		} else if(e instanceof TranslatableExpression) {
+		    TranslatableExpression te = (TranslatableExpression)e;
+			generateExpression(w, te.translate(), state);
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
@@ -1092,31 +1089,6 @@ public class LTSminPrinter {
 				w.append(")");
 			}
 			w.append("))");
-		} else if(e instanceof ChannelOperation) {
-			ChannelOperation co = (ChannelOperation)e;
-			String name = co.getToken().image;
-			Identifier id = (Identifier)co.getExpression();
-			Variable var = id.getVariable();
-			VariableType type = var.getType();
-			if (!(type instanceof ChannelType) || ((ChannelType)type).getBufferSize()==-1)
-				throw error("Unknown channel length of channel "+ var.getName(), co.getToken());
-			int buffer = ((ChannelType)type).getBufferSize();
-			if (0 == buffer) { // chanops on rendez-vous return true
-				w.append("true");
-				return;
-			}
-			w.append("(");
-			generateExpression(w, chanLength(id), state);
-			if (name.equals("empty")) {
-				w.append("== 0");
-			} else if (name.equals("nempty")) {
-				w.append("!= 0");
-			} else if (name.equals("full")) {
-				w.append("=="+ buffer);
-			} else if (name.equals("nfull")) {
-				w.append("!="+ buffer);
-			}
-			w.append(")");
 		} else if(e instanceof MTypeReference) {
 			MTypeReference ref = (MTypeReference)e;
 			w.append(ref.getNumber());

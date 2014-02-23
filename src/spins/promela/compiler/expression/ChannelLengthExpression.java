@@ -16,6 +16,7 @@ package spins.promela.compiler.expression;
 
 import java.util.Set;
 
+import spins.promela.compiler.ltsmin.util.LTSminUtil;
 import spins.promela.compiler.parser.MyParseException;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
@@ -23,7 +24,8 @@ import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.VariableAccess;
 import spins.promela.compiler.variable.VariableType;
 
-public class ChannelLengthExpression extends Expression {
+public class ChannelLengthExpression extends Expression
+                                     implements TranslatableExpression {
 	private final Expression expr;
 
 	public ChannelLengthExpression(final Token token, final Expression expr) throws ParseException {
@@ -72,4 +74,9 @@ public class ChannelLengthExpression extends Expression {
 	public Expression getExpression() {
 		return expr;
 	}
+
+    public Expression translate() {
+        Identifier id = (Identifier)getExpression();
+        return LTSminUtil.chanLength(id);
+    }
 }

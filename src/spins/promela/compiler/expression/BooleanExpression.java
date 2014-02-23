@@ -30,7 +30,7 @@ import spins.promela.compiler.variable.VariableType;
  * 
  * @author Marc de Jonge
  */
-public class BooleanExpression extends Expression {
+public class BooleanExpression extends NAryExpression {
 	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -4022528945025403911L;
 
@@ -154,4 +154,18 @@ public class BooleanExpression extends Expression {
 	public Expression getExpr2() {
 		return ex2;
 	}
+
+    @Override
+    protected int totalExpressions() {
+        return (ex2 == null ? 1 : 2);
+    }
+
+    @Override
+    protected Expression getExpression(int i) {
+        switch (i) {
+        case 0: return ex1;
+        case 1: return ex2;
+        }
+        throw new AssertionError("Wrong number of expressions.");
+    }
 }

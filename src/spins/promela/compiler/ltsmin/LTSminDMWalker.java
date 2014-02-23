@@ -24,20 +24,17 @@ import spins.promela.compiler.actions.GotoAction;
 import spins.promela.compiler.actions.OptionAction;
 import spins.promela.compiler.actions.PrintAction;
 import spins.promela.compiler.actions.Sequence;
-import spins.promela.compiler.expression.AritmicExpression;
-import spins.promela.compiler.expression.BooleanExpression;
-import spins.promela.compiler.expression.ChannelLengthExpression;
-import spins.promela.compiler.expression.ChannelOperation;
 import spins.promela.compiler.expression.ChannelReadExpression;
-import spins.promela.compiler.expression.CompareExpression;
 import spins.promela.compiler.expression.ConstantExpression;
 import spins.promela.compiler.expression.EvalExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.expression.MTypeReference;
+import spins.promela.compiler.expression.NAryExpression;
 import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
+import spins.promela.compiler.expression.TranslatableExpression;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
@@ -517,46 +514,14 @@ public class LTSminDMWalker {
 		if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {
 			new IdMarker(params, mark).mark(e);
-		} else if(e instanceof AritmicExpression) {
-			AritmicExpression ae = (AritmicExpression)e;
-			Expression ex1 = ae.getExpr1();
-			Expression ex2 = ae.getExpr2();
-			Expression ex3 = ae.getExpr3();
-			if (ex2 == null) {
-				walkExpression(params, ex1, mark);
-			} else if (ex3 == null) {
-				if (ae.getToken().image.equals("%")) {
-					// Modulo takes a special notation to make sure that it
-					// returns a positive value
-					walkExpression(params, ex1, mark);
-					walkExpression(params, ex2, mark);
-				} else {
-					walkExpression(params, ex1, mark);
-					walkExpression(params, ex2, mark);
-				}
-			} else {
-				walkExpression(params, ex1, mark);
-				walkExpression(params, ex2, mark);
-				walkExpression(params, ex3, mark);
-			}
-		} else if(e instanceof BooleanExpression) {
-			BooleanExpression be = (BooleanExpression)e;
-			Expression ex1 = be.getExpr1();
-			Expression ex2 = be.getExpr2();
-			if (ex2 == null) {
-				walkExpression(params, ex1, mark);
-			} else {
-				walkExpression(params, ex1, mark);
-				walkExpression(params, ex2, mark);
-			}
-		} else if(e instanceof CompareExpression) {
-			CompareExpression ce = (CompareExpression)e;
-			walkExpression(params, ce.getExpr1(), mark);
-			walkExpression(params, ce.getExpr2(), mark);
-		} else if(e instanceof ChannelLengthExpression) {
-			ChannelLengthExpression cle = (ChannelLengthExpression)e;
-			Identifier id = (Identifier)cle.getExpression();
-			walkExpression(params, chanLength(id), mark);
+		} else if(e instanceof NAryExpression) {
+            NAryExpression ae = (NAryExpression)e;
+            for (Expression expr : ae) {
+                walkExpression(params, expr, mark);
+            }
+		} else if(e instanceof TranslatableExpression) {
+		    TranslatableExpression te = (TranslatableExpression)e;
+			walkExpression(params, te.translate(), mark);
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
@@ -570,12 +535,6 @@ public class LTSminDMWalker {
 				m++;
 			}
 			walkExpression(params, chanLength(id), mark);
-		} else if(e instanceof ChannelOperation) {
-			ChannelOperation co = (ChannelOperation)e;
-			Identifier id = (Identifier)co.getExpression();
-			ChannelType ct = (ChannelType)id.getVariable().getType();
-			if (!ct.isRendezVous()) // chanops on rendez-vous return true
-				walkExpression(params, chanLength(id), mark);
 		} else if(e instanceof RunExpression) {
 			DMIncRead(params, _NR_PR); // only the guard!
 		} else if(e instanceof MTypeReference) {
