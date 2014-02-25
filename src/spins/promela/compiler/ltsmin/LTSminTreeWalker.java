@@ -121,6 +121,8 @@ import spins.promela.compiler.variable.VariableType;
  */
 public class LTSminTreeWalker {
 
+    private static final boolean SPLIT = false;
+    
     public List<ReadAction> reads = new ArrayList<ReadAction>();
     public List<SendAction> writes = new ArrayList<SendAction>();
     
@@ -951,7 +953,8 @@ public class LTSminTreeWalker {
 		}
 	}
 
-	private List<LTSminTransition> createStateTransition(Transition t,
+	@SuppressWarnings("unused")
+    private List<LTSminTransition> createStateTransition(Transition t,
 	                                                     Transition n) {
 		++debug.say_indent;
 		if(n!=null) {
@@ -970,21 +973,23 @@ public class LTSminTreeWalker {
 		int buffer = 1;
 		int array = -1;
 		boolean read = false;
-        for (Action action : t) {
-            Identifier id = getChannel(action);
-            if (id == null) continue;
-
-            ChannelVariable cv = (ChannelVariable)id.getVariable();
-            if (cv.getType().getBufferSize() > -1) {
-                multiple = id;
-                buffer = cv.getType().getBufferSize();
-                array = cv.getArraySize();
-                read = action instanceof ChannelReadAction;
-                break;
+		if (SPLIT) {
+            for (Action action : t) {
+                Identifier id = getChannel(action);
+                if (id == null) continue;
+    
+                ChannelVariable cv = (ChannelVariable)id.getVariable();
+                if (cv.getType().getBufferSize() > -1) {
+                    multiple = id;
+                    buffer = cv.getType().getBufferSize();
+                    array = cv.getArraySize();
+                    read = action instanceof ChannelReadAction;
+                    break;
+                }
             }
-        }
+		}
 
-        for (int x = 0; x < (array == -1 ? 1 : array) ; x++ ) {
+        for (int x = 0; x < (array == -1 || !SPLIT ? 1 : array) ; x++ ) {
         for (int y = 0; y < buffer; y++ ) {
     		LTSminTransition lt = new LTSminTransition(t, n);
     
@@ -1233,7 +1238,8 @@ public class LTSminTreeWalker {
 	 * "If an atomic sequence contains a rendezvous send statement, control
 	 * passes from sender to receiver when the rendezvous handshake completes."
 	 */
-	private void createRendezVousTransition(Transition n,
+    @SuppressWarnings("unused")
+    private void createRendezVousTransition(Transition n,
 	                                        SendAction sa, ReadAction ra,
 	                                        List<LTSminTransition> set) {
 		if (sa.p == ra.p) return; // skip impotent matches
@@ -1287,7 +1293,7 @@ public class LTSminTreeWalker {
 		}
 
 		// create transitions for all items in a channel array
-		for (int x = 0; x < (arraySize == -1 ? 1 : arraySize); x++) {
+		for (int x = 0; x < (arraySize == -1 || !SPLIT ? 1 : arraySize); x++) {
 		    LTSminTransition lt = new LTSminTransition(sa.t, n);
     		lt.setSync(ra.t);
     
@@ -1296,7 +1302,8 @@ public class LTSminTreeWalker {
             addSpecialGuards(lt, sa.t, sa.p); // proc die order && provided condition
             addSpecialGuards(lt, ra.t, ra.p); // proc die order && provided condition
     		if (arraySize > -1) { // array of channels
-                lt.addGuard(compare(PromelaConstants.EQ, array1, constant(x)));
+    		    if (SPLIT)
+    		        lt.addGuard(compare(PromelaConstants.EQ, array1, constant(x)));
     			lt.addGuard(compare(PromelaConstants.EQ, array1, array2));
     		}
     
