@@ -39,6 +39,7 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -861,11 +862,12 @@ public class LTSminTreeWalker {
 			} else if (isRendezVousReadAction(a)) {
 				// skip, a transition is created for the comm. partner
 			} else {
-				LTSminTransition lt = createStateTransition(out, nout);
-				model.addTransition(lt);
-				State to = out.getTo();
-                LTSminState end = createCrossProduct(to, nto, alevel);
-				annotate(lt, begin, end);
+				for (LTSminTransition lt : createStateTransition(out, nout)) {
+        			model.addTransition(lt);
+        			State to = out.getTo();
+                    LTSminState end = createCrossProduct(to, nto, alevel);
+        			annotate(lt, begin, end);
+				}
 			}
 		}}
 
@@ -949,7 +951,8 @@ public class LTSminTreeWalker {
 		}
 	}
 
-	private LTSminTransition createStateTransition(Transition t, Transition n) {
+	private List<LTSminTransition> createStateTransition(Transition t,
+	                                                     Transition n) {
 		++debug.say_indent;
 		if(n!=null) {
 			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName() + " || " + n.getClass().getName());
@@ -958,37 +961,84 @@ public class LTSminTreeWalker {
 		}
 		--debug.say_indent;
 
+        LinkedList<LTSminTransition> list = new LinkedList<LTSminTransition>();      
 		ProcInstance p = (ProcInstance)t.getProc();
-		LTSminTransition lt = new LTSminTransition(t, n);
 
-		lt.addGuard(pcGuard(model, t.getFrom(), p)); // process counter
-		addSpecialGuards(lt, t, p); // proc die order && provided condition 
-		createEnabledGuard(t, lt); // enabled action or else transition 
+		// Find a channel for which we can create multiple transitions (buffer > 0)
+		// (also is buffer == 1, to simplify expressions)
+		Identifier multiple = null;
+		int buffer = 1;
+		int array = -1;
+		boolean read = false;
+        for (Action action : t) {
+            Identifier id = getChannel(action);
+            if (id == null) continue;
 
-        if (addNever(lt, n)) // sync with never transition first
-            return lt; // never deadlocks
-
-        // Create actions
-        if (t.getTo()==null) {
-            lt.addAction(new ResetProcessAction(p));
-        } else { // Action: PC counter update
-            lt.addAction(assign(model.sv.getPC(p), t.getTo().getStateId()));
+            ChannelVariable cv = (ChannelVariable)id.getVariable();
+            if (cv.getType().getBufferSize() > -1) {
+                multiple = id;
+                buffer = cv.getType().getBufferSize();
+                array = cv.getArraySize();
+                read = action instanceof ChannelReadAction;
+                break;
+            }
         }
 
-        // Actions: transition
-        for (Action action : t) {
-            if (action instanceof AssignAction) {
-                AssignAction aa = (AssignAction)action;
-                if (aa.getExpr() instanceof RunExpression) {
-                    lt.addAction(new ExprAction(aa.getExpr()));
-                    aa.setExpr(calc(PromelaConstants.MINUS, id(_NR_PR), constant(1)));
+        for (int x = 0; x < (array == -1 ? 1 : array) ; x++ ) {
+        for (int y = 0; y < buffer; y++ ) {
+    		LTSminTransition lt = new LTSminTransition(t, n);
+    
+    		lt.addGuard(pcGuard(model, t.getFrom(), p)); // process counter
+
+    		if (multiple != null) {
+                int next = read ? y+1 : y;
+                lt.addGuard(chanContentsGuard(multiple, PromelaConstants.EQ, next));
+                if (array != -1) {
+                    lt.addGuard(compare(PromelaConstants.EQ,
+                                        multiple.getArrayExpr(), constant(x)));
                 }
             }
-            lt.addAction(action);
-        }
-        
-		return lt;
+    		addSpecialGuards(lt, t, p); // proc die order && provided condition 
+    		createEnabledGuard(t, lt); // enabled action or else transition 
+    
+            if (addNever(lt, n)) {
+                list.add(lt);
+                continue;
+            } // never deadlocks
+    
+            // Create actions
+            if (t.getTo()==null) {
+                lt.addAction(new ResetProcessAction(p));
+            } else { // Action: PC counter update
+                lt.addAction(assign(model.sv.getPC(p), t.getTo().getStateId()));
+            }
+    
+            // Actions: transition
+            for (Action action : t) {
+                if (action instanceof AssignAction) {
+                    AssignAction aa = (AssignAction)action;
+                    if (aa.getExpr() instanceof RunExpression) {
+                        lt.addAction(new ExprAction(aa.getExpr()));
+                        aa.setExpr(calc(PromelaConstants.MINUS, id(_NR_PR), constant(1)));
+                    }
+                }
+                lt.addAction(action);
+            }
+            
+    		list.add(lt);
+		}}
+		
+		return list;
 	}
+
+    private Identifier getChannel(Action action) {
+        if (action instanceof ChannelSendAction) {
+            return ((ChannelSendAction)action).getIdentifier();
+        } else if (action instanceof ChannelReadAction) {
+            return ((ChannelReadAction)action).getIdentifier();
+        }
+        return null;
+    }
 
 	/**
 	 * Process enabler and allowed-to-die (instances die in stack order)
@@ -1154,8 +1204,7 @@ public class LTSminTreeWalker {
         }
         ReadAction ra = new ReadAction(csa, t, (ProcInstance)t.getProc());
         for (SendAction sa : writeActions) {
-            LTSminTransition lt = createRendezVousTransition(null, sa, ra);
-            if (null != lt) set.add(lt);
+            createRendezVousTransition(null, sa, ra, set);
         }
         return set;
     }
@@ -1172,8 +1221,7 @@ public class LTSminTreeWalker {
 		}
 		SendAction sa = new SendAction(csa, t, (ProcInstance)t.getProc());
 		for (ReadAction ra : readActions) {
-			LTSminTransition lt = createRendezVousTransition(n, sa, ra);
-			if (null != lt) set.add(lt);
+			createRendezVousTransition(n, sa, ra, set);
 		}
 		return set;
 	}
@@ -1185,9 +1233,10 @@ public class LTSminTreeWalker {
 	 * "If an atomic sequence contains a rendezvous send statement, control
 	 * passes from sender to receiver when the rendezvous handshake completes."
 	 */
-	private LTSminTransition createRendezVousTransition(Transition n,
-	                                            SendAction sa, ReadAction ra) {
-		if (sa.p == ra.p) return null; // skip impotent matches
+	private void createRendezVousTransition(Transition n,
+	                                        SendAction sa, ReadAction ra,
+	                                        List<LTSminTransition> set) {
+		if (sa.p == ra.p) return; // skip impotent matches
 		ChannelSendAction csa = sa.csa;
 		ChannelReadAction cra = ra.cra;
 		List<Expression> csa_exprs = csa.getExprs();
@@ -1195,7 +1244,8 @@ public class LTSminTreeWalker {
 		Identifier sendId = csa.getIdentifier();
 		Identifier recvId = ra.cra.getIdentifier();
 		Expression array1 = null, array2 = null;
-		if (sendId.getVariable().getArraySize() > -1) { // array of channels
+		int arraySize = sendId.getVariable().getArraySize();
+        if (arraySize > -1) { // array of channels
 			assert (recvId.getVariable().getArraySize() > -1);
 			array1 = recvId.getArrayExpr();
 			array2 = sendId.getArrayExpr();
@@ -1224,7 +1274,7 @@ public class LTSminTreeWalker {
 			} catch (ParseException e) {}
 			try { // we skip creating transitions for impotent matches:
 				if (array1.getConstantValue() != array2.getConstantValue())
-					return null;
+					return;
 			} catch (ParseException e) {}
 		}
 		for (int i = 0; i < cra_exprs.size(); i++) {
@@ -1232,49 +1282,57 @@ public class LTSminTreeWalker {
 			final Expression cra_expr = cra_exprs.get(i);
 			try { // we skip creating transitions for impotent matches:
 				if (csa_expr.getConstantValue() != cra_expr.getConstantValue())
-					return null;
+					return;
 			} catch (ParseException pe) {}
 		}
-		LTSminTransition lt = new LTSminTransition(sa.t, n);
-		lt.setSync(ra.t);
 
-		addSpecialGuards(lt, sa.t, sa.p); // proc die order && provided condition
-		addSpecialGuards(lt, ra.t, ra.p); // proc die order && provided condition
-		lt.addGuard(pcGuard(model, sa.t.getFrom(), sa.p));
-		lt.addGuard(pcGuard(model, ra.t.getFrom(), ra.p));
-		if (sendId.getVariable().getArraySize() > -1) { // array of channels
-			lt.addGuard(compare(PromelaConstants.EQ, array1, array2));
-		}
+		// create transitions for all items in a channel array
+		for (int x = 0; x < (arraySize == -1 ? 1 : arraySize); x++) {
+		    LTSminTransition lt = new LTSminTransition(sa.t, n);
+    		lt.setSync(ra.t);
+    
+    		lt.addGuard(pcGuard(model, sa.t.getFrom(), sa.p));
+    		lt.addGuard(pcGuard(model, ra.t.getFrom(), ra.p));
+            addSpecialGuards(lt, sa.t, sa.p); // proc die order && provided condition
+            addSpecialGuards(lt, ra.t, ra.p); // proc die order && provided condition
+    		if (arraySize > -1) { // array of channels
+                lt.addGuard(compare(PromelaConstants.EQ, array1, constant(x)));
+    			lt.addGuard(compare(PromelaConstants.EQ, array1, array2));
+    		}
+    
+    		/* Channel matches */
+    		for (int i = 0; i < cra_exprs.size(); i++) {
+    			final Expression csa_expr = csa_exprs.get(i);
+    			final Expression cra_expr = cra_exprs.get(i);
+    			if (!(cra_expr instanceof Identifier)) {
+    				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
+    			}
+    		}
 
-		/* Channel matches */
-		for (int i = 0; i < cra_exprs.size(); i++) {
-			final Expression csa_expr = csa_exprs.get(i);
-			final Expression cra_expr = cra_exprs.get(i);
-			if (!(cra_expr instanceof Identifier)) {
-				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
-			}
-		}
-
-		if (addNever(lt, n))
-		    return lt; // never deadlocks
-
-        /* Channel reads */
-        for (int i = 0; i < cra_exprs.size(); i++) {
-            final Expression csa_expr = csa_exprs.get(i);
-            final Expression cra_expr = cra_exprs.get(i);
-            if (cra_expr instanceof Identifier) {
-                lt.addAction(assign((Identifier)cra_expr,csa_expr));
+    		if (addNever(lt, n)) {
+    		    set.add(lt);
+    		    continue;
+    		}
+    
+            /* Channel reads */
+            for (int i = 0; i < cra_exprs.size(); i++) {
+                final Expression csa_expr = csa_exprs.get(i);
+                final Expression cra_expr = cra_exprs.get(i);
+                if (cra_expr instanceof Identifier) {
+                    lt.addAction(assign((Identifier)cra_expr,csa_expr));
+                }
             }
-        }
-
-		// Change process counter of sender
-		lt.addAction(assign(model.sv.getPC(sa.p), sa.t.getTo().getStateId()));
-		// Change process counter of receiver
-		lt.addAction(assign(model.sv.getPC(ra.p), ra.t.getTo().getStateId()));
-
-		for (int i = 1; i < ra.t.getActionCount(); i++)
-			lt.addAction(ra.t.getAction(i));
-		if (sa.t.getActionCount() > 1) throw new AssertionError("Rendez-vous send action in d_step.");
-		return lt;
+    
+    		// Change process counter of sender
+    		lt.addAction(assign(model.sv.getPC(sa.p), sa.t.getTo().getStateId()));
+    		// Change process counter of receiver
+    		lt.addAction(assign(model.sv.getPC(ra.p), ra.t.getTo().getStateId()));
+    
+    		for (int i = 1; i < ra.t.getActionCount(); i++)
+    			lt.addAction(ra.t.getAction(i));
+    		if (sa.t.getActionCount() > 1) throw new AssertionError("Rendez-vous send action in d_step.");
+    
+            set.add(lt);
+		}
 	}
 }
