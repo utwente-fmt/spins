@@ -21,8 +21,11 @@ import static spins.promela.compiler.parser.PromelaConstants.LTE;
 import static spins.promela.compiler.parser.PromelaConstants.NEQ;
 import static spins.promela.compiler.parser.PromelaConstants.tokenImage;
 
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import spins.promela.compiler.ProcInstance;
 import spins.promela.compiler.Proctype;
@@ -57,6 +60,7 @@ import spins.promela.compiler.ltsmin.model.ResetProcessAction;
 import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.parser.ParseException;
+import spins.promela.compiler.parser.PromelaTokenManager;
 import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.Variable;
 
@@ -248,7 +252,146 @@ public class SimplePredicate {
         return sp.comparison == GT || 
             sp.comparison == GTE;
     }
+
+    class Constant extends SimplePredicate {
+        public ConstantExpression ce;
+    }
+
+    static class PredicateList implements Iterable<SimplePredicate> {
+        private List<SimplePredicate> list = new LinkedList<SimplePredicate>();
+        public void add(SimplePredicate l) {
+            list.add(l);
+        }
+        public Iterator<SimplePredicate> iterator() {
+            return list.iterator();
+        }
+
+        public void and(SimplePredicate l) {
+            
+        }        
+    }
     
+    static class PredicateMap {
+        private Map<Identifier, PredicateList> constraints = new HashMap<Identifier, PredicateList>();
+        private boolean missed;
+
+        private void and(SimplePredicate sp) {
+            PredicateList pl = constraints.get(sp.id);
+            if (pl == null) {
+                pl = new PredicateList();
+                constraints.put(sp.id, pl);
+                pl.add(sp);
+            } else {
+                pl = new PredicateList(); 
+                constraints.put(sp.id, pl);
+                pl.and(sp);
+            }
+        }
+
+        public void and(PredicateList pl) {
+            for (SimplePredicate sp : pl) {
+                and(sp);
+            }
+        }
+
+        private void or(SimplePredicate sp) {
+            PredicateList pl = constraints.get(sp.id);
+            if (pl == null) {
+                pl = new PredicateList();
+                constraints.put(sp.id, pl);
+                pl.add(sp);
+            } else {
+                pl = new PredicateList(); 
+                constraints.put(sp.id, pl);
+                pl.and(sp);
+            }
+        }
+
+        public void or(PredicateList pl) {
+            for (SimplePredicate sp : pl) {
+                or(sp);
+            }
+        }
+
+        public PredicateMap and(PredicateMap right) {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+        public PredicateMap or(PredicateMap right) {
+            // TODO Auto-generated method stub
+            return null; // OR?????
+        }
+
+    }
+
+    /**
+     */
+    private static PredicateMap spes (LTSminModel model, PredicateMap pm,
+                                      Expression e, boolean invert)
+                                               throws ConflictsException {
+        if (e instanceof BooleanExpression) {
+            BooleanExpression be = (BooleanExpression)e;
+            switch (be.getToken().kind) {
+            case PromelaTokenManager.BNOT:
+            case PromelaTokenManager.LNOT:
+                return spes (model, pm, be.getExpr1(), !invert);
+            case PromelaTokenManager.BAND:
+            case PromelaTokenManager.LAND:
+                if (invert) {
+                    return spesOr(model, pm, be, invert);
+                } else {
+                    return spesAnd(model, pm, be, invert);
+                }
+            case PromelaTokenManager.BOR:
+            case PromelaTokenManager.LOR:
+                if (invert) {
+                    return spesAnd(model, pm, be, invert);
+                } else {
+                    return spesOr(model, pm, be, invert);
+                }
+            default: throw new RuntimeException("Unknown boolean expression: "+ e);
+            }
+        } else if (e instanceof EvalExpression) {
+            EvalExpression eval = (EvalExpression)e;
+            return spes (model, pm, eval.getExpression(), invert);
+        } else {
+            PredicateList pl = new PredicateList();
+            PredicateMap res = new PredicateMap();
+            res.missed = extract_conjunct_predicates (model, pl.list, e, invert);
+            pm.and(pl);
+            return pm;
+        }
+    }
+
+    private static PredicateMap spesAnd(LTSminModel model, PredicateMap pm,
+                                         BooleanExpression be, boolean invert)
+                                                    throws ConflictsException {
+        PredicateMap left, right;
+        left = spes(model, pm, be.getExpr1(), invert); // conflicts propagate
+        right = spes(model, pm, be.getExpr2(), invert);// conflicts propagate
+        if (left == null) return right;
+        if (right == null) return left;
+        return left.and(right); // cannot yield top      
+    }
+
+    private static PredicateMap spesOr(LTSminModel model, PredicateMap pm,
+                                        BooleanExpression be, boolean invert)
+                                                    throws ConflictsException {
+        PredicateMap left = null, right = null;
+        try {
+            left = spes(model, pm, be.getExpr1(), invert);
+            if (left.missed) return null; // cannot constrain exactly
+        } catch (ConflictsException ce) {}
+        try {
+            right = spes(model, pm, be.getExpr2(), invert);
+            if (right.missed) return null; // cannot constrain exactly
+        } catch (ConflictsException ce) {}
+        if (left == null) return right;
+        if (right == null) return left;
+        return left.or(right); // cannot yield conflict (bottom)
+    }
+
     /**
      * Collects all simple predicates in an expression e.
      * SimplePred ::= cvarref <comparison> constant | constant <comparison> cvarref
@@ -365,8 +508,6 @@ public class SimplePredicate {
     public boolean is_conflict_predicate(LTSminModel model, SimplePredicate p2) {
 
         SimplePredicate p1 = this;
-        // assume no conflict
-        boolean no_conflict = true;
         // conflict only possible on same variable
         String ref1, ref2;
         try {
@@ -376,50 +517,57 @@ public class SimplePredicate {
             throw new AssertionError("Serialization of expression "+ p1.id +" or "+ p2.id +" failed: "+ ae);
         }
         if (ref1.equals(ref2)) { // syntactic matching, this suffices if we assume expression is evaluated on the same state vector
-            switch(p1.comparison) {
-                case LT:
-                    // no conflict if one of these cases
-                    no_conflict =
-                    (p2.constant < p1.constant - 1) ||
-                    (p2.constant == p1.constant - 1 && p2.comparison != GT) ||
-                    (lt(p2) || p2.comparison == NEQ);
-                    break;
-                case LTE:
-                    // no conflict if one of these cases
-                    no_conflict =
-                    (p2.constant < p1.constant) ||
-                    (p2.constant == p1.constant && p2.comparison != GT) ||
-                    (lt(p2) || p2.comparison == NEQ);
-                    break;
-                case EQ:
-                    // no conflict if one of these cases
-                    no_conflict =
-                    (p2.constant == p1.constant && (p2.comparison == EQ || p2.comparison == LTE || p2.comparison == GTE)) ||
-                    (p2.constant != p1.constant && p2.comparison == NEQ) ||
-                    (p2.constant < p1.constant && p2.comparison == GT || p2.comparison == GTE) ||
-                    (p2.constant > p1.constant && lt(p2));
-                    break;
-                case NEQ:
-                    // no conflict if one of these cases
-                    no_conflict =
-                    (p2.constant != p1.constant) ||
-                    (p2.constant == p1.constant && p2.comparison != EQ);
-                    break;
-                case GT:
-                    // no conflict if one of these cases
-                    no_conflict =
-                    (p2.constant > p1.constant + 1) ||
-                    (p2.constant == p1.constant + 1 && p2.comparison != LT) ||
-                    (gt(p2) || p2.comparison == NEQ);
-                    break;
-                case GTE:
-                    // no conflict if one of these cases
-                    no_conflict =
-                    (p2.constant > p1.constant) ||
-                    (p2.constant == p1.constant && p2.comparison != LT) ||
-                    (gt(p2) || p2.comparison == NEQ);
-                    break;
-            }
+            return p1.conflict(p2);
+        }
+        return false;
+    }
+    private boolean conflict(SimplePredicate p2) {
+        SimplePredicate p1 = this;
+        boolean no_conflict;
+        switch(p1.comparison) {
+            case LT:
+                // no conflict if one of these cases
+                no_conflict =
+                (p2.constant < p1.constant - 1) ||
+                (p2.constant == p1.constant - 1 && p2.comparison != GT) ||
+                (lt(p2) || p2.comparison == NEQ);
+                break;
+            case LTE:
+                // no conflict if one of these cases
+                no_conflict =
+                (p2.constant < p1.constant) ||
+                (p2.constant == p1.constant && p2.comparison != GT) ||
+                (lt(p2) || p2.comparison == NEQ);
+                break;
+            case EQ:
+                // no conflict if one of these cases
+                no_conflict =
+                (p2.constant == p1.constant && (p2.comparison == EQ || p2.comparison == LTE || p2.comparison == GTE)) ||
+                (p2.constant != p1.constant && p2.comparison == NEQ) ||
+                (p2.constant < p1.constant && p2.comparison == GT || p2.comparison == GTE) ||
+                (p2.constant > p1.constant && lt(p2));
+                break;
+            case NEQ:
+                // no conflict if one of these cases
+                no_conflict =
+                (p2.constant != p1.constant) ||
+                (p2.constant == p1.constant && p2.comparison != EQ);
+                break;
+            case GT:
+                // no conflict if one of these cases
+                no_conflict =
+                (p2.constant > p1.constant + 1) ||
+                (p2.constant == p1.constant + 1 && p2.comparison != LT) ||
+                (gt(p2) || p2.comparison == NEQ);
+                break;
+            case GTE:
+                // no conflict if one of these cases
+                no_conflict =
+                (p2.constant > p1.constant) ||
+                (p2.constant == p1.constant && p2.comparison != LT) ||
+                (gt(p2) || p2.comparison == NEQ);
+                break;
+            default: throw new AssertionError();
         }
         return !no_conflict;
     }

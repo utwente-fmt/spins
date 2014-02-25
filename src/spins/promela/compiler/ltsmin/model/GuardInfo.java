@@ -117,7 +117,9 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
         CNF cnf = new CNF(m);
         cnf.walkGuard(e, false, opts);
         for (D disjunct : cnf) {
-            addGuard(trans, new LTSminGuard(disjunct.getExpression()));
+            Expression ed = disjunct.getExpression();
+            //SimplePredicate.extract_conjunct_predicates(m, sps, ed, false); 
+            addGuard(trans, new LTSminGuard(ed));
         }
         if (debug.isVerbose()) {
             Expression cnfExpr = cnf.getExpression();
@@ -128,7 +130,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
         }
     }
 
-	public void addGuard(int trans, LTSminGuard g) {
+	private void addGuard(int trans, LTSminGuard g) {
 	    if (fixed)
 	        throw new AssertionError("Mixing guards and other state labels!");
 		int idx = labels.get2(g);
