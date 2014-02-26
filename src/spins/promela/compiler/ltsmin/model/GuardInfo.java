@@ -7,6 +7,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -39,7 +40,18 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
     private boolean fixed = false;
 
     private Map<String, DepMatrix> matrices = new HashMap<String, DepMatrix>();
-    
+    private List<String> export_matrices = new LinkedList<String>();
+
+    public Iterable<String> exports = new Iterable<String>() {
+        public Iterator<String> iterator() {
+            return export_matrices.iterator();
+        }
+    };
+
+    public int getNrExports() {
+        return export_matrices.size();
+    }
+
 	/**
 	 *        guards >
 	 * guards ...    ...
@@ -262,8 +274,10 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
         commutes_matrix = c;
     }
 
-    public void setMatrix(String mName, DepMatrix m) {
+    public void setMatrix(String mName, DepMatrix m, boolean export) {
         DepMatrix x = matrices.put(mName, m);
+        if (export)
+            export_matrices.add(mName);
         if (x != null) {
             throw new AssertionError("Matrix already set: "+ mName);
         }
@@ -275,5 +289,9 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 
     public List<LTSminGuard> getLabels() {
         return labels.list();
+    }
+
+    public void setMatrix(String mName, DepMatrix m) {
+        setMatrix(mName, m, false);
     }
 }

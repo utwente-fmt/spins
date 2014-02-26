@@ -163,6 +163,7 @@ public class LTSminPrinter {
 		generateDepMatrix(w, model.getDepMatrix(), DM_NAME);
 		generateDMFunctions(w, model.getDepMatrix());
 		generateGuardMatrices(w, model, no_gm);
+	    generateOtherMatrices(w, model);
 		generateGuardFunctions(w, model, no_gm);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
@@ -178,7 +179,92 @@ public class LTSminPrinter {
 		}
 	}
 
-	private static void generateTypeDef(StringWriter w, LTSminModel model) {
+	private static void generateOtherMatrices(StringWriter w, LTSminModel model) {
+        GuardInfo gi = model.getGuardInfo();
+
+        w.appendLine("");
+        w.appendLine("static const char *matrices[] = {");
+        w.indent();
+        for (String matrix : gi.exports) {
+            w.appendLine("\"",matrix,"\",");
+        }
+        w.appendLine("\"\"");
+        w.outdent();
+        w.appendLine("};");
+
+        w.appendLine("");
+        w.appendLine("static const int matrix_dimensions[][2] = {");
+        w.indent();
+        for (String matrix : gi.exports) {
+            DepMatrix dm = gi.getMatrix(matrix);
+            int rows = dm.getNrRows();
+            int cols = dm.getNrCols();
+            w.appendLine("{"+ rows +", "+ cols +"},");
+        }
+        w.appendLine("0");
+        w.outdent();
+        w.appendLine("};");
+
+        for (String matrix : gi.exports) {
+            w.appendLine("");
+            generateDepMatrix(w, gi.getMatrix(matrix), matrix);
+        }
+
+        w.appendLine("");
+        w.appendLine("const int* spins_get_matrix(int m, int x) {");
+        w.indent();
+        w.appendLine("assert(m < ",gi.getNrExports(), ", \"spins_get_matrix: invalid matrix index %d\", m);");
+        w.appendLine("switch(m) {");
+        int m = 0;
+        for (String matrix : gi.exports) {
+            DepMatrix dm = gi.getMatrix(matrix);
+            w.appendLine("case ",m,": {");
+            w.indent();
+            w.appendLine("assert(x < ", dm.getNrRows(), ", \"spins_get_matrix: invalid row index %d\", x);");
+            w.appendLine("return "+ matrix +"[x];");
+            w.outdent();
+            w.appendLine("}");
+            ++m;
+        }
+        w.appendLine("}");
+        w.appendLine("return 0;");
+        w.outdent();
+        w.appendLine("}");
+
+        w.appendLine("");
+        w.appendLine("const int spins_get_matrix_count() {");
+        w.indent();
+        w.appendLine("return "+ gi.getNrExports() +";");
+        w.outdent();
+        w.appendLine("}");
+        w.appendLine();
+
+        w.appendLine("");
+        w.appendLine("const char *spins_get_matrix_name(int m) {");
+        w.indent();
+        w.appendLine("assert(m < ",gi.getNrExports(), ", \"spins_get_matrix: invalid matrix index %d\", m);");
+        w.appendLine("return matrices[m];");
+        w.outdent();
+        w.appendLine("}");
+
+        w.appendLine("");
+        w.appendLine("const int spins_get_matrix_row_count(int m) {");
+        w.indent();
+        w.appendLine("assert(m < ",gi.getNrExports(), ", \"spins_get_matrix: invalid matrix index %d\", m);");
+        w.appendLine("return matrix_dimensions[m][0];");
+        w.outdent();
+        w.appendLine("}");
+
+        w.appendLine("");
+        w.appendLine("const int spins_get_matrix_col_count(int m) {");
+        w.indent();
+        w.appendLine("assert(m < ",gi.getNrExports(), ", \"spins_get_matrix: invalid matrix index %d\", m);");
+        w.appendLine("return matrix_dimensions[m][1];");
+        w.outdent();
+        w.appendLine("}");
+	}
+
+    private static void generateTypeDef(StringWriter w, LTSminModel model) {
 		for(LTSminTypeStruct struct : model.sv.getTypes()) {
 			w.appendLine("typedef struct ", struct.getName()," {");
 			w.indent();
@@ -1463,6 +1549,7 @@ public class LTSminPrinter {
 	    GuardInfo gm = model.getGuardInfo();
         int nTrans = gm.getTransMatrix().size();
 
+        w.appendLine("");
 	    w.appendLine("int spins_get_guard_count() {");
 		w.indent();
 		w.appendLine("return ",gm.getNumberOfGuards(),";");

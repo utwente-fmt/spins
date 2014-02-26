@@ -133,8 +133,14 @@ public class LTSminGMWalker {
         // generate NDS matrix
         report.setTotal(nTrans*nLabels);
         int nnds = generateNDSMatrix (model, guardInfo);
-        report.overwriteTotals( nnds, "!NDS guards");
+        report.overwriteTotals(nnds, "!NDS guards");
 
+        // generate MDS matrix
+        report.setTotal(nTrans*nLabels);
+        int disables = generateMDSMatrix (model, guardInfo);
+        report.overwriteTotals(disables, "MDS guards");
+
+        // generate NDS transitions
         ModelMatrixGenerator.debug = debug;
         report.setTotal(nTrans*nTrans);
         int nndt = generateNDStrans (model, guardInfo);
@@ -479,6 +485,83 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             if (!conflicts) {
                 return true;
         	}
+        }
+        return false;
+    }
+    
+    /**
+     * MUST DISABLE
+     */
+    static final String MDS = "dm_must_disable";
+    private static int generateMDSMatrix(LTSminModel model, GuardInfo guardInfo) {
+        int nlabels = guardInfo.getNumberOfLabels();
+        DepMatrix mds = new DepMatrix(nlabels, model.getTransitions().size());
+        guardInfo.setMatrix(MDS, mds, true);
+        int disables = 0;
+        for (int g = 0; g <  mds.getNrRows(); g++) {
+            LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
+            for (LTSminTransition trans : model.getTransitions()) {
+                report.updateProgress ();
+                if (disables(model, trans, guard.getExpr(), g, false)) {
+                    mds.setDependent(g, trans.getGroup());
+                    disables += 1;
+                }
+            }
+        }
+        return disables;
+    }
+    
+    /**
+     * Underestimates disabling
+     * @return true of trans definitely disables the guard, else false
+     */
+    private static boolean disables (LTSminModel model,
+                                     LTSminTransition t,
+                                     Expression e, int g,
+                                     boolean invert) {
+        if (e instanceof EvalExpression) {
+            EvalExpression eval = (EvalExpression)e;
+            return disables(model, t, eval.getExpression(), g,invert);
+        } else if (e instanceof BooleanExpression) {
+            BooleanExpression ce = (BooleanExpression)e;
+            if (ce.getToken().kind == PromelaTokenManager.BNOT ||
+                ce.getToken().kind == PromelaTokenManager.LNOT) {
+                return disables(model, t, ce.getExpr1(), g, !invert);
+            } else {
+                return disables(model, t, ce.getExpr1(), g,invert) &&
+                       disables(model, t, ce.getExpr2(), g,invert);
+            }
+        } else {
+            List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
+            extract_conjunct_predicates(model, sps, e, invert);
+            for (SimplePredicate sp : sps) {
+                if (invert) sp = sp.invert();
+                if (disables(model, t, g, sp)) return true;
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Return true, only if one action disables the guard!
+     */
+    private static boolean disables (LTSminModel model,
+                                   LTSminTransition t, int g,
+                                   SimplePredicate sp) {
+        DepMatrix testSet = new DepMatrix(1, model.sv.size());
+        RWMatrix a2s = model.getActionDepMatrix();
+
+        for (Action a : t.getActions()) {
+            testSet.clear();
+            LTSminDMWalker.walkOneGuard(model, testSet, sp.e, 0);
+            RWDepRow writeSet = a2s.getRow(a.getIndex());
+            if (!writeSet.writes(testSet.getRow(0)))
+                continue;
+
+            boolean conflicts = sp.conflicts(model, a, t, g, false);
+            if (conflicts) { // one action disables guard!
+                return true; // assume actions do not contradict each other
+            }
         }
         return false;
     }
