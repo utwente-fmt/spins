@@ -160,8 +160,8 @@ spins_mce()
 	}
 }
 
-int
-main(int argc, char **argv)
+static int
+main2(int argc, char **argv)
 {
 	if (argc > 1) {
 		if (0 == strcmp(argv[1], "--dm")) {
@@ -176,7 +176,7 @@ main(int argc, char **argv)
 		return 0;
 	}
 	int trans = 0;
-	printf("Enter on of the following numbers:\n");
+	printf("Enter one of the following numbers:\n");
 	printf("\t[0-X] to execute a transition.\n");
 	printf("\t-1 to print the state.\n");
 	printf("\t-2 to change input to group number instead of choice number and back.\n");
