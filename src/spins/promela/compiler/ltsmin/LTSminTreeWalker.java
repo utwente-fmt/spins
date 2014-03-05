@@ -521,7 +521,7 @@ public class LTSminTreeWalker {
 			OptionAction oa = (OptionAction)a;
 			OptionAction newoa = new OptionAction(oa.getToken(), oa.loops());
 			newoa.hasSuccessor(oa.hasSuccessor());
-			loop = newoa.loops() ? newoa : null;
+			loop = newoa.loops() ? newoa : loop;
 			for (Sequence seq : oa)
 				newoa.startNewOption((Sequence)instantiate(seq, t, p, loop)); 
 			return newoa;
