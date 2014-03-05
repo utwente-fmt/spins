@@ -1223,15 +1223,18 @@ State channel_statement(State start, State breakNode, boolean inAtomic): {
 	State end = new State(automaton, inAtomic);
 }{
 	expr=varref()
-	( t=<LNOT> 
+	( t=<LNOT>
 	  {
 	  	ChannelSendAction send = new ChannelSendAction(t, (Identifier)expr);
 		start.newTransition(send, end);
 	  }
 	  send_args(send)
-	| t=<CH_SEND_SORTED> 
-	  { throw new MyParseException("Sorted send is not yet supported!", t); }
-	  send_args(null)
+	| t=<CH_SEND_SORTED>
+      {
+        ChannelSendAction send2 = new ChannelSendAction(t, (Identifier)expr, true);
+        start.newTransition(send2, end);
+      }
+      send_args(send2)
 	| t=<CH_READ>
 	  ( {
 	  	  ChannelReadAction read = new ChannelReadAction(t, (Identifier)expr, false, false);

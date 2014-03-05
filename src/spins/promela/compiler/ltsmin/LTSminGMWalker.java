@@ -9,10 +9,10 @@ import static spins.promela.compiler.ltsmin.util.SimplePredicate.depCheck;
 import static spins.promela.compiler.ltsmin.util.SimplePredicate.extract_conjunct_predicates;
 import static spins.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spins.promela.compiler.parser.PromelaConstants.CH_READ;
-import static spins.promela.compiler.parser.PromelaConstants.CH_SEND_SORTED;
 import static spins.promela.compiler.parser.PromelaConstants.DECR;
 import static spins.promela.compiler.parser.PromelaConstants.EQ;
 import static spins.promela.compiler.parser.PromelaConstants.INCR;
+import static spins.promela.compiler.parser.PromelaConstants.LNOT;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -806,8 +806,8 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                    (p2.comparison == INCR || p2.comparison == DECR)) {
             return true;
         } else if ( !nochan &&
-               (p1.comparison == CH_READ && p2.comparison == CH_SEND_SORTED) ||
-               (p1.comparison == CH_SEND_SORTED && p2.comparison == CH_READ)) {
+               (p1.comparison == CH_READ && p2.comparison == LNOT) ||
+               (p1.comparison == LNOT && p2.comparison == CH_READ)) {
             return true;
         }
         return false;
@@ -940,10 +940,13 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             if (!depCheck(model, chanLength(id), deps))
                 return sps;
 
-            SimplePredicate send = new SimplePredicate();
-            send.comparison = CH_SEND_SORTED;
-            send.id = chanLength(id);
+            if (csa.isSorted()) {
+                throw new ParseException();
+            }
 
+            SimplePredicate send = new SimplePredicate();
+            send.comparison = LNOT;
+            send.id = chanLength(id);
             sps.add(send);
         } else if(a instanceof ChannelReadAction) {
             ChannelReadAction cra = (ChannelReadAction)a;
@@ -954,11 +957,12 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                      depCheck(model, e, deps))
                     throw new ParseException();
             }
-            
-            if (cra.isPoll() || cra.isRandom()) {
-                if (depCheck(model, chanLength(id), deps.write))
-                    throw new ParseException();
+
+            if (!depCheck(model, chanLength(id), deps))
                 return sps;
+            
+            if (cra.isRandom()) {
+                throw new ParseException();
             }
                 
             SimplePredicate read = new SimplePredicate();
@@ -1014,7 +1018,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             Expression ge1 = guardInfo.get(g1).getExpr();
             for (int g2 = 0; g2 < nlabels; g2++) {
                 report.updateProgress ();
-                if (!g2g.isDependent(g1, g2)) { // indepenedent
+                if (!g2g.isDependent(g1, g2)) { // independent
                     ico.setDependent(g1, g2);
                     ico.setDependent(g2, g1);
                     continue;

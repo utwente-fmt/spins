@@ -19,7 +19,7 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.and;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.assign;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.calc;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanContentsGuard;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanEmptyGuard;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanFreeGuard;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.compare;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.constant;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.dieGuard;
@@ -544,7 +544,7 @@ public class LTSminTreeWalker {
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			Identifier id = (Identifier)instantiate(csa.getIdentifier(), p);
-			ChannelSendAction newcsa = new ChannelSendAction(csa.getToken(), id);
+			ChannelSendAction newcsa = new ChannelSendAction(csa.getToken(), id, csa.isSorted());
 			for (Expression e : csa.getExprs())
 				newcsa.addExpression(instantiate(e, p));
             writes.add(new SendAction(newcsa, t, t.getProc()));
@@ -1134,7 +1134,7 @@ public class LTSminTreeWalker {
 			ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();
 			if (var.getType().isRendezVous())
                 throw new LTSminRendezVousException("Trying to actionise rendezvous send before all others! "+ var);
-			lt.addGuard(chanEmptyGuard(csa.getIdentifier()));
+			lt.addGuard(chanFreeGuard(csa.getIdentifier()));
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
 			OptionAction oa = (OptionAction)a;
 			LTSminGuardOr orc = new LTSminGuardOr();

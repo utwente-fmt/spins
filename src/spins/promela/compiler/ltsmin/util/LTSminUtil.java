@@ -192,7 +192,7 @@ public class LTSminUtil {
 		return compare (PromelaConstants.EQ, left, id(LTSminStateVector._NR_PR));
 	}
 
-	public static Expression chanEmptyGuard(Identifier id) {
+	public static Expression chanFreeGuard(Identifier id) {
 		Expression left;
 		try {
 			left = new ChannelLengthExpression(null, id);

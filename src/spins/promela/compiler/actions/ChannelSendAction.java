@@ -30,6 +30,8 @@ import spins.util.StringWriter;
 public class ChannelSendAction extends Action implements CompoundExpression {
 	private final Identifier id;
 
+	private boolean sorted = false;
+	
 	private final List<Expression> exprs;
 
 	public ChannelSendAction(final Token token, final Identifier id) {
@@ -37,6 +39,11 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 		this.id = id;
 		exprs = new ArrayList<Expression>();
 	}
+
+    public ChannelSendAction(final Token token, final Identifier id, boolean sorted) {
+        this(token, id);
+        this.setSorted(sorted);
+    }
 
 	public void addExpression(final Expression expr) {
 		exprs.add(expr);
@@ -88,4 +95,12 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 	public List<Expression> getExprs() {
 		return exprs;
 	}
+
+    public boolean isSorted() {
+        return sorted;
+    }
+
+    public void setSorted(boolean sorted) {
+        this.sorted = sorted;
+    }
 }

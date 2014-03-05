@@ -978,12 +978,42 @@ public class LTSminPrinter {
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			Identifier id = csa.getIdentifier();
-			List<Expression> exprs = csa.getExprs();
-			for (int e = 0; e < exprs.size(); e++) {
-				final Expression expr = exprs.get(e);
-				generateAction(w, assign(channelNext(id,e), expr), model, t);
-			}
-			generateAction(w, incr(chanLength(id)), model, t);
+            ChannelVariable var = (ChannelVariable)id.getVariable();
+            int bufferSize = var.getType().getBufferSize();
+            List<Expression> exprs = csa.getExprs();
+            String len = print(chanLength(id), out(model));
+
+            if (csa.isSorted() && bufferSize > 1) {
+                Identifier index = new LTSminIdentifier(model.index);
+                Expression min = calc(PromelaConstants.MINUS, index, constant(1));
+                Identifier m0 = channelIndex(id, min, 0);
+                Expression comp = compare(PromelaConstants.LTE, m0, exprs.get(0));
+                String test = print(comp, out(model));
+                
+                w.appendLine("for (i = "+ len +"; i > 0; i--) {");
+                w.indent();
+                w.appendLine("if ("+ test +") break;");
+                for (int e = 0; e < exprs.size(); e++) {
+                    Identifier m = channelIndex(id, index, e);
+                    Identifier mmm = channelIndex(id, min, e);
+                    generateAction(w, assign(m, mmm), model, t);
+                }
+                w.outdent();
+                w.appendLine("}");
+
+                for (int e = 0; e < exprs.size(); e++) {
+                    final Expression expr = exprs.get(e);
+                    Identifier buf = channelIndex(id,index,e);
+                    generateAction(w, assign(buf, expr), model, t);
+                }
+            } else {
+    			for (int e = 0; e < exprs.size(); e++) {
+    				final Expression expr = exprs.get(e);
+    				Identifier buf = channelNext(id,e);
+                    generateAction(w, assign(buf, expr), model, t);
+    			}
+            }
+            generateAction(w, incr(chanLength(id)), model, t);
 		} else if (a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
 			Identifier id = cra.getIdentifier();
