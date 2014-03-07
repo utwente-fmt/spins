@@ -1238,10 +1238,11 @@ public class LTSminPrinter {
 		} else if(e instanceof EvalExpression) {
 			EvalExpression eval = (EvalExpression)e;
 			generateExpression(w, eval.getExpression(), state);
-		} else if(e instanceof CompoundExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}  else if(e instanceof TimeoutExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
+		    TimeoutExpression timeout = (TimeoutExpression)e;
+            generateExpression(w, timeout.getDeadlock(), state);
+        } else if(e instanceof CompoundExpression) {
+            throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		} else {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}

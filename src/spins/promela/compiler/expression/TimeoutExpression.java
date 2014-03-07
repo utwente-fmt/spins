@@ -23,15 +23,10 @@ import spins.promela.compiler.variable.VariableType;
 
 public class TimeoutExpression extends Expression {
 
-	private static boolean isUsed = false;
-
-	public static boolean isUsed() {
-		return TimeoutExpression.isUsed;
-	}
+    Expression deadlock = null;
 
 	public TimeoutExpression(final Token token) {
 		super(token);
-		TimeoutExpression.isUsed = true;
 	}
 
 	@Override
@@ -68,4 +63,12 @@ public class TimeoutExpression extends Expression {
 	public String toString() {
 		return "timeout";
 	}
+
+    public void setDeadlock(Expression deadlock) {
+        this.deadlock = deadlock;
+    }
+
+    public Expression getDeadlock() {
+        return deadlock;
+    }
 }

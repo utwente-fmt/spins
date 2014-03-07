@@ -180,7 +180,7 @@ public class Specification implements Iterable<ProcInstance> {
 		return instances.iterator();
 	}
 
-	public void setNever(final Proctype never) throws ParseException {
+	public void setNever(final Proctype never) {
 		this.never = never;
 	}
 

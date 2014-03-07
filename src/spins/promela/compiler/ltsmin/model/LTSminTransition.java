@@ -267,4 +267,13 @@ public class LTSminTransition implements LTSminGuardContainer,
     public int getIndex() {
         return group;
     }
+
+    boolean isTimeout = false;
+    public void setTimeout() {
+        isTimeout = true;
+    }
+    
+    public boolean isTimeout() {
+        return isTimeout;
+    }
 }

@@ -38,11 +38,13 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Set;
 
 import spins.promela.compiler.Preprocessor;
 import spins.promela.compiler.Preprocessor.DefineMapping;
@@ -144,17 +146,21 @@ public class LTSminTreeWalker {
 
 	public static class Options {
 	    public Options(boolean verbose, boolean no_gm, boolean must_write,
-	                   boolean cnf) {
+	                   boolean cnf, boolean nonever) {
 	        this.verbose = verbose;
 	        this.no_gm = no_gm;
 	        this.must_write = must_write;
 	        this.cnf = cnf;
+	        this.nonever = nonever;
         }
+	    public boolean nonever = false;
         public boolean verbose = false;
 	    public boolean no_gm = false;
 	    public boolean must_write = false;
         public boolean cnf = false;
 	}
+
+	TimeoutExpression timeout = null;
 	
 	/**
 	 * generates and returns an LTSminModel from the provided Specification
@@ -326,6 +332,32 @@ public class LTSminTreeWalker {
 		    LTSminGuard guard = new LTSminGuard(export.getValue());
             model.addStateLabel(export.getKey(), guard);
 		}
+		
+		// Export all labels:
+
+        for (ProcInstance pi : spec) {
+            for (State s : pi.getAutomaton()) {
+                //if (s.isProgressState())  continue;
+                for (String label : s.getLabels()) {
+                    LTSminGuard g = model.getStateLabel(label);
+                    Expression x = g == null ? null : g.getExpr();
+                    
+                    Variable pc = model.sv.getPC(pi);
+                    Expression counter = constant(s.getStateId());
+                    Expression e = compare(PromelaConstants.EQ, id(pc), counter);
+                    e = x == null ? e : or(e, x);
+                    model.addStateLabel(label, new LTSminGuard(e));
+                    //System.out.println("Adding label "+ label +" --> "+ e);
+                }
+            }
+        }
+
+        for (Map.Entry<String, LTSminGuard> label : model.getLabels()) {
+            Expression e = label.getValue().getExpr();
+            if (e instanceof RemoteRef) {
+                label.setValue(new LTSminGuard(instantiate(e, null)));
+            }
+        }
 	}
 
     private List<String> iCount = new ArrayList<String>();
@@ -372,6 +404,7 @@ public class LTSminTreeWalker {
 		List<ProcInstance> instances = new ArrayList<ProcInstance>();
 		List<ProcInstance> active = new ArrayList<ProcInstance>();
 
+		timeout = new TimeoutExpression(new Token(PromelaConstants.TIMEOUT, "timeout"));
 		int id = 0;
 		for (Proctype p : spec.getProcs()) { // add active processes (including init)
 			for (int i = 0; i < p.getNrActive(); i++) {
@@ -401,11 +434,7 @@ public class LTSminTreeWalker {
 		if (null != spec.getNever()) {
 			Proctype never = spec.getNever();
 			ProcInstance n = instantiate(never, -1, -1);
-			try {
-				spec.setNever(n);
-			} catch (ParseException e) {
-				e.printStackTrace();
-			}
+			spec.setNever(n);
 		}
 		for (String binding : iCount) {
 			debug.say(MessageKind.NORMAL, "#define __instances_"+ binding);
@@ -515,7 +544,16 @@ public class LTSminTreeWalker {
 			return newpa;
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
-			Expression e = instantiate(ea.getExpression(), p);
+			Expression expr = ea.getExpression();
+			Expression e;
+			try {
+			    e = instantiate(expr, p);
+			} catch (AssertionError ae) {
+			    if (!(expr instanceof TimeoutExpression)) {
+			        throw new AssertionError("Complex expression with timeout: "+ expr);
+			    }
+			    e = timeout;//bool(true);
+			}
 			return new ExprAction(e);
 		} else if(a instanceof OptionAction) { // options in a d_step sequence
 			OptionAction oa = (OptionAction)a;
@@ -650,7 +688,7 @@ public class LTSminTreeWalker {
 			Expression ex = instantiate(eval.getExpression(), p);
 			return new EvalExpression(e.getToken(), ex);
 	    } else if (e instanceof TimeoutExpression) {
-	        throw new AssertionError("Not yet implemented: "+e.getClass().getName());
+	        throw new AssertionError("Timeout outside ExprAction.");
 		} else if (e instanceof ConstantExpression) {
 		    return e; // readonly, hence can be shared
 		} else if (e instanceof RemoteRef) {
@@ -795,17 +833,37 @@ public class LTSminTreeWalker {
 			createCrossProduct(state, ns, -1);
 		}
 
+		Set<Expression> gexpr = new HashSet<Expression>();
+
+		boolean has_timeout = false;
 		for (LTSminTransition lt : model) {
 			LTSminGuardNand tg = new LTSminGuardNand();
+            for (LTSminGuardBase g : lt) {
+                if (g instanceof LTSminGuard) {
+                    Expression x = ((LTSminGuard)g).getExpr();
+                    if (x instanceof TimeoutExpression) {
+                        lt.setTimeout();
+                        has_timeout = true;
+                        break;
+                    }
+                }
+            }
+            if (lt.isTimeout()) continue;
+
 			for (LTSminGuardBase g : lt) {
-				tg.guards.add(g);
+			    Expression x = g.getExpression();
+			    if (!gexpr.add(x)) {
+			        tg.guards.add(g);
+			    }
 			}
 			deadlock.guards.add(tg);
 		}
 		deadlock.setDeadlock();
-		
+		timeout.setDeadlock(deadlock.getExpression());
+
 		// let never automata continue on deadlock
 		if (NEVER && !LTSMIN_LTL) {
+		    if (has_timeout) throw new AssertionError("Timeouts and never not implemented");
 			Automaton never = spec.getNever().getAutomaton();
 			NEVER = false;
 			State start = never.getStartState();
@@ -1128,7 +1186,7 @@ public class LTSminTreeWalker {
 		} else if(a instanceof PrintAction) {
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
-			lt.addGuard(ea.getExpression());
+            lt.addGuard(ea.getExpression());
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
 			ChannelVariable var = (ChannelVariable)csa.getIdentifier().getVariable();

@@ -194,6 +194,22 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 		return trans_guard_matrix;
 	}
 
+    private List< List<Integer> > guard_trans_matrix = null;
+	public List< List<Integer> > getGuardMatrix() {
+	    if (guard_trans_matrix == null) {
+	        guard_trans_matrix = new ArrayList< List<Integer> >();
+	        for (int i = 0; i < getNumberOfLabels(); i++) {
+	            guard_trans_matrix.add(new ArrayList<Integer>());
+	        }
+	        for (int i = 0; i < m.getTransitions().size(); i++) {
+	            for (int j : trans_guard_matrix.get(i)) {
+	                guard_trans_matrix.get(j).add(i);
+	            }
+	        }
+	    }
+        return guard_trans_matrix;
+    }
+
 	public int getNumberOfGuards() {
 		return nguards;
 	}

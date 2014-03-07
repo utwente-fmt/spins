@@ -31,6 +31,7 @@ import spins.promela.compiler.expression.EvalExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.expression.RunExpression;
+import spins.promela.compiler.expression.TimeoutExpression;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
@@ -308,6 +309,17 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         DepMatrix t2g = model.getGuardInfo().getMatrix(T2G);
 		for (int g = 0; g <  nds.getNrRows(); g++) {
             LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
+
+            if (guard.getExpr() instanceof TimeoutExpression) {
+                for (LTSminTransition trans : model.getTransitions()) {
+                    if (trans.isTimeout()) { // guard only disabled by timeout trans
+                        nds.setDependent(g, trans.getGroup()); 
+                    } else {
+                        notNDS++;
+                    }
+                }
+                continue;
+            }
             for (LTSminTransition trans : model.getTransitions()) {
                 report.updateProgress ();
                 if (!t2g.isDependent(trans.getGroup(), g)) {
@@ -987,14 +999,22 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         DepMatrix g2g = model.getGuardInfo().getMatrix(G2G);
 		for (int g1 = 0; g1 < nlabels; g1++) {
             co.setDependent(g1, g1);
+
             Expression ge1 = guardInfo.get(g1).getExpr();
             for (int g2 = g1+1; g2 < nlabels; g2++) {
                 report.updateProgress ();
-                if (!g2g.isDependent(g1, g2)) { // indepenedent
+
+                if (isTimeout(model, co, g1, g2) || isTimeout(model, co, g2, g1)) {
+                    neverCoEnabled += co.isDependent(g1,  g2) ? 0 : 1;
+                    continue;   
+                }
+
+                if (!g2g.isDependent(g1, g2)) { // independent
                     co.setDependent(g1, g2);
                     co.setDependent(g2, g1);
                     continue;
                 }
+                
                 Expression ge2 = guardInfo.get(g2).getExpr();
                 Boolean coenabled = MCE(model, ge1, ge2, false, false, null, null);
                 if (coenabled == null || coenabled) {
@@ -1007,6 +1027,23 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 		}
 		return neverCoEnabled;
 	}
+
+    private static boolean isTimeout(LTSminModel model, DepMatrix m,
+                                     int g1, int g2) {
+        GuardInfo guardInfo = model.getGuardInfo();
+        LTSminGuard guard1 = guardInfo.get(g1);
+        if (guard1.getExpr() instanceof TimeoutExpression) {
+            for (int t2 : guardInfo.getGuardMatrix().get(g2)) {
+                if (model.getTransitions().get(t2).isTimeout()) {
+                    m.setDependent(g1, g2);
+                    m.setDependent(g2, g1);
+                    break;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
 
     private static int generateICoenMatrix(LTSminModel model, GuardInfo guardInfo) {
         int nlabels = guardInfo.getNumberOfLabels();

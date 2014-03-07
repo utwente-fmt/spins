@@ -96,7 +96,7 @@ public class LTSminDMWalker {
 	}
 
 	private static Params sParams = new Params(null, null, new RWMatrix(null, null),
-	                                           0, new Options(false, false, false, false));
+	                                           0, new Options(false, false, false, false, false));
 	public static void walkOneGuard(LTSminModel model, DepMatrix dm,
 									Expression e, int num) {
 	    sParams.model = model;
@@ -109,7 +109,7 @@ public class LTSminDMWalker {
         int nTrans = model.getTransitions().size();
         int nSlots = model.sv.size();
 
-        if(model.getGuardInfo()==null)
+        if (model.getGuardInfo() == null)
             model.setGuardInfo(new GuardInfo(model));
         GuardInfo guardInfo = model.getGuardInfo();
         if (model.getDepMatrix() != null)
@@ -134,7 +134,6 @@ public class LTSminDMWalker {
 
         // generate label / slot read matrix
         generateLabelMatrix (model, guardInfo, report);
-
 
         Params params = new Params(model, guardInfo, model.getDepMatrix(), 0, opts);
 		walkTransitions(params, report);
@@ -517,17 +516,9 @@ public class LTSminDMWalker {
 		} else if(e instanceof MTypeReference) {
 		} else if(e instanceof ConstantExpression) {
         } else if (e instanceof TimeoutExpression) {
-            throw new AssertionError("TimeoutExpression not implemented");
-            /*
-            if (params.inTimeOut) return; // avoid recursion
-            params.inTimeOut = true;
-            for (LTSminTransition t : params.model.getTransitions()) {
-                if (t.getGroup() == params.trans) continue;
-                for (LTSminGuardBase g : t.getGuards()) {
-                    walkGuard(params, g);
-                }
-            }
-            params.inTimeOut = false;*/
+            TimeoutExpression timeout = (TimeoutExpression)e;
+            Expression deadlock = timeout.getDeadlock();
+            walkExpression(params, deadlock, mark);
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
 			Expression labelExpr = rr.getLabelExpression(params.model);
@@ -535,8 +526,6 @@ public class LTSminDMWalker {
 		} else if(e instanceof EvalExpression) {
 			EvalExpression eval = (EvalExpression)e;
 			walkExpression(params, eval.getExpression(), mark);
-		} else if(e instanceof TimeoutExpression) {
-			throw new AssertionError("LTSminDMWalker: Not yet implemented: "+e.getClass().getName());
 		} else {
 			throw new AssertionError("LTSminDMWalker: Not yet implemented: "+e.getClass().getName());
 		}

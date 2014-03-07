@@ -58,7 +58,6 @@ import spins.promela.compiler.parser.TokenMgrError;
 
 public class Compile {
 	private static Specification compile(final File promFile, 
-	                                     final String name,
 		                                 final boolean useStateMerging,
 		                                 final boolean verbose) {
         LTSminDebug debug = new LTSminDebug(verbose);
@@ -70,7 +69,7 @@ public class Compile {
 	        LTSminProgress report = new LTSminProgress(debug).startTimer();
 			debug.say("Parsing " + promFile.getName() + "...");
 			final Promela prom = new Promela(new FileInputStream(promFile));
-			final Specification spec = prom.spec(name);
+			final Specification spec = prom.spec("pan");
 			debug.say("Parsing " + promFile.getName() + " done (%s sec)",
 			           report.stopTimer().sec());
 			debug.say("");
@@ -120,7 +119,6 @@ public class Compile {
 	}
 
 	public static void main(final String[] args) {
-		final String  defaultname = "Pan";
 		final String  shortd  = 
 			"SpinS Promela Compiler - version " + Version.VERSION + " (" + Version.DATE + ")\n" +
 			"(C) University of Twente, Formal Methods and Tools group";
@@ -136,21 +134,19 @@ public class Compile {
 		final OptionParser parser = 
 			new OptionParser("java spins.Compiler", shortd, longd, true);
 
-		final StringOption modelname = new StringOption('n',
-			"sets the name of the model \n" +
-			"(default: " + defaultname + ")", false);
-		parser.addOption(modelname);
+		final BooleanOption nonever = new BooleanOption('n', "No never");
+		parser.addOption(nonever);
 
 		final StringOption define = new StringOption('D',
 			"sets preprocessor macro define value", true);
 		parser.addOption(define);
 
         final StringOption export = new StringOption('E',
-                "export #define as state label", true);
+            "export #define as state label", true);
         parser.addOption(export);
 
         final StringOption progress = new StringOption('P',
-                "sets #define as progress state label (prepend a '!' to define non-progress)", false);
+            "sets #define as progress state label (prepend a '!' to define non-progress)", false);
         parser.addOption(progress);
 
 		final BooleanOption dot = new BooleanOption('d',
@@ -214,13 +210,6 @@ public class Compile {
             System.exit(-1);
         }
 
-		String name = null;
-		if (modelname.isSet()) {
-			name = modelname.getValue();
-		} else {
-			name = defaultname;
-		}
-
 		for (String def : define) {
 		    int indexEq = def.indexOf('=');
 		    String defName = def;
@@ -256,8 +245,9 @@ public class Compile {
 		}
 
 		final Specification spec = 
-			Compile.compile(file, name, !optimalizations.isSet("3"), verbose.isSet());
+			Compile.compile(file, !optimalizations.isSet("3"), verbose.isSet());
 
+        if (nonever.isSet()) spec.setNever(null);
         if (spec == null) {
             System.exit(-4);
         }
@@ -282,7 +272,8 @@ public class Compile {
         }
 
         Options opts = new Options(verbose.isSet(), no_guards.isSet(),
-                                   must_write.isSet(), !no_cnf.isSet());
+                                   must_write.isSet(), !no_cnf.isSet(),
+                                   nonever.isSet());
 
 		File outputDir = new File(System.getProperty("user.dir"));
 		if (dot.isSet()) {
@@ -301,7 +292,7 @@ public class Compile {
     private static Expression parseDefine(Specification spec, String name) {
         DefineMapping def = Preprocessor.defines(name);
         if (def == null || def.size() > 0) {
-            System.err.println("Could not set '"+ name +"' as progress label.");
+            System.err.println("Could not set '"+ name +"' as label.");
             System.err.println(def == null ? "It does not exist."
                                            : "It has parameters.");
             System.exit(-1);
@@ -312,7 +303,7 @@ public class Compile {
             Expression expr = prom.expr();
             return expr;
         } catch (Exception e) {
-            System.err.println("Could not set "+ name +" as progress label.");
+            System.err.println("Could not set "+ name +" as label.");
             System.err.println("Failure in parsing: "+ e.getMessage());
             e.printStackTrace();
             System.exit(-1);

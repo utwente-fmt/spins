@@ -219,7 +219,11 @@ public class LTSminModel implements Iterable<LTSminTransition> {
     public void addStateLabel(String string, LTSminGuard g) {
         stateLabels.put(string, g);
     }
-    
+
+    public LTSminGuard getStateLabel(String string) {
+        return stateLabels.get(string);
+    }
+
     public Set<Entry<String, LTSminGuard>> getLabels() {
        return stateLabels.entrySet();
     }
