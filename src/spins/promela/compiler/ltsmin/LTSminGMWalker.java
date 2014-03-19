@@ -141,6 +141,11 @@ public class LTSminGMWalker {
         int disables = generateMDSMatrix (model, guardInfo);
         report.overwriteTotals(disables, "MDS guards");
 
+        // generate MES matrix
+        report.setTotal(nTrans*nLabels);
+        int enables = generateMESMatrix (model, guardInfo);
+        report.overwriteTotals(enables, "MES guards");
+
         // generate NDS transitions
         ModelMatrixGenerator.debug = debug;
         report.setTotal(nTrans*nTrans);
@@ -522,7 +527,29 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         }
         return disables;
     }
-    
+
+    /**
+     * MUST ENABLE
+     */
+    static final String MES = "dm_must_enable";
+    private static int generateMESMatrix(LTSminModel model, GuardInfo guardInfo) {
+        int nlabels = guardInfo.getNumberOfLabels();
+        DepMatrix mes = new DepMatrix(nlabels, model.getTransitions().size());
+        guardInfo.setMatrix(MES, mes, true);
+        int disables = 0;
+        for (int g = 0; g <  mes.getNrRows(); g++) {
+            LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
+            for (LTSminTransition trans : model.getTransitions()) {
+                report.updateProgress ();
+                if (disables(model, trans, guard.getExpr(), g, true)) {
+                    mes.setDependent(g, trans.getGroup());
+                    disables += 1;
+                }
+            }
+        }
+        return disables;
+    }
+
     /**
      * Underestimates disabling
      * @return true of trans definitely disables the guard, else false
