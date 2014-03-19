@@ -268,9 +268,13 @@ public class LTSminDMWalker {
 
         DepMatrix t2g = params.gi.getTestSetMatrix();
 		// transitively add dependencies of atomic transitions
-		for(LTSminTransition atomic : t.getTransitions()) {
-			for(Action a : atomic.getActions()) {
-	            atomicDep.orRow(t.getGroup(), a2s.getRow(a.getIndex()));
+		for (LTSminTransition atomic : t.getTransitions()) {
+			for (Action a : atomic.getActions()) {
+			    int act = a.getIndex();
+	            atomicDep.orRow(t.getGroup(), a2s.getRow(act));
+	            if (params.opts.must_write) {
+	                atomicDep.read.orRow(t.getGroup(), a2s.write.getRow(act));
+	            }
 			}
             atomicDep.read.orRow(t.getGroup(), t2g.getRow(atomic.getGroup()));
 		}
