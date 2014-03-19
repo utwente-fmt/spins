@@ -856,7 +856,9 @@ public class LTSminTreeWalker {
 			        tg.guards.add(g);
 			    }
 			}
-			deadlock.guards.add(tg);
+			if (tg.guards.size() > 0) {
+			    deadlock.guards.add(tg);
+			}
 		}
 		deadlock.setDeadlock();
 		timeout.setDeadlock(deadlock.getExpression());

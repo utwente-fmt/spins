@@ -112,16 +112,15 @@ public class LTSminTransition implements LTSminGuardContainer,
 
     private List<LTSminPCGuard> pcGuard = new LinkedList<LTSminPCGuard>();
 	public void addGuard(LTSminGuardBase guard) {
-        if (guard instanceof LTSminPCGuard) {
-            pcGuard.add((LTSminPCGuard) guard);
-        }
 
         if (guard.isDefinitelyTrue()) {
             return;
         }
-
         if (guard instanceof LTSminGuard) {
             guards.add(guard);
+            if (guard instanceof LTSminPCGuard) {
+                pcGuard.add((LTSminPCGuard) guard);
+            }
         }  else if (guard instanceof LTSminGuardAnd) {
             for(LTSminGuardBase gb : (LTSminGuardContainer)guard)
                 addGuard(gb);
