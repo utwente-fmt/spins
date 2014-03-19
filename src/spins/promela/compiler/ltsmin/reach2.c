@@ -1,4 +1,52 @@
 
+#ifndef fgetln
+#include <errno.h>
+char *
+fgetln(fp, len)
+    FILE *fp;
+    size_t *len;
+{
+    static char *buf = NULL;
+    static size_t bufsiz = 0;
+    char *ptr;
+
+
+    if (buf == NULL) {
+        bufsiz = BUFSIZ;
+        if ((buf = malloc(bufsiz)) == NULL)
+            return NULL;
+    }
+
+    if (fgets(buf, bufsiz, fp) == NULL)
+        return NULL;
+    *len = 0;
+
+    while ((ptr = strchr(&buf[*len], '\n')) == NULL) {
+        size_t nbufsiz = bufsiz + BUFSIZ;
+        char *nbuf = realloc(buf, nbufsiz);
+
+        if (nbuf == NULL) {
+            int oerrno = errno;
+            free(buf);
+            errno = oerrno;
+            buf = NULL;
+            return NULL;
+        } else
+            buf = nbuf;
+
+        *len = bufsiz;
+        if (fgets(&buf[bufsiz], BUFSIZ, fp) == NULL)
+            return buf;
+
+        bufsiz = nbufsiz;
+    }
+
+    *len = (ptr - buf) + 1;
+    return buf;
+}
+#endif
+
+
 typedef bool (*check_f)(int,int);
 
 bool
@@ -189,6 +237,7 @@ typedef struct matrix_s {
     int             cols;
     bool            invert;
     char            c;
+    int             check;
 } matrix_t;
 
 struct visitor_s {
@@ -219,6 +268,33 @@ io_end2 (visitor_t *this, int v)
         return true; // shortcut
     }
     return false;
+}
+
+bool
+io_end3 (visitor_t *this, int v)
+{
+    int *array = ((int*)this->ctx);
+    int s = array[0];
+    int i;
+    for (i = 1; i <= s; i++) {
+        if (array[i] == v) return false;
+    }
+    array[s+1] = v;
+    array[0]++;
+    return false;
+}
+
+void
+io_print3(visitor_t *this)
+{
+    int *array = ((int*)this->ctx);
+    int s = array[0];
+    int i;
+    printf ("{ ");
+    for (i = 1; i <= s; i++) {
+        printf ("%d, ", array[i]);
+    }
+    printf (" }\n");
 }
 
 bool
@@ -273,6 +349,24 @@ io_create_end2 (int v)
     return visitor;
 }
 
+static int *array = NULL;
+visitor_t *
+io_create_end3 (int dim)
+{
+    visitor_t *visitor = calloc(sizeof(visitor_t), 1);
+    if (array == NULL) {
+        array = malloc (sizeof(int[99999]));
+    }
+    assert (dim < 99998);
+    visitor->ctx = array;
+    visitor->apply = io_end3;
+    visitor->object = io_object;
+    visitor->print = io_print3;
+    visitor->in_dim  = dim;
+    visitor->out_dim =  -1;
+    return visitor;
+}
+
 visitor_t *
 io_create_start (int v)
 {
@@ -304,7 +398,7 @@ matrix_visit_row (visitor_t *this, int row) // todo: merge with col usei invert
     int i;
     if (spins_check(row, 0, matrix->rows)) return true;
     for (i = 0; i < matrix->cols; i++) {
-        if (matrix->dm[matrix->cols * row + i]) {
+        if (matrix->dm[matrix->cols * row + i] == matrix->check) {
             if (this->next->apply(this->next, i)) return true;
         }
     }
@@ -318,7 +412,7 @@ matrix_visit_col(visitor_t *this, int col)
     int i;
     if (spins_check(col, 0, matrix->cols)) return true;
     for (i = 0; i < matrix->rows; i++) {
-        if (matrix->dm[matrix->cols * i + col]) {
+        if (matrix->dm[matrix->cols * i + col] == matrix->check) {
             if (this->next->apply(this->next, i)) return true;
         }
     }
@@ -336,7 +430,8 @@ void matrix_print(visitor_t *this) {
 }
 
 visitor_t *
-spins_create_matrix_visitor (int *dm, int rows, int cols, bool invert, char c)
+spins_create_matrix_visitor (int *dm, int rows, int cols, bool invert, char c,
+                             int check)
 {
     visitor_t *visitor = calloc(sizeof(visitor_t), 1);
     matrix_t *matrix = calloc(sizeof(matrix_t), 1);
@@ -345,6 +440,7 @@ spins_create_matrix_visitor (int *dm, int rows, int cols, bool invert, char c)
     matrix->dm = dm;
     matrix->c = c;
     matrix->invert = invert;
+    matrix->check = check;
     visitor->ctx = matrix;
     visitor->object = matrix_object;
     visitor->in_dim = invert ? cols : rows;
@@ -355,27 +451,28 @@ spins_create_matrix_visitor (int *dm, int rows, int cols, bool invert, char c)
 }
 
 visitor_t *
-spins_create_matrix_visitor2 (char c, bool invert)
+spins_create_matrix_visitor2 (char c, bool invert, bool negate)
 {
     int l = spins_get_label_count();
     int g = spins_get_guard_count();
     int t = spins_get_transition_groups();
     int s = spins_get_state_size();
+    int check = negate ? 0 : 1;
 
     switch(c) {
-    case 'g': return spins_create_matrix_visitor(t2g, t, l, invert, c);
-    case 'e': return spins_create_matrix_visitor(nes_dm[0], l, t, invert, c);
-    case 'd': return spins_create_matrix_visitor(nds_dm[0], l, t, invert, c);
-    case 'u': return spins_create_matrix_visitor(commutes_dm[0], t, t, invert, c);
-    case 'a': return spins_create_matrix_visitor(dna_dm[0], t, t, invert, c);
-    case 'A': return spins_create_matrix_visitor(dna, t, t, invert, c);
-    case 'b': return spins_create_matrix_visitor(dnb, t, t, invert, c);
-    case 'c': return spins_create_matrix_visitor(co_dm[0], t, t, invert, c);
-    case 't': return spins_create_matrix_visitor(gm_dm[0], t, t, invert, c);
-    case 'm': return spins_create_matrix_visitor(dm_must_disable[0], l, t, invert, c);
-    case 'r': return spins_create_matrix_visitor(actions_read_dependency[0], t, s, invert, c);
-    case 'R': return spins_create_matrix_visitor(t2r, t, s, invert, c);
-    case 'w': return spins_create_matrix_visitor(t2w, t, s, invert, c);
+    case 'g': return spins_create_matrix_visitor(t2g, t, l, invert, c, check);
+    case 'e': return spins_create_matrix_visitor(nes_dm[0], l, t, invert, c, check);
+    case 'd': return spins_create_matrix_visitor(nds_dm[0], l, t, invert, c, check);
+    case 'u': return spins_create_matrix_visitor(commutes_dm[0], t, t, invert, c, check);
+    case 'a': return spins_create_matrix_visitor(dna_dm[0], t, t, invert, c, check);
+    case 'A': return spins_create_matrix_visitor(dna, t, t, invert, c, check);
+    case 'b': return spins_create_matrix_visitor(dnb, t, t, invert, c, check);
+    case 'c': return spins_create_matrix_visitor(co_dm[0], l, l, invert, c, check);
+    case 't': return spins_create_matrix_visitor(gm_dm[0], t, t, invert, c, check);
+    case 'm': return spins_create_matrix_visitor(dm_must_disable[0], l, t, invert, c, check);
+    case 'r': return spins_create_matrix_visitor(actions_read_dependency[0], t, s, invert, c, check);
+    case 'R': return spins_create_matrix_visitor(t2r, t, s, invert, c, check);
+    case 'w': return spins_create_matrix_visitor(t2w, t, s, invert, c, check);
     default: return NULL;
     }
 }
@@ -428,7 +525,7 @@ printer_add (printer_t *p, int val)
 {
     if (p->first == NULL) {
         p->first = p->last = io_create_start(val);
-    } else {
+    } else if (val >= 0 ) {
         visitor_t *v = io_create_end2(val);
         if (printer_chain(p, v)) {
             return true;
@@ -437,13 +534,30 @@ printer_add (printer_t *p, int val)
     return false; // ok
 }
 
+bool
+printer_add3 (printer_t *p, char **n)
+{
+    if (**n == '@') {
+        (*n)++;
+        if (p->last == NULL) {
+            printf("Failed adding '%c', no previous", **n);
+            return true;
+        }
+        visitor_t *v = io_create_end3(p->last->out_dim);
+        if (printer_chain(p, v)) return true;
+    }
+    return false; // ok
+}
+
 #include <ctype.h>
 
 bool
-printer_add2 (printer_t *p, char c, bool invert)
+printer_add2 (printer_t *p, char c, bool invert, bool *negate)
 {
     if (!isalpha(c)) return false;
-    visitor_t *v = spins_create_matrix_visitor2 (c, invert);
+    visitor_t *v = spins_create_matrix_visitor2 (c, invert, *negate);
+    if (*negate) *negate = false;
+
     if (v == NULL) {
         printf ("Wrong command: '%c'\n", c);
         return true;
@@ -502,18 +616,23 @@ use:spins_use_query();
     p.first = p.last = NULL;
     while (true) { // parse
         size_t len;
-        char *in = fgetln(stdin, &len);
+        char *begin;
+        char *in = begin = fgetln(stdin, &len);
         if (feof(stdin) || ferror(stdin)) break;
         if (len == 0) continue;
 
         printer_reinit(&p);
         bool invert = false;
+        bool negate = false;
         char *end = in, *term = in + len;
         while (end != term) {
             if (end[0] == '-') {
                 invert = !invert;
                 end++;
                 continue;
+            } else if (end[0] == '!') {
+                negate = !negate;
+                end++;
             }
 
             in = end;
@@ -523,9 +642,13 @@ use:spins_use_query();
                 if (printer_add(&p, v)) goto use; // may fail
 
             } else { // must be a command:
+
+                if (printer_add3(&p, &end)) goto use;
+
+                if ((end == term)) { printf("Premature end after ! at %d", end - begin); break; }
                 char command = end++[0];
 
-                if (printer_add2(&p, command, invert)) goto use; // may fail
+                if (printer_add2(&p, command, invert, &negate)) goto use; // may fail
             }
         }
 
