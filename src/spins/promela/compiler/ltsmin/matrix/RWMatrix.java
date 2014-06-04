@@ -8,22 +8,26 @@ import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 public class RWMatrix{
 
 	public DepMatrix read = null;
-	public DepMatrix write = null;
+    public DepMatrix mayWrite = null;
+    public DepMatrix mustWrite = null;
 
     // use this class as dummy (for backward compatibility with RW matrix 
-    public RWMatrix(DepMatrix read, DepMatrix write) {
+    public RWMatrix(DepMatrix read, DepMatrix mayWrite, DepMatrix mustWrite) {
         this.read = read;
-        this.write = write;
+        this.mayWrite = mayWrite;
+        this.mustWrite = mustWrite;
     }
     
 	public RWMatrix(int rows, int cols) {
 		read = new DepMatrix(rows, cols);
-		write = new DepMatrix(rows, cols);
+		mayWrite = new DepMatrix(rows, cols);
+		mustWrite = new DepMatrix(rows, cols);
 	}
 
     public RWMatrix(RWMatrix org) {
         read = new DepMatrix(org.read);
-        write = new DepMatrix(org.write);
+        mayWrite = new DepMatrix(org.mayWrite);
+        mustWrite = new DepMatrix(org.mustWrite);
     }
 
     public int getNrRows() {
@@ -38,26 +42,36 @@ public class RWMatrix{
 	    read.setDependent(row, col);
 	}
 
-	public void incWrite(int row, int col) {
-        write.setDependent(row, col);
+	public void incMayWrite(int row, int col) {
+        mayWrite.setDependent(row, col);
     }
+	
+	public void incMustWrite(int row, int col) {
+	    mustWrite.setDependent(row,  col);
+	}
 	
     public boolean isRead(int row, int col) {
         return read.isDependent(row, col);
     }
 
-    public boolean isWrite(int row, int col) {
-        return write.isDependent(row, col);
+    public boolean isMayWrite(int row, int col) {
+        return mayWrite.isDependent(row, col);
     }
 
+    public boolean isMustWrite(int row, int col) {
+        return mustWrite.isDependent(row, col);
+    }
+    
     public void clear() {
         read.clear();
-        write.clear();
+        mayWrite.clear();
+        mustWrite.clear();
     }
 
     public void orRow(int row, RWDepRow depRow) {
         read.orRow(row, depRow.read);
-        write.orRow(row, depRow.write);
+        mayWrite.orRow(row, depRow.mayWrite);
+        mustWrite.orRow(row, depRow.mustWrite);
     }
 
 	public RWDepRow getRow(int row) {
@@ -66,47 +80,53 @@ public class RWMatrix{
 
     public class RWDepRow {
         public DepRow read;
-        public DepRow write;
+        public DepRow mayWrite;
+        public DepRow mustWrite;
 
         public RWDepRow(RWMatrix rw, int row) {
             this.read = rw.read.getRow(row);
-            this.write = rw.write.getRow(row);
+            this.mayWrite = rw.mayWrite.getRow(row);
+            this.mustWrite = rw.mustWrite.getRow(row);
         }
 
         public boolean reads(RWDepRow other) {
             return read.isDependent(other.read) ||
-                   read.isDependent(other.write);
+                   read.isDependent(other.mayWrite);
         }
 
         public boolean reads(DepRow other) {
             return read.isDependent(other);
         }
 
-        public boolean writes(DepRow other) {
-            return write.isDependent(other);
+        public boolean mayWrites(DepRow other) {
+            return mayWrite.isDependent(other);
         }
 
-        public boolean writes(RWDepRow other) {
-            return write.isDependent(other.read) ||
-                   write.isDependent(other.write);
+        public boolean mayWrites(RWDepRow other) {
+            return mayWrite.isDependent(other.read) ||
+                   mayWrite.isDependent(other.mayWrite);
         }
 
         public boolean dependent(DepRow other) {
             return this.reads(other) ||
-                   this.writes(other);
+                   this.mayWrites(other);
         }
 
         public boolean dependent(RWDepRow other) {
             return this.reads(other) ||
-                   this.writes(other);
+                   this.mayWrites(other);
         }
 
         public int readCardinality() {
             return read.getCardinality();
         }
 
-        public int writeCardinality() {
-            return write.getCardinality();
+        public int mayWriteCardinality() {
+            return mayWrite.getCardinality();
+        }
+        
+        public int mustWriteCardinality() {
+            return mustWrite.getCardinality();
         }
 
         public int getNrCols() {
@@ -117,16 +137,24 @@ public class RWMatrix{
             return read.isDependent(col) ? 1 : 0;
         }
 
-        public int intWrite(int col) {
-            return write.isDependent(col) ? 1 : 0;
+        public int intMayWrite(int col) {
+            return mayWrite.isDependent(col) ? 1 : 0;
+        }
+        
+        public int intMustWrite(int col) {
+            return mustWrite.isDependent(col) ? 1 : 0;
         }
 
         public boolean isRead(int col) {
             return read.isDependent(col);
         }
 
-        public boolean isWrite(int col) {
-            return write.isDependent(col);
+        public boolean isMayWrite(int col) {
+            return mayWrite.isDependent(col);
+        }
+        
+        public boolean isMustWrite(int col) {
+            return mustWrite.isDependent(col);
         }
     }
 }

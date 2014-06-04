@@ -270,7 +270,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         num = 0;
         for (int t = 0; t < nTrans; t++) {
             for (int g = 0; g < nLabels; g++) {
-                if (deps.getRow(t).writes(g2s.getRow(g))) {
+                if (deps.getRow(t).mayWrites(g2s.getRow(g))) {
                     t2g.setDependent(t, g);
                     num++;
                 }
@@ -287,7 +287,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         for (int t1 = 0; t1 < nTrans; t1++) {
             RWDepRow t1Row = trans.getRow(t1);
             for (int t2 = 0; t2 < nTrans; t2++) {
-                if (t1Row.writes(trans.getRow(t2))) {
+                if (t1Row.mayWrites(trans.getRow(t2))) {
                     t2t.setDependent(t1, t2);
                     num++;
                 }
@@ -429,8 +429,8 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             Expression gge = gguard.getExpr();            
             
             RWDepRow row = rw.getRow(t);
-            if (row.writes(g2s.getRow(gg))) {              
-                Boolean coenabled = MCE(model, guard.getExpr(), gge, invert, false, row.write, null);
+            if (row.mayWrites(g2s.getRow(gg))) {              
+                Boolean coenabled = MCE(model, guard.getExpr(), gge, invert, false, row.mayWrite, null);
                 if (coenabled != null && !coenabled) {
                     return false;
                 }
@@ -471,7 +471,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 RWMatrix deps = model.getDepMatrix();
                 DepMatrix temp = new DepMatrix(1, model.sv.size());
                 LTSminDMWalker.walkOneGuard(model, temp, e, 0);
-                return deps.getRow(t.getGroup()).writes(temp.getRow(0));
+                return deps.getRow(t.getGroup()).mayWrites(temp.getRow(0));
             }
             for (SimplePredicate sp : sps) {
                 if (invert)
@@ -495,7 +495,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             testSet.clear();
             LTSminDMWalker.walkOneGuard(model, testSet, sp.e, 0);
             RWDepRow writeSet = a2s.getRow(a.getIndex());
-            if (!writeSet.writes(testSet.getRow(0)))
+            if (!writeSet.mayWrites(testSet.getRow(0)))
                 continue;
 
             boolean conflicts = sp.conflicts(model, a, t, g, false);
@@ -594,7 +594,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             testSet.clear();
             LTSminDMWalker.walkOneGuard(model, testSet, sp.e, 0);
             RWDepRow writeSet = a2s.getRow(a.getIndex());
-            if (!writeSet.writes(testSet.getRow(0)))
+            if (!writeSet.mayWrites(testSet.getRow(0)))
                 continue;
 
             boolean conflicts = sp.conflicts(model, a, t, g, false);
@@ -798,7 +798,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             for (Action actb : trans2.getActions()) {
                 RWDepRow depsB = a2s.getRow(actb.getIndex());
 
-                if (!depsB.writes(depsA) && !depsA.writes(depsB)) {
+                if (!depsB.mayWrites(depsA) && !depsA.mayWrites(depsB)) {
                     continue;
                 }
 
@@ -906,7 +906,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             SimplePredicate sp1 = new SimplePredicate();
             AssignAction ae = (AssignAction)a;
             if (!depCheck(model, ae.getIdentifier(), deps) &&
-                !depCheck(model, ae.getExpr(), deps.write))
+                !depCheck(model, ae.getExpr(), deps.mayWrite))
                 return sps;
             sp1.id = ae.getIdentifier();
             switch (ae.getToken().kind) {
@@ -972,7 +972,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             Identifier id = csa.getIdentifier();
 
             for (Expression e : csa.getExprs()) {
-                if (depCheck(model, e, deps.write))
+                if (depCheck(model, e, deps.mayWrite))
                     throw new ParseException();
             }
 

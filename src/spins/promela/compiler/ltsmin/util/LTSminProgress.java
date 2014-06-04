@@ -104,11 +104,12 @@ public class LTSminProgress {
         overwrite(s);
     }
 
-    public void overwriteTotals( int r, int w, String msg) {
+    public void overwriteTotals( int r, int mayW, int mustW, String msg) {
         double percR = ((double)r * 100) / getTotal();
-        double percW = ((double)w * 100) / getTotal();
-        String s = String.format("Found %,9d, %,9d / %,9d (%5.1f%%, %5.1f%%) %s               ",
-                                 r, w, getTotal(), percR, percW, msg);
+        double percMayW = ((double)mayW * 100) / getTotal();
+        double percMustW = ((double)mustW * 100) / getTotal();
+        String s = String.format("Found %,9d, %,9d, %,9d / %,9d (%5.1f%%, %5.1f%%, %5.1f%%) %s               ",
+                                 r, mayW, mustW, getTotal(), percR, percMayW, percMustW, msg);
         overwrite(s);
     }
 }

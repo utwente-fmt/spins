@@ -370,12 +370,12 @@ public class LTSminPrinter {
 		try {
 			w.appendLine(readTextFile(new LTSminPrinter().getClass(), "reach.c"));
 		} catch (IOException e) {
-			e.printStackTrace();
+			e.printStackTrace(); 
 		}
 	}
 
 	private static void generateStateCount(StringWriter w, LTSminModel model) {
-		w.appendLine("extern int spins_get_state_size() {");
+		w.appendLine("extern const int spins_get_state_size() {");
 		w.indent();
 		w.appendLine("return ",model.sv.size(),";");
 		w.outdent();
@@ -393,13 +393,13 @@ public class LTSminPrinter {
 	}
 
 	private static void generateForwardDeclarations(StringWriter w) {
-		w.appendLine("extern inline int spins_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
-		w.appendLine("extern inline int spins_simple_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg, int pid);");
-		w.appendLine("extern int spins_get_successor_all (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
-		w.appendLine("extern int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
-		w.appendLine("extern int spins_get_actions (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg);");
-        w.appendLine("extern void spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
-        w.appendLine("extern void spins_simple_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic);");
+		w.appendLine("extern inline int spins_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg, int pid, int *cpy);");
+		w.appendLine("extern inline int spins_simple_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg, int pid, int *cpy);");
+		w.appendLine("extern int spins_get_successor_all (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
+		w.appendLine("extern int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
+		w.appendLine("extern int spins_get_actions (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
+        w.appendLine("extern void spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy);");
+        w.appendLine("extern void spins_simple_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy);");
         w.appendLine("extern int *spins_get_guards (state_t *in);");
 		w.appendLine("static int "+ SCRATCH_VARIABLE +";");
 		w.appendLine("");
@@ -459,7 +459,7 @@ public class LTSminPrinter {
 	                                      LTSminTransition t) {
         printEdgeLabels(w, model, t);
         w.appendLine("transition_info.group = "+ t.getGroup() +";");
-		w.appendLine("callback(arg,&transition_info,"+ OUT_VAR +");");
+		w.appendLine("callback(arg,&transition_info,"+ OUT_VAR +",cpy);");
 		w.appendLine("++states_emitted;");
 	}
 
@@ -507,15 +507,22 @@ public class LTSminPrinter {
 		if (guards == 0) w.append("true");	w.append(") {").appendPostfix();
 		w.indent();
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
+		
+		w.appendPrefix();
+		w.append("int cpy[" + model.sv.size() + "] = { ");		
+		for (int i = 0; i < model.sv.size(); i++) w.append("1,");		
+		w.append(" };");
+		w.appendPostfix();
+		
 		List<Action> actions = t.getActions();
 		for(Action a: actions)
 			generateAction(w,a,model, t);
 		// No edge labels! They are discarded anyway!
 		w.appendLine("transition_info.group = "+ t.getGroup() +";");
 		if (t.getEnd().liesOnCycle()) {
-		    w.appendLine("spins_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +");");
+		    w.appendLine("spins_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +",cpy);");
 		} else {
-		    w.appendLine("spins_simple_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +");");
+		    w.appendLine("spins_simple_atomic_cb(arg,&transition_info,"+OUT_VAR+","+ t.getEndId() +",cpy);");
 		}
 		w.appendLine("++states_emitted;");
 		w.outdent();
@@ -562,7 +569,7 @@ public class LTSminPrinter {
 		w.appendLine();
 		/* END PROMELA specific code */
 
-		w.appendLine("int spins_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+		w.appendLine("int spins_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg) {");
 		w.indent();
 		String edge_array = "";
         for (int i = 0; i < model.getEdges().size(); i++)
@@ -646,9 +653,9 @@ public class LTSminPrinter {
 		    printEdgeLabels (w, model, t);
 			w.appendLine("transition_info.group = "+ t.getGroup() +";");
 			if (t.getEnd().liesOnCycle()) {
-			    w.appendLine("int count = spins_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +");");
+			    w.appendLine("int count = spins_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +", cpy);");
 			} else {
-			    w.appendLine("int count = spins_simple_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +");");
+			    w.appendLine("int count = spins_simple_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +", cpy);");
 			}
 			w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
 		} else {
@@ -671,7 +678,7 @@ public class LTSminPrinter {
     }
 
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
-		w.appendLine("int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+		w.appendLine("int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg) {");
 		w.indent();
 		String edge_array = "";
         for (int i = 0; i < model.getEdges().size(); i++)
@@ -708,7 +715,7 @@ public class LTSminPrinter {
 	}
 
     private static void generateGetActions(StringWriter w, LTSminModel model) {
-        w.appendLine("int spins_get_actions (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out), void *arg) {");
+        w.appendLine("int spins_get_actions (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg) {");
         w.indent();
         String edge_array = "";
         for (int i = 0; i < model.getEdges().size(); i++)
@@ -720,8 +727,15 @@ public class LTSminPrinter {
         w.appendLine("int *atomic = &minus_one;");
         w.appendLine(C_STATE," local_state;");
         w.appendLine(C_STATE,"* ",OUT_VAR," = &local_state;");
+        
+        w.appendPrefix();
+        w.append("int cpy[" + model.sv.size() + "] = { ");      
+        for (int i = 0; i < model.sv.size(); i++) w.append("1,");       
+        w.append(" };");
+        w.appendPostfix();
+        
         for (Variable local : model.getLocals()) {
-            w.appendLine("int "+ local.getName() +";");
+            w.appendLine("int "+ local.getName() +";"); 
         }
         generateAssertions(w, model);
         w.appendLine();
@@ -758,6 +772,7 @@ public class LTSminPrinter {
 		if(a instanceof AssignAction) { //TODO: assign + expr + runexp
 			AssignAction as = (AssignAction)a;
 			Identifier id = as.getIdentifier();
+			
 			switch (as.getToken().kind) {
 				case ASSIGN:
 				    /*if (id.getResultType() instanceof CustomVariableType && id.getSub() == null) {
@@ -805,6 +820,14 @@ public class LTSminPrinter {
 				default:
 					throw new AssertionError("unknown assignment type");
 			}
+            
+			// this does not work for variables that span multiple state slots.
+            w.appendPrefix();
+            w.append("cpy[((int*)&");
+            generateExpression(w, id, out(model));
+            w.append(" - (int*)"+OUT_VAR+")] = 0;");
+            w.appendPostfix();
+            
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
 			String name = rpa.getProcess().getName();
@@ -1011,7 +1034,7 @@ public class LTSminPrinter {
     				final Expression expr = exprs.get(e);
     				Identifier buf = channelNext(id,e);
                     generateAction(w, assign(buf, expr), model, t);
-    			}
+    			}			
             }
             generateAction(w, incr(chanLength(id)), model, t);
 		} else if (a instanceof ChannelReadAction) {
@@ -1269,9 +1292,9 @@ public class LTSminPrinter {
 
 	private static void generateDepMatrix(StringWriter w, RWMatrix dm, String name) {
 		w.appendPrefix();
-		w.appendLine("int "+ name + "[][2]["+ dm.getNrCols() +"] = {");
+		w.appendLine("int "+ name + "[][3]["+ dm.getNrCols() +"] = {");
 		w.indent();
-		w.appendLine("// { ... read ...}, { ... write ...}");
+		w.appendLine("// { ... read ...}, { ... may write ...}, { ... must write ... }");
 
 		// Iterate over all the rows
 		for(int t = 0; t < dm.getNrRows(); t++) {
@@ -1282,8 +1305,10 @@ public class LTSminPrinter {
 			RWDepRow dr = dm.getRow(t);
 			w.append("{");
 			generateRow(w, dr.read);
-			w.append(",");
-			generateRow(w, dr.write);
+            w.append(",");
+            generateRow(w, dr.mayWrite);
+            w.append(",");
+            generateRow(w, dr.mustWrite);
 			w.append("}");
 		}
 		w.outdent();
@@ -1313,12 +1338,18 @@ public class LTSminPrinter {
 		w.appendLine("	return NULL;");
 		w.appendLine("}");
 		w.appendLine("");
-		w.appendLine("extern const int* spins_get_transition_write_dependencies(int t)");
-		w.appendLine("{");
-		w.appendLine("	if (t>=0 && t < "+ dm.getNrRows()+ ") return "+ DM_NAME +"[t][1];");
-		w.appendLine("	return NULL;");
-		w.appendLine("}");
-		w.appendLine("");
+        w.appendLine("extern const int* spins_get_transition_may_write_dependencies(int t)");
+        w.appendLine("{");
+        w.appendLine("  if (t>=0 && t < "+ dm.getNrRows()+ ") return "+ DM_NAME +"[t][1];");
+        w.appendLine("  return NULL;");
+        w.appendLine("}");
+        w.appendLine("");
+        w.appendLine("extern const int* spins_get_transition_must_write_dependencies(int t)");
+        w.appendLine("{");
+        w.appendLine("  if (t>=0 && t < "+ dm.getNrRows()+ ") return "+ DM_NAME +"[t][2];");
+        w.appendLine("  return NULL;");
+        w.appendLine("}");
+        w.appendLine("");
         w.appendLine("extern const int* spins_get_actions_read_dependencies(int t)");
         w.appendLine("{");
         w.appendLine("  if (t>=0 && t < "+ dm.getNrRows() +") return "+ DM_ACTIONS_NAME +"[t];");

@@ -95,7 +95,7 @@ public class LTSminDMWalker {
 		}
 	}
 
-	private static Params sParams = new Params(null, null, new RWMatrix(null, null),
+	private static Params sParams = new Params(null, null, new RWMatrix(null, null, null),
 	                                           0, new Options(false, false, false, false, false));
 	public static void walkOneGuard(LTSminModel model, DepMatrix dm,
 									Expression e, int num) {
@@ -213,32 +213,36 @@ public class LTSminDMWalker {
         params.model.setActionDepMatrix(a2s);
         report.setTotal(nActions * nSlots);
         int reads = 0;
-        int writes = 0;
+        int mayWrites = 0;
+        int mustWrites = 0;
         Params p = new Params(params.model, null, a2s, -1, params.opts);
         for (Action a : params.model.getActions()) {
             p.trans = a.getIndex();
             walkAction (p, a);
             RWDepRow row = a2s.getRow(a.getIndex());
             reads += row.readCardinality();
-            writes += row.writeCardinality();
+            mayWrites += row.mayWriteCardinality();
+            mustWrites += row.mustWriteCardinality();
             report.updateProgress(nSlots);
         }
-        report.overwriteTotals(reads, writes, "Actions/slot R,W");
+        report.overwriteTotals(reads, mayWrites, mustWrites, "Actions/slot r,W,w");
 
         // Transitions and their atomic follow-ups (including guards of follow-ups)
         RWMatrix atomicDep = new RWMatrix(nTrans, nSlots);
         params.model.setAtomicDepMatrix(atomicDep);
         report.setTotal(nTrans * nSlots);
 	    reads = 0;
-	    writes = 0;
+	    mayWrites = 0;
+	    mustWrites = 0;
 		for (LTSminTransition t : params.model.getTransitions()) {
 			walkTransition(params, a2s, atomicDep, t);
 			RWDepRow row = atomicDep.getRow(t.getGroup());
             reads += row.readCardinality();
-            writes += row.writeCardinality();
+            mayWrites += row.mayWriteCardinality();
+            mustWrites += row.mustWriteCardinality();
 			report.updateProgress(nSlots);
 		}
-        report.overwriteTotals(reads, writes, "Atomics/slot R,W");
+        report.overwriteTotals(reads, mayWrites, mustWrites, "Atomics/slot r,W,w");
 
         // preserve the dep matrix with only action dependencies!
         // copy the matrix so that we can add guard dependencies 
@@ -248,16 +252,18 @@ public class LTSminDMWalker {
         // For complete R/W, we only need to add guards to atomicDep
         report.setTotal(nTrans * nSlots);
         reads = 0;
-        writes = 0;
+        mayWrites = 0;
+        mustWrites = 0;
         DepMatrix t2g = params.gi.getTestSetMatrix();
         for (LTSminTransition t : params.model.getTransitions()) {
             params.depMatrix.read.orRow(t.getGroup(), t2g.getRow(t.getGroup()));
             report.updateProgress(nSlots);
             RWDepRow row = params.depMatrix.getRow(t.getGroup());
             reads += row.readCardinality();
-            writes += row.writeCardinality();
+            mayWrites += row.mayWriteCardinality();
+            mustWrites += row.mustWriteCardinality();
         }
-        report.overwriteTotals(reads, writes, "Transition/slot R,W");    
+        report.overwriteTotals(reads, mayWrites, mustWrites, "Transition/slot r,W,w");    
 	}
 
 	static void walkTransition(Params params, RWMatrix a2s, RWMatrix atomicDep,
@@ -273,8 +279,9 @@ public class LTSminDMWalker {
 			    int act = a.getIndex();
 	            atomicDep.orRow(t.getGroup(), a2s.getRow(act));
 	            if (params.opts.must_write) {
-	                atomicDep.read.orRow(t.getGroup(), a2s.write.getRow(act));
-	            }
+	                atomicDep.read.orRow(t.getGroup(), a2s.mayWrite.getRow(act));
+	            }	            
+	            atomicDep.mustWrite.clearRow(t.getGroup());
 			}
             atomicDep.read.orRow(t.getGroup(), t2g.getRow(atomic.getGroup()));
 		}
@@ -299,7 +306,7 @@ public class LTSminDMWalker {
 		if(a instanceof AssignAction) {
 			AssignAction as = (AssignAction)a;
 			Identifier id = as.getIdentifier();
-			walkExpression(params, id, MarkAction.WRITE); // read
+			walkExpression(params, id, MarkAction.MAY_MUST_WRITE); // read
 			switch (as.getToken().kind) {
 				case PromelaConstants.ASSIGN:
 					walkExpression(params, as.getExpr(), MarkAction.READ); // read
@@ -313,10 +320,10 @@ public class LTSminDMWalker {
 			}
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
-			DMIncWritePC(params, rpa.getProcess());
-			DMIncWrite(params, _NR_PR);
+			DMIncMayMustWritePC(params, rpa.getProcess());
+			DMIncMayMustWrite(params, _NR_PR);
 			DMIncRead(params, _NR_PR); // also done by guard, just to be sure
-			DMIncWriteEntire(params, params.model.sv.sub(rpa.getProcess()));
+			DMIncMayMustWriteEntire(params, params.model.sv.sub(rpa.getProcess()));
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
@@ -333,18 +340,18 @@ public class LTSminDMWalker {
 			if (expr.getSideEffect() == null) return; // simple expressions are guards
 			//a RunExpression has side effects... yet it does not block if less than 255 processes are started atm
 			assert (expr instanceof RunExpression);
-			DMIncWrite(params, _NR_PR);
+			DMIncMayMustWrite(params, _NR_PR);
 			DMIncRead(params, _NR_PR);
 			RunExpression re = (RunExpression)expr;
 			for (Proctype p : re.getInstances()) {
-				DMIncWritePC(params, p);
+				DMIncMayMustWritePC(params, p);
 				DMIncReadPC(params, p); // we also read to check multiple instantiations
-				DMIncWritePID(params, p);
+				DMIncMayMustWritePID(params, p);
 				//write to the arguments of the target process
 				for (Variable v : p.getArguments()) {
 					if (v.getType() instanceof ChannelType || v.isStatic())
 						continue; //passed by reference or in initial state 
-					DMIncWrite(params, v);
+					DMIncMayMustWrite(params, v);
 				}
 			}
 			for (Action rea : re.getInitActions()) {
@@ -377,7 +384,7 @@ public class LTSminDMWalker {
 			int m = 0;
 			for (Expression e : csa.getExprs()) {
 				Expression top = channelNext(id, m++);
-				walkExpression(params, top, MarkAction.EWRITE);
+				walkExpression(params, top, MarkAction.EMAY_MUST_WRITE);
 				walkExpression(params, e, MarkAction.EREAD);
 			}
 			walkExpression(params, chanLength(id), MarkAction.BOTH);
@@ -390,7 +397,7 @@ public class LTSminDMWalker {
 				Expression read = cra.isRandom() ? channelIndex(id, STAR, m) :
 									channelBottom(id, m);
 				if (e instanceof Identifier) { // otherwise it is a guard!
-					walkExpression(params, e, MarkAction.EWRITE);
+					walkExpression(params, e, MarkAction.EMAY_MUST_WRITE);
 					walkExpression(params, read, MarkAction.EREAD);
 				}
 				m++;
@@ -452,8 +459,8 @@ public class LTSminDMWalker {
         public boolean isStrict() {
             return mark.strict;
         }
-        public boolean isWrite() {
-            return mark == MarkAction.WRITE || mark == MarkAction.EWRITE;
+        public boolean isMayMustWrite() {
+            return mark == MarkAction.MAY_MUST_WRITE || mark == MarkAction.EMAY_MUST_WRITE;
         }
 	}
 
@@ -463,10 +470,12 @@ public class LTSminDMWalker {
 	public static enum	MarkAction {
 	    
 		READ(true),
-		WRITE(true),
+        MAY_MUST_WRITE(true),
+        MAY_WRITE(true),
 		BOTH(true),
 		EREAD(false),
-        EWRITE(false),
+        EMAY_MUST_WRITE(false),
+        EMAY_WRITE(false),
         EBOTH(false);
 
 		boolean strict;
@@ -478,18 +487,20 @@ public class LTSminDMWalker {
 			switch (this) {
 			case EREAD:
 			case READ: DMIncRead (params, sub); break;
-			case EWRITE:
-			case WRITE:DMIncWrite(params, sub); break;
+            case EMAY_MUST_WRITE:
+            case MAY_MUST_WRITE:DMIncMayMustWrite(params, sub); break;
+            case EMAY_WRITE:
+            case MAY_WRITE:DMIncMayWrite(params, sub); break;
 			case EBOTH:
 			case BOTH: DMIncRead (params, sub);
-					   DMIncWrite(params, sub); break;
+					   DMIncMayMustWrite(params, sub); break;
 			default: throw new AssertionError("Not implemented "+ this);
 			}
 		}
 	}
 
 	static void walkExpression(Params params, Expression e, MarkAction mark) {
-		if ((mark == MarkAction.WRITE || mark == MarkAction.EWRITE) && !(e instanceof Identifier))
+		if ((mark == MarkAction.MAY_MUST_WRITE || mark == MarkAction.EMAY_MUST_WRITE) && !(e instanceof Identifier))
 			throw new AssertionError("Only identifiers and TopExpressions can be written to!");
 		if(e instanceof LTSminIdentifier) { //nothing
 		} else if(e instanceof Identifier) {
@@ -535,12 +546,20 @@ public class LTSminDMWalker {
 		}
 	}
 
-	static void DMIncWrite(Params params, LTSminSubVector sub) {
-		if (!(sub instanceof LTSminSlot))
-			throw new AssertionError("Variable is not a native type: "+ sub);
-		int offset = ((LTSminSlot)sub).getIndex();
-		params.depMatrix.incWrite(params.trans, offset);
-	}
+    static void DMIncMayMustWrite(Params params, LTSminSubVector sub) {
+        if (!(sub instanceof LTSminSlot))
+            throw new AssertionError("Variable is not a native type: "+ sub);
+        int offset = ((LTSminSlot)sub).getIndex();
+        params.depMatrix.incMayWrite(params.trans, offset);
+        params.depMatrix.incMustWrite(params.trans, offset);
+    }
+
+    static void DMIncMayWrite(Params params, LTSminSubVector sub) {
+        if (!(sub instanceof LTSminSlot))
+            throw new AssertionError("Variable is not a native type: "+ sub);
+        int offset = ((LTSminSlot)sub).getIndex();
+        params.depMatrix.incMayWrite(params.trans, offset);
+    }
 
 	static void DMIncRead(Params params, LTSminSubVector sub) {
 		if (!(sub instanceof LTSminSlot))
@@ -549,9 +568,9 @@ public class LTSminDMWalker {
 		params.depMatrix.incRead(params.trans, offset);
 	}
 
-	static void DMIncWriteEntire(Params params, LTSminSubVector sub) {
+	static void DMIncMayMustWriteEntire(Params params, LTSminSubVector sub) {
 		for (LTSminSlot slot : sub) {
-			DMIncWrite(params, slot);
+			DMIncMayMustWrite(params, slot);
 		}
 	}
 
@@ -560,21 +579,21 @@ public class LTSminDMWalker {
 		DMIncRead(params, pc);
 	}
 
-	private static void DMIncWritePC(Params params, Proctype p) {
+	private static void DMIncMayMustWritePC(Params params, Proctype p) {
 		Variable pc = params.model.sv.getPC(p);
-		DMIncWrite(params, pc);
+		DMIncMayMustWrite(params, pc);
 	}
 
-	private static void DMIncWritePID(Params params, Proctype p) {
+	private static void DMIncMayMustWritePID(Params params, Proctype p) {
 		Variable pc = params.model.sv.getPID(p);
-		DMIncWrite(params, pc);
+		DMIncMayMustWrite(params, pc);
 	}
 	
 	private static void DMIncRead(Params params, Variable var) {
 		walkExpression(params, id(var), MarkAction.READ);
 	}
 
-	private static void DMIncWrite(Params params, Variable var) {
-		walkExpression(params, id(var), MarkAction.WRITE);
+	private static void DMIncMayMustWrite(Params params, Variable var) {
+		walkExpression(params, id(var), MarkAction.MAY_MUST_WRITE);
 	}
 }

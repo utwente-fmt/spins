@@ -55,13 +55,20 @@ public class LTSminSubVectorArray extends LTSminSubVector {
 			try {
 				first = last = arrayExpr.getConstantValue();
 			} catch(ParseException pe) {
-			    if (idMarker.params.opts.must_write &&
-			            idMarker.isWrite() && first != last) {
-			        // Write may not be over-approximated!
-			        if (idMarker.isStrict()) {
-			            idMarker = new IdMarker(idMarker, MarkAction.EBOTH);
+			    if (idMarker.isMayMustWrite() && first != last) {			        
+			        if (idMarker.params.opts.must_write) {
+    			        // Write may not be over-approximated!
+    			        if (idMarker.isStrict()) {
+    			            idMarker = new IdMarker(idMarker, MarkAction.EBOTH);
+    			        } else {
+    			            idMarker = new IdMarker(idMarker, MarkAction.BOTH);
+    			        }
 			        } else {
-			            idMarker = new IdMarker(idMarker, MarkAction.BOTH);
+                        if (idMarker.isStrict()) {
+                            idMarker = new IdMarker(idMarker, MarkAction.EMAY_WRITE);
+                        } else {
+                            idMarker = new IdMarker(idMarker, MarkAction.MAY_WRITE);
+                        }			            
 			        }
 			    }
 			}

@@ -1,9 +1,11 @@
 package spins.promela.compiler.ltsmin.matrix;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
+import java.util.List;
 
 import spins.util.UnModifiableIterator;
 
@@ -104,6 +106,20 @@ public class DepMatrix {
         protected void unlock() {
             lock();
         }
+
+//        public void remove(int col) {            
+//            
+//            int[] array = new int[size-1];
+//                        
+//            int j = 0;
+//            for (int i = 0; i < size; i++) {
+//                if (this.array[i] == col) continue;
+//                array[j] = this.array[i];
+//                j++;
+//            }
+//            this.array = array;
+//            size--;
+//        }
     }
 
     // We maintain _solely_ a sparse array up to its cardinality reaches SPARSE_MIN
@@ -191,6 +207,17 @@ public class DepMatrix {
 	    }
 	}
 
+//    public void setIndependent(int row, int col) {
+//        check(row, col);
+//        if (vector[row] != null) {
+//            vector[row].clear(col);
+//        }
+//        if (sparse[row] != null && sparse[row].get(col)) {
+//            sparse[row].remove(col);
+//        }
+//        
+//    }
+
     public boolean isDependent(int row, int col) {
         check(row, col);
         if (vector[row] != null) {
@@ -210,6 +237,11 @@ public class DepMatrix {
         }
         Arrays.fill(vector, null);
     }
+    
+    public void clearRow(int row) {
+        vector[row] = new BitSet();
+        sparse[row].clear(SPARSE_MIN);
+    }
 
     public boolean rowsDepenendent(int g1, int g2) {
         return getRow(g1).isDependent(getRow(g2));
@@ -227,6 +259,14 @@ public class DepMatrix {
             setDependent(row, col);
         }       
     }
+    
+//    public void unSet(int row, DepRow depRow) {
+//
+//        for (int col : depRow) {
+//            setIndependent(row, col);
+//        }
+//        
+//    }
 
 	private Iterable<Integer> getIterator(final int row) {
         if (sparse[row] != null) {
