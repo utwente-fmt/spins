@@ -41,7 +41,12 @@ if [ -e /proc/meminfo ]; then
     totalMemKB=`awk '/MemTotal:/ { print $2 }' /proc/meminfo`
     totalMemMB=$(( $totalMemKB/1024 ))
 else
-    totalMemMB=`top -l 1 | grep PhysMem: | sed "s/PhysMem:[ ]*\([0-9]*\)M.*/\1/g"`
+    totalMem=`top -l 1 | grep PhysMem:`
+    totalMemMB=`echo "$totalMem" | sed "s/PhysMem:[ ]*\([0-9]*\)M.*/\1/g"`
+    if [ "$totalMem" = "$totalMemMB" ]; then
+        totalMemGB=`echo "$totalMem" | sed "s/PhysMem:[ ]*\([0-9]*\)G.*/\1/g"`
+        totalMemMB=$(( $totalMemGB*1024 ))
+    fi
 fi
 heapMB=$(( $totalMemMB*100/75 ))
 commitedMB=$(( $heapMB/2 ))
@@ -59,7 +64,11 @@ if [ $no_compile == 1 ]; then
 fi
 
 CC="gcc -fPIC -shared -O2 -ggdb $CFLAGS -Wno-unused-variable \
-    -Wno-unused-but-set-variable $output_file -o $promela_name.spins"
+    -Wno-parentheses-equality \
+    -Wno-initializer-overrides \
+    -Wno-unused-but-set-variable \
+    -Wno-unknown-warning-option \
+    $output_file -o $promela_name.spins"
 
 if [ $verbose = 1 ]; then
     echo $CC
