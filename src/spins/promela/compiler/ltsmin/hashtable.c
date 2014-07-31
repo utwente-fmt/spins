@@ -187,7 +187,7 @@ spins_state_db_lookup_hash (spins_state_db_t *dbs, const int *v, spins_mem_hash_
 				memcpy (spins_state(dbs,ref), v, b);
 				return false;
 			}
-            if ( (mem | SJ_FULL == *spins_memoized(dbs,ref)) &&
+            if ( ((mem | SJ_FULL) == *spins_memoized(dbs,ref)) &&
                   0 == memcmp (spins_state(dbs,ref), v, b) ) {
                 if (tomb != SJ_NONE) {
                     *spins_memoized(dbs,tomb) = mem | SJ_FULL;

@@ -318,7 +318,7 @@ io_start_forall(visitor_t *this, int x)
 
 void io_object(visitor_t *this) {
     char *name = this->out_dim != -1 ? "start" : "end";
-    printf("%s(%d)", name, (long)this->ctx);
+    printf("%s(%d)", name, (int)this->ctx);
 }
 
 void no_print(visitor_t *this) { (void) this; }
@@ -645,7 +645,7 @@ use:spins_use_query();
 
                 if (printer_add3(&p, &end)) goto use;
 
-                if ((end == term)) { printf("Premature end after ! at %d", end - begin); break; }
+                if ((end == term)) { printf("Premature end after ! at pos %d", (int)(end - begin)); break; }
                 char command = end++[0];
 
                 if (printer_add2(&p, command, invert, &negate)) goto use; // may fail

@@ -186,7 +186,7 @@ main2(int argc, char **argv)
 	state_t state;
 	spins_get_initial_state(&state);
 	int k = spins_get_transition_groups();
-	for (statement_type = 0; statement_type++; statement_type < spins_get_type_count())
+	for (statement_type = 0; statement_type < spins_get_type_count(); statement_type++)
 	    if (0 == strcmp(spins_get_type_name(statement_type),"statement")) break;
 	while (true) {
 		int result = spins_state_db_lookup(seen, (const int*)&state);
