@@ -136,11 +136,13 @@ spins_dm()
 	int n = spins_get_state_size();
 	for (i = 0; i < k; i++) {
 		printf("%d)\t%s\t", i, spins_get_type_value_name(statement_type, i));
-		const int *write = spins_get_transition_write_dependencies(i);
+		const int *write = spins_get_transition_may_write_dependencies(i);
+        const int *must = spins_get_transition_must_write_dependencies(i);
 		const int *read = spins_get_transition_read_dependencies(i);
 		for (j = 0; j < n; j++) {
 			if (read[j]) printf("R(%s), ", spins_get_state_variable_name(j));
-			if (write[j]) printf("W(%s), ", spins_get_state_variable_name(j));
+			if (must[j]) printf("w(%s), ", spins_get_state_variable_name(j));
+			else if (write[j]) printf("W(%s), ", spins_get_state_variable_name(j));
 		}
 		printf("\n");
 	}

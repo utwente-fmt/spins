@@ -318,7 +318,7 @@ io_start_forall(visitor_t *this, int x)
 
 void io_object(visitor_t *this) {
     char *name = this->out_dim != -1 ? "start" : "end";
-    printf("%s(%d)", name, (int)this->ctx);
+    printf("%s(%zu)", name, (size_t)this->ctx);
 }
 
 void no_print(visitor_t *this) { (void) this; }
