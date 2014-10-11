@@ -25,7 +25,6 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.incr;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.print;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.printPC;
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.printVar;
 import static spins.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spins.promela.compiler.parser.PromelaConstants.DECR;
 import static spins.promela.compiler.parser.PromelaConstants.FALSE;
@@ -820,23 +819,24 @@ public class LTSminPrinter {
 				default:
 					throw new AssertionError("unknown assignment type");
 			}
-            
-			// this does not work for variables that span multiple state slots.
-            w.appendPrefix();
-            w.append("cpy[((int*)&");
-            generateExpression(w, id, out(model));
-            w.append(" - (int*)"+OUT_VAR+")] = 0;");
-            w.appendPostfix();
+
+			if (!id.getVariable().isHidden() && !(id instanceof LTSminIdentifier)) {
+			    copyAccess(w, print(id, out(model)));
+			}
             
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
 			String name = rpa.getProcess().getName();
 			String struct_t = model.sv.getMember(rpa.getProcess()).getType().getName();
 			w.appendLine("#ifndef NORESETPROCESS");
-			w.appendLine("memcpy(&",OUT_VAR,"->"+ name +",(char*)&(",INITIAL_VAR,".",name,"),sizeof("+ struct_t +"));");
+			w.appendLine("memcpy(&",OUT_VAR,"->"+ name +", (char*)&(",INITIAL_VAR,".",name,"), sizeof("+ struct_t +"));");
+            w.appendLine("memset(&((state_t *)cpy)->"+ name +", 0, sizeof("+ struct_t +"));");
 			w.appendLine("#endif");
-			w.appendLine(printVar(_NR_PR, out(model)) +"--;");
+			
+			w.appendLine(print(_NR_PR, out(model)) +"--;");
 			w.appendLine(printPC(rpa.getProcess(), out(model)) +" = -1;");
+			copyAccess(w, print(_NR_PR, out(model)));
+            copyAccess(w, printPC(rpa.getProcess(), out(model)));
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
@@ -919,7 +919,7 @@ public class LTSminPrinter {
 			//activate process
 			Action update_pc = assign(model.sv.getPC(instance), 0);
 			generateAction(w2, update_pc, model, t);
-			w2.appendLine("++("+ printVar(_NR_PR, out(model)) +");");
+			w2.appendLine("++("+ print(_NR_PR, out(model)) +");");
 
 			
 			List<Variable> args = instance.getArguments();
@@ -938,6 +938,7 @@ public class LTSminPrinter {
 			for (Action action: re.getInitActions())
 				generateAction(w2, action, model, t);
 
+			// replace all variable identifiers with the right process instance index
 			String ccode = w2.toString();
 			if (re.getInstances().size() > 1) {
 				String struct = model.sv.getMember(instance.getName()).getType().toString();
@@ -1096,6 +1097,18 @@ public class LTSminPrinter {
 		}
 	}
 
+    private static void copyAccess(StringWriter w, String var) {
+
+        if (!var.endsWith(".var")) throw new AssertionError(var +" does not end with '.var'");
+        String pad = var.substring(0, var.length() - 4) +".pad";
+
+        w.appendPrefix();
+        w.append("cpy[((int*)&");
+        w.append(pad);
+        w.append(" - (int*)"+OUT_VAR+")] = 0;");
+        w.appendPostfix();
+    }
+
 	private static String generateExpression(LTSminModel model, Expression e) {
 		StringWriter w2 = new StringWriter();
 		generateExpression(w2, e, out(model));
@@ -1253,7 +1266,7 @@ public class LTSminPrinter {
 		} else if(e instanceof RunExpression) {
 			//we define the "instantiation number" as: next_pid+1 (http://spinroot.com/spin/Man/run.html)
 			//otherwise the first process can never be started if all proctypes are nonactive.
-			w.append("("+ printVar(_NR_PR, state) +" != "+ (PM_MAX_PROCS-1) +")");
+			w.append("("+ print(_NR_PR, state) +" != "+ (PM_MAX_PROCS-1) +")");
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
             Expression labelExpr = rr.getLabelExpression(null);

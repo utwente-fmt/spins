@@ -226,15 +226,15 @@ public class LTSminUtil {
 	/** Strings **/
 	public static String printPC(Proctype process, LTSminPointer out) {
 		Variable var = out.getPC(process);
-		return printVar(var, out);
+		return print(var, out);
 	}
 
 	public static String printPID(Proctype process, LTSminPointer out) {
 		Variable var = out.getPID(process);
-		return printVar(var, out);
+		return print(var, out);
 	}
 
-	public static String printVar(Variable var, LTSminPointer out) {
+	public static String print(Variable var, LTSminPointer out) {
 		return print(new Identifier(var), out);
 	}
 
