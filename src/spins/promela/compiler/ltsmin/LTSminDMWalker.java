@@ -470,13 +470,13 @@ public class LTSminDMWalker {
 	public static enum	MarkAction {
 	    
 		READ(true),
-        MAY_MUST_WRITE(true),
-        MAY_WRITE(true),
+		MAY_MUST_WRITE(true),
+		MAY_WRITE(true),
 		BOTH(true),
 		EREAD(false),
-        EMAY_MUST_WRITE(false),
-        EMAY_WRITE(false),
-        EBOTH(false);
+		EMAY_MUST_WRITE(false),
+		EMAY_WRITE(false),
+		EBOTH(false);
 
 		boolean strict;
         MarkAction(boolean strict) {
@@ -487,10 +487,10 @@ public class LTSminDMWalker {
 			switch (this) {
 			case EREAD:
 			case READ: DMIncRead (params, sub); break;
-            case EMAY_MUST_WRITE:
-            case MAY_MUST_WRITE:DMIncMayMustWrite(params, sub); break;
-            case EMAY_WRITE:
-            case MAY_WRITE:DMIncMayWrite(params, sub); break;
+			case EMAY_MUST_WRITE:
+			case MAY_MUST_WRITE:DMIncMayMustWrite(params, sub); break;
+			case EMAY_WRITE:
+			case MAY_WRITE:DMIncMayWrite(params, sub); break;
 			case EBOTH:
 			case BOTH: DMIncRead (params, sub);
 					   DMIncMayMustWrite(params, sub); break;

@@ -64,11 +64,11 @@ public class LTSminSubVectorArray extends LTSminSubVector {
     			            idMarker = new IdMarker(idMarker, MarkAction.BOTH);
     			        }
 			        } else {
-                        if (idMarker.isStrict()) {
-                            idMarker = new IdMarker(idMarker, MarkAction.EMAY_WRITE);
-                        } else {
-                            idMarker = new IdMarker(idMarker, MarkAction.MAY_WRITE);
-                        }			            
+						if (idMarker.isStrict()) {
+							idMarker = new IdMarker(idMarker, MarkAction.EMAY_WRITE);
+						} else {
+							idMarker = new IdMarker(idMarker, MarkAction.MAY_WRITE);
+						}        
 			        }
 			    }
 			}

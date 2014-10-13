@@ -106,20 +106,6 @@ public class DepMatrix {
         protected void unlock() {
             lock();
         }
-
-//        public void remove(int col) {            
-//            
-//            int[] array = new int[size-1];
-//                        
-//            int j = 0;
-//            for (int i = 0; i < size; i++) {
-//                if (this.array[i] == col) continue;
-//                array[j] = this.array[i];
-//                j++;
-//            }
-//            this.array = array;
-//            size--;
-//        }
     }
 
     // We maintain _solely_ a sparse array up to its cardinality reaches SPARSE_MIN
@@ -207,17 +193,6 @@ public class DepMatrix {
 	    }
 	}
 
-//    public void setIndependent(int row, int col) {
-//        check(row, col);
-//        if (vector[row] != null) {
-//            vector[row].clear(col);
-//        }
-//        if (sparse[row] != null && sparse[row].get(col)) {
-//            sparse[row].remove(col);
-//        }
-//        
-//    }
-
     public boolean isDependent(int row, int col) {
         check(row, col);
         if (vector[row] != null) {
@@ -259,14 +234,6 @@ public class DepMatrix {
             setDependent(row, col);
         }       
     }
-    
-//    public void unSet(int row, DepRow depRow) {
-//
-//        for (int col : depRow) {
-//            setIndependent(row, col);
-//        }
-//        
-//    }
 
 	private Iterable<Integer> getIterator(final int row) {
         if (sparse[row] != null) {

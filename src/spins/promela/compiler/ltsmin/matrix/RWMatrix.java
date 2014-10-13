@@ -8,8 +8,8 @@ import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 public class RWMatrix{
 
 	public DepMatrix read = null;
-    public DepMatrix mayWrite = null;
-    public DepMatrix mustWrite = null;
+	public DepMatrix mayWrite = null;
+	public DepMatrix mustWrite = null;
 
     // use this class as dummy (for backward compatibility with RW matrix 
     public RWMatrix(DepMatrix read, DepMatrix mayWrite, DepMatrix mustWrite) {
@@ -47,7 +47,7 @@ public class RWMatrix{
     }
 	
 	public void incMustWrite(int row, int col) {
-	    mustWrite.setDependent(row,  col);
+		mustWrite.setDependent(row,  col);
 	}
 	
     public boolean isRead(int row, int col) {
