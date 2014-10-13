@@ -329,7 +329,8 @@ public class LTSminTreeWalker {
 
 		// Add export labels
 		for (Map.Entry<String,Expression> export : exports.entrySet()) {
-		    LTSminGuard guard = new LTSminGuard(export.getValue());
+		    Expression ex = instantiate(export.getValue(), null);
+            LTSminGuard guard = new LTSminGuard(ex);
             model.addStateLabel(export.getKey(), guard);
 		}
 		
@@ -620,8 +621,10 @@ public class LTSminTreeWalker {
 			        for (ProcInstance i : var.getOwner().getInstances() ) {
 			            if (i.getID() == id.getInstanceIndex()) p = i;
 			        }
-			        if (p == null) throw new AssertionError("ProcInstance "+ id.getInstanceIndex() +" not found for remote ref "+ id.toString());
-			    } else if (!p.getTypeName().equals(var.getOwner().getName())) {
+			        if (p == null) throw new AssertionError("ProcInstance "+ id.getInstanceIndex() +" with PID "+ id.getInstanceIndex() +" not found for remote ref "+ id.toString() +" (wrong PID?)");
+			    } else if (p == null) {
+                    throw new AssertionError("Instantiating global expression (a label?) failed: "+ e);
+                } else if (!p.getTypeName().equals(var.getOwner().getName())) {
 					throw new AssertionError("Expected instance of type "+ var.getOwner().getName() +" not of "+ p.getTypeName());
 				}
 				newVar = p.getVariable(var.getName()); // load copied variable
