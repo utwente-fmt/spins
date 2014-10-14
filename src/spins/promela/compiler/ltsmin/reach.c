@@ -5,18 +5,20 @@ static const size_t 	DB_MAX_SIZE = 15;
 void
 spins_free_args (void *a)
 {
-    spins_state_db_t    *seen_table;
-    spins_state_db_free (seen_table);
+    if (a != NULL) {
+        spins_state_db_free ((spins_state_db_t *) a);
+    }
 }
 
+static pthread_once_t spins_key_once = PTHREAD_ONCE_INIT;
 static pthread_key_t spins_local_key;
 
-__attribute__((constructor)) void
+void
 spins_initialize_key() {
     pthread_key_create (&spins_local_key, spins_free_args);
 }
 
-__attribute__((destructor)) void
+void
 spins_destroy_key() {
     pthread_key_delete (spins_local_key);
 }
@@ -25,7 +27,10 @@ void
 spins_get_table_from_tls (spins_args_t *args)
 {
     if (EXPECT_FALSE(args->table == NULL)) {
+
+        (void) pthread_once (&spins_key_once, spins_initialize_key); // barrier
         args->table = pthread_getspecific (spins_local_key);
+
         if (EXPECT_FALSE(args->table == NULL)) {
             args->table = spins_state_db_create (spins_get_state_size(),
                                                  DB_INIT_SIZE, DB_MAX_SIZE);
