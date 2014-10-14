@@ -1357,6 +1357,13 @@ public class LTSminPrinter {
         w.appendLine("  return NULL;");
         w.appendLine("}");
         w.appendLine("");
+        w.appendLine("// for backwards compatibility:");
+        w.appendLine("extern const int* spins_get_transition_write_dependencies(int t)");
+        w.appendLine("{");
+        w.appendLine("  if (t>=0 && t < "+ dm.getNrRows()+ ") return "+ DM_NAME +"[t][1];");
+        w.appendLine("  return NULL;");
+        w.appendLine("}");
+        w.appendLine("");
         w.appendLine("extern const int* spins_get_transition_must_write_dependencies(int t)");
         w.appendLine("{");
         w.appendLine("  if (t>=0 && t < "+ dm.getNrRows()+ ") return "+ DM_NAME +"[t][2];");
