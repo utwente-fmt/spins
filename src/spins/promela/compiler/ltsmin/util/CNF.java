@@ -49,14 +49,8 @@ public class CNF extends ArrayList<D> {
                 merge(d);
         return this;
     }
-
+    
     public CNF merge(D x) {
-        for (D d : this) {
-            if (d.isDependent(x)) {
-                d.and(x);
-                return this; // see class invariant
-            }
-        }
         add(x);
         return this;
     }
