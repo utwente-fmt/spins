@@ -506,11 +506,7 @@ public class LTSminPrinter {
 		if (guards == 0) w.append("true");	w.append(") {").appendPostfix();
 		w.indent();
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
-		
-		w.appendPrefix();
-		w.append("int cpy[" + model.sv.size() + "] = { ");		
-		for (int i = 0; i < model.sv.size(); i++) w.append("1,");		
-		w.append(" };");
+		w.appendLine("int cpy[" + model.sv.size() + "]; memcpy(cpy, cpy_src, sizeof(int[" + model.sv.size() + "]));");
 		w.appendPostfix();
 		
 		List<Action> actions = t.getActions();
@@ -532,7 +528,7 @@ public class LTSminPrinter {
 		/* PROMELA specific per-proctype code */
 	    if (model.getTransitions().size() == 0) return;
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
-			w.appendLine("int spins_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +") {");
+			w.appendLine("int spins_get_successor_sid"+ p.getID() +"( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +", int *cpy_src) {");
 			w.indent();
 			String edge_array = "";
 			for (int i = 0; i < model.getEdges().size(); i++)
@@ -555,11 +551,11 @@ public class LTSminPrinter {
 			w.appendLine("}");
 			w.appendLine();
 		}
-		w.appendLine("int spins_get_successor_sid( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +", int atomic) {");
+		w.appendLine("int spins_get_successor_sid( void* model, state_t *in, void *arg, state_t *"+ OUT_VAR +", int atomic, int *cpy_src) {");
 		w.indent();
 		w.appendLine("switch (atomic) {");
 		for (ProcInstance p : model.getTransitions().get(0).getProcess().getSpecification()) {
-			w.appendLine("case "+ p.getID() +": return spins_get_successor_sid"+ p.getID() +"(model, in, arg, "+ OUT_VAR +"); break;");
+			w.appendLine("case "+ p.getID() +": return spins_get_successor_sid"+ p.getID() +"(model, in, arg, "+ OUT_VAR +", cpy_src); break;");
 		}
 		w.appendLine("default: printf(\"Wrong structural ID\"); exit(-1);");
 		w.appendLine("}");

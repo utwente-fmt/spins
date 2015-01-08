@@ -51,6 +51,7 @@ spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, in
 		args->callback (args->arg, args->ti_orig, out, cpy);
 		args->outs++;
 	} else {
+		args->cpy_orig = cpy;
 		spins_dfs (args, out, atomic);
 	}
 }
@@ -62,7 +63,7 @@ spins_dfs (spins_args_t *args, state_t *state, int atomic)
 	switch ( result ) {
 	case false: { // new state
 		state_t out;
-		int count = spins_get_successor_sid (args->model, state, args, &out, atomic);
+		int count = spins_get_successor_sid (args->model, state, args, &out, atomic, args->cpy_orig);
 		if (count == 0) {
 			args->callback (args->arg, args->ti_orig, state, args->cpy_orig);
 			args->outs++;
