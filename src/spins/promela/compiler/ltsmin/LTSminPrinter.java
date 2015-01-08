@@ -752,7 +752,173 @@ public class LTSminPrinter {
         w.outdent();
         w.appendLine("}");
         w.appendLine();
-    }
+	}
+
+	private static int generateBound(StringWriter w, LTSminModel model, Expression e, LTSminPointer state) {
+		if (e == null) return 0;
+		if (e instanceof LTSminIdentifier) {
+		} else if (e instanceof Identifier) {
+			Identifier id = (Identifier) e;
+			if (id.getArrayExpr() != null) {
+				w.append(" || ");
+				generateExpression(w, id.getArrayExpr(), state);
+				w.append(" < 0 || ");
+				generateExpression(w, id.getArrayExpr(), state);
+				w.append(String.format(" >= %d", id.getVariable().getArraySize()));
+			} else if (id.getVariable().getArrayIndex() != -1) {
+				w.append(String.format(" || %s < 0 || %s >= %d", id.getVariable().getArrayIndex(), id.getVariable().getArrayIndex(), id.getVariable().getArraySize()));				
+			}
+		} else if (e instanceof AritmicExpression) {
+			AritmicExpression ae = (AritmicExpression) e;
+			Expression ex1 = ae.getExpr1();
+			Expression ex2 = ae.getExpr2();
+			Expression ex3 = ae.getExpr3();
+			generateDiv(w, model, e, state);
+			generateMaybe(w, model, ex1, state);
+			generateMaybe(w, model, ex2, state);
+			generateMaybe(w, model, ex3, state);
+		} else if (e instanceof BooleanExpression) {
+			BooleanExpression ae = (BooleanExpression) e;
+			Expression ex1 = ae.getExpr1();
+			Expression ex2 = ae.getExpr2();
+			generateMaybe(w, model, ex1, state);
+			generateMaybe(w, model, ex2, state);
+		} else if (e instanceof CompareExpression) {
+			CompareExpression ae = (CompareExpression) e;
+			Expression ex1 = ae.getExpr1();
+			Expression ex2 = ae.getExpr2();
+			generateMaybe(w, model, ex1, state);
+			generateMaybe(w, model, ex2, state);
+		} else if (e instanceof TranslatableExpression) {
+			TranslatableExpression te = (TranslatableExpression) e;
+			generateMaybe(w, model, te.translate(), state);
+		} else if (e instanceof ChannelReadExpression) {
+			ChannelReadExpression cre = (ChannelReadExpression) e;
+			for (Expression ex : cre.getExprs()) {
+				generateMaybe(w, model, ex, state);
+			}
+		} else if (e instanceof MTypeReference) {
+		} else if (e instanceof ConstantExpression) {
+		} else if (e instanceof RunExpression) {
+		} else if (e instanceof RemoteRef) {
+		} else if (e instanceof EvalExpression) {
+		} else if (e instanceof TimeoutExpression) {
+		} else if (e instanceof CompoundExpression) {
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
+					+ e.getClass().getName());
+		} else {
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
+					+ e.getClass().getName());
+		}
+
+		return 1;
+	}
+    
+	private static int generateDiv(StringWriter w, LTSminModel model, Expression e, LTSminPointer state) {
+		if (e == null) return 0;
+		if (e instanceof LTSminIdentifier) {
+		} else if (e instanceof Identifier) {
+			Identifier id = (Identifier) e;
+			generateMaybe(w, model, id.getArrayExpr(), state);
+			generateBound(w, model, id, state);
+		} else if (e instanceof AritmicExpression) {
+			AritmicExpression ae = (AritmicExpression) e;
+			Expression ex2 = ae.getExpr2();
+			if (ae.getToken().kind == PromelaConstants.DIVIDE || ae.getToken().kind == PromelaConstants.MODULO) {
+				w.append(" || ");
+				generateExpression(w, ex2, state);
+				w.append(" == 0");
+			}
+		} else if (e instanceof BooleanExpression) {
+			BooleanExpression ae = (BooleanExpression) e;
+			Expression ex1 = ae.getExpr1();
+			Expression ex2 = ae.getExpr2();
+			generateMaybe(w, model, ex1, state);
+			generateMaybe(w, model, ex2, state);
+		} else if (e instanceof CompareExpression) {
+			CompareExpression ae = (CompareExpression) e;
+			Expression ex1 = ae.getExpr1();
+			Expression ex2 = ae.getExpr2();
+			generateMaybe(w, model, ex1, state);
+			generateMaybe(w, model, ex2, state);
+		} else if (e instanceof TranslatableExpression) {
+			TranslatableExpression te = (TranslatableExpression) e;
+			generateMaybe(w, model, te.translate(), state);
+		} else if (e instanceof ChannelReadExpression) {
+			ChannelReadExpression cre = (ChannelReadExpression) e;
+			for (Expression ex : cre.getExprs()) {
+				generateMaybe(w, model, ex, state);
+			}
+		} else if (e instanceof MTypeReference) {
+		} else if (e instanceof ConstantExpression) {
+		} else if (e instanceof RunExpression) {
+		} else if (e instanceof RemoteRef) {
+		} else if (e instanceof EvalExpression) {
+		} else if (e instanceof TimeoutExpression) {
+		} else if (e instanceof CompoundExpression) {
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
+					+ e.getClass().getName());
+		} else {
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
+					+ e.getClass().getName());
+		}
+
+		return 1;
+	}
+
+	private static int generateMaybe(StringWriter w, LTSminModel model, Expression e, LTSminPointer state) {
+		if (e == null) return 0;
+		
+		if (e instanceof LTSminIdentifier) {
+		} else if (e instanceof Identifier) {
+			Identifier id = (Identifier) e;
+			generateMaybe(w, model, id.getArrayExpr(), state);	
+			generateBound(w, model, id, state);		
+		} else if (e instanceof AritmicExpression) {
+			AritmicExpression ae = (AritmicExpression) e;
+			Expression ex1 = ae.getExpr1();
+			Expression ex2 = ae.getExpr2();
+			Expression ex3 = ae.getExpr3();
+			generateDiv(w, model, e, state);
+			generateMaybe(w, model, ex1, state);
+			generateMaybe(w, model, ex2, state);
+			generateMaybe(w, model, ex3, state);
+		} else if (e instanceof BooleanExpression) {
+			BooleanExpression ae = (BooleanExpression) e;
+			Expression ex1 = ae.getExpr1();
+			Expression ex2 = ae.getExpr2();
+			generateMaybe(w, model, ex1, state);
+			generateMaybe(w, model, ex2, state);
+		} else if (e instanceof CompareExpression) {
+			CompareExpression ae = (CompareExpression) e;
+			Expression ex1 = ae.getExpr1();
+			Expression ex2 = ae.getExpr2();
+			generateMaybe(w, model, ex1, state);
+			generateMaybe(w, model, ex2, state);
+		} else if (e instanceof TranslatableExpression) {
+			TranslatableExpression te = (TranslatableExpression) e;
+			generateMaybe(w, model, te.translate(), state);
+		} else if (e instanceof ChannelReadExpression) {
+			ChannelReadExpression cre = (ChannelReadExpression) e;
+			for (Expression ex : cre.getExprs()) {
+				generateMaybe(w, model, ex, state);
+			}
+		} else if (e instanceof MTypeReference) {
+		} else if (e instanceof ConstantExpression) {
+		} else if (e instanceof RunExpression) {
+		} else if (e instanceof RemoteRef) {
+		} else if (e instanceof EvalExpression) {
+		} else if (e instanceof TimeoutExpression) {
+		} else if (e instanceof CompoundExpression) {
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
+					+ e.getClass().getName());
+		} else {
+			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
+					+ e.getClass().getName());
+		}
+
+		return 1;
+	}
 
 	private static int generateGuard(StringWriter w, LTSminModel model,
 								     LTSminGuardBase guard, LTSminPointer state) {
@@ -1665,7 +1831,11 @@ public class LTSminPrinter {
         w.indent();
         for(int g=0; g<gm.getNumberOfLabels(); ++g) {
             w.appendPrefix();
-            w.append("case ").append(g).append(": return ");
+            w.append("case ").append(g).append(": return (0");
+            generateMaybe(w, model, gm.getLabel(g).getExpr(), in(model));
+            w.append(") ? 2 :"); w.appendLine();
+            w.appendPrefix();
+            w.appendPrefix();
             generateGuard(w, model, gm.getLabel(g), in(model));
             w.append(" != 0;");
             w.appendPostfix();
@@ -1702,7 +1872,11 @@ public class LTSminPrinter {
                 w.appendLine("if (guards_only) return;");
             }
             w.appendPrefix();
-            w.append("label[").append(g).append("] = ");
+            w.append("label[").append(g).append("] = (0");
+            generateMaybe(w, model, gm.getLabel(g).getExpr(), in(model));
+            w.append(") ? 2 :"); w.appendLine();
+            w.appendPrefix();
+            w.appendPrefix();
             generateGuard(w, model, gm.getLabel(g), in(model));
             w.append(" != 0;");
             w.appendPostfix();
