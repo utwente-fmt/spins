@@ -15,6 +15,6 @@
 package spins;
 
 public final class Version {
-    public static String VERSION = "1.0";
-    public static String DATE    = "5-Feb-2013";
+    public static String VERSION = "1.1";
+    public static String DATE    = "3-Feb-2015";
 }
