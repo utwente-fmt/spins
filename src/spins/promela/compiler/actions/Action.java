@@ -16,6 +16,7 @@ package spins.promela.compiler.actions;
 
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.ltsmin.model.LTSminModelFeature;
+import spins.promela.compiler.ltsmin.model.LTSminTransition;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
 
@@ -45,10 +46,24 @@ public abstract class Action implements LTSminModelFeature  {
 	private int index = -1;
 
 	public void setIndex(int i) {
+	    if (index != -1)
+	        throw new AssertionError("Doubly used action: "+ this);
         index = i;
     }
 
     public int getIndex() {
         return index;
+    }
+
+    private LTSminTransition transition = null; 
+
+    public void setTransition(LTSminTransition t) {
+        if (transition != null)
+            throw new AssertionError("Doubly used action: "+ this);
+        transition = t;
+    }
+
+    public LTSminTransition getTransition() {
+        return transition;
     }
 }

@@ -275,4 +275,11 @@ public class LTSminTransition implements LTSminGuardContainer,
     public boolean isTimeout() {
         return isTimeout;
     }
+
+    public boolean isNeverExecutable() {
+        for (LTSminGuardBase g : guards) {
+            if (g.isDefinitelyFalse()) return true;
+        }
+        return false;
+    }
 }

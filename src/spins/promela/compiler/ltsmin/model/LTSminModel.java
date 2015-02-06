@@ -248,6 +248,7 @@ public class LTSminModel implements Iterable<LTSminTransition> {
                 for (Action a : t.getActions()) {
                     if (a.getIndex() == -1) {
                         a.setIndex(nActions++);
+                        a.setTransition(t);
                         actions.add(a);
                     }
                 }

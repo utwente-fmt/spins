@@ -4,6 +4,7 @@ import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.ltsmin.LTSminDMWalker.IdMarker;
 import spins.promela.compiler.ltsmin.LTSminDMWalker.MarkAction;
+import spins.promela.compiler.ltsmin.util.PArrayIndexOutOfBoundsException;
 import spins.promela.compiler.parser.ParseException;
 
 
@@ -32,8 +33,9 @@ public class LTSminSubVectorArray extends LTSminSubVector {
 	private LTSminSubVector follow(int index) {
 		if (var.getType() instanceof LTSminTypeNative)
 			return slot(index);
-        if (index >= (var.array() > -1 ? var.array() : 1))
-            throw new AssertionError("Array index out of bound for: "+ var);
+        int max = (var.array() > -1 ? var.array() : 1);
+		if (index >= max)
+            throw new PArrayIndexOutOfBoundsException(var, "Array index out of bound for: "+ var +"["+ index +"]: "+ index +" >= "+ max);
 		int offset = index * var.getType().length();
 		return new LTSminSubVectorStruct(this, var.getType(), offset);
 	}

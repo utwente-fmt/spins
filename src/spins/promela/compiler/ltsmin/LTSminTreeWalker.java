@@ -1069,6 +1069,11 @@ public class LTSminTreeWalker {
     		addSpecialGuards(lt, t, p); // proc die order && provided condition 
     		createEnabledGuard(t, lt); // enabled action or else transition 
     
+    		if (lt.isNeverExecutable()) {
+    		    debug.say(MessageKind.NORMAL, "Removing dead transition "+ t +" of process "+ t.getProc());
+    		    continue; // skip dead transitions
+    		}
+
             if (addNever(lt, n)) {
                 list.add(lt);
                 continue;
