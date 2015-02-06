@@ -6,6 +6,8 @@ STORAGE_SIZE="26";
 EXP=$1
 EXTRA=$2
 
+echo $EXP - $EXTRA
+
 ## PATHS:
 RUNDIR=`dirname "$0"`
 RUNDIR=`realpath "$RUNDIR"`
@@ -67,7 +69,7 @@ function runtest {
     if [ ! -e $OUT ]; then
         PINS="models-$EXP/$FILE.spins"
         EXPLORE=`$LTSMIN --ratio=1 --strategy=dfs --state=$STORAGE \
-             -s$STORAGE_SIZE -v $EXTRA $PINS 2>&1 | tee $OUT`
+             -s$STORAGE_SIZE $EXTRA -v $PINS 2>&1 | tee $OUT`
 
         STATESNEW=`echo "$EXPLORE"|grep "Elements: "|sed 's/.* \([0-9]*\)$/\1/g'`
         TRANSNEW=`echo "$EXPLORE"|grep ": Explored"|sed 's/.*states \([0-9]*\) trans.*/\1/g'`
