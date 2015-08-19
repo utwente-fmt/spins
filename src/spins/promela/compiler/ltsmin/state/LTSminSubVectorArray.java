@@ -35,7 +35,7 @@ public class LTSminSubVectorArray extends LTSminSubVector {
 			return slot(index);
         int max = (var.array() > -1 ? var.array() : 1);
 		if (index >= max)
-            throw new PArrayIndexOutOfBoundsException(var, "Array index out of bound for: "+ var +"["+ index +"]: "+ index +" >= "+ max);
+            throw new PArrayIndexOutOfBoundsException(var, index);
 		int offset = index * var.getType().length();
 		return new LTSminSubVectorStruct(this, var.getType(), offset);
 	}
