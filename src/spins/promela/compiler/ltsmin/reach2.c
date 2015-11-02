@@ -674,10 +674,9 @@ typedef struct spins_args_s {
     int                 sid;
     transition_info_t  *ti_orig;
     void               *table;
-    int				   *cpy_orig;
 } spins_args_t;
 
-extern void spins_simple_dfs (spins_args_t *args, state_t *state, int atomic);
+extern void spins_simple_dfs (spins_args_t *args, state_t *state, int atomic, int *cpy);
 
 void
 spins_simple_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy)
@@ -687,18 +686,17 @@ spins_simple_atomic_cb (void* arg, transition_info_t *transition_info, state_t *
         args->callback (args->arg, args->ti_orig, out, cpy);
         args->outs++;
     } else {
-        args->cpy_orig = cpy;
-        spins_simple_dfs (args, out, atomic);
+        spins_simple_dfs (args, out, atomic, cpy);
     }
 }
 
 void
-spins_simple_dfs (spins_args_t *args, state_t *state, int atomic)
+spins_simple_dfs (spins_args_t *args, state_t *state, int atomic, int *cpy)
 {
     state_t out;
-    int count = spins_get_successor_sid (args->model, state, args, &out, atomic, args->cpy_orig);
+    int count = spins_get_successor_sid (args->model, state, args, &out, atomic, cpy);
     if (count == 0) {
-        args->callback (args->arg, args->ti_orig, state, args->cpy_orig);
+        args->callback (args->arg, args->ti_orig, state, cpy);
         args->outs++;
     }
 }
@@ -715,7 +713,6 @@ spins_simple_reach (void* model, transition_info_t *transition_info, state_t *in
     args.outs = 0;
     args.sid = sid;
     args.ti_orig = transition_info;
-    args.cpy_orig = cpy;
-    spins_simple_dfs (&args, in, sid);
+    spins_simple_dfs (&args, in, sid, cpy);
     return args.outs;
 }

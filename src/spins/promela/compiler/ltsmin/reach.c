@@ -41,7 +41,7 @@ spins_get_table_from_tls (spins_args_t *args)
     }
 }
 
-extern void spins_dfs (spins_args_t *args, state_t *state, int atomic);
+extern void spins_dfs (spins_args_t *args, state_t *state, int atomic, int *cpy);
 
 void
 spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy)
@@ -51,21 +51,20 @@ spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, in
 		args->callback (args->arg, args->ti_orig, out, cpy);
 		args->outs++;
 	} else {
-		args->cpy_orig = cpy;
-		spins_dfs (args, out, atomic);
+		spins_dfs (args, out, atomic, cpy);
 	}
 }
 void
-spins_dfs (spins_args_t *args, state_t *state, int atomic)
+spins_dfs (spins_args_t *args, state_t *state, int atomic, int *cpy)
 {
     spins_get_table_from_tls (args);
 	int result = spins_state_db_lookup (args->table, (const int*)state);
 	switch ( result ) {
 	case false: { // new state
 		state_t out;
-		int count = spins_get_successor_sid (args->model, state, args, &out, atomic, args->cpy_orig);
+		int count = spins_get_successor_sid (args->model, state, args, &out, atomic, cpy);
 		if (count == 0) {
-			args->callback (args->arg, args->ti_orig, state, args->cpy_orig);
+			args->callback (args->arg, args->ti_orig, state, cpy);
 			args->outs++;
 		}
 		break;
@@ -91,8 +90,7 @@ spins_reach (void* model, transition_info_t *transition_info, state_t *in,
     args.outs = 0;
     args.sid = sid;
     args.ti_orig = transition_info;
-    args.cpy_orig = cpy;
-	spins_dfs (&args, in, sid);
+	spins_dfs (&args, in, sid, cpy);
 	return args.outs;
 }
 
