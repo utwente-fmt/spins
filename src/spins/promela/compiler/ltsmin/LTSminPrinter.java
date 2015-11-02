@@ -84,6 +84,7 @@ import spins.promela.compiler.ltsmin.model.ResetProcessAction;
 import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.ltsmin.state.LTSminSlot;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
+import spins.promela.compiler.ltsmin.state.LTSminSubVector;
 import spins.promela.compiler.ltsmin.state.LTSminTypeI;
 import spins.promela.compiler.ltsmin.state.LTSminTypeStruct;
 import spins.promela.compiler.ltsmin.state.LTSminVariable;
@@ -827,7 +828,13 @@ public class LTSminPrinter {
 			w.appendLine("#ifndef NORESETPROCESS");
 			w.appendLine("memcpy(&",OUT_VAR,"->"+ name +", (char*)&(",INITIAL_VAR,".",name,"), sizeof("+ struct_t +"));");
             w.appendLine("memset(&((state_t *)cpy)->"+ name +", 0, sizeof("+ struct_t +"));");
-			w.appendLine("#endif");
+			LTSminSubVector sub = model.sv.sub(rpa.getProcess());
+			for (LTSminSlot slot : sub) {
+		        w.appendPrefix();
+		        w.append("cpy["+ slot.getIndex() +"] = 0;");
+		        w.appendPostfix();
+			}
+            w.appendLine("#endif");
 			
 			w.appendLine(print(_NR_PR, out(model)) +"--;");
 			w.appendLine(printPC(rpa.getProcess(), out(model)) +" = -1;");
@@ -916,7 +923,7 @@ public class LTSminPrinter {
 			Action update_pc = assign(model.sv.getPC(instance), 0);
 			generateAction(w2, update_pc, model, t);
 			w2.appendLine("++("+ print(_NR_PR, out(model)) +");");
-
+			copyAccess(w2, print(_NR_PR, out(model)));
 			
 			List<Variable> args = instance.getArguments();
 			Iterator<Expression> eit = re.getExpressions().iterator();
@@ -1094,14 +1101,13 @@ public class LTSminPrinter {
 	}
 
     private static void copyAccess(StringWriter w, String var) {
-
         if (!var.endsWith(".var")) throw new AssertionError(var +" does not end with '.var'");
         String pad = var.substring(0, var.length() - 4) +".pad";
 
         w.appendPrefix();
-        w.append("cpy[((int*)&");
+        w.append("cpy[((int *)&");
         w.append(pad);
-        w.append(" - (int*)"+OUT_VAR+")] = 0;");
+        w.append(" - (int *)"+OUT_VAR+")] = 0;");
         w.appendPostfix();
     }
 
