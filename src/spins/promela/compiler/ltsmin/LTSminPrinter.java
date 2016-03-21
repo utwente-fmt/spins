@@ -133,6 +133,7 @@ public class LTSminPrinter {
     public static final String STATEMENT_TYPE_NAME              = "statement";
     public static final String ACTION_TYPE_NAME                 = "action";
     public static final String BOOLEAN_TYPE_NAME                = "bool";
+    public static final String GUARD_TYPE_NAME                  = "guard";
 
     public static final String NO_ACTION_NAME                   = "";
     public static final String ASSERT_ACTION_NAME               = "assert";
@@ -1832,18 +1833,19 @@ public class LTSminPrinter {
         w.appendLine("int spins_get_label(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
         w.indent();
         w.appendLine("(void)model;");
-        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label: invalid guard index %d\", g);");
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label: invalid state label index %d\", g);");
         w.appendLine("switch(g) {");
         w.indent();
-        for(int g=0; g<gm.getNumberOfLabels(); ++g) {
+        for (int g = 0; g < gm.getNumberOfGuards(); ++g) {
             w.appendPrefix();
-            w.append("case ").append(g).append(": return (0");
-            generateMaybe(w, model, gm.getLabel(g).getExpr(), in(model));
-            w.append(") ? 2 :"); w.appendLine();
+            w.append("case ").append(g).append(": return ");
+            generateMaybeGuardText(w, model, g);
+        }
+        for (int g = gm.getNumberOfGuards(); g < gm.getNumberOfLabels(); ++g) {
             w.appendPrefix();
-            w.appendPrefix();
+            w.append("case ").append(g).append(": return ");
             generateGuard(w, model, gm.getLabel(g), in(model));
-            w.append(" != 0;");
+            w.append(";");
             w.appendPostfix();
         }
         w.outdent();
@@ -1855,10 +1857,10 @@ public class LTSminPrinter {
 
         w.appendLine("const char *spins_get_label_name(int g) {");
         w.indent();
-        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_name: invalid guard index %d\", g);");
+        w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label_name: invalid state label index %d\", g);");
         w.appendLine("switch(g) {");
         w.indent();
-        for(int g=0; g<gm.getNumberOfLabels(); ++g) {
+        for (int g = 0; g < gm.getNumberOfLabels(); ++g) {
             w.appendPrefix();
             w.append("case "+ g +": return \""+ gm.getLabelName(g) +"\";");
             w.appendPostfix();
@@ -1873,18 +1875,17 @@ public class LTSminPrinter {
         w.appendLine("void spins_get_labels_many (void* model, ",C_STATE,"* ",IN_VAR,", int* label, bool guards_only) {");
         w.indent();
         w.appendLine("(void)model;");
-        for(int g=0; g<gm.getNumberOfLabels(); ++g) {
-            if (g == gm.getNumberOfGuards()) {
-                w.appendLine("if (guards_only) return;");
-            }
+        for (int g = 0; g < gm.getNumberOfGuards(); ++g) {
             w.appendPrefix();
-            w.append("label[").append(g).append("] = (0");
-            generateMaybe(w, model, gm.getLabel(g).getExpr(), in(model));
-            w.append(") ? 2 :"); w.appendLine();
+            w.append("label[").append(g).append("] = ");
+            generateMaybeGuardText(w, model, g);
+        }
+        w.appendLine("if (guards_only) return;");
+        for (int g = gm.getNumberOfGuards(); g < gm.getNumberOfLabels(); ++g) {
             w.appendPrefix();
-            w.appendPrefix();
+            w.append("label[").append(g).append("] = ");
             generateGuard(w, model, gm.getLabel(g), in(model));
-            w.append(" != 0;");
+            w.append(";");
             w.appendPostfix();
         }
         w.outdent();
@@ -1987,6 +1988,24 @@ public class LTSminPrinter {
 		w.outdent();
 		w.appendLine("}");
 		w.appendLine("");
+	}
+
+	private static void generateMaybeGuardText(StringWriter w, LTSminModel model, int g) {
+		GuardInfo gm = model.getGuardInfo();
+		StringWriter w2 = new StringWriter(w);
+		
+		generateMaybe(w2, model, gm.getLabel(g).getExpr(), in(model));
+		String maybe = w2.toString();
+
+		if (maybe.length() != 0) {
+			w.append("(0");
+			w.append(maybe);
+			w.append(") ? 2 :").appendLine();
+			w.appendPrefix().appendPrefix().appendPrefix();
+		}
+		generateGuard(w, model, gm.getLabel(g), in(model));
+		w.append(" != 0;");
+		w.appendPostfix();
 	}
 
 	/**

@@ -5,6 +5,7 @@ import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_EDGE_LABEL_NAME
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ASSERT_ACTION_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.BOOLEAN_TYPE_NAME;
+import static spins.promela.compiler.ltsmin.LTSminPrinter.GUARD_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.NON_PROGRESS_STATE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.NO_ACTION_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.PROGRESS_ACTION_NAME;
@@ -222,6 +223,11 @@ public class LTSminTreeWalker {
         model.addType(VariableType.BOOL.getName());
         model.addTypeValue(VariableType.BOOL.getName(), "false", 0); // index 0
         model.addTypeValue(VariableType.BOOL.getName(), "true", 1);  // index 1
+
+        model.addType(GUARD_TYPE_NAME);
+        model.addTypeValue(GUARD_TYPE_NAME, "false", 0); // index 0
+        model.addTypeValue(GUARD_TYPE_NAME, "true",  1); // index 1
+        model.addTypeValue(GUARD_TYPE_NAME, "maybe", 2); // index 2
         
         /* Generate static list of types. mtypes have values */
         for (LTSminSlot slot : model.sv) {
