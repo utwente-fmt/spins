@@ -1,8 +1,5 @@
 package spins.promela.compiler.ltsmin.state;
 
-import static spins.promela.compiler.parser.Promela.C_STATE_PID;
-import static spins.promela.compiler.parser.Promela.C_STATE_PROC_COUNTER;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -239,14 +236,6 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	public LTSminSubVector sub(Variable v) {
 		LTSminSubVectorArray ar = sub(v.getOwner());
 		return ar.follow();
-	}
-
-	public Variable getPC(Proctype process) {
-		return process.getVariable(C_STATE_PROC_COUNTER);
-	}
-
-	public Variable getPID(Proctype p) {
-		return p.getVariable(C_STATE_PID);
 	}
 
 	/*********************

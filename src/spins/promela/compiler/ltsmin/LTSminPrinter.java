@@ -888,7 +888,7 @@ public class LTSminPrinter {
 				Proctype proc = re.getProctype();
 				Expression activeExpr = null;
 				for (ProcInstance inst : proc.getInstances()) {
-					Variable pc = model.sv.getPC(inst);
+					Variable pc = inst.getPC();
 					Expression e = compare(PromelaConstants.NEQ, id(pc), constant(-1));
 					if (activeExpr == null) {
 						activeExpr = e;
@@ -916,12 +916,12 @@ public class LTSminPrinter {
 			w2.appendLine("}");
 
 			//set pid
-			Action update_pid = assign(model.sv.getPID(instance),
+			Action update_pid = assign(instance.getPID(),
 										id(LTSminStateVector._NR_PR));
 			generateAction(w2, update_pid, model, t);
 
 			//activate process
-			Action update_pc = assign(model.sv.getPC(instance), 0);
+			Action update_pc = assign(instance.getPC(), 0);
 			generateAction(w2, update_pc, model, t);
 			w2.appendLine("++("+ print(_NR_PR, out(model)) +");");
 			copyAccess(w2, print(_NR_PR, out(model)));

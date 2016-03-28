@@ -14,6 +14,9 @@
 
 package spins.promela.compiler;
 
+import static spins.promela.compiler.parser.Promela.C_STATE_PID;
+import static spins.promela.compiler.parser.Promela.C_STATE_PROC_COUNTER;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -237,6 +240,14 @@ public class Proctype implements VariableContainer {
 	 */
 	public List<Variable> getVariables() {
 		return varStore.getVariables();
+	}
+
+	public Variable getPID() {
+		return getVariable(C_STATE_PID);
+	}
+
+	public Variable getPC() {
+		return getVariable(C_STATE_PROC_COUNTER);
 	}
 
 	/**

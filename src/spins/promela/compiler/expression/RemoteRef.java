@@ -122,7 +122,7 @@ public class RemoteRef extends Expression {
 		if (null != pc)
 			return pc;
 		getInstance();
-		pc = model.sv.getPC(instance);
+		pc = instance.getPC();
 		return pc;
 	}
 

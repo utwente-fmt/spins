@@ -169,7 +169,7 @@ public class SimplePredicate {
             }
         } else if (a instanceof ResetProcessAction) {
             ResetProcessAction rpa = (ResetProcessAction)a;
-            Variable pc = model.sv.getPC(rpa.getProcess());
+            Variable pc = rpa.getProcess().getPC();
             if (sp.conflicts(model, assign(pc, -1), t, g, invert))
                 return true;
             if (sp.conflicts(model, decr(id(LTSminStateVector._NR_PR)), t, g, invert))
@@ -190,7 +190,7 @@ public class SimplePredicate {
     
             for (Proctype p : re.getInstances()) {
                 for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
-                    Variable pc = model.sv.getPC(instance);
+                    Variable pc = instance.getPC();
                     if (sp.conflicts(model, assign(pc, 0), t, g, invert)) {
                         return true;
                     }

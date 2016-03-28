@@ -921,7 +921,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             sps.add(sp1);
         } else if (a instanceof ResetProcessAction) {
             ResetProcessAction rpa = (ResetProcessAction)a;
-            Action end = assign(model.sv.getPC(rpa.getProcess()), -1);
+            Action end = assign(rpa.getProcess().getPC(), -1);
             sps.addAll(allAssigns(model, end, deps));
             Action procs = decr(id(LTSminStateVector._NR_PR));
             sps.addAll(allAssigns(model, procs, deps));
@@ -948,7 +948,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 
             for (Proctype p : re.getInstances()) {
                 for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
-                    Action step = assign(model.sv.getPC(instance), 0);
+                    Action step = assign(instance.getPC(), 0);
                     sps.addAll(allAssigns(model, step, deps));
                 }
                 //write to the arguments of the target process

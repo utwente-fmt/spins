@@ -198,7 +198,7 @@ public class LTSminTreeWalker {
 	private void createModelAssertions() {
         for (RemoteRef ref : spec.remoteRefs) {
             ProcInstance instance = ref.getInstance();
-            Expression pid = id(model.sv.getPID(instance));
+            Expression pid = id(instance.getPID());
             Expression left = eq(pid, constant(-1));
             Expression right = eq(pid, constant(instance.getID()));
             Expression condition = or(left, right);
@@ -275,13 +275,13 @@ public class LTSminTreeWalker {
 			Proctype never = spec.getNever();
 			Expression or = null;
 			if (never.getStartState().isAcceptState()) {
-	            Variable pc = model.sv.getPC(never);
+	            Variable pc = never.getPC();
 			    Expression g = compare(PromelaConstants.EQ, id(pc), constant(-1));
 			    or = or == null ? g : or(or, g) ; // Or
 			}
 			for (State s : never.getAutomaton()) {
 				if (s.isAcceptState()) {
-				    Expression g = pcGuard(model, s, never).getExpr();
+				    Expression g = pcGuard(s, never).getExpr();
 				    or = or == null ? g : or(or, g) ; // Or
 				}
 			}
@@ -297,7 +297,7 @@ public class LTSminTreeWalker {
     		for (ProcInstance pi : spec) {
     		    for (State s : pi.getAutomaton()) {
     		        if (s.isProgressState()) {
-    		            Variable pc = model.sv.getPC(pi);
+    		            Variable pc = pi.getPC();
     		            Expression counter = constant(s.getStateId());
     		            Expression e = compare(PromelaConstants.EQ, id(pc), counter);
     	                or = or == null ? e : or(or, e);
@@ -320,11 +320,11 @@ public class LTSminTreeWalker {
 		Expression end = compare(PromelaConstants.EQ, id(_NR_PR), constant(0)); // or
         Expression and = null;
     	for (ProcInstance instance : spec) {
-			Variable pc = model.sv.getPC(instance);
+			Variable pc = instance.getPC();
             Expression labeled = compare(PromelaConstants.EQ, id(pc), constant(-1));
 	    	for (State s : instance.getAutomaton()) {
 		    	if (s.hasLabelPrefix("end")) {
-		    		labeled = or(labeled, pcGuard(model, s, instance).getExpr()); // Or
+		    		labeled = or(labeled, pcGuard(s, instance).getExpr()); // Or
 		    	}
 	    	}
 	    	and = and == null ? labeled : and(and, labeled) ; // And
@@ -349,7 +349,7 @@ public class LTSminTreeWalker {
                     LTSminGuard g = model.getStateLabel(label);
                     Expression x = g == null ? null : g.getExpr();
                     
-                    Variable pc = model.sv.getPC(pi);
+                    Variable pc = pi.getPC();
                     Expression counter = constant(s.getStateId());
                     Expression e = compare(PromelaConstants.EQ, id(pc), counter);
                     e = x == null ? e : or(e, x);
@@ -733,14 +733,14 @@ public class LTSminTreeWalker {
 			}
 			if (rr.size() == 1 && p.getInstances().size() > 1) {
 				for (ProcInstance target : p.getInstances()) {
-					model.sv.getPID(target).setAssignedTo(); // PID is changed
+					target.getPID().setAssignedTo(); // PID is changed
 					bindArguments(rr.get(0), target, true);
 				}
 			} else if (rr.size() == p.getInstances().size()) {
 				Iterator<ProcInstance> it = p.getInstances().iterator();
 				for (RunExpression re : rr) {
 					ProcInstance target = it.next();
-					model.sv.getPID(target).setAssignedTo(); // PID is changed
+					target.getPID().setAssignedTo(); // PID is changed
 					re.setInstance(target);
 					debug.say(MessageKind.NORMAL, "Statically binding chans of procinstance "+ target +" to run expression at l."+ re.getToken().beginLine);
 					bindArguments(re, target, false);
@@ -748,7 +748,7 @@ public class LTSminTreeWalker {
 			} else {
 				for (ProcInstance target : p.getInstances()) {
 					bindArguments(rr.get(0), target, true);
-					model.sv.getPID(target).setAssignedTo(); // PID is changed
+					target.getPID().setAssignedTo(); // PID is changed
 				}
 			}
 		}
@@ -1062,7 +1062,7 @@ public class LTSminTreeWalker {
         for (int y = 0; y < buffer; y++ ) {
     		LTSminTransition lt = new LTSminTransition(t, n);
     
-    		lt.addGuard(pcGuard(model, t.getFrom(), p)); // process counter
+    		lt.addGuard(pcGuard(t.getFrom(), p)); // process counter
 
     		if (multiple != null) {
                 int next = read ? y+1 : y;
@@ -1089,7 +1089,7 @@ public class LTSminTreeWalker {
             if (t.getTo()==null) {
                 lt.addAction(new ResetProcessAction(p));
             } else { // Action: PC counter update
-                lt.addAction(assign(model.sv.getPC(p), t.getTo().getStateId()));
+                lt.addAction(assign(p.getPC(), t.getTo().getStateId()));
             }
     
             // Actions: transition
@@ -1126,7 +1126,7 @@ public class LTSminTreeWalker {
         if (null != p.getEnabler())
 			lt.addGuard(p.getEnabler()); // process enabler (provided keyword)
         if (t.getTo() == null && t.getProc() != spec.getNever()) // never process may deadlock (accepting loop!)
-            lt.addGuard(dieGuard(model, p)); // allowed to die (stack order)
+            lt.addGuard(dieGuard(p)); // allowed to die (stack order)
     }
 
 	/**
@@ -1145,9 +1145,9 @@ public class LTSminTreeWalker {
         
         if (never_t.getTo().isInAtomic() || never_t.getFrom().isInAtomic())
     		throw new AssertionError("Atomic in never claim not implemented");
-		lt.addGuard(pcGuard(model, never_t.getFrom(), spec.getNever()));
+		lt.addGuard(pcGuard(never_t.getFrom(), spec.getNever()));
         createEnabledGuard(never_t, lt);
-        lt.addAction(assign(model.sv.getPC(spec.getNever()),
+        lt.addAction(assign(spec.getNever().getPC(),
 					never_t.getTo()==null?-1:never_t.getTo().getStateId()));
         return false;
 	}
@@ -1371,8 +1371,8 @@ public class LTSminTreeWalker {
 		    LTSminTransition lt = new LTSminTransition(sa.t, n);
     		lt.setSync(ra.t);
     
-    		lt.addGuard(pcGuard(model, sa.t.getFrom(), sa.p));
-    		lt.addGuard(pcGuard(model, ra.t.getFrom(), ra.p));
+    		lt.addGuard(pcGuard(sa.t.getFrom(), sa.p));
+    		lt.addGuard(pcGuard(ra.t.getFrom(), ra.p));
             addSpecialGuards(lt, sa.t, sa.p); // proc die order && provided condition
             addSpecialGuards(lt, ra.t, ra.p); // proc die order && provided condition
     		if (arraySize > -1) { // array of channels
@@ -1405,9 +1405,9 @@ public class LTSminTreeWalker {
             }
     
     		// Change process counter of sender
-    		lt.addAction(assign(model.sv.getPC(sa.p), sa.t.getTo().getStateId()));
+    		lt.addAction(assign(sa.p.getPC(), sa.t.getTo().getStateId()));
     		// Change process counter of receiver
-    		lt.addAction(assign(model.sv.getPC(ra.p), ra.t.getTo().getStateId()));
+    		lt.addAction(assign(ra.p.getPC(), ra.t.getTo().getStateId()));
     
     		for (int i = 1; i < ra.t.getActionCount(); i++)
     			lt.addAction(ra.t.getAction(i));

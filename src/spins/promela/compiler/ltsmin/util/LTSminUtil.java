@@ -30,7 +30,6 @@ import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spins.promela.compiler.ltsmin.matrix.LTSminPCGuard;
-import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.parser.ParseException;
@@ -178,16 +177,16 @@ public class LTSminUtil {
 	}
 	
 	/** Guards **/
-	public static LTSminPCGuard pcGuard(LTSminModel model, State s, Proctype p) {
-		Variable pc = model.sv.getPC(p);
+	public static LTSminPCGuard pcGuard(State s, Proctype p) {
+		Variable pc = p.getPC();
 		Expression left = id(pc);
 		Expression right = constant(s.getStateId());
 		Expression e = compare(PromelaConstants.EQ, left, right);
 		return new LTSminPCGuard(e);
 	}
 
-	public static Expression dieGuard(LTSminModel model, Proctype p) {
-		Variable pid = model.sv.getPID(p);
+	public static Expression dieGuard(Proctype p) {
+		Variable pid = p.getPID();
 		Expression left = calc(PromelaConstants.PLUS, id(pid), constant(1)); 
 		return compare (PromelaConstants.EQ, left, id(LTSminStateVector._NR_PR));
 	}
@@ -225,12 +224,12 @@ public class LTSminUtil {
 
 	/** Strings **/
 	public static String printPC(Proctype process, LTSminPointer out) {
-		Variable var = out.getPC(process);
+		Variable var = process.getPC();
 		return print(var, out);
 	}
 
 	public static String printPID(Proctype process, LTSminPointer out) {
-		Variable var = out.getPID(process);
+		Variable var = process.getPID();
 		return print(var, out);
 	}
 

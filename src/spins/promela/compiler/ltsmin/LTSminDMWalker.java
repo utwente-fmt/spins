@@ -575,18 +575,15 @@ public class LTSminDMWalker {
 	}
 
 	private static void DMIncReadPC(Params params, Proctype p) {
-		Variable pc = params.model.sv.getPC(p);
-		DMIncRead(params, pc);
+		DMIncRead(params, p.getPC());
 	}
 
 	private static void DMIncMayMustWritePC(Params params, Proctype p) {
-		Variable pc = params.model.sv.getPC(p);
-		DMIncMayMustWrite(params, pc);
+		DMIncMayMustWrite(params, p.getPC());
 	}
 
 	private static void DMIncMayMustWritePID(Params params, Proctype p) {
-		Variable pc = params.model.sv.getPID(p);
-		DMIncMayMustWrite(params, pc);
+		DMIncMayMustWrite(params, p.getPID());
 	}
 	
 	private static void DMIncRead(Params params, Variable var) {
