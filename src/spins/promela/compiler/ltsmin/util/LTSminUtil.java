@@ -1,5 +1,6 @@
 package spins.promela.compiler.ltsmin.util;
 
+import static spins.promela.compiler.Specification._NR_PR;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.CHAN_FILL_VAR;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
@@ -31,7 +32,6 @@ import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spins.promela.compiler.ltsmin.matrix.LTSminPCGuard;
 import spins.promela.compiler.ltsmin.state.LTSminPointer;
-import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaConstants;
 import spins.promela.compiler.parser.Token;
@@ -188,7 +188,7 @@ public class LTSminUtil {
 	public static Expression dieGuard(Proctype p) {
 		Variable pid = p.getPID();
 		Expression left = calc(PromelaConstants.PLUS, id(pid), constant(1)); 
-		return compare (PromelaConstants.EQ, left, id(LTSminStateVector._NR_PR));
+		return compare (PromelaConstants.EQ, left, id(_NR_PR));
 	}
 
 	public static Expression chanFreeGuard(Identifier id) {

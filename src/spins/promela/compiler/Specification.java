@@ -37,6 +37,9 @@ import spins.promela.compiler.variable.VariableType;
 public class Specification implements Iterable<ProcInstance> {
 	private final String name;
 
+    public static final String C_STATE_NR_PR = "_nr_pr";
+    public static final Variable _NR_PR = new Variable(VariableType.INT, C_STATE_NR_PR, -1);
+
 	private final List<Proctype> procs;
 
 	private final Map<String, CustomVariableType> userTypes;
@@ -62,6 +65,7 @@ public class Specification implements Iterable<ProcInstance> {
 		Variable hidden = new Variable(VariableType.INT, "_", -1);
 		hidden.setHidden(true);
 		varStore.addVariable(hidden);
+	    varStore.addVariable(_NR_PR);
 		mtypes = new ArrayList<String>();
 	}
 

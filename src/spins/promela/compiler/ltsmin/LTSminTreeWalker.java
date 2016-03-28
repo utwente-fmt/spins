@@ -13,7 +13,7 @@ import static spins.promela.compiler.ltsmin.LTSminPrinter.PROGRESS_STATE_LABEL_N
 import static spins.promela.compiler.ltsmin.LTSminPrinter.STATEMENT_EDGE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.STATEMENT_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.VALID_END_STATE_LABEL_NAME;
-import static spins.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
+import static spins.promela.compiler.Specification._NR_PR;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.and;
@@ -177,12 +177,13 @@ public class LTSminTreeWalker {
 
 		instantiate();
         LTSminStateVector sv = new LTSminStateVector();
-		sv.createVectorStructs(spec, debug);
 		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
 
 		createModelTransitions();
 		createModelAssertions();
+
+		sv.createVectorStructs(spec, debug);
 		createModelLabels(exports, progress);
 
         debug.say_indent--;
@@ -424,7 +425,7 @@ public class LTSminTreeWalker {
 
 		// set number of processes to initial number of active processes.
 		try {
-			LTSminStateVector._NR_PR.setInitExpr(constant(id));
+			_NR_PR.setInitExpr(constant(id));
 		} catch (ParseException e) { assert (false); }
 
 		for (Proctype p : spec.getProcs()) {
@@ -487,6 +488,8 @@ public class LTSminTreeWalker {
 		newState.setLabels(state.getLabels());
 		for (Transition trans : state.output) {
 			State next = trans.getTo();
+			if (next == null)
+    			_NR_PR.setAssignedTo();
 			State newNextState = null;
 			if (null != next) if (seen.containsKey(next))
 				newNextState = seen.get(next);
@@ -721,7 +724,7 @@ public class LTSminTreeWalker {
         debug.say_indent++;
 
 		if (spec.runs.size() > 0)
-			LTSminStateVector._NR_PR.setAssignedTo();
+			_NR_PR.setAssignedTo();
 		for (Proctype p : spec.getProcs()) {
 			if (p.getNrActive() > 0) continue;
 			List<RunExpression> rr = new ArrayList<RunExpression>();

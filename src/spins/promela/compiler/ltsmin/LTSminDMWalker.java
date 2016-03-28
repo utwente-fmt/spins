@@ -1,15 +1,15 @@
 package spins.promela.compiler.ltsmin;
 
-import static spins.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
+
+import java.util.List;
+import java.util.Map;
+
+import static spins.promela.compiler.Specification._NR_PR;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelBottom;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelIndex;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
-
-import java.util.List;
-import java.util.Map;
-
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.actions.Action;
 import spins.promela.compiler.actions.AssertAction;

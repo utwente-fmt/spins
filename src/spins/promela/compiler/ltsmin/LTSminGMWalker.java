@@ -1,5 +1,6 @@
 package spins.promela.compiler.ltsmin;
 
+import static spins.promela.compiler.Specification._NR_PR;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.assign;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.decr;
@@ -43,7 +44,6 @@ import spins.promela.compiler.ltsmin.model.GuardInfo;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
 import spins.promela.compiler.ltsmin.model.ResetProcessAction;
-import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
 import spins.promela.compiler.ltsmin.util.LTSminProgress;
 import spins.promela.compiler.ltsmin.util.SimplePredicate;
@@ -923,7 +923,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             ResetProcessAction rpa = (ResetProcessAction)a;
             Action end = assign(rpa.getProcess().getPC(), -1);
             sps.addAll(allAssigns(model, end, deps));
-            Action procs = decr(id(LTSminStateVector._NR_PR));
+            Action procs = decr(id(_NR_PR));
             sps.addAll(allAssigns(model, procs, deps));
             /*for (LTSminSlot slot : model.sv) { //TODO: get from slot to Id
                 LTSminVariable v = slot.getVariable();
@@ -943,7 +943,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             if (expr.getSideEffect() == null) return sps; // simple expressions are guards
             
             RunExpression re = (RunExpression)expr;
-            Action procs = incr(id(LTSminStateVector._NR_PR));
+            Action procs = incr(id(_NR_PR));
             sps.addAll(allAssigns(model, procs, deps));
 
             for (Proctype p : re.getInstances()) {

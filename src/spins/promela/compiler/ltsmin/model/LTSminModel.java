@@ -18,6 +18,7 @@ import spins.promela.compiler.ltsmin.matrix.RWMatrix;
 import spins.promela.compiler.ltsmin.model.LTSminModelFeature.ModelFeature;
 import spins.promela.compiler.ltsmin.state.LTSminSlot;
 import spins.promela.compiler.ltsmin.state.LTSminStateVector;
+import spins.promela.compiler.ltsmin.util.LTSminDebug;
 import spins.promela.compiler.ltsmin.util.LTSminUtil.Pair;
 import spins.promela.compiler.variable.Variable;
 import spins.promela.compiler.variable.VariableType;
@@ -284,4 +285,9 @@ public class LTSminModel implements Iterable<LTSminTransition> {
                     return getActions();
                 }
             };
+
+	public void createStateVector(Specification spec, LTSminDebug debug) {
+		sv = new LTSminStateVector();
+		sv.createVectorStructs(spec, debug);
+	}
 }

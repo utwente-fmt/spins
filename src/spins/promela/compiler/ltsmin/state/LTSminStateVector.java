@@ -40,9 +40,6 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	public static final String C_STATE_NAME = "state";
 	public static final String C_STATE_GLOBALS = "globals";
 
-	private static final String C_NUM_PROCS_VAR = "_nr_pr";
-	public static final Variable _NR_PR = new Variable(VariableType.INT, C_NUM_PROCS_VAR, -1);
-
 	private List<LTSminSlot> 			stateVector;// the flattened vector
 	LTSminTypeStruct 					state_t;	// tree of structs
 
@@ -124,7 +121,6 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 		debug.say(MessageKind.DEBUG, "== Globals");
 		LTSminTypeStruct global_t = new LTSminTypeStruct(C_STATE_GLOBALS);
 		VariableStore globals = spec.getVariableStore();
-		globals.addVariable(_NR_PR);
 		for (Variable var : globals.getVariables())
 			addVariable(global_t, var, debug);
 		// Add global state struct to main state struct

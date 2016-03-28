@@ -157,6 +157,7 @@ TOKEN : {	/* Keywords */
 |	<SKIP_: "skip">
 |	<UNLESS: "unless">
 |	<VAR_PID: "_pid">
+|   <VAR_NR_PR: "_nr_pr">
 }
 
 TOKEN : {	/* Operators */
@@ -1546,7 +1547,9 @@ Expression varref(Identifier context): {
 		})?
 	{ return ident; }
 |	id=<VAR_PID>
-	{ return new Identifier(id, currentProc.getVariable(id.image), expr, null); }
+	{ return new Identifier(id, currentProc.getVariable(id.image), null, null); }
+|   id=<VAR_NR_PR>
+    { return new Identifier(id, specification.getVariableStore().getVariable(id.image), null, null); }
 }
 
 Expression base_expr(): {

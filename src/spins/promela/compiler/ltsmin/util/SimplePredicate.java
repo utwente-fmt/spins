@@ -1,5 +1,6 @@
 package spins.promela.compiler.ltsmin.util;
 
+import static spins.promela.compiler.Specification._NR_PR;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.assign;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanContentsGuard;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
@@ -58,12 +59,10 @@ import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
 import spins.promela.compiler.ltsmin.model.ResetProcessAction;
 import spins.promela.compiler.ltsmin.state.LTSminPointer;
-import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaTokenManager;
 import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.Variable;
-
 
 public class SimplePredicate {
     public SimplePredicate() {}
@@ -172,7 +171,7 @@ public class SimplePredicate {
             Variable pc = rpa.getProcess().getPC();
             if (sp.conflicts(model, assign(pc, -1), t, g, invert))
                 return true;
-            if (sp.conflicts(model, decr(id(LTSminStateVector._NR_PR)), t, g, invert))
+            if (sp.conflicts(model, decr(id(_NR_PR)), t, g, invert))
                 return true;
             //return false;
             Expression e = sp.id.getVariable().getInitExpr();
@@ -185,7 +184,7 @@ public class SimplePredicate {
             if (expr.getSideEffect() == null) return false; // simple expressions are guards
             RunExpression re = (RunExpression)expr;
             
-            if (sp.conflicts(model, incr(id(LTSminStateVector._NR_PR)), t, g, invert))
+            if (sp.conflicts(model, incr(id(_NR_PR)), t, g, invert))
                 return true;
     
             for (Proctype p : re.getInstances()) {

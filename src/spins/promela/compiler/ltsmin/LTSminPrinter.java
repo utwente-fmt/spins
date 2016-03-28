@@ -1,7 +1,7 @@
 package spins.promela.compiler.ltsmin;
 
+import static spins.promela.compiler.Specification._NR_PR;
 import static spins.promela.compiler.ltsmin.state.LTSminStateVector.C_STATE;
-import static spins.promela.compiler.ltsmin.state.LTSminStateVector._NR_PR;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_BOOL;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT16;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT32;
@@ -83,7 +83,6 @@ import spins.promela.compiler.ltsmin.model.LTSminTransition;
 import spins.promela.compiler.ltsmin.model.ResetProcessAction;
 import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.ltsmin.state.LTSminSlot;
-import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.state.LTSminSubVector;
 import spins.promela.compiler.ltsmin.state.LTSminTypeI;
 import spins.promela.compiler.ltsmin.state.LTSminTypeStruct;
@@ -916,8 +915,7 @@ public class LTSminPrinter {
 			w2.appendLine("}");
 
 			//set pid
-			Action update_pid = assign(instance.getPID(),
-										id(LTSminStateVector._NR_PR));
+			Action update_pid = assign(instance.getPID(), id(_NR_PR));
 			generateAction(w2, update_pid, model, t);
 
 			//activate process
