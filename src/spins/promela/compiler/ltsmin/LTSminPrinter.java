@@ -85,6 +85,7 @@ import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.ltsmin.state.LTSminSlot;
 import spins.promela.compiler.ltsmin.state.LTSminSubVector;
 import spins.promela.compiler.ltsmin.state.LTSminTypeI;
+import spins.promela.compiler.ltsmin.state.LTSminTypeNative;
 import spins.promela.compiler.ltsmin.state.LTSminTypeStruct;
 import spins.promela.compiler.ltsmin.state.LTSminVariable;
 import spins.promela.compiler.ltsmin.util.LTSminRendezVousException;
@@ -401,7 +402,6 @@ public class LTSminPrinter {
         w.appendLine("extern void spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy);");
         w.appendLine("extern void spins_simple_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy);");
         w.appendLine("extern int *spins_get_guards (state_t *in);");
-		w.appendLine("static int "+ SCRATCH_VARIABLE +";");
 		w.appendLine("");
 	}
 
@@ -432,7 +432,7 @@ public class LTSminPrinter {
 				try {
 					w.append(e.getConstantValue());
 				} catch (ParseException pe) {
-					throw new AssertionError("Cannot parse initial value of state vector: "+ e);
+					throw new AssertionError("Cannot parse initial value ["+ e +"] of state vector slot: "+ name);
 				}
 			}
 
@@ -817,9 +817,7 @@ public class LTSminPrinter {
 					throw new AssertionError("unknown assignment type");
 			}
 
-			if (!id.getVariable().isHidden() && !(id instanceof LTSminIdentifier)) {
-			    copyAccess(w, print(id, out(model)));
-			}
+			copyAccess(model, w, id);
             
 		} else if(a instanceof ResetProcessAction) {
 			ResetProcessAction rpa = (ResetProcessAction)a;
@@ -838,8 +836,8 @@ public class LTSminPrinter {
 			
 			w.appendLine(print(_NR_PR, out(model)) +"--;");
 			w.appendLine(printPC(rpa.getProcess(), out(model)) +" = -1;");
-			copyAccess(w, print(_NR_PR, out(model)));
-            copyAccess(w, printPC(rpa.getProcess(), out(model)));
+			copyAccess(model, w, id(_NR_PR));
+			copyAccess(model, w, id(rpa.getProcess().getPC()));
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
 			Expression e = as.getExpr();
@@ -922,7 +920,7 @@ public class LTSminPrinter {
 			Action update_pc = assign(instance.getPC(), 0);
 			generateAction(w2, update_pc, model, t);
 			w2.appendLine("++("+ print(_NR_PR, out(model)) +");");
-			copyAccess(w2, print(_NR_PR, out(model)));
+			copyAccess(model, w2, id(_NR_PR));
 			
 			List<Variable> args = instance.getArguments();
 			Iterator<Expression> eit = re.getExpressions().iterator();
@@ -1099,7 +1097,11 @@ public class LTSminPrinter {
 		}
 	}
 
-    private static void copyAccess(StringWriter w, String var) {
+    private static void copyAccess(LTSminModel model, StringWriter w, Identifier id) {
+		if (id.getVariable().isHidden() || id instanceof LTSminIdentifier) return;
+
+    	String var = print(id, out(model));
+    	
         if (!var.endsWith(".var")) throw new AssertionError(var +" does not end with '.var'");
         String pad = var.substring(0, var.length() - 4) +".pad";
 
@@ -1132,8 +1134,10 @@ public class LTSminPrinter {
 				return w.toString();
 			} else if (e instanceof Identifier) {
 				Identifier id = (Identifier)e;
-				if (id.getVariable().isHidden())
-					return SCRATCH_VARIABLE;
+				if (id.getVariable().isHidden()) {
+					String ctype = LTSminTypeNative.getCType (id.getVariable());
+					return  SCRATCH_VARIABLE +"_"+ ctype +".var";
+				}
 				return start.printIdentifier(this, id);
 			} else {
 				StringWriter w = new StringWriter();
@@ -2066,6 +2070,10 @@ public class LTSminPrinter {
 		w.appendLine("unsigned int var;");
 		w.outdent();
 		w.appendLine("} ",TYPE_UINT32,";");
+		w.appendLine("");
+
+		for (String t : LTSminTypeNative.types.keySet())
+			w.appendLine("static "+ t +" "+ SCRATCH_VARIABLE +"_"+ t +";");
 		w.appendLine("");
 	}
 

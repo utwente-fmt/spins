@@ -207,6 +207,7 @@ public class LTSminTreeWalker {
     /**
 	 * Set accepting state, valid end-state and progress-state conditions for this model. 
 	 * Accepting condition semantics are overloaded with valid end state semantics.
+     * @param model TODO
 	 */
     private void createModelLabels(LTSminModel model,
                                    Map<String, Expression> exports,
@@ -821,6 +822,7 @@ public class LTSminTreeWalker {
 							"Change the proctype's arguments or unroll the loop with run expressions in the model.");
 				Expression init = v.getInitExpr();
 				v.unsetInitExpr();
+				v.setAssignedTo();
 				re.addInitAction(new AssignAction(new Token(PromelaConstants.ASSIGN), id(v), init));
 			}
 		}
