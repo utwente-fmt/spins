@@ -228,4 +228,13 @@ public class Identifier extends Expression {
     public boolean isPC() {
         return getVariable().getName().equals(C_STATE_PROC_COUNTER);
     }
+
+	public boolean isConstant() {
+		try {
+			getConstantValue ();
+			return true;
+		} catch (ParseException e) {
+			return false;
+		}
+	}
 }

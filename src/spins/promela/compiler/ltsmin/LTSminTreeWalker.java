@@ -1,5 +1,6 @@
 package spins.promela.compiler.ltsmin;
 
+import static spins.promela.compiler.Specification._NR_PR;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ACCEPTING_STATE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_EDGE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_TYPE_NAME;
@@ -13,7 +14,6 @@ import static spins.promela.compiler.ltsmin.LTSminPrinter.PROGRESS_STATE_LABEL_N
 import static spins.promela.compiler.ltsmin.LTSminPrinter.STATEMENT_EDGE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.STATEMENT_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.VALID_END_STATE_LABEL_NAME;
-import static spins.promela.compiler.Specification._NR_PR;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.bufferVar;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeChanStruct.elemVar;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.and;
@@ -99,7 +99,6 @@ import spins.promela.compiler.ltsmin.model.ReadAction;
 import spins.promela.compiler.ltsmin.model.ResetProcessAction;
 import spins.promela.compiler.ltsmin.model.SendAction;
 import spins.promela.compiler.ltsmin.state.LTSminSlot;
-import spins.promela.compiler.ltsmin.state.LTSminStateVector;
 import spins.promela.compiler.ltsmin.state.LTSminVariable;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
 import spins.promela.compiler.ltsmin.util.LTSminDebug.MessageKind;
@@ -134,8 +133,6 @@ public class LTSminTreeWalker {
 	static boolean LTSMIN_LTL = false;
 
 	private LTSminDebug debug;
-
-	private LTSminModel model = null;
 
 	LTSminGuardAnd deadlock = new LTSminGuardAnd();
 
@@ -176,27 +173,25 @@ public class LTSminTreeWalker {
         LTSminProgress report = new LTSminProgress(debug).startTimer();
 
 		instantiate();
-        LTSminStateVector sv = new LTSminStateVector();
-		model = new LTSminModel(name, sv, spec);
 		bindByReferenceCalls();
 
-		createModelTransitions();
-		createModelAssertions();
-
-		sv.createVectorStructs(spec, debug);
-		createModelLabels(exports, progress);
+        LTSminModel model = new LTSminModel(name, spec);
+		createModelTransitions(model);
+		createModelAssertions(model);
 
         debug.say_indent--;
         debug.say("Generating next-state function done (%s sec)",
                   report.stopTimer().sec());
         debug.say("");
 
+        model.createStateVector(spec, debug);
+		createModelLabels(model, exports, progress);
 		LTSminDMWalker.walkModel(model, debug, opts);
 		LTSminGMWalker.generateGuardInfo(model, opts, debug);
 		return model;
 	}
 
-	private void createModelAssertions() {
+	private void createModelAssertions(LTSminModel model) {
         for (RemoteRef ref : spec.remoteRefs) {
             ProcInstance instance = ref.getInstance();
             Expression pid = id(instance.getPID());
@@ -213,7 +208,8 @@ public class LTSminTreeWalker {
 	 * Set accepting state, valid end-state and progress-state conditions for this model. 
 	 * Accepting condition semantics are overloaded with valid end state semantics.
 	 */
-    private void createModelLabels(Map<String, Expression> exports,
+    private void createModelLabels(LTSminModel model,
+                                   Map<String, Expression> exports,
                                    Expression progress) {
 
         debug.say("Creating state labels");
@@ -832,8 +828,9 @@ public class LTSminTreeWalker {
 
 	/**
 	 * Creates the state transitions.
+	 * @param model TODO
 	 */
-	private void createModelTransitions() {
+	private void createModelTransitions(LTSminModel model) {
         debug.say("Creating transitions");
         debug.say_indent++;
 
@@ -842,7 +839,7 @@ public class LTSminTreeWalker {
 			State state = p.getAutomaton().getStartState();
 			State ns = null;
 			if (NEVER) ns = spec.getNever().getAutomaton().getStartState();
-			createCrossProduct(state, ns, -1);
+			createCrossProduct(model, state, ns, -1);
 		}
 
 		Set<Expression> gexpr = new HashSet<Expression>();
@@ -881,7 +878,7 @@ public class LTSminTreeWalker {
 			Automaton never = spec.getNever().getAutomaton();
 			NEVER = false;
 			State start = never.getStartState();
-            createCrossProduct(start, null, 1);
+            createCrossProduct(model, start, null, 1);
 			NEVER = true;
 			for (State s : never) { // add guards:
 				LTSminState ns = model.getOrAddState(new LTSminState(s, null));
@@ -901,8 +898,9 @@ public class LTSminTreeWalker {
 	 * For rendez-vous send actions, all matching read actions are found and 
 	 * synchronized. The control passes to the read action process, which matters
 	 * if this action is in a synchronized block.
+     * @param model TODO
 	 */
-	private LTSminState createCrossProduct(State state, State never, int alevel) {
+	private LTSminState createCrossProduct(LTSminModel model, State state, State never, int alevel) {
 		LTSminState state2 = new LTSminState(state, never);
 		LTSminState begin = model.getOrAddState(state2);
 		if (null == state || (NEVER && null == never)) { // no outgoing transitions
@@ -912,7 +910,7 @@ public class LTSminTreeWalker {
 	    // update stack numbering for atomic cycle search
         alevel = atomicLevel(state, alevel);
 		if (begin != state2) { // seen state
-		    atomicCycleCheck (begin, alevel); // check for atomic cycle on stack
+		    atomicCycleCheck (model, begin, alevel); // check for atomic cycle on stack
 		    return begin;
 		}
 		// update stack table
@@ -929,17 +927,17 @@ public class LTSminTreeWalker {
 				for (LTSminTransition lt : set) {
 					State to = lt.getSync().getTo(); // pass control to read
 					model.addTransition(lt);
-					LTSminState end = createCrossProduct(to, nto, alevel);
+					LTSminState end = createCrossProduct(model, to, nto, alevel);
 					annotate(lt, begin, end);
 				}
-                createCrossProduct(out.getTo(), nto, alevel);
+                createCrossProduct(model, out.getTo(), nto, alevel);
 			} else if (isRendezVousReadAction(a)) {
 				// skip, a transition is created for the comm. partner
 			} else {
 				for (LTSminTransition lt : createStateTransition(out, nout)) {
         			model.addTransition(lt);
         			State to = out.getTo();
-                    LTSminState end = createCrossProduct(to, nto, alevel);
+                    LTSminState end = createCrossProduct(model, to, nto, alevel);
         			annotate(lt, begin, end);
 				}
 			}
@@ -973,7 +971,7 @@ public class LTSminTreeWalker {
         if (x != null) throw new RuntimeException("seen: " + x);
     }
 
-    private void atomicCycleCheck(LTSminState begin, int alevel) {
+    private void atomicCycleCheck(LTSminModel model, LTSminState begin, int alevel) {
         if (alevel < 0) // state is not atomic, cycle cannot be atomic
             return;
         Integer x = stackMap.get(begin);

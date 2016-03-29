@@ -58,7 +58,7 @@ public class LTSminModel implements Iterable<LTSminTransition> {
     private List<Variable> locals = Arrays.asList(index, jndex);
 
     // state vector
-    public LTSminStateVector sv;
+    public LTSminStateVector sv = null;
 
     // next-state assertions
     public List<Pair<Expression,String>> assertions = new LinkedList<Pair<Expression,String>>();
@@ -78,10 +78,9 @@ public class LTSminModel implements Iterable<LTSminTransition> {
     // state labels
     private Map<String, LTSminGuard> stateLabels = new HashMap<String, LTSminGuard>();
 
-	public LTSminModel(String name, LTSminStateVector sv, Specification spec) {
+	public LTSminModel(String name, Specification spec) {
 		this.name = name;
 		mtypes = spec.getMTypes();
-		this.sv = sv;
 	}
 
 	public List<Variable> getLocals() {

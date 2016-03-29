@@ -56,7 +56,6 @@ import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
 import spins.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
-import spins.promela.compiler.ltsmin.model.LTSminTransition;
 import spins.promela.compiler.ltsmin.model.ResetProcessAction;
 import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.parser.ParseException;
@@ -127,12 +126,11 @@ public class SimplePredicate {
      * 
      * @param model
      * @param a the action
-     * @param sp the simple predicate (x == 4)
      * @param invert if true: the action is inverted: x := 5 --> x := !5
+     * @param sp the simple predicate (x == 4)
      * @return true if conflict is found, FALSE IF UNKNOWN
      */
-    public boolean conflicts (LTSminModel model, Action a, LTSminTransition t,
-                              int g, boolean invert) {
+    public boolean conflicts (LTSminModel model, Action a, boolean invert) {
         SimplePredicate sp = this;
         SimplePredicate sp1 = new SimplePredicate();
         if (a instanceof AssignAction) {
@@ -169,28 +167,28 @@ public class SimplePredicate {
         } else if (a instanceof ResetProcessAction) {
             ResetProcessAction rpa = (ResetProcessAction)a;
             Variable pc = rpa.getProcess().getPC();
-            if (sp.conflicts(model, assign(pc, -1), t, g, invert))
+            if (sp.conflicts(model, assign(pc, -1), invert))
                 return true;
-            if (sp.conflicts(model, decr(id(_NR_PR)), t, g, invert))
+            if (sp.conflicts(model, decr(id(_NR_PR)), invert))
                 return true;
             //return false;
             Expression e = sp.id.getVariable().getInitExpr();
             if (e == null)
                 e = constant(0); 
             Action init = assign(sp.id, e);
-            return sp.conflicts(model, init, t, g, invert);
+            return sp.conflicts(model, init, invert);
         } else if (a instanceof ExprAction) {
             Expression expr = ((ExprAction)a).getExpression();
             if (expr.getSideEffect() == null) return false; // simple expressions are guards
             RunExpression re = (RunExpression)expr;
             
-            if (sp.conflicts(model, incr(id(_NR_PR)), t, g, invert))
+            if (sp.conflicts(model, incr(id(_NR_PR)), invert))
                 return true;
     
             for (Proctype p : re.getInstances()) {
                 for (ProcInstance instance : re.getInstances()) { // sets a pc to 0
                     Variable pc = instance.getPC();
-                    if (sp.conflicts(model, assign(pc, 0), t, g, invert)) {
+                    if (sp.conflicts(model, assign(pc, 0), invert)) {
                         return true;
                     }
                 }
@@ -202,14 +200,14 @@ public class SimplePredicate {
                         continue; //passed by reference or already in state vector
                     try {
                         int val = param.getConstantValue();
-                        if (sp.conflicts(model, assign(v, val), t, g, invert)) {
+                        if (sp.conflicts(model, assign(v, val), invert)) {
                             return true;
                         }
                     } catch (ParseException e) {}
                 }
             }
             for (Action rea : re.getInitActions()) {
-                if (sp.conflicts(model, rea, t, g, invert)) {
+                if (sp.conflicts(model, rea, invert)) {
                     return true;
                 }
             }
@@ -220,12 +218,12 @@ public class SimplePredicate {
                 try {
                     int val = csa.getExprs().get(i).getConstantValue();
                     Identifier next = channelNext(id, i);
-                    if (sp.conflicts(model, assign(next, constant(val)), t, g, invert)) {
+                    if (sp.conflicts(model, assign(next, constant(val)), invert)) {
                         return true;
                     }
                 } catch (ParseException e) {}
             }
-            return sp.conflicts(model, incr(chanLength(id)), t, g, invert);
+            return sp.conflicts(model, incr(chanLength(id)), invert);
         } else if(a instanceof OptionAction) { // options in a d_step sequence
             //OptionAction oa = (OptionAction)a;
             //for (Sequence seq : oa) { //TODO
@@ -236,7 +234,7 @@ public class SimplePredicate {
             ChannelReadAction cra = (ChannelReadAction)a;
             Identifier id = cra.getIdentifier();
             if (!cra.isPoll()) {
-                return sp.conflicts(model, decr(chanLength(id)), t, g, invert);
+                return sp.conflicts(model, decr(chanLength(id)), invert);
             }
         }
         return false;

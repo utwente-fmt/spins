@@ -337,7 +337,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                     if (!coen.isDependent(g, g1)) ce = false;
                 }
                 
-                if (ce && atomicNES(model, guardInfo, guard, g, trans, true)) {
+                if (ce && atomicNES(model, guardInfo, guard, trans, true)) {
                     nds.setDependent(g, trans.getGroup());
                 } else {
                     notNDS += 1;
@@ -372,7 +372,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 		            if (!icoen.isDependent(g, g1)) ice = false;
 		        }
 			    
-                if (ice && atomicNES(model, guardInfo, guard, g, trans, false)) {
+                if (ice && atomicNES(model, guardInfo, guard, trans, false)) {
                     nes.setDependent(g, trans.getGroup());
                 } else {
                     notNES += 1;
@@ -390,19 +390,18 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
      */
     private static boolean atomicNES(LTSminModel model,
                                      GuardInfo guardInfo,
-                                     LTSminGuard guard, int g,
-                                     LTSminTransition trans,
+                                     LTSminGuard guard, LTSminTransition trans,
                                      boolean invert) {
-        if (!limitMCE(model, guardInfo, trans.getGroup(), guard, g, !invert)) {
+        if (!limitMCE(model, guardInfo, trans.getGroup(), guard, !invert)) {
             return false;
         }
 
-        if (enables(model, trans, guard.getExpr(), g, invert)) {
+        if (enables(model, trans, guard.getExpr(), invert)) {
             return true;
         }
 
         for (LTSminTransition atomic : trans.getTransitions()) {
-            if (enables(model, atomic, guard.getExpr(), g, invert)) {
+            if (enables(model, atomic, guard.getExpr(), invert)) {
                 return true;
             }
         }
@@ -421,7 +420,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
      * in the presence of disjunctions.
      */
     private static boolean limitMCE(LTSminModel model, GuardInfo guardInfo,
-                                    int t, LTSminGuard guard, int g, boolean invert) {
+                                    int t, LTSminGuard guard, boolean invert) {
         RWMatrix rw = model.getDepMatrix();
         DepMatrix g2s = model.getGuardInfo().getDepMatrix();
         for (int gg : guardInfo.getTransMatrix().get(t)) {
@@ -450,19 +449,18 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 	 */
 	private static boolean enables (LTSminModel model,
 	                                LTSminTransition t,
-									Expression e, int g,
-									boolean invert) {
+									Expression e, boolean invert) {
         if (e instanceof EvalExpression) {
             EvalExpression eval = (EvalExpression)e;
-            return enables(model, t, eval.getExpression(), g,invert);
+            return enables(model, t, eval.getExpression(), invert);
         } else if (e instanceof BooleanExpression) {
             BooleanExpression ce = (BooleanExpression)e;
             if (ce.getToken().kind == PromelaTokenManager.BNOT ||
                 ce.getToken().kind == PromelaTokenManager.LNOT) {
-                return enables(model, t, ce.getExpr1(), g,!invert);
+                return enables(model, t, ce.getExpr1(), !invert);
             } else {
-                return enables(model, t, ce.getExpr1(), g,invert) ||
-                       enables(model, t, ce.getExpr2(), g,invert);
+                return enables(model, t, ce.getExpr1(), invert) ||
+                       enables(model, t, ce.getExpr2(), invert);
             }
         } else {
             List<SimplePredicate> sps = new ArrayList<SimplePredicate>();
@@ -477,7 +475,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 if (invert)
                     sp = sp.invert();
 
-                if (agrees(model, t, g, sp)) {
+                if (agrees(model, t, sp)) {
                     return true;
                 }
             }
@@ -486,8 +484,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 	}
 
     private static boolean agrees (LTSminModel model,
-                                   LTSminTransition t, int g,
-                                   SimplePredicate sp) {
+                                   LTSminTransition t, SimplePredicate sp) {
         DepMatrix testSet = new DepMatrix(1, model.sv.size());
         RWMatrix a2s = model.getActionDepMatrix();
 
@@ -498,7 +495,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             if (!writeSet.mayWrites(testSet.getRow(0)))
                 continue;
 
-            boolean conflicts = sp.conflicts(model, a, t, g, false);
+            boolean conflicts = sp.conflicts(model, a, false);
             if (!conflicts) {
                 return true;
         	}
@@ -597,7 +594,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             if (!writeSet.mayWrites(testSet.getRow(0)))
                 continue;
 
-            boolean conflicts = sp.conflicts(model, a, t, g, false);
+            boolean conflicts = sp.conflicts(model, a, false);
             if (conflicts) { // one action disables guard!
                 return true; // assume actions do not contradict each other
             }

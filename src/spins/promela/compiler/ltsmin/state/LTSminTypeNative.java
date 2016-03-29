@@ -1,5 +1,8 @@
 package spins.promela.compiler.ltsmin.state;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spins.promela.compiler.variable.Variable;
@@ -19,6 +22,8 @@ public class LTSminTypeNative extends LTSminTypeImpl {
 	private static final String C_TYPE_UINT16 = "sj_uint16";
 	private static final String C_TYPE_UINT32 = "sj_uint32";
 
+	public static Map<String, LTSminTypeNative> types = new HashMap<String, LTSminTypeNative>();
+
 	public static final String ACCESS = "var";
 	public static final LTSminTypeNative TYPE_BOOL = new LTSminTypeNative(C_TYPE_UINT1);
 	public static final LTSminTypeNative TYPE_INT8 = new LTSminTypeNative(C_TYPE_INT8);
@@ -29,16 +34,19 @@ public class LTSminTypeNative extends LTSminTypeImpl {
 	public static final LTSminTypeNative TYPE_UINT32 = new LTSminTypeNative(C_TYPE_UINT32);
 	public static final LTSminTypeNative TYPE_PC = TYPE_INT8;
 
+	
 	Variable var = null;
 	String name;
 	
 	private LTSminTypeNative(String name) {
 		this.name = name;
+		types.put(name,  this);
 	}
 
-	public LTSminTypeNative(Variable var) {
-		this(getCType(var));
-		this.var = var;
+	public static LTSminTypeNative get(Variable var) {
+		LTSminTypeNative t = types.get(getCType(var));
+		if (t == null) throw new RuntimeException("");
+		return t;
 	}
 
 	public String toString() {

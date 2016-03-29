@@ -198,7 +198,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 			lvar = new LTSminVariable(type, var, struct);
 		} else if (var.getType() instanceof VariableType) {
 			debug.say(MessageKind.DEBUG, var.getType().getName() +" "+ name);
-			lvar = new LTSminVariable(new LTSminTypeNative(var), var, struct);
+			lvar = new LTSminVariable(LTSminTypeNative.get(var), var, struct);
 		} else {
 			throw new AssertionError("ERROR: Unable to handle: " + var.getType().getName());
 		}

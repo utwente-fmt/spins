@@ -40,7 +40,7 @@ public class LTSminTypeChanStruct extends LTSminTypeStruct {
                 throw new AssertionError("CustomVarTypes not supported in channel buffer.");
 			    //buf.addMember(new LTSminVariable(new LTSminTypeStruct(var.getName()), var, elemName(), this));
 			} else {
-			    buf.addMember(new LTSminVariable(new LTSminTypeNative(var), var, elemName(), this));
+			    buf.addMember(new LTSminVariable(LTSminTypeNative.get(var), var, elemName(), this));
 			}
 		}
 		addMember(new LTSminVariable(buf, CHAN_BUF, cv.getType().getBufferSize(), this));

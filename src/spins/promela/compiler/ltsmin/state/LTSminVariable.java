@@ -45,7 +45,7 @@ public class LTSminVariable {
 	}
 
 	public LTSminVariable(Variable var, LTSminTypeI parent) {
-		this(new LTSminTypeNative(var), var.getName(), var.getArraySize(), parent);
+		this(LTSminTypeNative.get(var), var.getName(), var.getArraySize(), parent);
 		this.var = var;
 	}
 
