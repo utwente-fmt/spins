@@ -75,7 +75,8 @@ import spins.promela.compiler.variable.VariableType;
 public class LTSminDMWalker {
 
 	// An expression without constant value, to be used as unknow array index: 
-	static final Identifier STAR = new LTSminIdentifier(new Variable(VariableType.INT, "STAR", -1));
+	static final Identifier STAR = new LTSminIdentifier(
+					new Variable(VariableType.INT, "STAR", -1).setAssignedTo());
 	
 	static public class Params {
 		public LTSminModel model;

@@ -149,17 +149,22 @@ public class Variable {
 		return (null == displayName ? name : displayName);
 	}
 
-	public void setAssignedTo() {
+	public Variable setAssignedTo() {
 		assignedTo = true;
+		return this;
 	}
 	public boolean isNotAssignedTo() {
 		return !assignedTo;
 	}
 
 	public int getConstantValue() throws ParseException {
-		if (assignedTo || initExpr == null)
+		if (assignedTo || getType() instanceof CustomVariableType || getType() instanceof ChannelType)
 			throw new ParseException("Variable "+ this +" is not a constant in process "+ owner);
-		return initExpr.getConstantValue();
+		if (initExpr == null) {
+			return 0;
+		} else {
+			return initExpr.getConstantValue();
+		}
 	}
 
 	public boolean isHidden() {
