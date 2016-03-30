@@ -88,10 +88,6 @@ public class LTSminUtil {
 		return new Identifier(new Token(IDENTIFIER,v.getName()), v, null);
 	}
 
-	public static Identifier id(Variable v, int c) {
-		return new Identifier(new Token(IDENTIFIER,v.getName()), v, constant(c), null);
-	}
-
 	public static Identifier id(Variable v, Expression arrayExpr, Identifier sub) {
 		return new Identifier(new Token(IDENTIFIER,v.getName()), v, arrayExpr, sub);
 	}

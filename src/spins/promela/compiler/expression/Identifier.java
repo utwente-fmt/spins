@@ -35,9 +35,9 @@ public class Identifier extends Expression {
 	@SuppressWarnings("unused")
 	private static final long serialVersionUID = -5928789117017713005L;
 
-	private final Variable var;
+	private Variable var;
 
-	private final Expression arrayExpr;
+	private Expression arrayExpr;
 
 	private int instanceIndex = -1; // no instance index 
 
@@ -236,5 +236,13 @@ public class Identifier extends Expression {
 		} catch (ParseException e) {
 			return false;
 		}
+	}
+
+	public void setVariable(Variable v) {
+		this.var = v;
+	}
+
+	public void setArrayIndex(Expression e) {
+		arrayExpr = e;
 	}
 }

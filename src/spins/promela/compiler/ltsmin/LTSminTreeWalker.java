@@ -128,6 +128,31 @@ public class LTSminTreeWalker {
     public List<ReadAction> reads = new ArrayList<ReadAction>();
     public List<SendAction> writes = new ArrayList<SendAction>();
     
+	private List<Identifier> ids = new ArrayList<Identifier>();
+
+	private Identifier newid(Variable elemVar) {
+		Identifier identifier = new Identifier(elemVar);
+		ids.add(identifier);
+		return identifier;
+	}
+
+	private Expression newid(Token token, Variable newVar, Expression arrayExpr, Identifier sub) {
+		Identifier newId = new Identifier(token, newVar, arrayExpr, sub);
+		ids.add(newId);
+		return newId;
+	}
+
+	private void replaceVars(Variable v, Identifier id) {
+		for (Identifier i : ids) {
+			if (i.getVariable() == v) {
+				i.setVariable(id.getVariable());
+				if (i.getArrayExpr() != null) 
+					throw new AssertionError("Not a lhs var place holder: "+ i +" = "+ id);
+				i.setArrayIndex(id.getArrayExpr());
+			}
+		}
+	}
+
 	private final Specification spec;
 	static boolean NEVER;
 	static boolean LTSMIN_LTL = false;
@@ -194,7 +219,7 @@ public class LTSminTreeWalker {
 	private void createModelAssertions(LTSminModel model) {
         for (RemoteRef ref : spec.remoteRefs) {
             ProcInstance instance = ref.getInstance();
-            Expression pid = id(instance.getPID());
+            Expression pid = newid(instance.getPID());
             Expression left = eq(pid, constant(-1));
             Expression right = eq(pid, constant(instance.getID()));
             Expression condition = or(left, right);
@@ -274,7 +299,7 @@ public class LTSminTreeWalker {
 			Expression or = null;
 			if (never.getStartState().isAcceptState()) {
 	            Variable pc = never.getPC();
-			    Expression g = compare(PromelaConstants.EQ, id(pc), constant(-1));
+			    Expression g = compare(PromelaConstants.EQ, newid(pc), constant(-1));
 			    or = or == null ? g : or(or, g) ; // Or
 			}
 			for (State s : never.getAutomaton()) {
@@ -297,9 +322,9 @@ public class LTSminTreeWalker {
     		        if (s.isProgressState()) {
     		            Variable pc = pi.getPC();
     		            Expression counter = constant(s.getStateId());
-    		            Expression e = compare(PromelaConstants.EQ, id(pc), counter);
+    		            Expression e = compare(PromelaConstants.EQ, newid(pc), counter);
     	                or = or == null ? e : or(or, e);
-                        Expression ne = compare(PromelaConstants.NEQ, id(pc), counter);
+                        Expression ne = compare(PromelaConstants.NEQ, newid(pc), counter);
                         and = and == null ? ne : and(and, ne) ;
     		        }
     		    }
@@ -315,11 +340,11 @@ public class LTSminTreeWalker {
 		}
 
 		/* Export label for valid end states */
-		Expression end = compare(PromelaConstants.EQ, id(_NR_PR), constant(0)); // or
+		Expression end = compare(PromelaConstants.EQ, newid(_NR_PR), constant(0)); // or
         Expression and = null;
     	for (ProcInstance instance : spec) {
 			Variable pc = instance.getPC();
-            Expression labeled = compare(PromelaConstants.EQ, id(pc), constant(-1));
+            Expression labeled = compare(PromelaConstants.EQ, newid(pc), constant(-1));
 	    	for (State s : instance.getAutomaton()) {
 		    	if (s.hasLabelPrefix("end")) {
 		    		labeled = or(labeled, pcGuard(s, instance).getExpr()); // Or
@@ -349,7 +374,7 @@ public class LTSminTreeWalker {
                     
                     Variable pc = pi.getPC();
                     Expression counter = constant(s.getStateId());
-                    Expression e = compare(PromelaConstants.EQ, id(pc), counter);
+                    Expression e = compare(PromelaConstants.EQ, newid(pc), counter);
                     e = x == null ? e : or(e, x);
                     model.addStateLabel(label, new LTSminGuard(e));
                     //System.out.println("Adding label "+ label +" --> "+ e);
@@ -465,10 +490,6 @@ public class LTSminTreeWalker {
 			instance.addVariable(newvar, p.getArguments().contains(var));
 		}
 		instance.lastArgument();
-		for (String mapped : p.getVariableMappings().keySet()) {
-			String to = p.getVariableMapping(mapped);
-			instance.addVariableMapping(mapped, to);
-		}
 		HashMap<State, State> seen = new HashMap<State, State>();
 		instantiate(p.getStartState(), instance.getStartState(), seen, instance);
 		new RenumberAll().optimize(instance.getAutomaton());
@@ -637,7 +658,7 @@ public class LTSminTreeWalker {
 			if (write) newVar.setAssignedTo();
 			Expression arrayExpr = instantiate(id.getArrayExpr(), p, write);
 			Identifier sub = (Identifier)instantiate(id.getSub(), p, write);
-			return new Identifier(id.getToken(), newVar, arrayExpr, sub);
+			return newid(id.getToken(), newVar, arrayExpr, sub);
 		} else if (e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
 			Expression ex1 = instantiate(ae.getExpr1(), p, write);
@@ -750,6 +771,21 @@ public class LTSminTreeWalker {
 			}
 		}
 
+		List<Variable> remove = new LinkedList<Variable>();
+		for (Variable v : spec.getVariableStore().getVariables()) {
+			Expression init = v.getInitExpr();
+			if (!(v instanceof ChannelVariable) || null == init) continue;
+
+			if (!(init instanceof Identifier)) throw new AssertionError("No ID:"+ init +" Init of: "+ v);
+			Identifier id = (Identifier) init;
+			System.out.println(v.getName() +" --> "+ id.toString());
+			replaceVars (v, id);
+			remove.add(v);
+		}
+		for (Variable v : remove) {
+			spec.getVariableStore().delVariable(v);
+		}
+
 		// Update the spec with the results
         spec.clearReadActions();
         spec.clearWriteActions();
@@ -786,19 +822,18 @@ public class LTSminTreeWalker {
 					throw new AssertionError("Cannot dynamically bind "+ target.getTypeName() +" to the run expressions in presence of arguments of type channel.\n" +
 							"Change the proctype's arguments or unroll the loop with run expressions in the model.");
 				String name = v.getName();
-				debug.say(MessageKind.DEBUG, "Binding "+ target +"."+ name +" to "+ varParameter.getOwner() +"."+ varParameter.getName());
-				v.setDisplayName(v.getName());
-				v.setType(varParameter.getType());
-				v.setOwner(varParameter.getOwner());
-				v.setName(varParameter.getName());
+				debug.say(MessageKind.DEBUG, "Binding "+ target +"."+ name +" to "+ varParameter.toString());
+				
 				if (varParameter.getArraySize() > -1) {
 				    try {
-                        int c = id.getArrayExpr().getConstantValue();
-                        v.setArrayIndex(c);
+                        id.getArrayExpr().getConstantValue();
                     } catch (ParseException e) {
                         throw new AssertionError("Cannot () statically bind "+ target.getTypeName() +" to the run expressions without constant channel array index.");
                     }
 				}
+
+				replaceVars (v, id);
+				
 			} else if (!dynamic) {
 				try {
 					v.setInitExpr(param);
@@ -820,7 +855,7 @@ public class LTSminTreeWalker {
 				Expression init = v.getInitExpr();
 				v.unsetInitExpr();
 				v.setAssignedTo();
-				re.addInitAction(new AssignAction(new Token(PromelaConstants.ASSIGN), id(v), init));
+				re.addInitAction(new AssignAction(new Token(PromelaConstants.ASSIGN), newid(v), init));
 			}
 		}
 	}
@@ -1098,7 +1133,7 @@ public class LTSminTreeWalker {
                     AssignAction aa = (AssignAction)action;
                     if (aa.getExpr() instanceof RunExpression) {
                         lt.addAction(new ExprAction(aa.getExpr()));
-                        aa.setExpr(calc(PromelaConstants.MINUS, id(_NR_PR), constant(1)));
+                        aa.setExpr(calc(PromelaConstants.MINUS, newid(_NR_PR), constant(1)));
                     }
                 }
                 lt.addAction(action);

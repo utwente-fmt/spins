@@ -31,27 +31,12 @@ public class VariableStore implements VariableContainer {
     private final Map<String, Variable> varNames; 
     private final List<Variable> vars;
 
-    private final Map<String, String> mapping;
-    
-    public void addVariableMapping(String s, String v) {
-    	mapping.put(s, v);
-    }
-
-    public String getVariableMapping(String s) {
-    	return mapping.get(s);
-    }
-
-    public Map<String, String> getVariableMappings() {
-    	return mapping;
-    }
-
     /**
      * Creates a new VariableStore.
      */
     public VariableStore() {
         vars = new LinkedList<Variable>();
         varNames = new HashMap<String, Variable>();
-        mapping = new HashMap<String, String>();
     }
 
     /**
@@ -87,12 +72,7 @@ public class VariableStore implements VariableContainer {
      */
     public Variable getVariable(final String name) {
         Variable var = varNames.get(name);
-        if (var != null)
-            return var;
-    	String to = getVariableMapping(name);
-    	if (null == to)
-    	    return null;
-        return getVariable(to);
+        return var;
     }
 
     /**
@@ -111,11 +91,10 @@ public class VariableStore implements VariableContainer {
      */
     public boolean hasVariable(final String name) {
         Variable var = varNames.get(name);
-        if (var != null)
-            return true;
-        String to = getVariableMapping(name);
-        if (null == to)
-            return false;
-        return hasVariable(to);
+        return var != null;
     }
+
+	public void delVariable(Variable v) {
+		vars.remove(v);
+	}
 }

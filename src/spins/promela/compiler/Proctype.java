@@ -19,7 +19,6 @@ import static spins.promela.compiler.parser.Promela.C_STATE_PROC_COUNTER;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import spins.promela.compiler.automaton.Automaton;
 import spins.promela.compiler.automaton.State;
@@ -72,18 +71,6 @@ public class Proctype implements VariableContainer {
 	 * The store where all the variables are stored.
 	 */
 	protected final VariableStore varStore;
-    
-    public void addVariableMapping(String s, String v) {
-    	varStore.addVariableMapping(s, v);
-    }
-
-    public String getVariableMapping(String s) {
-    	return varStore.getVariableMapping(s);
-    }
-
-    public Map<String, String> getVariableMappings() {
-    	return varStore.getVariableMappings();
-    }
 
 	/**
 	 * The expression which can enable or disable all actions.

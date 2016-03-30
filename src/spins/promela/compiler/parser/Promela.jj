@@ -1049,8 +1049,8 @@ void ch_init(Token as, VariableContainer store, ChannelVariable var): {
 }{
     id=<IDENTIFIER>
     {
-		store.addVariableMapping(var.getName(), id.image);
-        Variable var2 = store.getVariable(id.image);    }
+		var.setInitExpr(new Identifier(store.getVariable(id.image)));
+		store.addVariable(var);    }
   |
 	<LBRACK> size=constant() <RBRACK> <OF> 
 	{ 

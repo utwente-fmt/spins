@@ -37,8 +37,6 @@ public class Variable {
 
 	private VariableType type;
 
-	private String displayName = null;
-
 	private boolean assignedTo = false;
 
 	private boolean hidden = false;
@@ -61,7 +59,6 @@ public class Variable {
         this.assignedTo = var.assignedTo;
         this.arrayIndex = var.arrayIndex;
         this.hidden = var.hidden;
-        this.displayName = var.displayName;
         this.initExpr = var.initExpr;
     }
 
@@ -138,15 +135,7 @@ public class Variable {
 	 */
 	@Override
 	public String toString() {
-	    return owner == null ? getDisplayName() : owner.getName() +"."+ getDisplayName();
-	}
-
-	public void setDisplayName(String name2) {
-		this.displayName = name2;
-	}
-	
-	public String getDisplayName() {
-		return (null == displayName ? name : displayName);
+	    return owner == null ? getName() : owner.getName() +"."+ getName();
 	}
 
 	public Variable setAssignedTo() {

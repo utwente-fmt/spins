@@ -587,8 +587,8 @@ public class Promela implements PromelaConstants {
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case IDENTIFIER:
       id = jj_consume_token(IDENTIFIER);
-                store.addVariableMapping(var.getName(), id.image);
-        Variable var2 = store.getVariable(id.image);
+                var.setInitExpr(new Identifier(store.getVariable(id.image)));
+                store.addVariable(var);
       break;
     case LBRACK:
       jj_consume_token(LBRACK);
