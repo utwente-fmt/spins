@@ -27,6 +27,8 @@ if [ ! -e "$LTSMIN" ]; then
     LTSMIN=prom2lts-mc
 fi
 
+echo Using $LTSMIN
+
 SPINS="${SPINSDIR}/spins.sh"
 CASESTUDIES="${SPINSDIR}/tests/case_studies"
 
