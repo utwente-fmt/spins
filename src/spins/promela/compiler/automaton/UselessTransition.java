@@ -31,6 +31,10 @@ public class UselessTransition extends Transition {
 	 * @param text
 	 *            The text for this useless transition
 	 */
+	public UselessTransition(Transition t, final State from, final State to, final String text) {
+		super(t, from, to);
+		this.text = text;
+	}
 	public UselessTransition(final State from, final State to, final String text) {
 		super(from, to);
 		this.text = text;
@@ -41,7 +45,7 @@ public class UselessTransition extends Transition {
 	 */
 	@Override
 	public Transition duplicateFrom(State from) {
-		final Transition t = new UselessTransition(from, getTo(), text);
+		final Transition t = new UselessTransition(this, from, getTo(), text);
 		return t;
 	}
 

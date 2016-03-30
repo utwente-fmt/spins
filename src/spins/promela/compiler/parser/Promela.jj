@@ -933,7 +933,7 @@ void never(): {
 	<LCURLY> s=sequence(currentProc.getStartState(), null, false) <RCURLY>
 	{
 		if(s != null) {
-			new NeverEndTransition(s);
+			new EndTransition(s);
 		}
 		setGotos();
 		currentProc = null;

@@ -49,16 +49,8 @@ public abstract class Transition implements ActionContainer {
 
     private List<String> labels;
 
-	/**
-	 * Constructor of Transition. Creates a {@link Transition} from one {@link State} to an other.
-	 * Both the from and to state must be part of the same automaton.
-	 * 
-	 * @param from
-	 *            The {@link State} where the {@link Transition} must start.
-	 * @param to
-	 *            The {@link State} where the {@link Transition} must end.
-	 */
-	public Transition(final State from, final State to) {
+
+	protected Transition(final State from, final State to) {
 		if (from == null) {
 			throw new IllegalArgumentException("A transition must always come from somewhere!");
 		}
@@ -72,6 +64,22 @@ public abstract class Transition implements ActionContainer {
 			to.addIn(this);
 		}
 		transId = TransitionIdCounter.nextId();
+	}
+
+	/**
+	 * Constructor of Transition. Creates a {@link Transition} from one {@link State} to an other.
+	 * Both the from and to state must be part of the same automaton.
+	 * 
+	 * @param from
+	 *            The {@link State} where the {@link Transition} must start.
+	 * @param to
+	 *            The {@link State} where the {@link Transition} must end.
+	 */
+	public Transition(Transition t, final State from, final State to) {
+		this(from, to);
+		if (t != null) {
+			this.labels = t.labels;
+		}
 	}
 
 	/**

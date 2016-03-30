@@ -35,8 +35,12 @@ public class ActionTransition extends Transition {
 	 * @param from
 	 * @param to
 	 */
+	public ActionTransition(Transition t, final State from, final State to) {
+		super(t, from, to);
+		sequence = new Sequence();
+	}
 	public ActionTransition(final State from, final State to) {
-		super(from, to);
+		super(null, from, to);
 		sequence = new Sequence();
 	}
 
@@ -53,7 +57,7 @@ public class ActionTransition extends Transition {
 	 */
 	@Override
 	public Transition duplicateFrom(State from) {
-		final ActionTransition t = new ActionTransition(from, getTo());
+		final ActionTransition t = new ActionTransition(this, from, getTo());
 		t.sequence.add(sequence);
 		return t;
 	}

@@ -69,7 +69,6 @@ import spins.promela.compiler.automaton.Automaton;
 import spins.promela.compiler.automaton.ElseTransition;
 import spins.promela.compiler.automaton.EndTransition;
 import spins.promela.compiler.automaton.GotoTransition;
-import spins.promela.compiler.automaton.NeverEndTransition;
 import spins.promela.compiler.automaton.State;
 import spins.promela.compiler.automaton.Transition;
 import spins.promela.compiler.automaton.UselessTransition;
@@ -514,14 +513,13 @@ public class LTSminTreeWalker {
 			else
 				newNextState = new State(p.getAutomaton(), next.isInAtomic());
 			Transition newTrans =
-				(trans instanceof ActionTransition ? new ActionTransition(newState, newNextState) :
-				(trans instanceof ElseTransition ? new ElseTransition(newState, newNextState) :
-				(trans instanceof EndTransition ? new EndTransition(newState) :
-				(trans instanceof NeverEndTransition ? new NeverEndTransition(newState) :
-				(trans instanceof GotoTransition ? new GotoTransition(newState, newNextState, trans.getText().substring(5)) :
-				(trans instanceof UselessTransition ? new UselessTransition(newState, newNextState, trans.getText()) :
-				 null))))));
-			newTrans.setLabels(trans.getLabels());
+				(trans instanceof ActionTransition ? new ActionTransition(trans, newState, newNextState) :
+				(trans instanceof ElseTransition ? new ElseTransition(trans, newState, newNextState) :
+				(trans instanceof EndTransition ? new EndTransition(trans, newState) :
+				(trans instanceof GotoTransition ? new GotoTransition(trans, newState, newNextState, trans.getText().substring(5)) :
+				(trans instanceof UselessTransition ? new UselessTransition(trans, newState, newNextState, trans.getText()) :
+				 null)))));
+//			Transition newTrans = trans.duplicateFrom(newState);
 			for (Action a : trans)
 				newTrans.addAction(instantiate(a, newTrans, p, null));
 			instantiate(next, newNextState, seen, p);
@@ -1044,7 +1042,10 @@ public class LTSminTreeWalker {
 
 	/**
 	 * Executed in the edge backtrack of the DFS to collect reachable atomic
-	 * transitions .
+	 * transitions.
+	 * 
+	 * TODO: fix transitive closure calculation: states in an SCC have identical
+	 * reachability properties (use Tarjan algorithm in atomic regions)
 	 */
 	private void annotate(LTSminTransition lt, LTSminState begin,
 							LTSminState end) {
@@ -1109,7 +1110,7 @@ public class LTSminTreeWalker {
             }
     		addSpecialGuards(lt, t, p); // proc die order && provided condition 
     		createEnabledGuard(t, lt); // enabled action or else transition 
-    
+
     		if (lt.isNeverExecutable()) {
     		    debug.say(MessageKind.NORMAL, "Removing dead transition "+ t +" of process "+ t.getProc());
     		    continue; // skip dead transitions

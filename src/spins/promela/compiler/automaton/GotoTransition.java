@@ -34,6 +34,10 @@ public class GotoTransition extends Transition {
 	 * @param text
 	 *            The label to where this transition should jump to.
 	 */
+	public GotoTransition(Transition t, final State from, final State to, final String text) {
+		super(t, from, to);
+		this.text = text;
+	}
 	public GotoTransition(final State from, final State to, final String text) {
 		super(from, to);
 		this.text = text;
@@ -44,7 +48,7 @@ public class GotoTransition extends Transition {
 	 */
 	@Override
 	public Transition duplicateFrom(State from) {
-		final Transition t = new GotoTransition(from, getTo(), text);
+		final Transition t = new GotoTransition(this, from, getTo(), text);
 		return t;
 	}
 

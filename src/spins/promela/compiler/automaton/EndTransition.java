@@ -28,16 +28,20 @@ public class EndTransition extends Transition {
 	 * @param from
 	 *            The starting state.
 	 */
+	public EndTransition(Transition t, final State from) {
+		super(t, from, null);
+	}
 	public EndTransition(final State from) {
 		super(from, null);
 	}
+
 
 	/**
 	 * @see spins.promela.compiler.automaton.Transition#duplicateFrom(State)
 	 */
 	@Override
 	public Transition duplicateFrom(State from) {
-		final Transition t = new EndTransition(from);
+		final Transition t = new EndTransition(this, from);
 		return t;
 	}
 

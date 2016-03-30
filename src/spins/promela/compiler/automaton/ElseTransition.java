@@ -25,8 +25,12 @@ public class ElseTransition extends Transition {
 	 * @param to
 	 *            The destination state.
 	 */
+	public ElseTransition(Transition t, final State from, final State to) {
+		super(t, from, to);
+	}
+
 	public ElseTransition(final State from, final State to) {
-		super(from, to);
+		super(null, from, to);
 	}
 
 	/**
@@ -34,7 +38,7 @@ public class ElseTransition extends Transition {
 	 */
 	@Override
 	public Transition duplicateFrom(State from) {
-		final Transition t = new ElseTransition(from, getTo());
+		final Transition t = new ElseTransition(this, from, getTo());
 		return t;
 	}
 
