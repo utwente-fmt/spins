@@ -122,14 +122,20 @@ public class LTSminTransition implements LTSminGuardContainer,
                 pcGuard.add((LTSminPCGuard) guard);
             }
         }  else if (guard instanceof LTSminGuardAnd) {
-            for(LTSminGuardBase gb : (LTSminGuardContainer)guard)
-                addGuard(gb);
+            for (LTSminGuardBase gb : (LTSminGuardContainer)guard) {
+            	Expression e = gb.getExpression();
+				if (e == null) continue;
+                addGuard(e);
+            }
         } else if (guard instanceof LTSminGuardNand) {
             LTSminGuardNand g = (LTSminGuardNand)guard;
             addGuard(g.getExpression());
         } else if (guard instanceof LTSminGuardNor) { // DeMorgan
-            for (LTSminGuardBase gb : (LTSminGuardContainer)guard)
-                addGuard(negate(gb.getExpression()));
+            for (LTSminGuardBase gb : (LTSminGuardContainer)guard) {
+            	Expression e = gb.getExpression();
+				if (e == null) continue;
+                addGuard(negate(e));
+            }
         } else if (guard instanceof LTSminGuardOr) {
             LTSminGuardOr g = (LTSminGuardOr)guard;
             addGuard(g.getExpression());
@@ -207,7 +213,7 @@ public class LTSminTransition implements LTSminGuardContainer,
 				name += " X tau";
 			}
 		}
-		name += "]";
+		name += "] "+ original.getUnlessPriority();
 		return this.name = name;
 	}
 

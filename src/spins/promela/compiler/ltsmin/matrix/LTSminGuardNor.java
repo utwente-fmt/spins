@@ -1,6 +1,7 @@
 package spins.promela.compiler.ltsmin.matrix;
 
-import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.bool;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.negate;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.or;
 
 import java.util.ArrayList;
@@ -44,7 +45,7 @@ public class LTSminGuardNor extends LTSminGuardBase implements LTSminGuardContai
 			w.outdent();
 			w.appendLine(")");
 		} else {
-			w.appendLine("false _GNOR_ ");
+			w.appendLine("true _GNOR_ ");
 		}
 	}
 
@@ -78,12 +79,10 @@ public class LTSminGuardNor extends LTSminGuardBase implements LTSminGuardContai
         Expression e = null;
         for (LTSminGuardBase sub : this) {
             Expression sube = sub.getExpression();
-            if (sube == null) continue;
+            if (sube == null) throw new AssertionError();
             if (e == null) e = sube;
             else           e = or(sube, e);
         }
-        if (e != null)
-            e = not(e);
-        return e;
+        return e == null ? bool(true) : negate(e);
     }
 }

@@ -1,6 +1,7 @@
 package spins.promela.compiler.ltsmin.matrix;
 
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.and;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.bool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -43,7 +44,7 @@ public class LTSminGuardAnd extends LTSminGuardBase implements LTSminGuardContai
 			w.outdent();
 			w.appendLine(")");
 		} else {
-			w.appendLine("false _GAND_ ");
+			w.appendLine("true _GAND_ ");
 		}
 	}
 
@@ -77,10 +78,10 @@ public class LTSminGuardAnd extends LTSminGuardBase implements LTSminGuardContai
         Expression e = null;
         for (LTSminGuardBase sub : this) {
             Expression sube = sub.getExpression();
-            if (sube == null) continue;
+            if (sube == null) throw new AssertionError();
             if (e == null) e = sube;
             else           e = and(sube, e);
         }
-        return e;
+        return e == null ? bool(true) : e;
     }
 }

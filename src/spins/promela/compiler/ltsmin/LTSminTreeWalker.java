@@ -1272,25 +1272,25 @@ public class LTSminTreeWalker {
 						Identifier elem = id(elemVar(i));
 						Identifier buf = id(bufferVar(cv), constant(0), elem);
 						Identifier next = new Identifier(id, buf);
-						lt.addGuard(compare(PromelaConstants.EQ,next,expr));
+						lt.addGuard(eq(next,expr));
 					}
 				}
 			} else {
 				LTSminGuardOr or = new LTSminGuardOr();
 				// Compare constant arguments with channel content
-				Expression g = null;
-				for (int b = 0 ; b < cv.getType().getBufferSize(); b++) {
-					g = chanContentsGuard(id, b);
+				for (int b = 1 ; b <= cv.getType().getBufferSize(); b++) {
+					LTSminGuardAnd and = new LTSminGuardAnd();
+					and.addGuard(chanContentsGuard(id, PromelaConstants.EQ, b));
 					for (int i = 0; i < exprs.size(); i++) {
 						final Expression expr = exprs.get(i);
 						if (!(expr instanceof Identifier)) {
 							Identifier elem = id(elemVar(i));
-							Identifier buf = id(bufferVar(cv), constant(0), elem);
+							Identifier buf = id(bufferVar(cv), constant(b - 1), elem);
 							Identifier next = new Identifier(id, buf);
-							g = and(g, eq(next, expr));
+							and.addGuard(eq(next, expr));
 						}
 					}
-					or.addGuard(g);
+					or.addGuard(and);
 				}
 				lt.addGuard(or);
 			}

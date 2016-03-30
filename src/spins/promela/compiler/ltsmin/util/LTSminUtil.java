@@ -114,9 +114,21 @@ public class LTSminUtil {
 	}
 
 	public static Expression negate(Expression e) {
-        if (e instanceof BooleanExpression &&
-                e.getToken().kind ==  PromelaConstants.LNOT) {
-            return ((BooleanExpression) e).getExpr1();
+		try {
+			int c = e.getConstantValue();
+			return c != 0 ? bool(true) : bool(false);
+		} catch (ParseException e1) {}
+        if (e instanceof BooleanExpression) {
+        	BooleanExpression be = (BooleanExpression) e;
+    		switch (e.getToken().kind) {
+			case PromelaConstants.LNOT:
+	            return be.getExpr1();
+			case PromelaConstants.LOR:
+				return and(negate(be.getExpr1()), negate(be.getExpr2()));
+			case PromelaConstants.LAND:
+				return or(negate(be.getExpr1()), negate(be.getExpr2()));
+            default: throw new AssertionError("Unknown arithmetic expression kind: "+ e.getToken());
+    		}
         } else if (e instanceof CompareExpression) {
             CompareExpression ae = (CompareExpression)e;
             switch(ae.getToken().kind) {
@@ -126,7 +138,7 @@ public class LTSminUtil {
                 case NEQ:   return new CompareExpression(ae, EQ);
                 case GT:    return new CompareExpression(ae, LTE);
                 case GTE:   return new CompareExpression(ae, LT);
-                default: throw new AssertionError("Unknown arithmetic expression kind: "+ ae.getToken());
+                default: throw new AssertionError("Unknown arithmetic expression kind: "+ e.getToken());
             }
         } else {
             return not(e);
@@ -161,7 +173,8 @@ public class LTSminUtil {
 	}
 
     public static ConstantExpression bool(boolean b) {
-        return new ConstantExpression(new Token(PromelaConstants.BOOL, ""+b), b?1:0);
+        Token t = new Token(b?PromelaConstants.TRUE:PromelaConstants.FALSE, ""+b);
+		return new ConstantExpression(t, b?1:0);
     }
 	
 	public static ConstantExpression constant(int nr) {
