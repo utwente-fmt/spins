@@ -1099,6 +1099,7 @@ public class LTSminPrinter {
 
     private static void copyAccess(LTSminModel model, StringWriter w, Identifier id) {
 		if (id.getVariable().isHidden() || id instanceof LTSminIdentifier) return;
+		if (id.isConstant()) return;
 
     	String var = print(id, out(model));
     	
@@ -1134,6 +1135,9 @@ public class LTSminPrinter {
 				return w.toString();
 			} else if (e instanceof Identifier) {
 				Identifier id = (Identifier)e;
+				try {
+					return ""+ id.getConstantValue();
+				} catch (ParseException e1) {}
 				if (id.getVariable().isHidden()) {
 					String ctype = LTSminTypeNative.getCType (id.getVariable());
 					return  SCRATCH_VARIABLE +"_"+ ctype +".var";

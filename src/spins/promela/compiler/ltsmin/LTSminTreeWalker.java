@@ -333,7 +333,7 @@ public class LTSminTreeWalker {
 
 		// Add export labels
 		for (Map.Entry<String,Expression> export : exports.entrySet()) {
-		    Expression ex = instantiate(export.getValue(), null);
+		    Expression ex = instantiate(export.getValue(), null, false);
             LTSminGuard guard = new LTSminGuard(ex);
             model.addStateLabel(export.getKey(), guard);
 		}
@@ -360,7 +360,7 @@ public class LTSminTreeWalker {
         for (Map.Entry<String, LTSminGuard> label : model.getLabels()) {
             Expression e = label.getValue().getExpr();
             if (e instanceof RemoteRef) {
-                label.setValue(new LTSminGuard(instantiate(e, null)));
+                label.setValue(new LTSminGuard(instantiate(e, null, false)));
             }
         }
 	}
@@ -456,7 +456,7 @@ public class LTSminTreeWalker {
 	 */
 	private ProcInstance instantiate(Proctype p, int id, int index) {
 		ProcInstance instance = new ProcInstance(p, index, id);
-		Expression e = instantiate(p.getEnabler(), instance);
+		Expression e = instantiate(p.getEnabler(), instance, false);
 		instance.setEnabler(e);
 		for (Variable var : p.getVariables()) {
 			Variable newvar = instantiate(var, instance);
@@ -517,7 +517,7 @@ public class LTSminTreeWalker {
         newvar.setOwner(p);
 		try {
 			if (null != var.getInitExpr())
-				newvar.setInitExpr(instantiate(var.getInitExpr(), p));
+				newvar.setInitExpr(instantiate(var.getInitExpr(), p, false));
 		} catch (ParseException e1) { throw new AssertionError("Identifier"); }
 		if (newvar.getName().equals(Promela.C_STATE_PID)) {
 			int initial_pid = (p.getNrActive() == 0 ? -1 : p.getID());
@@ -533,28 +533,27 @@ public class LTSminTreeWalker {
 	private Action instantiate(Action a, Transition t, ProcInstance p, OptionAction loop) {
 		if(a instanceof AssignAction) {
 			AssignAction as = (AssignAction)a;
-			Identifier id = (Identifier)instantiate(as.getIdentifier(), p);
-			Expression e = instantiate(as.getExpr(), p);
-			id.getVariable().setAssignedTo();
+			Identifier id = (Identifier)instantiate(as.getIdentifier(), p, true);
+			Expression e = instantiate(as.getExpr(), p, false);
 			return new AssignAction(as.getToken(), id, e);
 		} else if(a instanceof ResetProcessAction) {
 			throw new AssertionError("Unexpected ResetProcessAction");
 		} else if(a instanceof AssertAction) {
 			AssertAction as = (AssertAction)a;
-			Expression e = instantiate(as.getExpr(), p);
+			Expression e = instantiate(as.getExpr(), p, false);
 			return new AssertAction(as.getToken(), e);
 		} else if(a instanceof PrintAction) {
 			PrintAction pa = (PrintAction)a;
 			PrintAction newpa = new PrintAction(pa.getToken(), pa.getString());
 			for (final Expression expr : pa.getExprs())
-				newpa.addExpression(instantiate(expr, p));
+				newpa.addExpression(instantiate(expr, p, false));
 			return newpa;
 		} else if(a instanceof ExprAction) {
 			ExprAction ea = (ExprAction)a;
 			Expression expr = ea.getExpression();
 			Expression e;
 			try {
-			    e = instantiate(expr, p);
+			    e = instantiate(expr, p, false);
 			} catch (AssertionError ae) {
 			    if (!(expr instanceof TimeoutExpression)) {
 			        throw new AssertionError("Complex expression with timeout: "+ expr);
@@ -588,22 +587,19 @@ public class LTSminTreeWalker {
 			return a; // readonly, hence can be shared
 		} else if(a instanceof ChannelSendAction) {
 			ChannelSendAction csa = (ChannelSendAction)a;
-			Identifier id = (Identifier)instantiate(csa.getIdentifier(), p);
+			Identifier id = (Identifier)instantiate(csa.getIdentifier(), p, false);
 			ChannelSendAction newcsa = new ChannelSendAction(csa.getToken(), id, csa.isSorted());
 			for (Expression e : csa.getExprs())
-				newcsa.addExpression(instantiate(e, p));
+				newcsa.addExpression(instantiate(e, p, false));
             writes.add(new SendAction(newcsa, t, t.getProc()));
 			return newcsa;
 		} else if(a instanceof ChannelReadAction) {
 			ChannelReadAction cra = (ChannelReadAction)a;
-			Identifier id = (Identifier)instantiate(cra.getIdentifier(), p);
+			Identifier id = (Identifier)instantiate(cra.getIdentifier(), p, false);
 			ChannelReadAction newcra = new ChannelReadAction(cra.getToken(), id, cra.isPoll(), cra.isRandom());
 			for (Expression e : cra.getExprs()) {
-				Expression newe = instantiate(e, p);
+				Expression newe = instantiate(e, p, true);
 				newcra.addExpression(newe);
-				if (newe instanceof Identifier) {
-                    ((Identifier)newe).getVariable().setAssignedTo();
-                }
 			}
 			reads.add(new ReadAction(newcra, t, t.getProc()));
 			return newcra;
@@ -615,7 +611,7 @@ public class LTSminTreeWalker {
 	/**
 	 * Copy expressions with instantiated processes.
 	 */
-	private Expression instantiate(Expression e, ProcInstance p) {
+	private Expression instantiate(Expression e, ProcInstance p, boolean write) {
 		if (null == e) return null;
 
 		if (e instanceof Identifier) { // also: LTSminIdentifier
@@ -638,29 +634,30 @@ public class LTSminTreeWalker {
 				    throw new AssertionError("Could not locate instantiated variable: "+ var);
 				}
 			}
-			Expression arrayExpr = instantiate(id.getArrayExpr(), p);
-			Identifier sub = (Identifier)instantiate(id.getSub(), p);
+			if (write) newVar.setAssignedTo();
+			Expression arrayExpr = instantiate(id.getArrayExpr(), p, write);
+			Identifier sub = (Identifier)instantiate(id.getSub(), p, write);
 			return new Identifier(id.getToken(), newVar, arrayExpr, sub);
 		} else if (e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
-			Expression ex1 = instantiate(ae.getExpr1(), p);
-			Expression ex2 = instantiate(ae.getExpr2(), p);
-			Expression ex3 = instantiate(ae.getExpr3(), p);
+			Expression ex1 = instantiate(ae.getExpr1(), p, write);
+			Expression ex2 = instantiate(ae.getExpr2(), p, write);
+			Expression ex3 = instantiate(ae.getExpr3(), p, write);
 			return new AritmicExpression(ae.getToken(), ex1, ex2, ex3);
 		} else if (e instanceof BooleanExpression) {
 			BooleanExpression be = (BooleanExpression)e;
-			Expression ex1 = instantiate(be.getExpr1(), p);
-			Expression ex2 = instantiate(be.getExpr2(), p);
+			Expression ex1 = instantiate(be.getExpr1(), p, write);
+			Expression ex2 = instantiate(be.getExpr2(), p, write);
 			return new BooleanExpression(be.getToken(), ex1, ex2);
 		} else if (e instanceof CompareExpression) {
 			CompareExpression ce = (CompareExpression)e;
-			Expression ex1 = instantiate(ce.getExpr1(), p);
-			Expression ex2 = instantiate(ce.getExpr2(), p);
+			Expression ex1 = instantiate(ce.getExpr1(), p, write);
+			Expression ex2 = instantiate(ce.getExpr2(), p, write);
 			return new CompareExpression(ce.getToken(), ex1, ex2);
 		} else if (e instanceof ChannelLengthExpression) {
 			ChannelLengthExpression cle = (ChannelLengthExpression)e;
 			Identifier id = (Identifier)cle.getExpression();
-			Identifier newid = (Identifier)instantiate(id, p);
+			Identifier newid = (Identifier)instantiate(id, p, write);
 			try {
 				return new ChannelLengthExpression(cle.getToken(), newid);
 			} catch (ParseException e1) {
@@ -668,14 +665,14 @@ public class LTSminTreeWalker {
 			}
 		} else if (e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
-			Identifier id = (Identifier)instantiate(cre.getIdentifier(), p);
+			Identifier id = (Identifier)instantiate(cre.getIdentifier(), p, write);
 			ChannelReadExpression res = new ChannelReadExpression(cre.getToken(), id, cre.isRandom());
 			for (Expression expr : cre.getExprs())
-				res.addExpression(instantiate(expr, p));
+				res.addExpression(instantiate(expr, p, write));
 			return res;
 		} else if (e instanceof ChannelOperation) {
 			ChannelOperation co = (ChannelOperation)e;
-			Identifier id = (Identifier)instantiate(co.getExpression(), p);
+			Identifier id = (Identifier)instantiate(co.getExpression(), p, write);
 			try {
 				return new ChannelOperation(co.getToken(), id);
 			} catch (ParseException e1) {
@@ -686,7 +683,7 @@ public class LTSminTreeWalker {
 			RunExpression newre = new RunExpression(e.getToken(), spec.getProcess(re.getId())); 
 			try {
 				for (Expression expr : re.getExpressions())
-					newre.addExpression(instantiate(expr, p));
+					newre.addExpression(instantiate(expr, p, write));
 			} catch (ParseException e1) {
 				throw new AssertionError("RunExpression");
 			}
@@ -694,7 +691,7 @@ public class LTSminTreeWalker {
 			return newre;
 		} else if (e instanceof EvalExpression) {
 			EvalExpression eval = (EvalExpression)e;
-			Expression ex = instantiate(eval.getExpression(), p);
+			Expression ex = instantiate(eval.getExpression(), p, write);
 			return new EvalExpression(e.getToken(), ex);
 	    } else if (e instanceof TimeoutExpression) {
 	        throw new AssertionError("Timeout outside ExprAction.");
@@ -702,7 +699,7 @@ public class LTSminTreeWalker {
 		    return e; // readonly, hence can be shared
 		} else if (e instanceof RemoteRef) {
 			RemoteRef rr = (RemoteRef)e;
-			Expression ex = instantiate(rr.getExpr(), p);
+			Expression ex = instantiate(rr.getExpr(), p, write);
 			Proctype proc = spec.getProcess(rr.getProcessName());
 			if (null == proc) throw new AssertionError("Wrong process: "+ rr);
 			RemoteRef ref = new RemoteRef(rr.getToken(), proc, rr.getLabel(), ex);

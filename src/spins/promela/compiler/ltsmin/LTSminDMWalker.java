@@ -54,6 +54,7 @@ import spins.promela.compiler.ltsmin.util.LTSminDebug;
 import spins.promela.compiler.ltsmin.util.LTSminDebug.MessageKind;
 import spins.promela.compiler.ltsmin.util.LTSminProgress;
 import spins.promela.compiler.ltsmin.util.LTSminRendezVousException;
+import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaConstants;
 import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.Variable;
@@ -442,6 +443,10 @@ public class LTSminDMWalker {
 				Identifier id = (Identifier)e;
 				if (id.getVariable().isHidden())
 					return;
+				try {
+					id.getVariable().getConstantValue();
+					return;
+				} catch (ParseException pe ) {}
 				LTSminSubVector sub = params.model.sv.sub(id.getVariable());
 				try {
 					sub.mark(this, id);

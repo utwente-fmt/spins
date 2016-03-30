@@ -13,6 +13,7 @@ import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spins.promela.compiler.ltsmin.util.LTSminDebug;
 import spins.promela.compiler.ltsmin.util.LTSminDebug.MessageKind;
+import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.ChannelVariable;
 import spins.promela.compiler.variable.CustomVariableType;
@@ -197,7 +198,13 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 				addVariable(type, v, debug);
 			lvar = new LTSminVariable(type, var, struct);
 		} else if (var.getType() instanceof VariableType) {
-			debug.say(MessageKind.DEBUG, var.getType().getName() +" "+ name);
+	        try {
+	        	var.getConstantValue();
+	        	debug.say(MessageKind.DEBUG, var.getType().getName() +" "+ name +" --> SKIPPING CONSTANT");
+	        	return;
+	        } catch (ParseException pe) {
+	        	debug.say(MessageKind.DEBUG, var.getType().getName() +" "+ name);
+	        }
 			lvar = new LTSminVariable(LTSminTypeNative.get(var), var, struct);
 		} else {
 			throw new AssertionError("ERROR: Unable to handle: " + var.getType().getName());

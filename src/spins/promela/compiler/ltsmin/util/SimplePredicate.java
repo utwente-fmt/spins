@@ -140,6 +140,10 @@ public class SimplePredicate {
             } catch (ParseException e1) {
                 return false;
             }
+            try {
+                sp1.id.getConstantValue();
+                throw new AssertionError ("Assignment to constant: "+ a);
+            } catch (ParseException e1) {}
             switch (ae.getToken().kind) {
                 case ASSIGN:
                     try {
@@ -508,6 +512,14 @@ public class SimplePredicate {
         // conflict only possible on same variable
         String ref1, ref2;
         try {
+        	return p1.auto_conflict();
+        } catch (ParseException pe) {
+            try {
+            	return p2.auto_conflict();
+            } catch (ParseException pe2) {}
+        }
+
+        try {
             ref1 = p1.getRef(model); // convert to c code string
             ref2 = p2.getRef(model);
         } catch (AssertionError ae) {
@@ -518,6 +530,20 @@ public class SimplePredicate {
         }
         return false;
     }
+
+	private boolean auto_conflict() throws ParseException {
+        int c1 = id.getConstantValue();
+        switch(comparison) {
+        case LT:	return c1 >= constant;
+        case LTE:	return c1 >  constant;
+        case EQ:	return c1 != constant;
+        case NEQ:	return c1 == constant;
+        case GT:	return c1 <= constant;
+        case GTE:	return c1 <  constant;
+        default: throw new AssertionError();
+        }
+	}
+
     private boolean conflict(SimplePredicate p2) {
         SimplePredicate p1 = this;
         boolean no_conflict;
