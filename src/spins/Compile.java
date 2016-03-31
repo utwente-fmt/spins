@@ -35,6 +35,7 @@ import spins.promela.compiler.Preprocessor;
 import spins.promela.compiler.Preprocessor.DefineMapping;
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.Specification;
+import spins.promela.compiler.automaton.State;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.ltsmin.LTSminPrinter;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker;
@@ -59,8 +60,8 @@ import spins.promela.compiler.parser.TokenMgrError;
 public class Compile {
 	private static Specification compile(final File promFile, 
 		                                 final boolean useStateMerging,
-		                                 final boolean verbose) {
-        LTSminDebug debug = new LTSminDebug(verbose);
+		                                 final Options opts) {
+        LTSminDebug debug = new LTSminDebug(opts.verbose);
 		try {
 			Preprocessor.setFilename(promFile.getName());
 			String path = promFile.getAbsoluteFile().getParent();
@@ -73,6 +74,19 @@ public class Compile {
 			debug.say("Parsing " + promFile.getName() + " done (%s sec)",
 			           report.stopTimer().sec());
 			debug.say("");
+			
+			if (opts.no_atomic) {
+				for (Proctype p : spec.getProcs()) {
+					for (State s : p.getAutomaton()) {
+						s.setInAtomic(false);
+					}
+				}
+				if (spec.getNever() != null) {
+					for (State s : spec.getNever().getAutomaton()) {
+						s.setInAtomic(false);
+					}
+				}
+			}
 
 			report.resetTimer().startTimer();
 			debug.say("Optimizing graphs...");
@@ -193,6 +207,10 @@ public class Compile {
 			"compilation process.");
 		parser.addOption(verbose);
 
+		final BooleanOption no_atomic = new BooleanOption('i',
+			"Ignore atomic sections (better for LTSmin POR and symbolic tools).");
+		parser.addOption(no_atomic);
+
 		parser.parse(args);
 		final List<String> files = parser.getFiles();
 
@@ -248,8 +266,12 @@ public class Compile {
 			System.exit(0);
 		}
 
+        Options opts = new Options(verbose.isSet(), no_guards.isSet(),
+                must_write.isSet(), !no_cnf.isSet(),
+                nonever.isSet(), java.isSet(), no_atomic.isSet());
+
 		final Specification spec = 
-			Compile.compile(file, !optimalizations.isSet("3"), verbose.isSet());
+			Compile.compile(file, !optimalizations.isSet("3"), opts);
 
         if (nonever.isSet()) spec.setNever(null);
         if (spec == null) {
@@ -275,9 +297,6 @@ public class Compile {
             System.out.println("");
         }
 
-        Options opts = new Options(verbose.isSet(), no_guards.isSet(),
-                                   must_write.isSet(), !no_cnf.isSet(),
-                                   nonever.isSet(), java.isSet());
 
 		File outputDir = new File(System.getProperty("user.dir"));
 		if (dot.isSet()) {
@@ -380,13 +399,12 @@ public class Compile {
 										 boolean ltsmin_ltl, Options opts,
 										 Map<String, Expression> exports,
 	                                     Expression progress) {
+		LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
+		LTSminModel model = walker.createLTSminModel(name, opts, exports, progress);
+		String code = LTSminPrinter.generateCode(model, opts);
 		final File javaFile = new File(outputDir, name + ".spins.c");
 		try {
 			final FileOutputStream fos = new FileOutputStream(javaFile);
-			LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
-			LTSminModel model = walker.createLTSminModel(name, opts,
-			                                             exports, progress);
-			String code = LTSminPrinter.generateCode(model, opts);
             fos.write(code.getBytes());
 			fos.flush();
 			fos.close();
