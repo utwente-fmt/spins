@@ -49,6 +49,7 @@ public abstract class Transition implements ActionContainer {
 
     private List<String> labels;
 
+	private int priority = -1;
 
 	protected Transition(final State from, final State to) {
 		if (from == null) {
@@ -78,6 +79,7 @@ public abstract class Transition implements ActionContainer {
 	public Transition(Transition t, final State from, final State to) {
 		this(from, to);
 		if (t != null) {
+			this.priority = t.priority;
 			this.labels = t.labels;
 		}
 	}
@@ -323,4 +325,13 @@ public abstract class Transition implements ActionContainer {
     public List<String> getLabels() {
         return labels;
     }
+
+    public int getUnlessPriority() {
+        return priority ;
+    }
+
+    public void setUnlessPriority(int p) {
+        priority = p;
+    }
 }
+

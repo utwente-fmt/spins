@@ -46,6 +46,7 @@ public class Promela implements PromelaConstants {
         private Proctype currentProc;
         private Automaton automaton;
         private int procNr = 0;
+        private int unlessPriority = 0;
         private VariableType type;
         private boolean declarations;
 
@@ -676,6 +677,7 @@ public class Promela implements PromelaConstants {
         Expression expr;
         Token id, t;
         State end = start;
+        State start1, end1;
         Transition trans;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case SEMICOLON:
@@ -1041,6 +1043,18 @@ public class Promela implements PromelaConstants {
         jj_consume_token(-1);
         throw new ParseException();
       }
+    }
+    if (jj_2_28(2147483647)) {
+      jj_consume_token(UNLESS);
+        start1 = new State(automaton, false);
+      end1 = sequence(start1, breakNode, false);
+        for (Transition tr : end1.input) {
+            tr.changeTo(end);
+        }
+        end1.delete();
+        automaton.addUnless(start, end, start1, unlessPriority++);
+    } else {
+      ;
     }
           {if (true) return end;}
     throw new Error("Missing return statement in function");

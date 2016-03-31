@@ -149,9 +149,13 @@ public class Compile {
             "sets #define as progress state label (prepend a '!' to define non-progress)", false);
         parser.addOption(progress);
 
-		final BooleanOption dot = new BooleanOption('d',
-			"only write dot output (ltsmin/spins) \n");
-		parser.addOption(dot);
+        final BooleanOption dot = new BooleanOption('d',
+            "only write dot output (ltsmin/spins) \n");
+        parser.addOption(dot);
+
+		final BooleanOption java = new BooleanOption('J',
+			"Java escape semantics for unless statements (equivalent to SPIN's -J option) \n");
+		parser.addOption(java);
 
         final BooleanOption no_cnf = new BooleanOption('C',
             "Do not rewrite guards to CNF\n");
@@ -273,7 +277,7 @@ public class Compile {
 
         Options opts = new Options(verbose.isSet(), no_guards.isSet(),
                                    must_write.isSet(), !no_cnf.isSet(),
-                                   nonever.isSet());
+                                   nonever.isSet(), java.isSet());
 
 		File outputDir = new File(System.getProperty("user.dir"));
 		if (dot.isSet()) {

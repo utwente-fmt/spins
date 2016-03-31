@@ -24,7 +24,6 @@ import java.util.Stack;
 
 import spins.promela.compiler.Proctype;
 import spins.util.StringWriter;
-import spins.util.UnModifiableIterator;
 
 /**
  * An Automaton is a simple LTS that holds {@link State}s and {@link Transition}s. It can be used
@@ -87,42 +86,79 @@ public class Automaton implements Iterable<State> {
 		return false;
 	}
 
+	private class Explorer implements Iterator<State> {
+
+        private Iterator<State> it;
+
+        private State init;
+        private State end;
+
+        public Explorer() {
+            this(startState, null);
+        }
+
+        public Explorer(State startState, State end) {
+            init = startState;
+            this.end = end;
+            init();
+        }
+
+        public boolean hasNext() { return it.hasNext(); }
+        public State next()      { return it.next(); }
+
+        public void init() {
+            List<State> list = new ArrayList<State>();
+            Stack<State> stack = new Stack<State>();
+            Set<State> states = new HashSet<State>(Collections.singleton(startState));
+
+            stack.push(init);
+            while (!stack.isEmpty()) {
+                State next = stack.pop();
+                list.add(next);
+                for (final Transition out : next.output) {
+                    State to = out.getTo();
+                    if (to != end && to != null && states.add(to)) {
+                        stack.push(to);
+                    }
+                }
+            }
+
+            states = null;
+            stack = null;
+            it = list.listIterator();
+        }
+
+        public void remove() {
+            throw new UnsupportedOperationException();
+        }
+    };
+	
 	/**
 	 * Return a new Iterator that can be used to go over all States.
 	 * 
 	 * @see java.lang.Iterable#iterator()
 	 */
 	public Iterator<State> iterator() {
-		return new UnModifiableIterator<State>() {
-
-		    private Iterator<State> it;
-
-            public boolean hasNext() { return it.hasNext(); }
-            public State next()      { return it.next(); }
-
-			public void init() {
-			    List<State> list = new ArrayList<State>();
-			    Stack<State> stack = new Stack<State>();
-	            Set<State> states = new HashSet<State>(Collections.singleton(startState));
-
-			    stack.push(startState);
-				while (!stack.isEmpty()) {
-					State next = stack.pop();
-					list.add(next);
-    				for (final Transition out : next.output) {
-                        if (out.getTo() != null && states.add(out.getTo())) {
-                            stack.push(out.getTo());
-    					}
-    				}
-				}
-
-				states = null;
-				stack = null;
-				it = list.listIterator();
-			}
-		};
+		return new Explorer();
 	}
+	
+	public void addUnless(final State start, final State end, State escape,
+						  int priority) {
+	    Iterable<State> main = new Iterable<State>() {
+	        public Iterator<State> iterator() {
+	            return new Explorer(start, end);
+	        }
+	    };
 
+	    for (State s : main) {
+	    	for (Transition t : escape.output) {
+	    		Transition n = t.duplicateFrom(s);
+	    		n.setUnlessPriority(priority);
+	    	}
+	    }
+    	escape.delete();
+	}
+	
 	/**
 	 * @return The number of states that are reachable from the current starting state.
 	 */

@@ -57,6 +57,8 @@ public class State {
 
 	private final Automaton automaton;
 
+	private int unlesses = 0;
+
 	private final List<Transition> out, in;
 
 	private List<String> labels;
@@ -376,5 +378,9 @@ public class State {
 
     public void addLabels(List<String> labels2) {
         this.labels.addAll(labels2);
+    }
+
+    public int nextUnless() {
+        return unlesses++;
     }
 }

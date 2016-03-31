@@ -91,6 +91,7 @@ import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardNand;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardOr;
+import spins.promela.compiler.ltsmin.matrix.LTSminPCGuard;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.LTSminState;
 import spins.promela.compiler.ltsmin.model.LTSminTransition;
@@ -123,6 +124,7 @@ import spins.promela.compiler.variable.VariableType;
 public class LTSminTreeWalker {
 
     private static final boolean SPLIT = false;
+    private static boolean UNLESS_JAVA_SEMANTICS = false;
     
     public List<ReadAction> reads = new ArrayList<ReadAction>();
     public List<SendAction> writes = new ArrayList<SendAction>();
@@ -168,18 +170,21 @@ public class LTSminTreeWalker {
 
 	public static class Options {
 	    public Options(boolean verbose, boolean no_gm, boolean must_write,
-	                   boolean cnf, boolean nonever) {
+	                   boolean cnf, boolean nonever,
+	                   boolean unless_java_semantics) {
 	        this.verbose = verbose;
 	        this.no_gm = no_gm;
 	        this.must_write = must_write;
 	        this.cnf = cnf;
 	        this.nonever = nonever;
+	        this.unless_java_semantics = unless_java_semantics;
         }
 	    public boolean nonever = false;
         public boolean verbose = false;
 	    public boolean no_gm = false;
 	    public boolean must_write = false;
         public boolean cnf = false;
+        public boolean unless_java_semantics = false;
 	}
 
 	TimeoutExpression timeout = null;
@@ -192,6 +197,8 @@ public class LTSminTreeWalker {
 	                                     Map<String, Expression> exports,
                                          Expression progress) {
 		this.debug = new LTSminDebug(opts.verbose);
+		UNLESS_JAVA_SEMANTICS = opts.unless_java_semantics;
+
         debug.say("Generating next-state function ...");
         debug.say_indent++;
         LTSminProgress report = new LTSminProgress(debug).startTimer();
@@ -975,12 +982,16 @@ public class LTSminTreeWalker {
 			}
 		}}
 
+        for (LTSminTransition lt : begin.getOut()) {
+        	createUnlessGuards (lt);
+        }
+
 		// update stack table
 		removeSearchStack (begin);
 		return begin;
 	}
 
-	/**
+    /**
 	 * We use the DFS above to detect cycles containing only atomic states.
 	 * The states on the stack are annotated with a number which only grows
 	 * if atomicity changes from one stack state to the next (a transition
@@ -1144,6 +1155,49 @@ public class LTSminTreeWalker {
 		}}
 		
 		return list;
+	}
+
+	/**
+	 *  Unless escape sequences are modeled in the state machine as follows.
+	 *  
+	 *  Consider the following Promela example:
+	 *  { a; b; c; } unless { g -> x; y; z } 
+	 *  
+	 *  The generated LTS is:
+	 *  
+	 *  O---a--->O---b--->O---c--->X
+	 *  |        /       /         ^
+	 *  |/------+-------/         /
+	 *  |                        /
+	 *  |                       z
+	 *  \--g:x-->O---y--->O---/
+	 *  
+	 *  (The unless transitions model each possible escape point)
+	 *
+	 *  Nested escape sequences cause multiple outgoing unless transitions
+	 *  from a state. Their escape guards are prioritized according to the
+	 *  nesting semantics (see SpinS'/SPIN's '-J' command line option). 
+     *
+	 */
+	private void createUnlessGuards(LTSminTransition lt) {
+		int prior1 = lt.getTransition().getUnlessPriority();
+        for (LTSminTransition other : lt.getBegin().getOut()) {
+            int prior2 = other.getTransition().getUnlessPriority();
+            if (lt == other || !prioritize(prior2, prior1)) continue;
+
+            LTSminGuardNand nand = new LTSminGuardNand();
+            for (LTSminGuardBase g : other.getGuards()) {
+                if (g instanceof LTSminPCGuard) continue;
+                nand.addGuard(g);
+            }
+            lt.addGuard(nand);
+        }
+	}
+
+	private boolean prioritize(int prior1, int prior2) {
+		if (prior1 == -1) return false;
+		if (prior2 == -1) return true; // prior1 != -1
+		return UNLESS_JAVA_SEMANTICS ? prior1 < prior2 : prior2 < prior1;
 	}
 
     private Identifier getChannel(Action action) {

@@ -1,6 +1,24 @@
 /*fullf12 is used to denote that no more enqueue operations can occur on fifo f12 in that cycle. 
 Its set to true if an enqueue occurred in a fifo even if there is space left in fifo.*/
 
+      #define __instances_reset 1
+      #define __instances_output1 1
+      #define __instances_output2 1
+      #define __instances_output3 1
+      #define __instances_output4 1
+      #define __instances_route12 1
+      #define __instances_route22 1
+      #define __instances_route32 1
+      #define __instances_route42 1
+      #define __instances_route11 1
+      #define __instances_route21 1
+      #define __instances_route31 1
+      #define __instances_route41 1
+      #define __instances_enqeuef11 1
+      #define __instances_enqeuef21 1
+      #define __instances_enqeuef31 1
+      #define __instances_enqeuef41 1
+
 byte rule;
 bool cycle, fullf12, fullf22, fullf32, fullf42, fullf13, fullf23, fullf33, fullf43;
 int x, a, b, c, d, dst, dst1, dst2, dst3, dst4;

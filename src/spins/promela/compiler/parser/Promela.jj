@@ -66,6 +66,7 @@ public class Promela {
 	private Proctype currentProc;
 	private Automaton automaton;
 	private int procNr = 0;
+	private int unlessPriority = 0;
 	private VariableType type;
 	private boolean declarations;
 
@@ -1087,6 +1088,7 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 	Expression expr;
 	Token id, t;
 	State end = start;
+	State start1, end1;
 	Transition trans;
 }{
 (   delim() (end=sequence(end, breakNode, inAtomic))?
@@ -1199,7 +1201,21 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 	(end=sequence(end, breakNode, inAtomic))?
  |	<LCURLY> end=sequence(start, breakNode, inAtomic) <RCURLY>
 	(end=sequence(end, breakNode, inAtomic))?
-))	{ return end; }
+))
+(
+    LOOKAHEAD(<UNLESS> sequence())    <UNLESS>
+    {
+        start1 = new State(automaton, false);
+    }
+    end1=sequence(start1, breakNode, false)
+    {
+        for (Transition tr : end1.input) {
+            tr.changeTo(end);
+        }
+        end1.delete();
+        automaton.addUnless(start, end, start1, unlessPriority++);    }
+)?
+	{ return end; }
 }
 
 void delim(): {}{
