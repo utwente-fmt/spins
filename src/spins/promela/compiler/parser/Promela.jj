@@ -1205,9 +1205,9 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 (
     LOOKAHEAD(<UNLESS> sequence())    <UNLESS>
     {
-        start1 = new State(automaton, false);
+        start1 = new State(automaton, inAtomic);
     }
-    end1=sequence(start1, breakNode, false)
+    end1=sequence(start1, breakNode, inAtomic)
     {
         for (Transition tr : end1.input) {
             tr.changeTo(end);

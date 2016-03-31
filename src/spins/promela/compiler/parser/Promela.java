@@ -1046,8 +1046,8 @@ public class Promela implements PromelaConstants {
     }
     if (jj_2_28(2147483647)) {
       jj_consume_token(UNLESS);
-        start1 = new State(automaton, false);
-      end1 = sequence(start1, breakNode, false);
+        start1 = new State(automaton, inAtomic);
+      end1 = sequence(start1, breakNode, inAtomic);
         for (Transition tr : end1.input) {
             tr.changeTo(end);
         }
