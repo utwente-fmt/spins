@@ -48,7 +48,7 @@ public class ExprAction extends Action {
 		}
         if (null != expr.getSideEffect())
             return false;
-		return super.isLocal(proc);
+		return true;
 	}
 
 	@Override

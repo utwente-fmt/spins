@@ -50,6 +50,14 @@ public class UselessTransition extends Transition {
 	}
 
 	/**
+	 * @see spins.promela.compiler.automaton.Transition#isLocal()
+	 */
+	@Override
+	public boolean isLocal() {
+		return true;
+	}
+
+	/**
 	 * @see spins.promela.compiler.automaton.Transition#isUseless()
 	 */
 	@Override

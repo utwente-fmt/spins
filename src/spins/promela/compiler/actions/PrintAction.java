@@ -76,7 +76,7 @@ public class PrintAction extends Action implements CompoundExpression {
 				}
 			}
 		}
-		return super.isLocal(proc);
+		return true;
 	}
 
 	@Override

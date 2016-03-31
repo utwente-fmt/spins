@@ -33,9 +33,8 @@ public class RemoveUselessActions implements GraphOptimizer {
 					final State next = out.getTo();
 
 					for (final Transition t : next.output) {
-						Transition duplicate = t.duplicateFrom(state);
+						t.duplicateFrom(state);
                         //duplicate.changeFrom(state, out);
-						duplicate.setLabels(next.getLabels());
 					}
 
 					uselessCount++;

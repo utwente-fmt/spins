@@ -74,7 +74,7 @@ public class ChannelSendAction extends Action implements CompoundExpression {
 				}
 			}
 		}
-		return super.isLocal(proc);
+		return true;
 	}
 
 	@Override

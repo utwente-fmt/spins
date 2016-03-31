@@ -266,7 +266,7 @@ public class LTSminTransition implements LTSminGuardContainer,
 
     public boolean isProgress() {
         return begin.isProgress() ||
-               State.hasLabelPrefix(original.getLabels(), State.LABEL_PROGRESS);
+               State.hasLabelPrefix(original.getFrom().getLabels(), State.LABEL_PROGRESS);
     }
 
     public int getIndex() {

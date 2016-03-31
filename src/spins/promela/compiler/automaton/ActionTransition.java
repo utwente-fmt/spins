@@ -101,14 +101,6 @@ public class ActionTransition extends Transition {
 	}
 
 	/**
-	 * @see spins.promela.compiler.automaton.Transition#isUseless()
-	 */
-	@Override
-	public boolean isUseless() {
-		return false;
-	}
-
-	/**
 	 * @see spins.promela.compiler.automaton.Transition#getAction(int)
 	 */
 	@Override

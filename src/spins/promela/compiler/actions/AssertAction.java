@@ -39,7 +39,7 @@ public class AssertAction extends Action {
 				return false;
 			}
 		}
-		return super.isLocal(proc);
+		return true;
 	}
 
 	@Override

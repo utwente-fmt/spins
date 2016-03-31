@@ -37,7 +37,7 @@ public abstract class Action implements LTSminModelFeature  {
 	}
 
 	public boolean isLocal(final Proctype proc) {
-		return true;
+		return false;
 	}
 
 	@Override

@@ -43,22 +43,6 @@ public class ElseTransition extends Transition {
 	}
 
 	/**
-	 * @see spins.promela.compiler.automaton.Transition#isLocal()
-	 */
-	@Override
-	public boolean isLocal() {
-		return false;
-	}
-
-	/**
-	 * @see spins.promela.compiler.automaton.Transition#isUseless()
-	 */
-	@Override
-	public boolean isUseless() {
-		return false;
-	}
-
-	/**
 	 * @see spins.promela.compiler.automaton.Transition#getText()
 	 */
 	@Override

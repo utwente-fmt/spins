@@ -279,7 +279,7 @@ public class LTSminTreeWalker {
         /* Statements are exported in SPIN format with line numbers for traces */
         model.addType(STATEMENT_TYPE_NAME);
         model.addEdgeLabel(STATEMENT_EDGE_LABEL_NAME, STATEMENT_TYPE_NAME);
-        for(LTSminTransition t : model.getTransitions()) {
+        for (LTSminTransition t : model.getTransitions()) {
             Action act =  (t.getTransition().getActionCount() > 0 ? t.getTransition().getAction(0) : null);
             String name = t.getName().split("\t")[1];
             int line = null == act ? -1 : act.getToken().beginLine;
