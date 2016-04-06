@@ -12,6 +12,8 @@ echo $EXP - $EXTRA
 RUNDIR=`dirname "$0"`
 RUNDIR=`realpath "$RUNDIR"`
 
+OPTION=$2
+
 LTSMINDIR="$RUNDIR/../.."
 SPINSDIR="$LTSMINDIR/spins"
 if [ ! -e "$LTSMINDIR/CODING-STANDARDS" ]; then
@@ -70,7 +72,7 @@ function runtest {
     OUT="$EXP/$FILE-por-r1-$STORAGE-s$STORAGE_SIZE-$THREADS.out"
     if [ ! -e $OUT ]; then
         PINS="models-$EXP/$FILE.spins"
-        EXPLORE=`$LTSMIN --ratio=1 --strategy=dfs --state=$STORAGE \
+        EXPLORE=`$LTSMIN --ratio=1 $OPTION --strategy=dfs --state=$STORAGE \
              -s$STORAGE_SIZE $EXTRA -v $PINS 2>&1 | tee $OUT`
 
         STATESNEW=`echo "$EXPLORE"|grep "Elements: "|sed 's/.* \([0-9]*\)$/\1/g'`
