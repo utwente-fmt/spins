@@ -252,13 +252,8 @@ public class LTSminTreeWalker {
              debug.say(MessageKind.FATAL, "Not exporting boolean type as \"bool\" (LTSmin standard)");
         /* always add the bool type */
         model.addType(VariableType.BOOL.getName());
-        model.addTypeValue(VariableType.BOOL.getName(), "false", 0); // index 0
-        model.addTypeValue(VariableType.BOOL.getName(), "true", 1);  // index 1
 
         model.addType(GUARD_TYPE_NAME);
-        model.addTypeValue(GUARD_TYPE_NAME, "false", 0); // index 0
-        model.addTypeValue(GUARD_TYPE_NAME, "true",  1); // index 1
-        model.addTypeValue(GUARD_TYPE_NAME, "maybe", 2); // index 2
         
         /* Generate static list of types. mtypes have values */
         for (LTSminSlot slot : model.sv) {
