@@ -398,12 +398,12 @@ public class LTSminDMWalker {
 			int m = 0;
 			// the read action itself:
 			for (Expression e : cra.getExprs()) {
-				Expression read = cra.isRandom() ? channelIndex(id, STAR, m) :
-									channelBottom(id, m);
 				if (e instanceof Identifier) { // otherwise it is a guard!
 					walkExpression(params, e, MarkAction.EMAY_MUST_WRITE);
-					walkExpression(params, read, MarkAction.EREAD);
 				}
+				Expression read = cra.isRandom() ? channelIndex(id, STAR, m) :
+								  channelBottom(id, m);
+				walkExpression(params, read, MarkAction.EREAD);
 				m++;
 			}
 			if (!cra.isPoll()) {

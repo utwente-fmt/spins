@@ -1022,10 +1022,12 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 		int neverCoEnabled = 0;
         DepMatrix g2g = model.getGuardInfo().getMatrix(G2G);
 		for (int g1 = 0; g1 < nlabels; g1++) {
+
             co.setDependent(g1, g1);
 
             Expression ge1 = guardInfo.get(g1).getExpr();
             for (int g2 = g1+1; g2 < nlabels; g2++) {
+	
                 report.updateProgress ();
 
                 if (isTimeout(model, co, g1, g2) || isTimeout(model, co, g2, g1)) {
