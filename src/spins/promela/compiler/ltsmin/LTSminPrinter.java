@@ -115,6 +115,7 @@ public class LTSminPrinter {
 	public static final String GM_DM_NAME          = "gm_dm";
     public static final String CO_DM_NAME          = "co_dm";
     public static final String DNA_DM_NAME         = "dna_dm";
+    public static final String ACT_DM_NAME         = "act_dm";
     public static final String COMMUTES_DM_NAME    = "commutes_dm";
 	public static final String NES_DM_NAME         = "nes_dm";
 	public static final String NDS_DM_NAME         = "nds_dm";
@@ -126,6 +127,7 @@ public class LTSminPrinter {
     public static final String ACCEPTING_STATE_LABEL_NAME       = "accept_";
     public static final String NON_PROGRESS_STATE_LABEL_NAME    = "np_";
     public static final String PROGRESS_STATE_LABEL_NAME        = "progress_";
+    public static final String ASSERT_STATE_LABEL_PREFIX        = "assert_";
 
     public static final String STATEMENT_EDGE_LABEL_NAME        = "statement";
     public static final String ACTION_EDGE_LABEL_NAME           = "action";
@@ -160,6 +162,7 @@ public class LTSminPrinter {
 		generateGetNext(w, model);
 		generateGetAll(w, model);
 		generateTransitionCount(w, model);
+		generateEdgeMatrices(w, model);
         generateDepMatrix(w, model.getAtomicDepMatrix().read, DM_ACTIONS_NAME);
 		generateDepMatrix(w, model.getDepMatrix(), DM_NAME);
 		generateDMFunctions(w, model.getDepMatrix());
@@ -1292,6 +1295,69 @@ public class LTSminPrinter {
 			throw new AssertionError("LTSMinPrinter: Not yet implemented: "+e.getClass().getName());
 		}
 	}
+
+   private static void generateEdgeMatrices(StringWriter w, LTSminModel model) {
+       IndexedSet<String> edges = model.getEdges();
+       int nrGroups = model.getTransitions().size();
+
+	   int statementID = model.getEdgeIndex(STATEMENT_EDGE_LABEL_NAME);
+	   int actionID = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
+       int noneID = model.getTypeValueIndex(ACTION_TYPE_NAME, NO_ACTION_NAME);
+       int assertID = model.getTypeValueIndex(ACTION_TYPE_NAME, ASSERT_ACTION_NAME);
+       int progressID = model.getTypeValueIndex(ACTION_TYPE_NAME, PROGRESS_ACTION_NAME);
+
+        w.appendPrefix();
+		w.appendLine("int *"+ ACT_DM_NAME + "["+ edges.size() +"]["+ nrGroups +"] = {");
+        w.indent();
+        for (int i = 0; i < edges.size(); i++) {
+        	w.appendLine("{");
+        	w.indent();
+        	IndexedSet<String> values = model.getTypeValues(i);
+            //int typeno = model.getTypeIndex(model.getEdgeType(i));
+            for (int g = 0; g < nrGroups; g++) {
+	            LTSminTransition T = model.getTransitions().get(g);
+
+	            if (i == actionID) {
+		            if (hasAssert(T.getActions())) {
+		    			w.appendLine("((int[]){ 1, "+ assertID +" }),");
+		            } else if (T.isProgress()) {
+		    			w.appendLine("((int[]){ 1, "+ progressID +" }),");
+		            } else {
+		    			w.appendLine("((int[]){ 1, "+ noneID +" }),");
+		            }
+		        } else if (i == statementID) {
+	    			w.appendLine("((int[]){ 1, "+ g +" }),");
+		        } else {
+	    			w.append("((int[]){ "+ values.size() +", ");
+	            	for (int j = 0 ; j< values.size(); j++) {
+	        			w.append(j +", ");
+	            	}
+	    			w.appendLine(" }),");
+		        }
+            }
+			w.outdent();
+			w.appendLine("},");
+        }
+        w.outdent();
+        // Close array
+        w.appendLine("};");
+        w.appendLine("");
+
+		w.appendLine("");
+		w.appendLine("extern const int spins_transition_has_edge(int t, int e, int v)");
+		w.appendLine("{");
+		w.appendLine("  assert(t < ",nrGroups,", \"spins_transition_has_edge: invalid group index %d\\n\", t);");
+		w.appendLine("  assert(e < ",model.getEdges().size(),", \"spins_transition_has_edge: invalid edge label index %d\\n\", e);");
+		w.appendLine("	int *ar = "+ ACT_DM_NAME +"[e][t];");
+//		w.appendLine("  assert(v < ar[0], \"spins_transition_has_edge: invalid value index %d for edge label %d\\n\", v, e);");
+		w.appendLine("	int i;");
+		w.appendLine("	for (i = 1; i <= ar[0]; i++) {");
+		w.appendLine("	  if (ar[i] == v) return 1;");
+		w.appendLine("	}");
+		w.appendLine("	return 0;");
+		w.appendLine("}");
+		w.appendLine("");
+    }
 
    private static void generateDepMatrix(StringWriter w, DepMatrix dm, String name) {
         w.appendPrefix();
