@@ -5,6 +5,7 @@ import static spins.promela.compiler.ltsmin.LTSminPrinter.ACCEPTING_STATE_LABEL_
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_EDGE_LABEL_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ACTION_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.ASSERT_ACTION_NAME;
+import static spins.promela.compiler.ltsmin.LTSminPrinter.ASSERT_STATE_LABEL_PREFIX;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.BOOLEAN_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.GUARD_TYPE_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.NON_PROGRESS_STATE_LABEL_NAME;
@@ -358,6 +359,21 @@ public class LTSminTreeWalker {
     	if (and != null)
     	    end = or(end, and); // Or
 		model.addStateLabel(VALID_END_STATE_LABEL_NAME, new LTSminGuard(end));
+
+		int assertIndex = 0;
+		for (LTSminTransition lt : model.getTransitions()) {
+			for (Action a : lt.getActions()) {
+				if (!(a instanceof AssertAction)) continue;
+				AssertAction aa = (AssertAction) a;
+				Expression premise = null;
+				for (LTSminGuardBase g : lt.getGuards()) {
+					if (premise == null) premise = g.getExpression();
+					else 				 premise = and(premise, g.getExpression());
+				}
+			    Expression e = or(negate(premise), aa.getExpr());
+				model.addStateLabel(ASSERT_STATE_LABEL_PREFIX + assertIndex++, new LTSminGuard(e));
+			}
+		}
 
 		// Add export labels
 		for (Map.Entry<String,Expression> export : exports.entrySet()) {
