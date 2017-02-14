@@ -1,6 +1,9 @@
 package spins.promela.compiler.ltsmin;
 
 import static spins.promela.compiler.Specification._NR_PR;
+import static spins.promela.compiler.ltsmin.LTSminPrinter.MDS_DM_NAME;
+import static spins.promela.compiler.ltsmin.LTSminPrinter.MES_DM_NAME;
+import static spins.promela.compiler.ltsmin.LTSminPrinter.ICE_DM_NAME;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.assign;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.decr;
@@ -506,11 +509,10 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
     /**
      * MUST DISABLE
      */
-    static final String MDS = "dm_must_disable";
     private static int generateMDSMatrix(LTSminModel model, GuardInfo guardInfo) {
         int nlabels = guardInfo.getNumberOfLabels();
         DepMatrix mds = new DepMatrix(nlabels, model.getTransitions().size());
-        guardInfo.setMatrix(MDS, mds, true);
+        guardInfo.setMatrix(MDS_DM_NAME, mds, true);
         int disables = 0;
         for (int g = 0; g <  mds.getNrRows(); g++) {
             LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
@@ -528,11 +530,10 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
     /**
      * MUST ENABLE
      */
-    static final String MES = "dm_must_enable";
     private static int generateMESMatrix(LTSminModel model, GuardInfo guardInfo) {
         int nlabels = guardInfo.getNumberOfLabels();
         DepMatrix mes = new DepMatrix(nlabels, model.getTransitions().size());
-        guardInfo.setMatrix(MES, mes, true);
+        guardInfo.setMatrix(MES_DM_NAME, mes, true);
         int disables = 0;
         for (int g = 0; g <  mes.getNrRows(); g++) {
             LTSminGuard guard = (LTSminGuard) guardInfo.get(g);
@@ -1075,7 +1076,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         int nlabels = guardInfo.getNumberOfLabels();
         int neverICoEnabled = 0;
         DepMatrix ico = new DepMatrix(nlabels, nlabels);
-        guardInfo.setICoMatrix(ico);
+        guardInfo.setMatrix(ICE_DM_NAME, ico, true);
         DepMatrix g2g = model.getGuardInfo().getMatrix(G2G);
         for (int g1 = 0; g1 < nlabels; g1++) {
             Expression ge1 = guardInfo.get(g1).getExpr();

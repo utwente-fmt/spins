@@ -119,6 +119,9 @@ public class LTSminPrinter {
     public static final String COMMUTES_DM_NAME    = "commutes_dm";
 	public static final String NES_DM_NAME         = "nes_dm";
 	public static final String NDS_DM_NAME         = "nds_dm";
+	public static final String MES_DM_NAME         = "dm_must_enable";
+	public static final String ICE_DM_NAME 		   = "dm_mce_invert1";
+	public static final String MDS_DM_NAME 		   = "dm_must_disable";
 	public static final String GM_TRANS_NAME       = "gm_trans";
 	public static final int    STATE_ELEMENT_SIZE  = 4;
 	public static final String SCRATCH_VARIABLE    = "__spins_scratch";

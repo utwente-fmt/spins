@@ -14,6 +14,7 @@ import java.util.Map.Entry;
 
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
+import static spins.promela.compiler.ltsmin.LTSminPrinter.*;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuard;
 import spins.promela.compiler.ltsmin.util.CNF;
@@ -58,8 +59,6 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	 *   v    ...    ...
 	 */
 	private DepMatrix co_matrix;
-
-    private DepMatrix ico_matrix;
 
 	/**
      *        trans >
@@ -183,11 +182,7 @@ public class GuardInfo implements Iterable<Entry<String, LTSminGuard>> {
 	}
 
    public DepMatrix getICoMatrix() {
-        return ico_matrix;
-    }
-
-    public void setICoMatrix(DepMatrix ico) {
-        ico_matrix = ico;
+        return getMatrix(ICE_DM_NAME);
     }
 	
 	public List< List<Integer> > getTransMatrix() {
