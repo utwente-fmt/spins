@@ -1127,7 +1127,7 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 		labels.put(label, start);
 		start.addLabel(label);
 	}
-	end=sequence(end, breakNode, inAtomic)
+	(end=sequence(end, breakNode, inAtomic))?
  |	LOOKAHEAD(channel_statement())
 	end=channel_statement(start, breakNode, inAtomic)
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
