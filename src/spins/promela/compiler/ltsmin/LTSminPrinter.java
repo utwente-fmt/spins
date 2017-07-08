@@ -143,6 +143,9 @@ public class LTSminPrinter {
     public static final String NO_ACTION_NAME                   = "";
     public static final String ASSERT_ACTION_NAME               = "assert";
     public static final String PROGRESS_ACTION_NAME             = "progress";
+    
+    
+    private static  int extra_label             = 0;
 
 	static int n_active = 0;
 
@@ -957,7 +960,7 @@ public class LTSminPrinter {
 			if (oa.loops()) {
 				String var = oa.getLabel() +"_var";
 				w.appendLine("int "+ var +" = true;");
-				w.append(oa.getLabel() +":\t");
+				w.append(oa.getLabel() +extra_label+ ":\t");
 				w.append("while ("+ var +") {").appendPostfix();
 				w.indent();
 			}
@@ -983,7 +986,7 @@ public class LTSminPrinter {
 						OptionAction loop = ((BreakAction)act).getLoop();
 						String var = loop.getLabel() +"_var";
 						w.appendLine(var +" = false;");
-						w.appendLine("goto "+ loop.getLabel() +";");
+						w.appendLine("goto "+ loop.getLabel() +extra_label+";");
 					}
 					generateAction(w, act, model, t);
 				}
@@ -994,6 +997,7 @@ public class LTSminPrinter {
 				w.appendLine("} else { assert(false, \"Blocking loop in d_step\"); }");
 				w.outdent();
 				w.appendLine("}");
+				extra_label++;
 			} else {
 				w.appendLine("}");
 			}
