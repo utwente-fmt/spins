@@ -1,4 +1,6 @@
 
+#ifndef SPINS_TEST_CODE
+
 #ifndef fgetln
 #include <errno.h>
 char *
@@ -665,6 +667,8 @@ main(int argc, char **argv)
 {
     spins_query();
 }
+
+#endif
 
 typedef struct spins_args_s {
     void               *model;

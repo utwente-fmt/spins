@@ -157,6 +157,10 @@ public class LTSminPrinter {
 
 	private static void generateModel(StringWriter w, LTSminModel model,
 	                                  boolean no_gm) {
+		if (no_gm) {
+			w.appendLine("#define SPINS_TEST_CODE").appendLine("");
+		}
+		
 		generateHeader(w, model);
 		generateNativeTypes(w);
 		generateTypeDef(w, model);
