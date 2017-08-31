@@ -164,7 +164,7 @@ public class LTSminPrinter {
 		generateHeader(w, model);
 		generateNativeTypes(w);
 		generateTypeDef(w, model);
-		generateForwardDeclarations(w);
+		generateForwardDeclarations(w, model);
 		generateStateCount(w, model);
 		generateInitialState(w, model);
 		generateLeavesAtomic(w, model);
@@ -406,8 +406,10 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static void generateForwardDeclarations(StringWriter w) {
+	private static void generateForwardDeclarations(StringWriter w,LTSminModel model) {
+            if (model.hasAtomicCycles) {
 		w.appendLine("extern inline int spins_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg, int pid, int *cpy);");
+            }
 		w.appendLine("extern inline int spins_simple_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg, int pid, int *cpy);");
 		w.appendLine("extern int spins_get_successor_all (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
 		w.appendLine("extern int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
