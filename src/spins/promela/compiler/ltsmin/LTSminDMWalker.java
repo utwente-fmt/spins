@@ -98,7 +98,7 @@ public class LTSminDMWalker {
 	}
 	
 	private static RWMatrix DUMMY_MATRIX = new RWMatrix(null, null, null);
-	private static Options DUMMY_OPTIONS = new Options(false, false, false, false, false, false, false);
+	private static Options DUMMY_OPTIONS = new Options(false, false, false, false, false, false, false, false);
 	private static Params sParams = new Params(null, null, DUMMY_MATRIX,
 	                                           0, DUMMY_OPTIONS);
 	public static void walkOneGuard(LTSminModel model, DepMatrix dm,

@@ -14,6 +14,8 @@
 
 package spins.util;
 
+import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
+
 /**
  * The StringWriter can be used as a replacement for the {@link StringBuilder}, 
  * but with support for adding lines with prefixes (indentation) and 
@@ -48,6 +50,13 @@ public final class StringWriter {
 	 */
 	public StringWriter(final int size) {
 		this("\t", System.getProperty("line.separator"), size);
+	}
+
+	public Options options = null;
+	
+    public StringWriter(Options opts) {
+    	this();
+    	options = opts;
 	}
 
 	/**
@@ -92,9 +101,10 @@ public final class StringWriter {
 	public StringWriter(StringWriter w) {
         this(w.preprefix, w.prefix, w.postfix, w.buffer.length);
         this.indented = w.indented;
+        this.options = w.options;
     }
 
-    /**
+	/**
 	 * Appends the object converted to a String to this StringWriter.
 	 * 
 	 * @param obj

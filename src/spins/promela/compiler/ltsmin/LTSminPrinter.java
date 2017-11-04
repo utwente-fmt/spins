@@ -150,14 +150,13 @@ public class LTSminPrinter {
 	static int n_active = 0;
 
 	public static String generateCode(LTSminModel model, Options opts) {
-		StringWriter w = new StringWriter();
-		LTSminPrinter.generateModel(w, model, opts. no_gm);
+		StringWriter w = new StringWriter(opts);
+		LTSminPrinter.generateModel(w, model);
 		return w.toString();
 	}
 
-	private static void generateModel(StringWriter w, LTSminModel model,
-	                                  boolean no_gm) {
-		if (no_gm) {
+	private static void generateModel(StringWriter w, LTSminModel model) {
+		if (w.options.no_gm) {
 			w.appendLine("#define SPINS_TEST_CODE").appendLine("");
 		}
 		
@@ -176,9 +175,9 @@ public class LTSminPrinter {
         generateDepMatrix(w, model.getAtomicDepMatrix().read, DM_ACTIONS_NAME);
 		generateDepMatrix(w, model.getDepMatrix(), DM_NAME);
 		generateDMFunctions(w, model.getDepMatrix());
-		generateGuardMatrices(w, model, no_gm);
+		generateGuardMatrices(w, model, w.options.no_gm);
 	    generateOtherMatrices(w, model);
-		generateGuardFunctions(w, model, no_gm);
+		generateGuardFunctions(w, model, w.options.no_gm);
 		generateStateDescriptors(w, model);
 		generateEdgeDescriptors(w, model);
 
@@ -627,10 +626,13 @@ public class LTSminPrinter {
 		    List<Integer> list = model.getGuardInfo().getTransMatrix().get(t.getGroup());
             for (int g : list) {
                 w.append("__guards["+ g +"]");
+                if (w.options.total)
+                	w.append(" == 1");
                 if (list.size() != ++guards) {
                     w.append(" &&").appendPostfix().appendPrefix();
                 }
-		    }	} else {
+            }
+        } else {
 	           LTSminGuardBase last = t.getGuards().get(t.getGuards().size() - 1);
             for (LTSminGuardBase g : t.getGuards()) {
     			guards += generateGuard(w, model, g, in(model));
@@ -774,6 +776,15 @@ public class LTSminPrinter {
 								     LTSminGuardBase guard, LTSminPointer state) {
         Expression expression = guard.getExpression();
         if (expression == null) return 0;
+
+        if (w.options.total) {
+    		StringWriter w2 = new StringWriter(w);
+    		generateMaybe(w2, expression, state);
+    		String maybe = w2.toString();
+    		if (maybe.length() != 0) {
+        		w.append("(false "+ maybe +") == 0 && ");
+        	}
+        }
         generateExpression(w, expression, state);
         return 1;
 	}
@@ -908,23 +919,32 @@ public class LTSminPrinter {
 						activeExpr = calc(PromelaConstants.PLUS, e, activeExpr);
 					}
 				}
+				
 				String activeStr = generateExpression(model, activeExpr);
 				++n_active;
 				w.appendLine("int __active_" + n_active + " = "+ activeStr +";");
 
 				w.appendLine("if (__active_" + n_active + " >= "+ re.getProctype().getInstances().size() +") {");
-				w.appendLine("	printf (\"Error, too many instances for  "+ instance.getTypeName() +": %d.\\n\", __active_" + n_active + ");");
-				w.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
-				w.appendLine("	exit (1);");
+				if (!w.options.total) {		
+					w.appendLine("	printf (\"Error, too many instances for  "+ instance.getTypeName() +": %d.\\n\", __active_" + n_active + ");");
+					w.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
+					w.appendLine("	exit (1);");
+				} else {
+					w.appendLine("	return 0;");
+				}
 				w.appendLine("}");
 			//}
 
 			StringWriter w2 = new StringWriter(w);
 			//only one dynamic process supported atm
 			w2.appendLine("if (-1 != "+ printPC(instance, out(model)) +") {");
-			w2.appendLine("	printf (\"Instance %d of process "+ instance.getTypeName() +" was already started.\\n\", __active_" + n_active + ");");
-			w2.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
-			w2.appendLine("	exit (1);");
+			if (!w.options.total) {		
+				w2.appendLine("	printf (\"Instance %d of process "+ instance.getTypeName() +" was already started.\\n\", __active_" + n_active + ");");
+				w2.appendLine("	printf (\"Exiting on '"+ re +"'.\\n\");");
+				w2.appendLine("	exit (1);");
+			} else {
+				w2.appendLine("	return 0;");
+			}
 			w2.appendLine("}");
 
 			//set pid
@@ -983,8 +1003,11 @@ public class LTSminPrinter {
                 } catch (LTSminRendezVousException e) {
                     throw new AssertionError(e);
                 }
-				int count = generateGuard(w, model, ag, out(model));
-				if (count == 0) w.append("true");
+				if (ag.getExpression() == null)				
+					w.append("true");
+				else {
+			        generateExpression(w, ag.getExpression(), out(model));
+				}
 				w.append(") {").appendPostfix();
 				w.indent();
 				for (Action act : seq) {
@@ -1714,7 +1737,7 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static int generateBound(StringWriter w, LTSminModel model, Expression e, LTSminPointer state) {
+	private static int generateBound(StringWriter w, Expression e, LTSminPointer state) {
 		if (e == null) return 0;
 		if (e instanceof LTSminIdentifier) {
 		} else if (e instanceof Identifier) {
@@ -1733,29 +1756,29 @@ public class LTSminPrinter {
 			Expression ex1 = ae.getExpr1();
 			Expression ex2 = ae.getExpr2();
 			Expression ex3 = ae.getExpr3();
-			generateDiv(w, model, e, state);
-			generateMaybe(w, model, ex1, state);
-			generateMaybe(w, model, ex2, state);
-			generateMaybe(w, model, ex3, state);
+			generateDiv(w,e, state);
+			generateMaybe(w, ex1, state);
+			generateMaybe(w, ex2, state);
+			generateMaybe(w,  ex3, state);
 		} else if (e instanceof BooleanExpression) {
 			BooleanExpression ae = (BooleanExpression) e;
 			Expression ex1 = ae.getExpr1();
 			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, model, ex1, state);
-			generateMaybe(w, model, ex2, state);
+			generateMaybe(w, ex1, state);
+			generateMaybe(w, ex2, state);
 		} else if (e instanceof CompareExpression) {
 			CompareExpression ae = (CompareExpression) e;
 			Expression ex1 = ae.getExpr1();
 			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, model, ex1, state);
-			generateMaybe(w, model, ex2, state);
+			generateMaybe(w, ex1, state);
+			generateMaybe(w, ex2, state);
 		} else if (e instanceof TranslatableExpression) {
 			TranslatableExpression te = (TranslatableExpression) e;
-			generateMaybe(w, model, te.translate(), state);
+			generateMaybe(w, te.translate(), state);
 		} else if (e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression) e;
 			for (Expression ex : cre.getExprs()) {
-				generateMaybe(w, model, ex, state);
+				generateMaybe(w, ex, state);
 			}
 		} else if (e instanceof MTypeReference) {
 		} else if (e instanceof ConstantExpression) {
@@ -1774,13 +1797,13 @@ public class LTSminPrinter {
 		return 1;
 	}
     
-	private static int generateDiv(StringWriter w, LTSminModel model, Expression e, LTSminPointer state) {
+	private static int generateDiv(StringWriter w, Expression e, LTSminPointer state) {
 		if (e == null) return 0;
 		if (e instanceof LTSminIdentifier) {
 		} else if (e instanceof Identifier) {
 			Identifier id = (Identifier) e;
-			generateMaybe(w, model, id.getArrayExpr(), state);
-			generateBound(w, model, id, state);
+			generateMaybe(w, id.getArrayExpr(), state);
+			generateBound(w, id, state);
 		} else if (e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression) e;
 			Expression ex2 = ae.getExpr2();
@@ -1793,21 +1816,21 @@ public class LTSminPrinter {
 			BooleanExpression ae = (BooleanExpression) e;
 			Expression ex1 = ae.getExpr1();
 			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, model, ex1, state);
-			generateMaybe(w, model, ex2, state);
+			generateMaybe(w, ex1, state);
+			generateMaybe(w, ex2, state);
 		} else if (e instanceof CompareExpression) {
 			CompareExpression ae = (CompareExpression) e;
 			Expression ex1 = ae.getExpr1();
 			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, model, ex1, state);
-			generateMaybe(w, model, ex2, state);
+			generateMaybe(w, ex1, state);
+			generateMaybe(w, ex2, state);
 		} else if (e instanceof TranslatableExpression) {
 			TranslatableExpression te = (TranslatableExpression) e;
-			generateMaybe(w, model, te.translate(), state);
+			generateMaybe(w,te.translate(), state);
 		} else if (e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression) e;
 			for (Expression ex : cre.getExprs()) {
-				generateMaybe(w, model, ex, state);
+				generateMaybe(w, ex, state);
 			}
 		} else if (e instanceof MTypeReference) {
 		} else if (e instanceof ConstantExpression) {
@@ -1826,42 +1849,42 @@ public class LTSminPrinter {
 		return 1;
 	}
 
-	private static int generateMaybe(StringWriter w, LTSminModel model, Expression e, LTSminPointer state) {
+	private static int generateMaybe(StringWriter w, Expression e, LTSminPointer state) {
 		if (e == null) return 0;
 		
 		if (e instanceof LTSminIdentifier) {
 		} else if (e instanceof Identifier) {
 			Identifier id = (Identifier) e;
-			generateMaybe(w, model, id.getArrayExpr(), state);	
-			generateBound(w, model, id, state);		
+			generateMaybe(w, id.getArrayExpr(), state);	
+			generateBound(w, id, state);		
 		} else if (e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression) e;
 			Expression ex1 = ae.getExpr1();
 			Expression ex2 = ae.getExpr2();
 			Expression ex3 = ae.getExpr3();
-			generateDiv(w, model, e, state);
-			generateMaybe(w, model, ex1, state);
-			generateMaybe(w, model, ex2, state);
-			generateMaybe(w, model, ex3, state);
+			generateDiv(w,e, state);
+			generateMaybe(w, ex1, state);
+			generateMaybe(w, ex2, state);
+			generateMaybe(w, ex3, state);
 		} else if (e instanceof BooleanExpression) {
 			BooleanExpression ae = (BooleanExpression) e;
 			Expression ex1 = ae.getExpr1();
 			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, model, ex1, state);
-			generateMaybe(w, model, ex2, state);
+			generateMaybe(w, ex1, state);
+			generateMaybe(w, ex2, state);
 		} else if (e instanceof CompareExpression) {
 			CompareExpression ae = (CompareExpression) e;
 			Expression ex1 = ae.getExpr1();
 			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, model, ex1, state);
-			generateMaybe(w, model, ex2, state);
+			generateMaybe(w, ex1, state);
+			generateMaybe(w, ex2, state);
 		} else if (e instanceof TranslatableExpression) {
 			TranslatableExpression te = (TranslatableExpression) e;
-			generateMaybe(w, model, te.translate(), state);
+			generateMaybe(w, te.translate(), state);
 		} else if (e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression) e;
 			for (Expression ex : cre.getExprs()) {
-				generateMaybe(w, model, ex, state);
+				generateMaybe(w, ex, state);
 			}
 		} else if (e instanceof MTypeReference) {
 		} else if (e instanceof ConstantExpression) {
@@ -1929,7 +1952,7 @@ public class LTSminPrinter {
         for (int g = gm.getNumberOfGuards(); g < gm.getNumberOfLabels(); ++g) {
             w.appendPrefix();
             w.append("case ").append(g).append(": return ");
-            generateGuard(w, model, gm.getLabel(g), in(model));
+            generateExpression(w, gm.getLabel(g).getExpr(), in(model));
             w.append(";");
             w.appendPostfix();
         }
@@ -1969,7 +1992,7 @@ public class LTSminPrinter {
         for (int g = gm.getNumberOfGuards(); g < gm.getNumberOfLabels(); ++g) {
             w.appendPrefix();
             w.append("label[").append(g).append("] = ");
-            generateGuard(w, model, gm.getLabel(g), in(model));
+            generateExpression(w, gm.getLabel(g).getExpr(), in(model));
             w.append(";");
             w.appendPostfix();
         }
@@ -2079,7 +2102,7 @@ public class LTSminPrinter {
 		GuardInfo gm = model.getGuardInfo();
 		StringWriter w2 = new StringWriter(w);
 		
-		generateMaybe(w2, model, gm.getLabel(g).getExpr(), in(model));
+		generateMaybe(w2, gm.getLabel(g).getExpr(), in(model));
 		String maybe = w2.toString();
 
 		if (maybe.length() != 0) {
@@ -2088,7 +2111,7 @@ public class LTSminPrinter {
 			w.append(") ? 2 :").appendLine();
 			w.appendPrefix().appendPrefix().appendPrefix();
 		}
-		generateGuard(w, model, gm.getLabel(g), in(model));
+        generateExpression(w, gm.getLabel(g).getExpr(), in(model));
 		w.append(" != 0;");
 		w.appendPostfix();
 	}

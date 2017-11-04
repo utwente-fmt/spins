@@ -172,7 +172,8 @@ public class LTSminTreeWalker {
 	public static class Options {
 	    public Options(boolean verbose, boolean no_gm, boolean must_write,
 	                   boolean cnf, boolean nonever,
-	                   boolean unless_java_semantics, boolean no_atomic) {
+	                   boolean unless_java_semantics, boolean no_atomic,
+	                   boolean total) {
 	        this.verbose = verbose;
 	        this.no_gm = no_gm;
 	        this.must_write = must_write;
@@ -180,6 +181,7 @@ public class LTSminTreeWalker {
 	        this.nonever = nonever;
 	        this.unless_java_semantics = unless_java_semantics;
 	        this.no_atomic = no_atomic;
+	        this.total = total;
         }
 	    public boolean nonever = false;
         public boolean verbose = false;
@@ -188,6 +190,7 @@ public class LTSminTreeWalker {
         public boolean cnf = false;
         public boolean unless_java_semantics = false;
         public boolean no_atomic = false;
+        public boolean total = false;
 	}
 
 	TimeoutExpression timeout = null;

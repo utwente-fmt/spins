@@ -191,7 +191,12 @@ public class Compile {
             "sets output to textbook LTL semantics \n");
         parser.addOption(textbook_ltl);
 		
-		final BooleanOption preprocessor = new BooleanOption('I',
+		
+		final BooleanOption total = new BooleanOption('T',
+			"make next-state a total function\n");
+		parser.addOption(total);
+        
+        final BooleanOption preprocessor = new BooleanOption('I',
 			"prints output of preprocessor\n");
 		parser.addOption(preprocessor);
 
@@ -268,7 +273,7 @@ public class Compile {
 
         Options opts = new Options(verbose.isSet(), no_guards.isSet(),
                 must_write.isSet(), !no_cnf.isSet(),
-                nonever.isSet(), java.isSet(), no_atomic.isSet());
+                nonever.isSet(), java.isSet(), no_atomic.isSet(), total.isSet());
 
 		final Specification spec = 
 			Compile.compile(file, !optimalizations.isSet("3"), opts);
