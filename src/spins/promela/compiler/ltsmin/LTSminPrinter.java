@@ -25,6 +25,7 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.incr;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.print;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.printPC;
+import static spins.promela.compiler.ltsmin.LTSminTreeWalker.createCustomIdentifiers;
 import static spins.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spins.promela.compiler.parser.PromelaConstants.DECR;
 import static spins.promela.compiler.parser.PromelaConstants.FALSE;
@@ -94,7 +95,9 @@ import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaConstants;
 import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.ChannelVariable;
+import spins.promela.compiler.variable.CustomVariableType;
 import spins.promela.compiler.variable.Variable;
+import spins.promela.compiler.variable.VariableType;
 import spins.util.IndexedSet;
 import spins.util.StringWriter;
 
@@ -525,8 +528,13 @@ public class LTSminPrinter {
 		w.appendPostfix();
 		
 		List<Action> actions = t.getActions();
-		for(Action a: actions)
-			generateAction(w,a,model, t);
+		for(Action a: actions) {
+			try {
+				generateAction(w,a,model, t);
+			} catch (AssertionError ae) {
+				throw new AssertionError("Generating action failed for "+ a +"\n"+ ae);
+			}
+		}
 		// No edge labels! They are discarded anyway!
 		w.appendLine("transition_info.group = "+ t.getGroup() +";");
 		if (t.getEnd().liesOnCycle()) {
@@ -660,8 +668,13 @@ public class LTSminPrinter {
                                         LTSminModel model) {
         w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
 		List<Action> actions = t.getActions();
-		for(Action a : actions)
-			generateAction(w,a,model, t);
+		for(Action a : actions) {
+			try {
+				generateAction(w, a, model, t);
+			} catch (AssertionError ae) {
+				throw ae;//new AssertionError("Generating action failed for "+ a +"\n"+ ae);
+			}
+		}
 		if (t.isAtomic()) {
 		    printEdgeLabels (w, model, t);
 			w.appendLine("transition_info.group = "+ t.getGroup() +";");
@@ -1045,36 +1058,44 @@ public class LTSminPrinter {
             int bufferSize = var.getType().getBufferSize();
             List<Expression> exprs = csa.getExprs();
             String len = print(chanLength(id), out(model));
+			ChannelVariable cv = (ChannelVariable) id.getVariable();
+			ChannelType ct = cv.getType();
 
             if (csa.isSorted() && bufferSize > 1) {
-                Identifier index = new LTSminIdentifier(model.index);
-                Expression min = calc(PromelaConstants.MINUS, index, constant(1));
-                Identifier m0 = channelIndex(id, min, 0);
-                Expression comp = compare(PromelaConstants.LTE, m0, exprs.get(0));
-                String test = print(comp, out(model));
-                
-                w.appendLine("for (i = "+ len +"; i > 0; i--) {");
-                w.indent();
-                w.appendLine("if ("+ test +") break;");
-                for (int e = 0; e < exprs.size(); e++) {
-                    Identifier m = channelIndex(id, index, e);
-                    Identifier mmm = channelIndex(id, min, e);
-                    generateAction(w, assign(m, mmm), model, t);
-                }
-                w.outdent();
-                w.appendLine("}");
+				Identifier index = new LTSminIdentifier(model.index);
+				Expression min = calc(PromelaConstants.MINUS, index, constant(1));
+				Identifier m0 = channelIndex(id, min, 0);
+				Expression comp = compare(PromelaConstants.LTE, m0, exprs.get(0));
+				String test = print(comp, out(model));
+				
+				w.appendLine("for (i = "+ len +"; i > 0; i--) {");
+				w.indent();
+				w.appendLine("if ("+ test +") break;");
+				for (int e = 0; e < exprs.size(); e++) {
+                		Identifier m = channelIndex(id, index, e);
+                    	Identifier mmm = channelIndex(id, min, e);
+    					VariableType msg = ct.getTypes().get(e);
+    					generateChanBufCopy(w, model, t, m, mmm, msg);
+                    //generateAction(w, assign(m, mmm), model, t);
+				}
+				w.outdent();
+				w.appendLine("}");
 
-                for (int e = 0; e < exprs.size(); e++) {
-                    final Expression expr = exprs.get(e);
-                    Identifier buf = channelIndex(id,index,e);
-                    generateAction(w, assign(buf, expr), model, t);
-                }
-            } else {
-    			for (int e = 0; e < exprs.size(); e++) {
-    				final Expression expr = exprs.get(e);
-    				Identifier buf = channelNext(id,e);
-                    generateAction(w, assign(buf, expr), model, t);
-    			}			
+                	for (int e = 0; e < exprs.size(); e++) {
+					final Expression expr = exprs.get(e);
+					Identifier buf = channelIndex(id,index,e);
+					VariableType msg = ct.getTypes().get(e);
+					generateChanBufCopy(w, model, t, buf, expr, msg);
+					//generateAction(w, assign(buf, expr), model, t);
+                	}
+            	} else {
+	    			for (int e = 0; e < exprs.size(); e++) {
+        				final Expression expr = exprs.get(e);
+    					Identifier buf = channelNext(id,e);
+	    				VariableType msg = ct.getTypes().get(e);
+    					generateChanBufCopy(w, model, t, buf, expr, msg);
+	                //generateAction(w, assign(buf, expr), model, t);
+	    			}
             }
             generateAction(w, incr(chanLength(id)), model, t);
 		} else if (a instanceof ChannelReadAction) {
@@ -1098,14 +1119,18 @@ public class LTSminPrinter {
 			} else {
 				w.appendLine("j = 0;");
 			}
- 			for (int e = 0; e < exprs.size(); e++) {
+			
+			ChannelVariable cv = (ChannelVariable) id.getVariable();
+			ChannelType ct = cv.getType();
+			for (int e = 0; e < exprs.size(); e++) {
 				final Expression expr = exprs.get(e);
-				if (expr instanceof Identifier) {
-					Identifier p = (Identifier)expr;
-					Expression m = channelBottom(id, e);
-					generateAction(w, assign(p, m), model, t);
-				}
+				if (!(expr instanceof Identifier)) continue;
+				Identifier lhs = (Identifier)expr;
+				Identifier m = channelBottom(id, e);
+				VariableType msg = ct.getTypes().get(e);
+				generateChanBufCopy(w, model, t, lhs, m, msg);
 			}
+ 			
 			if (cra.isRandom()) {
 				w.appendLine("break;");
 				w.outdent();
@@ -1121,14 +1146,25 @@ public class LTSminPrinter {
 					for (int e = 0; e < exprs.size(); e++) {
 						Identifier m = channelIndex(id, index, e);
 						Identifier mpp = channelIndex(id, pp, e);
-						generateAction(w, assign(m, mpp), model, t);
+						VariableType msg = ct.getTypes().get(e);
+						generateChanBufCopy(w, model, t, m, mpp, msg);
+						//generateAction(w, assign(m, mpp), model, t);
 					}
 					w.outdent();
 					w.appendLine("}");
 				}
 				generateAction(w, decr(chanLength(id)), model, t);
 				for (int e = 0; e < exprs.size(); e++) {
-					generateAction(w, assign(channelNext(id,e), constant(0)), model, t);
+					VariableType msg = ct.getTypes().get(e);
+					Identifier buf = channelNext(id,e);
+					if (msg instanceof CustomVariableType) {
+						List<Identifier> l1 = createCustomIdentifiers(msg, buf);
+						for (Identifier id1 : l1) {
+							generateAction(w, assign(id1, constant(0)), model, t);
+						}
+					} else {
+						generateAction(w, assign(buf, constant(0)), model, t);
+					}
 				}
 			}
 		} else {
@@ -1136,11 +1172,27 @@ public class LTSminPrinter {
 		}
 	}
 
+	private static void generateChanBufCopy(StringWriter w, LTSminModel model, LTSminTransition t,
+										   Identifier lhs, Expression rhs, VariableType msg)  {
+		if (msg instanceof CustomVariableType) {
+			if (!(rhs instanceof Identifier)) throw new AssertionError("Expected identifier in rhs of channel XXX action buffer mod for: "+ lhs +" := "+ rhs);
+			Identifier R = (Identifier)rhs;
+			List<Identifier> l1 = createCustomIdentifiers(msg, lhs);
+			List<Identifier> l2 = createCustomIdentifiers(msg, R);
+			Iterator<Identifier> it2 = l2.listIterator();
+			for (Identifier id1 : l1) {
+				generateAction(w, assign(id1, it2.next()), model, t);
+			}
+		} else {
+			generateAction(w, assign(lhs, rhs), model, t);
+		}
+	}
+
     private static void copyAccess(LTSminModel model, StringWriter w, Identifier id) {
 		if (id.getVariable().isHidden() || id instanceof LTSminIdentifier) return;
 		if (id.isConstant()) return;
 
-    	String var = print(id, out(model));
+		String var = print(id, out(model));
     	
         if (!var.endsWith(".var")) throw new AssertionError(var +" does not end with '.var'");
         String pad = var.substring(0, var.length() - 4) +".pad";
@@ -1199,7 +1251,13 @@ public class LTSminPrinter {
 				w.append(id.getVariable().getName());
 		} else if(e instanceof Identifier) {
 			Identifier id = (Identifier)e;
-			w.append(print(id, state));
+			try {
+				w.append(print(id, state));
+			} catch (AssertionError ae) {
+				System.err.println(id);
+				ae.printStackTrace();
+				new AssertionError("Generating id failed for "+ id +"\n"+ ae);
+			}
 		} else if(e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression)e;
 			Expression ex1 = ae.getExpr1();

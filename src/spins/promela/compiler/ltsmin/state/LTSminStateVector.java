@@ -175,7 +175,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 	/**
 	 * Add a variable declaration to struct
 	 */
-	private void addVariable(LTSminTypeStruct struct, Variable var, LTSminDebug debug) {
+	public static void addVariable(LTSminTypeStruct struct, Variable var, LTSminDebug debug) {
 		if (var.isHidden()) return;
 		String name = var.getName();
 		LTSminVariable lvar = null;
@@ -189,7 +189,7 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 				return;
 			debug.say(MessageKind.DEBUG, var.getName() + (var.getArraySize() == -1 ? "" : "["+ var.getArraySize() +"]") +
 					" of {"+ ct.getTypes().size() +"} ["+ ct.getBufferSize() +"]");
-			LTSminTypeI infoType = new LTSminTypeChanStruct(cv);
+			LTSminTypeI infoType = new LTSminTypeChanStruct(cv, debug);
 			lvar = new LTSminVariable(infoType, var, struct);
 		} else if (var.getType() instanceof CustomVariableType) {
 			CustomVariableType cvt = (CustomVariableType)var.getType();

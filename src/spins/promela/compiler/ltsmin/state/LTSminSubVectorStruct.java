@@ -42,7 +42,7 @@ public class LTSminSubVectorStruct extends LTSminSubVector {
 	@Override
 	public void mark(IdMarker idMarker, Identifier id)  {
 		if (null == id) {
-		    if (idMarker.isStrict()) {
+		    if (idMarker.isStrict() && !type.isStructinChan) {
 		        throw new AssertionError("Inconclusive identifier for: "+ type);
 		    } else {
 		        if (idMarker.params.opts.must_write && idMarker.isMayMustWrite()) 
@@ -52,8 +52,8 @@ public class LTSminSubVectorStruct extends LTSminSubVector {
 		        }
 		    }
 		} else {
-    		LTSminSubVector sub = getSubVector(id.getVariable().getName());
-    		sub.mark(idMarker, id);
+	    		LTSminSubVector sub = getSubVector(id.getVariable().getName());
+	    		sub.mark(idMarker, id);
 		}
 	}
 }

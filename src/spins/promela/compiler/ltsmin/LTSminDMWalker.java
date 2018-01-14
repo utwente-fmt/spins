@@ -1,15 +1,16 @@
 package spins.promela.compiler.ltsmin;
 
 
-import java.util.List;
-import java.util.Map;
-
 import static spins.promela.compiler.Specification._NR_PR;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelBottom;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelIndex;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.channelNext;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.id;
+
+import java.util.List;
+import java.util.Map;
+
 import spins.promela.compiler.Proctype;
 import spins.promela.compiler.actions.Action;
 import spins.promela.compiler.actions.AssertAction;
@@ -57,6 +58,8 @@ import spins.promela.compiler.ltsmin.util.LTSminRendezVousException;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaConstants;
 import spins.promela.compiler.variable.ChannelType;
+import spins.promela.compiler.variable.ChannelVariable;
+import spins.promela.compiler.variable.CustomVariableType;
 import spins.promela.compiler.variable.Variable;
 import spins.promela.compiler.variable.VariableType;
 
@@ -102,11 +105,15 @@ public class LTSminDMWalker {
 	private static Params sParams = new Params(null, null, DUMMY_MATRIX,
 	                                           0, DUMMY_OPTIONS);
 	public static void walkOneGuard(LTSminModel model, DepMatrix dm,
-									Expression e, int num) {
+									Expression e, int num, MarkAction mark) {
 	    sParams.model = model;
 	    sParams.depMatrix.read = dm;
 	    sParams.trans = num;
-        walkExpression(sParams, e, MarkAction.READ);
+	    try {
+	    		walkExpression(sParams, e, mark);
+	    } catch (AssertionError ae) {
+	    		throw new AssertionError("Guard failed: "+ e +"\n"+ ae);
+	    }
 	}
 
 	static void walkModel(LTSminModel model, LTSminDebug debug, Options opts) {
@@ -161,7 +168,7 @@ public class LTSminDMWalker {
         report.setTotal(nLabels * nSlots);
         for (int i = 0; i < nLabels; i++) {
             LTSminGuard g = guardInfo.get(i);
-            LTSminDMWalker.walkOneGuard(model, gm, g.expr, i);
+            LTSminDMWalker.walkOneGuard(model, gm, g.expr, i, MarkAction.READ);
             reads += gm.getRow(i).getCardinality();
             report.updateProgress(nSlots);
         }
@@ -222,7 +229,13 @@ public class LTSminDMWalker {
         Params p = new Params(params.model, null, a2s, -1, params.opts);
         for (Action a : params.model.getActions()) {
             p.trans = a.getIndex();
-            walkAction (p, a);
+
+	    	    try {
+                walkAction (p, a);
+	    	    } catch (AssertionError ae) {
+	    	    		throw new AssertionError("Walk Action failed: "+ a +"\n"+ ae);
+	    	    }
+            
             RWDepRow row = a2s.getRow(a.getIndex());
             reads += row.readCardinality();
             mayWrites += row.mayWriteCardinality();
@@ -524,13 +537,19 @@ public class LTSminDMWalker {
 		} else if(e instanceof ChannelReadExpression) {
 			ChannelReadExpression cre = (ChannelReadExpression)e;
 			Identifier id = cre.getIdentifier();
+			ChannelVariable cv = (ChannelVariable) id.getVariable();
+			ChannelType ct = cv.getType();
 			// mark variables as read
 			int m = 0;
 			for (Expression expr : cre.getExprs()) {
 				Expression read = cre.isRandom() ? channelIndex(id, STAR, m) :
 													channelBottom(id, m);
 				walkExpression(params, read, mark);
-				walkExpression(params, expr, mark);
+				if (ct.getTypes().get(m) instanceof CustomVariableType) {
+					walkExpression(params, expr, MarkAction.EREAD);
+				} else {
+					walkExpression(params, expr, mark);
+				}
 				m++;
 			}
 			walkExpression(params, chanLength(id), mark);

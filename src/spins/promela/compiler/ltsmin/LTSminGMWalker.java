@@ -1,9 +1,9 @@
 package spins.promela.compiler.ltsmin;
 
 import static spins.promela.compiler.Specification._NR_PR;
+import static spins.promela.compiler.ltsmin.LTSminPrinter.ICE_DM_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.MDS_DM_NAME;
 import static spins.promela.compiler.ltsmin.LTSminPrinter.MES_DM_NAME;
-import static spins.promela.compiler.ltsmin.LTSminPrinter.ICE_DM_NAME;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.assign;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.chanLength;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.decr;
@@ -36,6 +36,7 @@ import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.expression.Identifier;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TimeoutExpression;
+import spins.promela.compiler.ltsmin.LTSminDMWalker.MarkAction;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
@@ -53,7 +54,10 @@ import spins.promela.compiler.ltsmin.util.SimplePredicate;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaTokenManager;
 import spins.promela.compiler.variable.ChannelType;
+import spins.promela.compiler.variable.ChannelVariable;
+import spins.promela.compiler.variable.CustomVariableType;
 import spins.promela.compiler.variable.Variable;
+import spins.promela.compiler.variable.VariableType;
 
 /**
  * A container for boolean state labels (part of which are guards), guard
@@ -471,7 +475,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             if (missed) {
                 RWMatrix deps = model.getDepMatrix();
                 DepMatrix temp = new DepMatrix(1, model.sv.size());
-                LTSminDMWalker.walkOneGuard(model, temp, e, 0);
+                LTSminDMWalker.walkOneGuard(model, temp, e, 0, MarkAction.READ);
                 return deps.getRow(t.getGroup()).mayWrites(temp.getRow(0));
             }
             for (SimplePredicate sp : sps) {
@@ -493,7 +497,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 
         for (Action a : t.getActions()) {
             testSet.clear();
-            LTSminDMWalker.walkOneGuard(model, testSet, sp.e, 0);
+            LTSminDMWalker.walkOneGuard(model, testSet, sp.e, 0, MarkAction.READ);
             RWDepRow writeSet = a2s.getRow(a.getIndex());
             if (!writeSet.mayWrites(testSet.getRow(0)))
                 continue;
@@ -590,7 +594,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
 
         for (Action a : t.getActions()) {
             testSet.clear();
-            LTSminDMWalker.walkOneGuard(model, testSet, sp.e, 0);
+            LTSminDMWalker.walkOneGuard(model, testSet, sp.e, 0, MarkAction.READ);
             RWDepRow writeSet = a2s.getRow(a.getIndex());
             if (!writeSet.mayWrites(testSet.getRow(0)))
                 continue;
@@ -967,11 +971,20 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
             throw new ParseException();
         } else if(a instanceof ChannelSendAction) {
             ChannelSendAction csa = (ChannelSendAction)a;
-            Identifier id = csa.getIdentifier();
+            Identifier id = csa.getIdentifier();        
+			ChannelVariable cv = (ChannelVariable) id.getVariable();
+			ChannelType ct = cv.getType();
 
+			int m = 0;
             for (Expression e : csa.getExprs()) {
-                if (depCheck(model, e, deps.mayWrite))
-                    throw new ParseException();
+	    			VariableType msg = ct.getTypes().get(m++);
+	    			if (msg instanceof CustomVariableType) {
+	                if (depCheck(model, e, deps.mayWrite, MarkAction.EREAD))
+	                    throw new ParseException();
+	    			} else {
+	                if (depCheck(model, e, deps.mayWrite))
+	                    throw new ParseException();
+	    			}
             }
 
             if (!depCheck(model, chanLength(id), deps))
@@ -988,11 +1001,22 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
         } else if(a instanceof ChannelReadAction) {
             ChannelReadAction cra = (ChannelReadAction)a;
             Identifier id = cra.getIdentifier();
-            
+			ChannelVariable cv = (ChannelVariable) id.getVariable();
+			ChannelType ct = cv.getType();
+
+			int m = 0;
             for (Expression e : cra.getExprs()) {
-                if ( e instanceof Identifier &&
-                     depCheck(model, e, deps))
-                    throw new ParseException();
+            		m++;
+            		if (!(e instanceof Identifier)) continue;
+            		
+	    			VariableType msg = ct.getTypes().get(m - 1);
+	    			if (msg instanceof CustomVariableType) {
+	                if (depCheck(model, e, deps, MarkAction.EREAD))
+	                    throw new ParseException();
+	    			} else {
+	                if (depCheck(model, e, deps))
+	                    throw new ParseException();
+	    			}
             }
 
             if (!depCheck(model, chanLength(id), deps))
@@ -1154,7 +1178,7 @@ guard_loop:     for (int g2 : guardInfo.getTransMatrix().get(t2)) {
                 DepRow limit = limit1 != null ? limit1 : limit2;
                 Expression e = limit1 != null ? e1 : e2;
                 DepMatrix testSet = new DepMatrix(1, model.sv.size());
-                LTSminDMWalker.walkOneGuard(model, testSet, e, 0);
+                LTSminDMWalker.walkOneGuard(model, testSet, e, 0, MarkAction.READ);
                 if (!testSet.getRow(0).isDependent(limit)) return null;
             }
             List<SimplePredicate> ga_sp = new ArrayList<SimplePredicate>();

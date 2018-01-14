@@ -10,6 +10,7 @@ import java.util.LinkedList;
 import spins.promela.compiler.expression.BooleanExpression;
 import spins.promela.compiler.expression.Expression;
 import spins.promela.compiler.ltsmin.LTSminDMWalker;
+import spins.promela.compiler.ltsmin.LTSminDMWalker.MarkAction;
 import spins.promela.compiler.ltsmin.LTSminTreeWalker.Options;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
@@ -79,7 +80,7 @@ public class CNF extends ArrayList<D> {
         }
         protected DepMatrix depMatrix(Expression e) {
             DepMatrix temp = new DepMatrix(1, m.sv.size());
-            LTSminDMWalker.walkOneGuard(m, temp, e, 0);
+            LTSminDMWalker.walkOneGuard(m, temp, e, 0, MarkAction.READ);
             return temp;
         }
     }

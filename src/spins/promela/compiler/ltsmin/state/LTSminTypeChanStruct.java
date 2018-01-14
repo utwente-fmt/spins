@@ -1,5 +1,6 @@
 package spins.promela.compiler.ltsmin.state;
 
+import spins.promela.compiler.ltsmin.util.LTSminDebug;
 import spins.promela.compiler.variable.ChannelVariable;
 import spins.promela.compiler.variable.CustomVariableType;
 import spins.promela.compiler.variable.Variable;
@@ -29,7 +30,7 @@ public class LTSminTypeChanStruct extends LTSminTypeStruct {
 	private static final String CHAN_BUF_PREFIX = "buffer_";
 	private int elements = 0;
 	
-	public LTSminTypeChanStruct(ChannelVariable cv) {
+	public LTSminTypeChanStruct(ChannelVariable cv, LTSminDebug debug) {
 		super(wrapName(cv.getName()));
 		addMember(new LTSminVariable(CHAN_FILL_VAR, this));
 		LTSminTypeStruct buf = new LTSminTypeStruct(CHAN_BUF_PREFIX + cv.getName());
@@ -37,8 +38,11 @@ public class LTSminTypeChanStruct extends LTSminTypeStruct {
 			if (var instanceof ChannelVariable)
 				throw new AssertionError("Channeltypes not supported in channel buffer.");
 			if (var.getType() instanceof CustomVariableType) {
-                throw new AssertionError("CustomVarTypes not supported in channel buffer.");
-			    //buf.addMember(new LTSminVariable(new LTSminTypeStruct(var.getName()), var, elemName(), this));
+				CustomVariableType cvt = (CustomVariableType)var.getType();
+				LTSminTypeStruct type = new LTSminTypeStruct(cvt.getName(), true);
+				for (Variable v : cvt.getVariableStore().getVariables())
+					LTSminStateVector.addVariable(type, v, debug);
+			    buf.addMember(new LTSminVariable(type, var, elemName(), this));
 			} else {
 			    buf.addMember(new LTSminVariable(LTSminTypeNative.get(var), var, elemName(), this));
 			}

@@ -18,6 +18,7 @@ public class LTSminTypeStruct extends LTSminTypeImpl implements LTSminTypeStruct
 	protected String name;
 	private List<LTSminVariable> members;
 	private LTSminVariable parent;
+	public boolean isStructinChan = false;
 
 	public String getName() {
 		return name;
@@ -26,6 +27,11 @@ public class LTSminTypeStruct extends LTSminTypeImpl implements LTSminTypeStruct
 	protected LTSminTypeStruct(String name) {
 		this.members = new ArrayList<LTSminVariable>();
 		this.name = wrapName(name);
+	}
+
+	protected LTSminTypeStruct(String name, boolean b) {
+		this(name);
+		isStructinChan = b;
 	}
 
 	protected static String wrapName(String name) {

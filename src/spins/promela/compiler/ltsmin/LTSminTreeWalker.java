@@ -113,6 +113,7 @@ import spins.promela.compiler.parser.PromelaConstants;
 import spins.promela.compiler.parser.Token;
 import spins.promela.compiler.variable.ChannelType;
 import spins.promela.compiler.variable.ChannelVariable;
+import spins.promela.compiler.variable.CustomVariableType;
 import spins.promela.compiler.variable.Variable;
 import spins.promela.compiler.variable.VariableType;
 
@@ -147,10 +148,10 @@ public class LTSminTreeWalker {
 	private void replaceVars(Variable v, Identifier id) {
 		for (Identifier i : ids) {
 			if (i.getVariable() == v) {
-				i.setVariable(id.getVariable());
 				if (i.getArrayExpr() != null) 
 					throw new AssertionError("Not a lhs var place holder: "+ i +" = "+ id);
 				i.setArrayIndex(id.getArrayExpr());
+				i.setVariable(id.getVariable());
 			}
 		}
 	}
@@ -1475,51 +1476,90 @@ public class LTSminTreeWalker {
 		// create transitions for all items in a channel array
 		for (int x = 0; x < (arraySize == -1 || !SPLIT ? 1 : arraySize); x++) {
 		    LTSminTransition lt = new LTSminTransition(sa.t, n);
-    		lt.setSync(ra.t);
-    
-    		lt.addGuard(pcGuard(sa.t.getFrom(), sa.p));
-    		lt.addGuard(pcGuard(ra.t.getFrom(), ra.p));
-            addSpecialGuards(lt, sa.t, sa.p); // proc die order && provided condition
-            addSpecialGuards(lt, ra.t, ra.p); // proc die order && provided condition
-    		if (arraySize > -1) { // array of channels
-    		    if (SPLIT)
-    		        lt.addGuard(compare(PromelaConstants.EQ, array1, constant(x)));
-    			lt.addGuard(compare(PromelaConstants.EQ, array1, array2));
-    		}
-    
-    		/* Channel matches */
-    		for (int i = 0; i < cra_exprs.size(); i++) {
-    			final Expression csa_expr = csa_exprs.get(i);
-    			final Expression cra_expr = cra_exprs.get(i);
-    			if (!(cra_expr instanceof Identifier)) {
-    				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
-    			}
-    		}
-
-    		if (addNever(lt, n)) {
-    		    set.add(lt);
-    		    continue;
-    		}
-    
+	    		lt.setSync(ra.t);
+	    
+	    		lt.addGuard(pcGuard(sa.t.getFrom(), sa.p));
+	    		lt.addGuard(pcGuard(ra.t.getFrom(), ra.p));
+	            addSpecialGuards(lt, sa.t, sa.p); // proc die order && provided condition
+	            addSpecialGuards(lt, ra.t, ra.p); // proc die order && provided condition
+	    		if (arraySize > -1) { // array of channels
+	    		    if (SPLIT)
+	    		        lt.addGuard(compare(PromelaConstants.EQ, array1, constant(x)));
+	    			lt.addGuard(compare(PromelaConstants.EQ, array1, array2));
+	    		}
+	    
+	    		/* Channel matches */
+	    		for (int i = 0; i < cra_exprs.size(); i++) {
+	    			final Expression csa_expr = csa_exprs.get(i);
+	    			final Expression cra_expr = cra_exprs.get(i);
+	    			if (!(cra_expr instanceof Identifier)) {
+	    				lt.addGuard(compare(PromelaConstants.EQ,csa_expr,cra_expr));
+	    			}
+	    		}
+	
+	    		if (addNever(lt, n)) {
+	    		    set.add(lt);
+	    		    continue;
+	    		}
+	    
             /* Channel reads */
             for (int i = 0; i < cra_exprs.size(); i++) {
                 final Expression csa_expr = csa_exprs.get(i);
                 final Expression cra_expr = cra_exprs.get(i);
                 if (cra_expr instanceof Identifier) {
-                    lt.addAction(assign((Identifier)cra_expr,csa_expr));
+	        			Identifier id = cra.getIdentifier();
+	        			ChannelVariable cv = (ChannelVariable) id.getVariable();
+	        			ChannelType ct = cv.getType();
+        				Identifier cra_id = (Identifier)cra_expr;
+					VariableType msg = ct.getTypes().get(i);
+					if (msg instanceof CustomVariableType) {
+						if (!(csa_expr instanceof Identifier)) throw new AssertionError("Expected id in channel send action. "+ cra +" index "+ i);
+						Identifier csa_id = (Identifier)csa_expr;
+						List<Identifier> l1 = createCustomIdentifiers(msg, csa_id);
+						List<Identifier> l2 = createCustomIdentifiers(msg, cra_id);
+						Iterator<Identifier> it2 = l2.listIterator();
+						for (Identifier id1 : l1) {
+        						lt.addAction(assign(it2.next(), id1));
+						}
+        				} else {
+        					lt.addAction(assign(cra_id,csa_expr));
+        				}
                 }
             }
-    
-    		// Change process counter of sender
-    		lt.addAction(assign(sa.p.getPC(), sa.t.getTo().getStateId()));
-    		// Change process counter of receiver
-    		lt.addAction(assign(ra.p.getPC(), ra.t.getTo().getStateId()));
-    
-    		for (int i = 1; i < ra.t.getActionCount(); i++)
-    			lt.addAction(ra.t.getAction(i));
-    		if (sa.t.getActionCount() > 1) throw new AssertionError("Rendez-vous send action in d_step.");
-    
-            set.add(lt);
+	    
+	    		// Change process counter of sender
+	    		lt.addAction(assign(sa.p.getPC(), sa.t.getTo().getStateId()));
+	    		// Change process counter of receiver
+	    		lt.addAction(assign(ra.p.getPC(), ra.t.getTo().getStateId()));
+	    
+	    		for (int i = 1; i < ra.t.getActionCount(); i++)
+	    			lt.addAction(ra.t.getAction(i));
+	    		if (sa.t.getActionCount() > 1) throw new AssertionError("Rendez-vous send action in d_step.");
+	           set.add(lt);
 		}
 	}
+
+    /**
+     * Generate list of all (conclusive) idenitifiers in a struct (recursively)
+     * The resulting experessions pass the strict marking mode in the DM/GMWalker
+     */
+    public static List<Identifier> createCustomIdentifiers(VariableType vt, Identifier id) {
+    		if (!(vt instanceof CustomVariableType)) return null;
+
+    		List<Identifier> list = new LinkedList<Identifier> (); 
+		CustomVariableType cvt = (CustomVariableType) vt;
+		Iterator<Variable> it = cvt.getVariableStore().getVariables().listIterator();
+		for (Variable v : cvt.getVariableStore().getVariables()) {
+			List<Identifier> inner = createCustomIdentifiers(it.next().getType(), id(v));
+			if (inner == null) {
+				list.add( id(id, id(v)) );
+			} else {
+				for (Identifier i : inner) {
+					list.add( id(id, i) );				
+				}
+			}
+		}
+		return list;
+    }
+    
 }

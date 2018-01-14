@@ -101,6 +101,10 @@ public class Identifier extends Expression {
 		this.sub = null;
 	}
 
+	public Identifier(Identifier id) {
+		this(id.getToken(), id.var, id.getArrayExpr(), id.sub);
+	}
+
 	public Identifier(Identifier id, Identifier sub) {
 		this(id.getToken(), id.var, id.getArrayExpr(), sub);
 	}
@@ -118,7 +122,7 @@ public class Identifier extends Expression {
 	 */
 	public Expression getArrayExpr() {
         if ((null == arrayExpr) != (-1 == var.getArraySize()))
-            throw new AssertionError("Invalid array semantics in expression: "+ this);
+            throw new AssertionError("Invalid array semantics in expression: "+ this+ ". Array size is: "+ var.getArraySize());
 		return arrayExpr;
 	}
 
@@ -187,7 +191,7 @@ public class Identifier extends Expression {
 				res = var.toString() + "[" + arrayExpr.toString() + "]";
 			} else {
 				assert (false);
-				res = var.toString() + "[0]";
+				res = var.toString() + "[??]";
 			}
 		} else {
 			res = var.toString();

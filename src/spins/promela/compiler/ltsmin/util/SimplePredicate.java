@@ -50,6 +50,7 @@ import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TranslatableExpression;
 import spins.promela.compiler.ltsmin.LTSminDMWalker;
 import spins.promela.compiler.ltsmin.LTSminPrinter;
+import spins.promela.compiler.ltsmin.LTSminDMWalker.MarkAction;
 import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
@@ -595,21 +596,27 @@ public class SimplePredicate {
         return !no_conflict;
     }
 
-    public static boolean depCheck(LTSminModel model, Expression e,
-                                    RWDepRow rw) {
+    public static boolean depCheck(LTSminModel model, Expression e, RWDepRow rw, MarkAction mark) {
         if (e == null)
             return false;
         DepMatrix deps = new DepMatrix(1, model.sv.size());
-        LTSminDMWalker.walkOneGuard(model, deps, e, 0);
+        LTSminDMWalker.walkOneGuard(model, deps, e, 0, mark);
         return rw.dependent(deps.getRow(0));
     }
 
-    public static boolean depCheck(LTSminModel model, Expression e,
-                                    DepRow rw) {
+    public static boolean depCheck(LTSminModel model, Expression e, RWDepRow rw) {
+		return depCheck(model, e, rw, MarkAction.READ);
+	}
+
+    public static boolean depCheck(LTSminModel model, Expression e, DepRow rw) {
+		return depCheck(model, e, rw, MarkAction.READ);
+	}
+    
+    public static boolean depCheck(LTSminModel model, Expression e, DepRow rw, MarkAction mark) {
         if (e == null)
             return false;
         DepMatrix deps = new DepMatrix(1, model.sv.size());
-        LTSminDMWalker.walkOneGuard(model, deps, e, 0);
+        LTSminDMWalker.walkOneGuard(model, deps, e, 0, mark);
         return rw.isDependent(deps.getRow(0));
     }
 }
