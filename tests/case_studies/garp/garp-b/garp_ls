@@ -10,11 +10,18 @@
 #include "llc1"
 #include "applicant"
 #include "registrar"
-byte pid;
+
+byte pid_;
+
+#define __instances_macuser1 1
+#define __instances_macuser2 1
+#define __instances_llc1 1
+#define __instances_applicant 2
+#define __instances_registrar 1
 
 init
 {	atomic {
-	  pid = (run macuser1(0));
+	  pid_ = (run macuser1(0));
 	  run macuser2(1);
 	  run applicant(0);
 	  run applicant(1);
@@ -29,10 +36,11 @@ init
 	 * To The Negated Formula !([](p-><>([]q)))
 	 * (formalizing violations of the original)
 	 */
-#define p	(macuser1[pid]@user1_end)
+#define p	(macuser1[pid_]@user1_end)
 #define q	(r_state != out_reg)
 
-never {    /* !([](p-><>([]q))) */
+/*
+never {    // !([](p-><>([]q))) 
 T0_init:
 	if
 	:: (1) -> goto T0_init
@@ -51,3 +59,5 @@ T0_S3:
 accept_all:
 	skip
 }
+
+*/

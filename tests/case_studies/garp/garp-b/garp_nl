@@ -36,7 +36,9 @@ init
 #define p	(macuser1[pid_]@user1_end)
 #define q	(r_state != out_reg)
 
-never {    /* !([](p-><>([]q))) */
+
+
+never {    // !([](p-><>([]q))) 
 T0_init:
 	if
 	:: (1) -> goto T0_init
@@ -55,3 +57,4 @@ T0_S3:
 accept_all:
 	skip
 }
+
