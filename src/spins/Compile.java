@@ -148,9 +148,6 @@ public class Compile {
 		final OptionParser parser = 
 			new OptionParser("java spins.Compiler", shortd, longd, true);
 
-		final BooleanOption nonever = new BooleanOption('n', "No never");
-		parser.addOption(nonever);
-
 		final StringOption define = new StringOption('D',
 			"sets preprocessor macro define value", true);
 		parser.addOption(define);
@@ -195,7 +192,11 @@ public class Compile {
 		final BooleanOption total = new BooleanOption('T',
 			"make next-state a total function\n");
 		parser.addOption(total);
-        
+
+		final BooleanOption useNever = new BooleanOption('N',
+			"Force use of never claim (slow; it is preferable to supply the LTL formula to LTSmin).\n");
+		parser.addOption(useNever);
+
         final BooleanOption preprocessor = new BooleanOption('I',
 			"prints output of preprocessor\n");
 		parser.addOption(preprocessor);
@@ -272,13 +273,18 @@ public class Compile {
 		}
 
         Options opts = new Options(verbose.isSet(), no_guards.isSet(),
-                must_write.isSet(), !no_cnf.isSet(),
-                nonever.isSet(), java.isSet(), no_atomic.isSet(), total.isSet());
+                					  must_write.isSet(), !no_cnf.isSet(),
+                					  java.isSet(), no_atomic.isSet(), total.isSet());
 
 		final Specification spec = 
 			Compile.compile(file, !optimalizations.isSet("3"), opts);
 
-        if (nonever.isSet()) spec.setNever(null);
+		if (!useNever.isSet() && spec.getNever() != null) {
+    			LTSminTreeWalker.NEVER = false;
+    			System.out.println("\nWARNING: Ignoring NEVER claim. Supply LTL formula to LTSmin or override with -N.\n\n");
+        		spec.setNever(null);
+        }
+
         if (spec == null) {
             System.exit(-4);
         }
@@ -347,9 +353,11 @@ public class Compile {
 										Expression progress) {
 		final File dotFile = new File(outputDir, name + ".spins.dot");
 
+		
 		LTSminTreeWalker walker = new LTSminTreeWalker(spec, ltsmin_ltl);
 		LTSminModel model = walker.createLTSminModel(name, opts,
 		                                             exports, progress);
+
 		String out = "digraph {\n";
 		for (LTSminTransition t : model.getTransitions()) {
 			String s[] = t.getName().split(" X ");

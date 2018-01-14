@@ -40,13 +40,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
-import java.util.Set;
 
 import spins.promela.compiler.Preprocessor;
 import spins.promela.compiler.Preprocessor.DefineMapping;
@@ -158,7 +156,7 @@ public class LTSminTreeWalker {
 	}
 
 	private final Specification spec;
-	static boolean NEVER;
+	public static boolean NEVER;
 	static boolean LTSMIN_LTL = false;
 
 	private LTSminDebug debug;
@@ -173,19 +171,17 @@ public class LTSminTreeWalker {
 
 	public static class Options {
 	    public Options(boolean verbose, boolean no_gm, boolean must_write,
-	                   boolean cnf, boolean nonever,
+	                   boolean cnf,
 	                   boolean unless_java_semantics, boolean no_atomic,
 	                   boolean total) {
 	        this.verbose = verbose;
 	        this.no_gm = no_gm;
 	        this.must_write = must_write;
 	        this.cnf = cnf;
-	        this.nonever = nonever;
 	        this.unless_java_semantics = unless_java_semantics;
 	        this.no_atomic = no_atomic;
 	        this.total = total;
         }
-	    public boolean nonever = false;
         public boolean verbose = false;
 	    public boolean no_gm = false;
 	    public boolean must_write = false;
@@ -206,7 +202,7 @@ public class LTSminTreeWalker {
                                          Expression progress) {
 		this.debug = new LTSminDebug(opts.verbose);
 		UNLESS_JAVA_SEMANTICS = opts.unless_java_semantics;
-
+		
         debug.say("Generating next-state function ...");
         debug.say_indent++;
         LTSminProgress report = new LTSminProgress(debug).startTimer();
@@ -485,7 +481,7 @@ public class LTSminTreeWalker {
 				id++;
 			}
 		}
-		if (null != spec.getNever()) {
+		if (NEVER) {
 			Proctype never = spec.getNever();
 			ProcInstance n = instantiate(never, -1, -1);
 			spec.setNever(n);
@@ -1249,7 +1245,7 @@ public class LTSminTreeWalker {
         }
         
         if (never_t.getTo().isInAtomic() || never_t.getFrom().isInAtomic())
-    		throw new AssertionError("Atomic in never claim not implemented");
+    			throw new AssertionError("Atomic in never claim not implemented");
 		lt.addGuard(pcGuard(never_t.getFrom(), spec.getNever()));
         createEnabledGuard(never_t, lt);
         lt.addAction(assign(spec.getNever().getPC(),
