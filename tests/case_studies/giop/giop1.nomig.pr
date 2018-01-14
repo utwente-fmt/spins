@@ -10,6 +10,11 @@
  * Copyright (C) 1998 by Moataz Kamel. All rights reserved.
  *****************************************************************************/
 
+      #define __instances_User 2
+      #define __instances_GIOPClient 1
+      #define __instances_Server 2
+      #define __instances_GIOPAgent 2
+
 #define CHANLEN			5	/* default channel length (5) */
 #define MAXREQID 		4	/* maximum number for request_id (4) */
 #define NUMOBJS			2	/* number of objects (2) */

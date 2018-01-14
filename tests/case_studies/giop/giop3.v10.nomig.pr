@@ -80,11 +80,8 @@ typedef MsgHeader {
 	byte request_id;	/* Request, Reply, CancelRequest, */
 				/* LocateRequest, LocateReply */
 	byte object_key;		/* Request, LocateRequest, */
-/*	bit  response_expected;		/* Request */
-/*	byte operation;			/* Request */
 	byte reply_status;		/* Reply */
 	byte forward_port;		/* Reply -- LOCATION_FORWARD address */
-/*	byte locate_status;		/* LocateReply */
 	byte tag;
 }
 
@@ -445,7 +442,7 @@ UserProcessed:
  *User7Processed1:	skip;
  *		:: else ->
  *		fi;
- *		/* end validation */
+ *		 end validation */
 
 		/* send the reply */
 		toAgentU[port]!SReply(objKey,opaqueData,opaqueData2)	
@@ -763,6 +760,13 @@ init
 
 }
 
-#include "never/v10.nomig.never"
+      #define __instances_User 2
+      #define __instances_GIOPClient 1
+      #define __instances_Server 2
+      #define __instances_GIOPAgent 2
+      #define __instances_transport 3
+
+/*#include "never/v10.nomig.never"
+*/
 
 /*=========================================================================*/

@@ -78,11 +78,8 @@ typedef MsgHeader {
 	byte request_id;	/* Request, Reply, CancelRequest, */
 				/* LocateRequest, LocateReply */
 	byte object_key;		/* Request, LocateRequest, */
-/*	bit  response_expected;		/* Request */
-/*	byte operation;			/* Request */
 	byte reply_status;		/* Reply */
 	byte forward_port;		/* Reply -- LOCATION_FORWARD address */
-/*	byte locate_status;		/* LocateReply */
 	byte tag;
 }
 
@@ -261,7 +258,7 @@ end: do
 			msg.mhdr.request_id = reqId;
 			msg.mhdr.object_key = objref.objKey;
 			msg.mhdr.tag = tag;
-			/* request_reqId = reqId; /* for validation */
+			/* request_reqId = reqId;  for validation */
 		}
 		/* send the request */
 		lout!Request(svrPort, msg);
@@ -292,7 +289,7 @@ CancelSent:
 		d_step {
 		reqId = msg.mhdr.request_id;
 		assert( usedReqId[reqId] != FREE );
-		/* reply_reqId = reqId; /* for validation */
+		/* reply_reqId = reqId;  for validation */
 		}
 ReplyRecvd:
 
@@ -491,7 +488,7 @@ RequestRcvd:
 
 			d_step{
 			connState = AGENT_CONNECTED;
-			/* srequest_reqId = reqId; /* for validation */
+			/* srequest_reqId = reqId;  for validation */
 			}
 
 			/* send server request */
@@ -502,7 +499,7 @@ SRequestSent:
 			requested[reqId] = INUSE;
 			numOutstandingReqs = numOutstandingReqs + 1;
 
-			/* srequested[reqId] = TRUE; /* for validation */
+			/* srequested[reqId] = TRUE;  for validation */
 			}
 
 
@@ -531,7 +528,7 @@ SRequestSent:
 			/* send the Reply */
 			lout!Reply(clPort,msg);	
 ReplySent1: 
-			/* numRepliesSent[port] = numRepliesSent[port] + 1; /* for validation */
+			/* numRepliesSent[port] = numRepliesSent[port] + 1;  for validation */
 			skip;
 		fi;
 
@@ -543,7 +540,7 @@ ReplySent1:
 		 * that was not outstanding, this should never happen */
 		assert(requested[reqId] != FREE);
 
-		/* sreply_reqId = reqId; /* for validation */
+		/* sreply_reqId = reqId;  for validation */
 SReplyReceived:
 
 		if
@@ -554,7 +551,7 @@ SReplyReceived:
 			requested[reqId] = FREE;
 			numOutstandingReqs = numOutstandingReqs - 1;
 
-			/* srequested[reqId] = FALSE;	/* for validation */
+			/* srequested[reqId] = FALSE;	 for validation */
 			}
 
 		:: (requested[reqId] == INUSE) ->	
@@ -570,8 +567,8 @@ ReplySent2:
 			requested[reqId] = FREE;
 			numOutstandingReqs = numOutstandingReqs - 1;
 
-			/* srequested[reqId] = FALSE;	/* for validation */
-			/* numRepliesSent[port] = numRepliesSent[port] + 1; /* for validation */
+			/* srequested[reqId] = FALSE;	for validation */
+			/* numRepliesSent[port] = numRepliesSent[port] + 1;  for validation */
 			}
 		fi;
 
@@ -588,8 +585,8 @@ ReplySent2:
 CloseConnectionSent:
 				d_step{
 				connState = AGENT_CLOSED;
-				/* numRequestsRcvd[port] = 0; /* for validation */
-				/* numRepliesSent[port] = 0; /* for validation */
+				/* numRequestsRcvd[port] = 0;  for validation */
+				/* numRepliesSent[port] = 0; for validation */
 				}
 
 			:: (connState != AGENT_CONNECTED) -> 
@@ -723,7 +720,6 @@ resume:
 /*--------------------------------------------------------------------------*/
 init
 {
-
 	/* create the processes from the bottom up */
 	atomic {
 		prid[0] = run transport(/*port*/ 0, toTransportU[0], toClientL );
@@ -741,22 +737,10 @@ init
 		prid[8] = run Server(/*port*/ 1, /*objkey*/ 0 );
 		prid[9] = run Server(/*port*/ 2, /*objkey*/ 1 );
 	}
-
 }
-
-
-/* #include "never/v3.never" */
-/* #include "never/v4_long.never" */
-/* #include "never/v4a.never" */
-/* #include "never/v4b.never" */
-/* #include "never/v5.never" */
-/* #include "never/v6a.never" */
-/* #include "never/v6b.never" */
-/* #include "never/v7.never" */
-/* #include "never/v8.never" */
-/* #include "never/v9a.never" */
-/* #include "never/v9b.never" */
-/* #include "never/v10.never" */
-
-/*=========================================================================*/
+      #define __instances_User 2
+      #define __instances_GIOPClient 1
+      #define __instances_Server 2
+      #define __instances_GIOPAgent 2
+      #define __instances_transport 3
 

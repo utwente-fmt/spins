@@ -25,6 +25,12 @@
 
 #define INVALID	255		/* set invalid data as garbage (i.e 255) */
 
+      #define __instances_User 2
+      #define __instances_GIOPClient 1
+      #define __instances_Server 2
+      #define __instances_GIOPAgent 2
+      #define __instances_transport 3
+
 
 typedef ObjRef {
 	byte objKey;

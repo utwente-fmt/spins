@@ -14,6 +14,13 @@
 /* Changed variable name pid to prid to avoid syntax error in SPIN V. 5 
  * Stefan Leue, 7.12.2008 */
 
+      #define __instances_User 5
+      #define __instances_GIOPClient 1
+      #define __instances_Server 2
+      #define __instances_GIOPAgent 2
+      #define __instances_transport 3
+
+
 #define CHANLEN			5	/* default channel length (5) */
 #define MAXREQID 		5	/* maximum number for request_id (4) */
 #define NUMOBJS			2	/* number of objects (2) */
@@ -90,11 +97,8 @@ typedef MsgHeader {
 	byte request_id;	/* Request, Reply, CancelRequest, */
 				/* LocateRequest, LocateReply */
 	byte object_key;		/* Request, LocateRequest, */
-/*	bit  response_expected;		/* Request */
-/*	byte operation;			/* Request */
 	byte reply_status;		/* Reply */
 	byte forward_port;		/* Reply -- LOCATION_FORWARD address */
-/*	byte locate_status;		/* LocateReply */
 }
 
 
@@ -364,8 +368,7 @@ Reply0Recvd:					skip
 
 
 /*		:: (cinfo[srcport].usedReqId[reqId] == CANCELLED) -> 
- *			/* request was previously cancelled, so just free the request_id */
-/*			d_step{
+			d_step{
  *			cinfo[srcport].usedReqId[reqId] = FREE;
  *			cinfo[srcport].tags[reqId] = INVALID;
  *			}
@@ -784,7 +787,7 @@ CloseConnectionSent:
 		}
 		
 	
-	/*:: lin?TAbortDisc-> /* need to cancel all outstanding requests */
+	/*:: lin?TAbortDisc->  need to cancel all outstanding requests */
 
 	od
 }
