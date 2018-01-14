@@ -140,6 +140,12 @@ public class Variable {
 
 	public Variable setAssignedTo() {
 		assignedTo = true;
+		if (type instanceof CustomVariableType) {
+			CustomVariableType cvt = (CustomVariableType) type;
+			for (Variable v : cvt.getVariableStore().getVariables()) {
+				v.setAssignedTo();
+			}
+		}
 		return this;
 	}
 	public boolean isNotAssignedTo() {

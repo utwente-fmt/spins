@@ -199,11 +199,11 @@ public class LTSminStateVector extends LTSminSubVectorStruct
 			lvar = new LTSminVariable(type, var, struct);
 		} else if (var.getType() instanceof VariableType) {
 	        try {
-	        	var.getConstantValue();
-	        	debug.say(MessageKind.DEBUG, var.getType().getName() +" "+ name +" --> SKIPPING CONSTANT");
-	        	return;
+		        	var.getConstantValue();
+		        	debug.say(MessageKind.DEBUG, var.getType().getName() +" "+ name +" --> SKIPPING CONSTANT");
+		        	return;
 	        } catch (ParseException pe) {
-	        	debug.say(MessageKind.DEBUG, var.getType().getName() +" "+ name);
+	        		debug.say(MessageKind.DEBUG, var.getType().getName() +" "+ name);
 	        }
 			lvar = new LTSminVariable(LTSminTypeNative.get(var), var, struct);
 		} else {

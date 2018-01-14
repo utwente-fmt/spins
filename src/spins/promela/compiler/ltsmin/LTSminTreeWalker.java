@@ -642,6 +642,10 @@ public class LTSminTreeWalker {
 			ChannelReadAction newcra = new ChannelReadAction(cra.getToken(), id, cra.isPoll(), cra.isRandom());
 			for (Expression e : cra.getExprs()) {
 				Expression newe = instantiate(e, p, true);
+				if (newe instanceof Identifier) {
+					Identifier newid = (Identifier) newe;
+					newid.getVariable().setAssignedTo();
+				}
 				newcra.addExpression(newe);
 			}
 			reads.add(new ReadAction(newcra, t, t.getProc()));
