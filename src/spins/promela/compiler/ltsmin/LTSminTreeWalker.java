@@ -91,6 +91,7 @@ import spins.promela.compiler.ltsmin.matrix.LTSminGuardAnd;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardBase;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardContainer;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardNand;
+import spins.promela.compiler.ltsmin.matrix.LTSminGuardNor;
 import spins.promela.compiler.ltsmin.matrix.LTSminGuardOr;
 import spins.promela.compiler.ltsmin.matrix.LTSminPCGuard;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
@@ -162,7 +163,7 @@ public class LTSminTreeWalker {
 
 	private LTSminDebug debug;
 
-	LTSminGuardAnd deadlock = new LTSminGuardAnd();
+	LTSminGuardNor deadlock = new LTSminGuardNor();
 
 	public LTSminTreeWalker(Specification spec, boolean ltsmin_ltl) {
 		this.spec = spec;
@@ -902,32 +903,18 @@ public class LTSminTreeWalker {
 			createCrossProduct(model, state, ns, -1);
 		}
 
-		Set<Expression> gexpr = new HashSet<Expression>();
-
 		boolean has_timeout = false;
 		for (LTSminTransition lt : model) {
-			LTSminGuardNand tg = new LTSminGuardNand();
-            for (LTSminGuardBase g : lt) {
-                if (g instanceof LTSminGuard) {
-                    Expression x = ((LTSminGuard)g).getExpr();
-                    if (x instanceof TimeoutExpression) {
-                        lt.setTimeout();
-                        has_timeout = true;
-                        break;
-                    }
-                }
+            if (lt.isTimeout()) {
+            		has_timeout = true;
+            		continue;
             }
-            if (lt.isTimeout()) continue;
 
+			LTSminGuardAnd tg = new LTSminGuardAnd();
 			for (LTSminGuardBase g : lt) {
-			    Expression x = g.getExpression();
-			    if (!gexpr.add(x)) {
-			        tg.guards.add(g);
-			    }
+		        tg.guards.add(g);
 			}
-			if (tg.guards.size() > 0) {
-			    deadlock.guards.add(tg);
-			}
+		    deadlock.guards.add(tg);
 		}
 		deadlock.setDeadlock();
 		timeout.setDeadlock(deadlock.getExpression());
@@ -995,16 +982,16 @@ public class LTSminTreeWalker {
 				// skip, a transition is created for the comm. partner
 			} else {
 				for (LTSminTransition lt : createStateTransition(out, nout)) {
-        			model.addTransition(lt);
-        			State to = out.getTo();
-                    LTSminState end = createCrossProduct(model, to, nto, alevel);
-        			annotate(lt, begin, end);
+	        			model.addTransition(lt);
+	        			State to = out.getTo();
+	                    LTSminState end = createCrossProduct(model, to, nto, alevel);
+	        			annotate(lt, begin, end);
 				}
 			}
 		}}
 
         for (LTSminTransition lt : begin.getOut()) {
-        	createUnlessGuards (lt);
+        		createUnlessGuards (lt);
         }
 
 		// update stack table
@@ -1128,25 +1115,21 @@ public class LTSminTreeWalker {
 
         for (int x = 0; x < (array == -1 || !SPLIT ? 1 : array) ; x++ ) {
         for (int y = 0; y < buffer; y++ ) {
-    		LTSminTransition lt = new LTSminTransition(t, n);
-    
-    		lt.addGuard(pcGuard(t.getFrom(), p)); // process counter
-
-    		if (multiple != null) {
-                int next = read ? y+1 : y;
-                lt.addGuard(chanContentsGuard(multiple, PromelaConstants.EQ, next));
-                if (array != -1) {
-                    lt.addGuard(compare(PromelaConstants.EQ,
-                                        multiple.getArrayExpr(), constant(x)));
-                }
-            }
-    		addSpecialGuards(lt, t, p); // proc die order && provided condition 
-    		createEnabledGuard(t, lt); // enabled action or else transition 
-
-    		if (lt.isNeverExecutable()) {
-    		    debug.say(MessageKind.NORMAL, "Removing dead transition "+ t +" of process "+ t.getProc());
-    		    continue; // skip dead transitions
-    		}
+	    		LTSminTransition lt = new LTSminTransition(t, n);
+	    
+	    		lt.addGuard(pcGuard(t.getFrom(), p)); // process counter
+	
+	    		if (multiple != null) {
+	                int next = read ? y+1 : y;
+	                lt.addGuard(chanContentsGuard(multiple, PromelaConstants.EQ, next));
+	                if (array != -1) {
+	                    lt.addGuard(compare(PromelaConstants.EQ,
+	                                        multiple.getArrayExpr(), constant(x)));
+	                }
+	            }
+	    		addSpecialGuards(lt, t, p); // proc die order && provided condition 
+	    		createEnabledGuard(t, lt); // enabled action or else transition 
+	
 
             if (addNever(lt, n)) {
                 list.add(lt);
@@ -1167,12 +1150,23 @@ public class LTSminTreeWalker {
                     if (aa.getExpr() instanceof RunExpression) {
                         lt.addAction(new ExprAction(aa.getExpr()));
                         aa.setExpr(calc(PromelaConstants.MINUS, newid(_NR_PR), constant(1)));
-                    }
+                    } 
+                }
+                if (action instanceof ExprAction) {
+                		ExprAction aa = (ExprAction)action;
+	                	if (aa.getExpression() instanceof TimeoutExpression) {
+	                		lt.setTimeout();
+	                }
                 }
                 lt.addAction(action);
             }
+
+			if (lt.isNeverExecutable()) {
+			    debug.say(MessageKind.NORMAL, "Removing dead transition "+ t +" of process "+ t.getProc());
+			    continue; // skip dead transitions
+			}
             
-    		list.add(lt);
+    			list.add(lt);
 		}}
 		
 		return list;
