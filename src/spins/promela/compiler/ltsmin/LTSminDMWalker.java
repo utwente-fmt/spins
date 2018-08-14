@@ -135,7 +135,7 @@ public class LTSminDMWalker {
         // extact guards
         generateTransitionGuardLabels (model, guardInfo, debug, opts);
 
-        // add the normal state labels
+        // add state labels
         // We extend the NES and NDS matrices to include all labels
         // The special labels, e.g. progress and valid end, can then be used in
         // LTL properties with precise (in)visibility information.

@@ -1,6 +1,7 @@
 package spins.promela.compiler.ltsmin;
 
 import static spins.promela.compiler.Specification._NR_PR;
+import static spins.promela.compiler.ltsmin.LTSminTreeWalker.createCustomIdentifiers;
 import static spins.promela.compiler.ltsmin.state.LTSminStateVector.C_STATE;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_BOOL;
 import static spins.promela.compiler.ltsmin.state.LTSminTypeNative.TYPE_INT16;
@@ -25,7 +26,6 @@ import static spins.promela.compiler.ltsmin.util.LTSminUtil.incr;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.not;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.print;
 import static spins.promela.compiler.ltsmin.util.LTSminUtil.printPC;
-import static spins.promela.compiler.ltsmin.LTSminTreeWalker.createCustomIdentifiers;
 import static spins.promela.compiler.parser.PromelaConstants.ASSIGN;
 import static spins.promela.compiler.parser.PromelaConstants.DECR;
 import static spins.promela.compiler.parser.PromelaConstants.FALSE;
@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import spins.promela.compiler.ProcInstance;
@@ -528,12 +529,18 @@ public class LTSminPrinter {
 		w.appendPostfix();
 		
 		List<Action> actions = t.getActions();
+		if (w.options.total)
+			w.appendLine("while (1) {").indent();
 		for(Action a: actions) {
 			try {
 				generateAction(w,a,model, t);
 			} catch (AssertionError ae) {
 				throw new AssertionError("Generating action failed for "+ a +"\n"+ ae);
 			}
+		}
+		if (w.options.total) {
+			w.appendLine("break;").outdent();
+			w.appendLine("}");
 		}
 		// No edge labels! They are discarded anyway!
 		w.appendLine("transition_info.group = "+ t.getGroup() +";");
@@ -668,12 +675,18 @@ public class LTSminPrinter {
                                         LTSminModel model) {
         w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
 		List<Action> actions = t.getActions();
+		if (w.options.total)
+			w.appendLine("while (1) {").indent();
 		for(Action a : actions) {
 			try {
 				generateAction(w, a, model, t);
 			} catch (AssertionError ae) {
 				throw ae;//new AssertionError("Generating action failed for "+ a +"\n"+ ae);
 			}
+		}
+		if (w.options.total) {
+			w.appendLine("break;").outdent();
+			w.appendLine("}");
 		}
 		if (t.isAtomic()) {
 		    printEdgeLabels (w, model, t);
@@ -790,14 +803,6 @@ public class LTSminPrinter {
         Expression expression = guard.getExpression();
         if (expression == null) return 0;
 
-        if (w.options.total) {
-    		StringWriter w2 = new StringWriter(w);
-    		generateMaybe(w2, expression, state);
-    		String maybe = w2.toString();
-    		if (maybe.length() != 0) {
-        		w.append("(false "+ maybe +") == 0 && ");
-        	}
-        }
         generateExpression(w, expression, state);
         return 1;
 	}
@@ -807,6 +812,10 @@ public class LTSminPrinter {
 		if(a instanceof AssignAction) { //TODO: assign + expr + runexp
 			AssignAction as = (AssignAction)a;
 			Identifier id = as.getIdentifier();
+
+			generateBoundsChecks(w, model, id);
+			if (as.getExpr() != null)
+				generateBoundsChecks(w, model, as.getExpr());
 			
 			switch (as.getToken().kind) {
 				case ASSIGN:
@@ -855,7 +864,6 @@ public class LTSminPrinter {
 				default:
 					throw new AssertionError("unknown assignment type");
 			}
-
 			copyAccess(model, w, id);
             
 		} else if(a instanceof ResetProcessAction) {
@@ -905,6 +913,9 @@ public class LTSminPrinter {
 			PrintAction pa = (PrintAction)a;
 			String string = pa.getString();
 			List<Expression> exprs = pa.getExprs();
+			for (final Expression expr : exprs) {
+				generateBoundsChecks(w, model, expr);
+			}
 			w.appendPrefix().append("//printf(").append(string);
 			for (final Expression expr : exprs) {
 				w.append(", ");
@@ -1003,6 +1014,16 @@ public class LTSminPrinter {
 				w.append("while ("+ var +") {").appendPostfix();
 				w.indent();
 			}
+			for (Sequence seq : oa) {
+				Action guardAction = seq.iterator().next();
+				LTSminGuardAnd ag = new LTSminGuardAnd();
+				try {
+                    LTSminTreeWalker.createEnabledGuard(guardAction, ag);
+                } catch (LTSminRendezVousException e) {
+                    throw new AssertionError(e);
+                }
+				generateBoundsChecks(w, model, ag.getExpression());
+			}
 			boolean first = true;
 			for (Sequence seq : oa) {
 				if (!first)
@@ -1036,12 +1057,13 @@ public class LTSminPrinter {
 				first = false;
 			}
 			if (oa.loops()) {
+				// end if:
 				w.appendLine("} else { assert(false, \"Blocking loop in d_step\"); }");
 				w.outdent();
-				w.appendLine("}");
+				w.appendLine("}");	// end while
 				extra_label++;
 			} else {
-				w.appendLine("}");
+				w.appendLine("}"); // end if
 			}
 		} else if(a instanceof BreakAction) {
 			// noop
@@ -1795,11 +1817,14 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static int generateBound(StringWriter w, Expression e, LTSminPointer state) {
+	private static int generateMaybe(StringWriter w, Expression e, LTSminPointer state) {
 		if (e == null) return 0;
+		
 		if (e instanceof LTSminIdentifier) {
 		} else if (e instanceof Identifier) {
 			Identifier id = (Identifier) e;
+			generateMaybe(w, id.getArrayExpr(), state);	
+			generateMaybe(w, id.getSub(), state);	
 			if (id.getArrayExpr() != null) {
 				w.append(" || ");
 				generateExpression(w, id.getArrayExpr(), state);
@@ -1814,113 +1839,14 @@ public class LTSminPrinter {
 			Expression ex1 = ae.getExpr1();
 			Expression ex2 = ae.getExpr2();
 			Expression ex3 = ae.getExpr3();
-			generateDiv(w,e, state);
-			generateMaybe(w, ex1, state);
-			generateMaybe(w, ex2, state);
-			generateMaybe(w,  ex3, state);
-		} else if (e instanceof BooleanExpression) {
-			BooleanExpression ae = (BooleanExpression) e;
-			Expression ex1 = ae.getExpr1();
-			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, ex1, state);
-			generateMaybe(w, ex2, state);
-		} else if (e instanceof CompareExpression) {
-			CompareExpression ae = (CompareExpression) e;
-			Expression ex1 = ae.getExpr1();
-			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, ex1, state);
-			generateMaybe(w, ex2, state);
-		} else if (e instanceof TranslatableExpression) {
-			TranslatableExpression te = (TranslatableExpression) e;
-			generateMaybe(w, te.translate(), state);
-		} else if (e instanceof ChannelReadExpression) {
-			ChannelReadExpression cre = (ChannelReadExpression) e;
-			for (Expression ex : cre.getExprs()) {
-				generateMaybe(w, ex, state);
-			}
-		} else if (e instanceof MTypeReference) {
-		} else if (e instanceof ConstantExpression) {
-		} else if (e instanceof RunExpression) {
-		} else if (e instanceof RemoteRef) {
-		} else if (e instanceof EvalExpression) {
-		} else if (e instanceof TimeoutExpression) {
-		} else if (e instanceof CompoundExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
-					+ e.getClass().getName());
-		} else {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
-					+ e.getClass().getName());
-		}
 
-		return 1;
-	}
-    
-	private static int generateDiv(StringWriter w, Expression e, LTSminPointer state) {
-		if (e == null) return 0;
-		if (e instanceof LTSminIdentifier) {
-		} else if (e instanceof Identifier) {
-			Identifier id = (Identifier) e;
-			generateMaybe(w, id.getArrayExpr(), state);
-			generateBound(w, id, state);
-		} else if (e instanceof AritmicExpression) {
-			AritmicExpression ae = (AritmicExpression) e;
-			Expression ex2 = ae.getExpr2();
-			if (ae.getToken().kind == PromelaConstants.DIVIDE || ae.getToken().kind == PromelaConstants.MODULO) {
+			if (ae.getToken().kind == PromelaConstants.DIVIDE ||
+					ae.getToken().kind == PromelaConstants.MODULO) {
 				w.append(" || ");
 				generateExpression(w, ex2, state);
 				w.append(" == 0");
 			}
-		} else if (e instanceof BooleanExpression) {
-			BooleanExpression ae = (BooleanExpression) e;
-			Expression ex1 = ae.getExpr1();
-			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, ex1, state);
-			generateMaybe(w, ex2, state);
-		} else if (e instanceof CompareExpression) {
-			CompareExpression ae = (CompareExpression) e;
-			Expression ex1 = ae.getExpr1();
-			Expression ex2 = ae.getExpr2();
-			generateMaybe(w, ex1, state);
-			generateMaybe(w, ex2, state);
-		} else if (e instanceof TranslatableExpression) {
-			TranslatableExpression te = (TranslatableExpression) e;
-			generateMaybe(w,te.translate(), state);
-		} else if (e instanceof ChannelReadExpression) {
-			ChannelReadExpression cre = (ChannelReadExpression) e;
-			for (Expression ex : cre.getExprs()) {
-				generateMaybe(w, ex, state);
-			}
-		} else if (e instanceof MTypeReference) {
-		} else if (e instanceof ConstantExpression) {
-		} else if (e instanceof RunExpression) {
-		} else if (e instanceof RemoteRef) {
-		} else if (e instanceof EvalExpression) {
-		} else if (e instanceof TimeoutExpression) {
-		} else if (e instanceof CompoundExpression) {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
-					+ e.getClass().getName());
-		} else {
-			throw new AssertionError("LTSMinPrinter: Not yet implemented: "
-					+ e.getClass().getName());
-		}
-
-		return 1;
-	}
-
-	private static int generateMaybe(StringWriter w, Expression e, LTSminPointer state) {
-		if (e == null) return 0;
-		
-		if (e instanceof LTSminIdentifier) {
-		} else if (e instanceof Identifier) {
-			Identifier id = (Identifier) e;
-			generateMaybe(w, id.getArrayExpr(), state);	
-			generateBound(w, id, state);		
-		} else if (e instanceof AritmicExpression) {
-			AritmicExpression ae = (AritmicExpression) e;
-			Expression ex1 = ae.getExpr1();
-			Expression ex2 = ae.getExpr2();
-			Expression ex3 = ae.getExpr3();
-			generateDiv(w,e, state);
+			
 			generateMaybe(w, ex1, state);
 			generateMaybe(w, ex2, state);
 			generateMaybe(w, ex3, state);
@@ -2172,6 +2098,22 @@ public class LTSminPrinter {
         generateExpression(w, gm.getLabel(g).getExpr(), in(model));
 		w.append(" != 0;");
 		w.appendPostfix();
+	}
+
+	private static void generateBoundsChecks(StringWriter w, LTSminModel model, Expression e) {
+		StringWriter w2 = new StringWriter(w.options);
+		generateMaybe(w2, e, out(model));
+		if (w2.length() > 0) {
+			if (w.options.total) {
+				w.appendPrefix();
+				w.append("if ( (0"+ w2.toString()+ ") ) break;");
+				w.appendPostfix();
+			} else {
+				w.appendPrefix();
+				w.append("assert( !("+ w2.toString() +") );");
+			    w.appendPostfix();
+			}
+		}
 	}
 
 	/**
