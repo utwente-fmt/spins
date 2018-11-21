@@ -1826,13 +1826,16 @@ public class LTSminPrinter {
 			generateMaybe(w, id.getArrayExpr(), state);	
 			generateMaybe(w, id.getSub(), state);	
 			if (id.getArrayExpr() != null) {
-				w.append(" || ");
+				if (w.options.total) {
+					w.append(" || ");
+				}
+
 				generateExpression(w, id.getArrayExpr(), state);
 				w.append(" < 0 || ");
 				generateExpression(w, id.getArrayExpr(), state);
 				w.append(String.format(" >= %d", id.getVariable().getArraySize()));
 			} else if (id.getVariable().getArrayIndex() != -1) {
-				w.append(String.format(" || %s < 0 || %s >= %d", id.getVariable().getArrayIndex(), id.getVariable().getArrayIndex(), id.getVariable().getArraySize()));				
+				w.append(String.format(" || %s < 0 || %s >= %d", id.getVariable().getArrayIndex(), id.getVariable().getArrayIndex(), id.getVariable().getArraySize()));
 			}
 		} else if (e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression) e;
@@ -2090,7 +2093,11 @@ public class LTSminPrinter {
 		String maybe = w2.toString();
 
 		if (maybe.length() != 0) {
-			w.append("(0");
+			if (w.options.total) {
+				w.append("(0");
+			} else {
+				w.append("(");
+			}
 			w.append(maybe);
 			w.append(") ? 2 :").appendLine();
 			w.appendPrefix().appendPrefix().appendPrefix();
