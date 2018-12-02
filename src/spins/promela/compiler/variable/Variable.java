@@ -154,7 +154,7 @@ public class Variable {
 
 	public int getConstantValue() throws ParseException {
 		if (assignedTo || getType() instanceof CustomVariableType || getType() instanceof ChannelType)
-			throw new ParseException("Variable "+ this +" is not a constant in process "+ owner);
+			throw Expression.pex;
 		if (initExpr == null) {
 			return 0;
 		} else {
