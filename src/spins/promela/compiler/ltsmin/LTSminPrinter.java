@@ -1819,20 +1819,20 @@ public class LTSminPrinter {
 
 	private static int generateMaybe(StringWriter w, Expression e, LTSminPointer state) {
 		if (e == null) return 0;
-		
 		if (e instanceof LTSminIdentifier) {
 		} else if (e instanceof Identifier) {
 			Identifier id = (Identifier) e;
-			generateMaybe(w, id.getArrayExpr(), state);	
+			generateMaybe(w, id.getArrayExpr(), state);
 			generateMaybe(w, id.getSub(), state);	
 			if (id.getArrayExpr() != null) {
 				w.append(" || ");
+
 				generateExpression(w, id.getArrayExpr(), state);
 				w.append(" < 0 || ");
 				generateExpression(w, id.getArrayExpr(), state);
 				w.append(String.format(" >= %d", id.getVariable().getArraySize()));
 			} else if (id.getVariable().getArrayIndex() != -1) {
-				w.append(String.format(" || %s < 0 || %s >= %d", id.getVariable().getArrayIndex(), id.getVariable().getArrayIndex(), id.getVariable().getArraySize()));				
+				w.append(String.format(" || %s < 0 || %s >= %d", id.getVariable().getArrayIndex(), id.getVariable().getArrayIndex(), id.getVariable().getArraySize()));
 			}
 		} else if (e instanceof AritmicExpression) {
 			AritmicExpression ae = (AritmicExpression) e;
@@ -2090,7 +2090,12 @@ public class LTSminPrinter {
 		String maybe = w2.toString();
 
 		if (maybe.length() != 0) {
-			w.append("(0");
+			if (w.options.total) {
+				w.append("(0");
+			} else {
+				w.append("(");
+				maybe = maybe.replaceFirst(" \\|\\|", "");
+			}
 			w.append(maybe);
 			w.append(") ? 2 :").appendLine();
 			w.appendPrefix().appendPrefix().appendPrefix();
@@ -2103,6 +2108,7 @@ public class LTSminPrinter {
 	private static void generateBoundsChecks(StringWriter w, LTSminModel model, Expression e) {
 		StringWriter w2 = new StringWriter(w.options);
 		generateMaybe(w2, e, out(model));
+
 		if (w2.length() > 0) {
 			if (w.options.total) {
 				w.appendPrefix();
@@ -2110,7 +2116,7 @@ public class LTSminPrinter {
 				w.appendPostfix();
 			} else {
 				w.appendPrefix();
-				w.append("assert( !("+ w2.toString() +") );");
+				w.append("assert( !("+ w2.toString().replaceFirst(" \\|\\|", "") +") );");
 			    w.appendPostfix();
 			}
 		}
