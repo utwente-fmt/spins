@@ -96,7 +96,7 @@ function compile {
     PINS="models-$EXP/$FILE.spins"
     if [ ! -e "$PINS" ]; then
         cd "models-$EXP"
-        "$SPINS" $5 "$CASESTUDIES/$DIR/$FILE" > "$FILE.out"
+        "$SPINS" -N $5 "$CASESTUDIES/$DIR/$FILE" > "$FILE.out"
         cd ..
     fi
 }
