@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import spins.promela.compiler.ProcInstance;
@@ -1226,11 +1225,12 @@ public class LTSminPrinter {
         w.appendPostfix();
     }
 
-	private static String generateExpression(LTSminModel model, Expression e) {
-		StringWriter w2 = new StringWriter();
+
+	static StringWriter w2 = new StringWriter();
+	public static String generateExpression(LTSminModel model, Expression e) {
+		w2.clear();
 		generateExpression(w2, e, out(model));
-		String expression = w2.toString();
-		return expression;
+		return w2.toString();
 	}
 
 	public static class ExprPrinter {
@@ -1243,9 +1243,11 @@ public class LTSminPrinter {
 			if (null == e)
 				return null;
 			if (e instanceof LTSminIdentifier) {
-				StringWriter w = new StringWriter();
-				generateExpression(w, e, start);
-				return w.toString();
+				LTSminIdentifier id = (LTSminIdentifier)e;
+				if (id.isPointer())
+					return "*"+ id.getVariable().getName();
+				else
+					return id.getVariable().getName();
 			} else if (e instanceof Identifier) {
 				Identifier id = (Identifier)e;
 				try {
@@ -1928,10 +1930,11 @@ public class LTSminPrinter {
         w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label: invalid state label index %d\", g);");
         w.appendLine("switch(g) {");
         w.indent();
+		StringWriter w2 = new StringWriter(w);
         for (int g = 0; g < gm.getNumberOfGuards(); ++g) {
             w.appendPrefix();
             w.append("case ").append(g).append(": return ");
-            generateMaybeGuardText(w, model, g);
+            generateMaybeGuardText(w, w2, model, g);
         }
         for (int g = gm.getNumberOfGuards(); g < gm.getNumberOfLabels(); ++g) {
             w.appendPrefix();
@@ -1970,7 +1973,7 @@ public class LTSminPrinter {
         for (int g = 0; g < gm.getNumberOfGuards(); ++g) {
             w.appendPrefix();
             w.append("label[").append(g).append("] = ");
-            generateMaybeGuardText(w, model, g);
+            generateMaybeGuardText(w, w2, model, g);
         }
         w.appendLine("if (guards_only) return;");
         for (int g = gm.getNumberOfGuards(); g < gm.getNumberOfLabels(); ++g) {
@@ -2082,10 +2085,10 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static void generateMaybeGuardText(StringWriter w, LTSminModel model, int g) {
+	private static void generateMaybeGuardText(StringWriter w, StringWriter w2, LTSminModel model, int g) {
 		GuardInfo gm = model.getGuardInfo();
-		StringWriter w2 = new StringWriter(w);
 		
+		w2.clear();
 		generateMaybe(w2, gm.getLabel(g).getExpr(), in(model));
 		String maybe = w2.toString();
 
