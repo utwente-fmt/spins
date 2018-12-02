@@ -14,13 +14,15 @@
 
 package spins.promela.compiler.parser;
 
-public class MyParseException extends ParseException {
+public class StaticException extends ParseException {
 	private static final long serialVersionUID = 2026932200848510897L;
 
-	public MyParseException(String message, Token token) {
-        super(String.format("(@%d:%d) %s", 
-        	  token==null ? -1 : token.beginLine,
-        	  token==null ? -1 : token.beginColumn,
-              message));
-    }
+	Token t;
+	
+	public StaticException() {}
+	
+	public StaticException update(Token t) {
+		this.t = t;
+		return this;
+	}
 }

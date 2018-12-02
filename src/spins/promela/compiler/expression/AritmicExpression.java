@@ -143,7 +143,7 @@ public class AritmicExpression extends NAryExpression {
 			}
 		} catch (ParseException pe ) {
 			if (null == ex2 || PromelaConstants.RARROW == getToken().kind) {
-				throw new ParseException();
+				throw pex;
 			}
 			int rhs = ex2.getConstantValue();
 			switch (getToken().kind) {

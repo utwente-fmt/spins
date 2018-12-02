@@ -17,7 +17,6 @@ package spins.promela.compiler.expression;
 import java.util.HashSet;
 import java.util.Set;
 
-import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
 import spins.promela.compiler.variable.VariableAccess;
 import spins.promela.compiler.variable.VariableType;
@@ -33,11 +32,6 @@ public class TimeoutExpression extends Expression {
 	@Override
 	public String getBoolExpression() {
 		return "_timeout";
-	}
-
-	@Override
-	public int getConstantValue() throws ParseException {
-		throw new ParseException();
 	}
 
 	@Override

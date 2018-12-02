@@ -100,7 +100,7 @@ public class CompareExpression extends NAryExpression {
 			case PromelaConstants.NEQ:
 				return ex1.getConstantValue() != ex2.getConstantValue() ? 1 : 0;
 		}
-		throw new MyParseException("Unimplemented compare type: " + getToken().image, getToken());
+		throw pex;
 	}
 
 	@Override

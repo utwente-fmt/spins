@@ -16,8 +16,8 @@ package spins.promela.compiler.expression;
 
 import java.util.Set;
 
-import spins.promela.compiler.parser.MyParseException;
 import spins.promela.compiler.parser.ParseException;
+import spins.promela.compiler.parser.StaticException;
 import spins.promela.compiler.parser.Token;
 import spins.promela.compiler.variable.VariableAccess;
 import spins.promela.compiler.variable.VariableType;
@@ -31,6 +31,8 @@ import spins.promela.compiler.variable.VariableType;
 public abstract class Expression {
 	private final Token token;
 
+	public static StaticException pex = new StaticException();
+	
 	/**
 	 * Creates a new Expression using the specified token.
 	 * 
@@ -67,9 +69,7 @@ public abstract class Expression {
 	 *             When it can not determine what the constant value is.
 	 */
 	public int getConstantValue() throws ParseException {
-	    if (token == null)
-	        throw new ParseException("Constant value not be determened on compile-time."+ this);
-		throw new MyParseException("Constant value not be determened on compile-time.", getToken());
+		throw pex;
 	}
 
 	/**

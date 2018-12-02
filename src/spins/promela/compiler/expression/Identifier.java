@@ -19,6 +19,10 @@ import static spins.promela.compiler.parser.Promela.C_STATE_PROC_COUNTER;
 import java.util.HashSet;
 import java.util.Set;
 
+import spins.promela.compiler.ltsmin.LTSminPrinter;
+import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
+import spins.promela.compiler.ltsmin.model.LTSminModel;
+import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.Token;
 import spins.promela.compiler.variable.Variable;
@@ -249,4 +253,16 @@ public class Identifier extends Expression {
 	public void setArrayIndex(Expression e) {
 		arrayExpr = e;
 	}
+	
+    public String ref = null;
+
+    public String getRef(LTSminModel model) {
+        if (null!= ref)
+            return ref;
+        LTSminPointer svp = new LTSminPointer(model.sv, "");
+        ExprPrinter p = new ExprPrinter(svp);
+        ref = p.print(this);
+        assert (!ref.equals(LTSminPrinter.SCRATCH_VARIABLE)); // write-only
+        return ref;
+    }
 }

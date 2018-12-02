@@ -101,7 +101,7 @@ public class BooleanExpression extends NAryExpression {
 			case PromelaConstants.LAND:
 				return (ex1.getConstantValue() != 0) && (ex2.getConstantValue() != 0) ? 1 : 0;
 		}
-		throw new MyParseException("Unimplemented aritmic type: " + getToken().image, getToken());
+		throw pex;
 	}
 
 	@Override
