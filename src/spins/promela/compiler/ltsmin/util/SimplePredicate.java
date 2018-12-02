@@ -49,16 +49,13 @@ import spins.promela.compiler.expression.RemoteRef;
 import spins.promela.compiler.expression.RunExpression;
 import spins.promela.compiler.expression.TranslatableExpression;
 import spins.promela.compiler.ltsmin.LTSminDMWalker;
-import spins.promela.compiler.ltsmin.LTSminPrinter;
 import spins.promela.compiler.ltsmin.LTSminDMWalker.MarkAction;
-import spins.promela.compiler.ltsmin.LTSminPrinter.ExprPrinter;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix;
 import spins.promela.compiler.ltsmin.matrix.DepMatrix.DepRow;
 import spins.promela.compiler.ltsmin.matrix.RWMatrix.RWDepRow;
 import spins.promela.compiler.ltsmin.model.LTSminIdentifier;
 import spins.promela.compiler.ltsmin.model.LTSminModel;
 import spins.promela.compiler.ltsmin.model.ResetProcessAction;
-import spins.promela.compiler.ltsmin.state.LTSminPointer;
 import spins.promela.compiler.parser.ParseException;
 import spins.promela.compiler.parser.PromelaTokenManager;
 import spins.promela.compiler.variable.ChannelType;
@@ -76,18 +73,12 @@ public class SimplePredicate {
     public Expression e;
     public int comparison;
     public Identifier id;
-    public String ref = null;
     public int constant;
 
     public String getRef(LTSminModel model) {
-        if (null!= ref)
-            return ref;
-        LTSminPointer svp = new LTSminPointer(model.sv, "");
-        ExprPrinter p = new ExprPrinter(svp);
-        ref = p.print(id);
-        assert (!ref.equals(LTSminPrinter.SCRATCH_VARIABLE)); // write-only
-        return ref;
+        return id.getRef(model);
     }
+    
     public String toString() {
         String comp = tokenImage[comparison].replace('"', ' ');
         return id + comp + constant;
