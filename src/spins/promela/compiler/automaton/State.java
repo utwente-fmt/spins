@@ -167,6 +167,8 @@ public class State {
         }
 	}
 
+	boolean end, accept, progress;
+	
 	/**
 	 * Returns true when this state is an ending state. A {@link State} is an ending state when
 	 * either it has one or more {@link EndTransition} or {@link NeverEndTransition} going out of
@@ -174,12 +176,7 @@ public class State {
 	 * @return true when this state is an ending state.
 	 */
 	public boolean isEndingState() {
-		for (Transition trans : out) {
-			if (trans instanceof EndTransition ||
-				null == trans.getTo())
-				return true;
-		}
-		return hasLabelPrefix(LABEL_END);
+		return end;
 	}
 
 	/**
@@ -188,7 +185,7 @@ public class State {
 	 * @return true when this state is and acceptance state.
 	 */
 	public boolean isAcceptState() {
-		return hasLabelPrefix(LABEL_ACCEPT);
+		return accept;
 	}
 
 	/**
@@ -197,7 +194,30 @@ public class State {
 	 * @return true when this state is and progress state.
 	 */
 	public boolean isProgressState() {
+		return progress;
+	}
+
+	private boolean checkEndingState() {
+		for (Transition trans : out) {
+			if (trans instanceof EndTransition ||
+				null == trans.getTo())
+				return true;
+		}
+		return hasLabelPrefix(LABEL_END);
+	}
+
+	private boolean checkAcceptState() {
+		return hasLabelPrefix(LABEL_ACCEPT);
+	}
+	
+	private boolean checkProgressState() {
 		return hasLabelPrefix(LABEL_PROGRESS);
+	}
+
+	public void finalize() {
+		end = checkEndingState();
+		progress = checkProgressState();
+		accept = checkAcceptState();
 	}
 
 	/**
@@ -383,4 +403,8 @@ public class State {
     public int nextUnless() {
         return unlesses++;
     }
+
+	public int unlesses() {
+		return unlesses;
+	}
 }

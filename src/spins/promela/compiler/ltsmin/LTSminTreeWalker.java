@@ -210,6 +210,10 @@ public class LTSminTreeWalker {
 		instantiate();
 		bindByReferenceCalls();
 
+		for (ProcInstance p : spec) {
+			p.getAutomaton().finalize();
+		}
+		
         LTSminModel model = new LTSminModel(name, spec);
 		createModelTransitions(model);
 		createModelAssertions(model);
@@ -505,10 +509,9 @@ public class LTSminTreeWalker {
 		instance.setEnabler(e);
 		for (Variable var : p.getVariables()) {
 			Variable newvar = instantiate(var, instance);
-			if (newvar.getName().equals(Promela.C_STATE_PROC_COUNTER))
-				newvar.setAssignedTo(); // Process counter is always assigned to
 			instance.addVariable(newvar, p.getArguments().contains(var));
 		}
+		instance.getPC().setAssignedTo();
 		instance.lastArgument();
 		HashMap<State, State> seen = new HashMap<State, State>();
 		instantiate(p.getStartState(), instance.getStartState(), seen, instance);
@@ -986,9 +989,11 @@ public class LTSminTreeWalker {
 			}
 		}}
 
-        for (LTSminTransition lt : begin.getOut()) {
-        		createUnlessGuards (lt);
-        }
+		if (state.unlesses() > 0) {  
+	        for (LTSminTransition lt : begin.getOut()) {
+	    		createUnlessGuards (lt);
+	        }
+		}
 
 		// update stack table
 		removeSearchStack (begin);
@@ -1077,11 +1082,11 @@ public class LTSminTreeWalker {
     private List<LTSminTransition> createStateTransition(Transition t,
 	                                                     Transition n) {
 		++debug.say_indent;
-		if(n!=null) {
-			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName() + " || " + n.getClass().getName());
-		} else {
-			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName());
-		}
+//		if(n!=null) {
+//			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName() + " || " + n.getClass().getName());
+//		} else {
+//			debug.say(MessageKind.DEBUG, "Handling trans: " + t.getClass().getName());
+//		}
 		--debug.say_indent;
 
         LinkedList<LTSminTransition> list = new LinkedList<LTSminTransition>();      
@@ -1162,7 +1167,7 @@ public class LTSminTreeWalker {
 			    continue; // skip dead transitions
 			}
             
-    			list.add(lt);
+			list.add(lt);
 		}}
 		
 		return list;

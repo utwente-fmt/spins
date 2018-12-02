@@ -155,10 +155,17 @@ public class Automaton implements Iterable<State> {
 	    		Transition n = t.duplicateFrom(s);
 	    		n.setUnlessPriority(priority);
 	    	}
+	    	s.nextUnless();
 	    }
     	escape.delete();
 	}
-	
+
+	public void finalize() {
+	    for (State s : this) {
+	    	s.finalize();
+	    }
+	}
+
 	/**
 	 * @return The number of states that are reachable from the current starting state.
 	 */
