@@ -55,147 +55,149 @@ public interface PromelaConstants {
   /** RegularExpression Id. */
   int EVAL = 22;
   /** RegularExpression Id. */
-  int IF = 23;
+  int FOR = 23;
   /** RegularExpression Id. */
-  int FI = 24;
+  int IF = 24;
   /** RegularExpression Id. */
-  int DO = 25;
+  int FI = 25;
   /** RegularExpression Id. */
-  int OD = 26;
+  int DO = 26;
   /** RegularExpression Id. */
-  int ATOMIC = 27;
+  int OD = 27;
   /** RegularExpression Id. */
-  int D_STEP = 28;
+  int ATOMIC = 28;
   /** RegularExpression Id. */
-  int ELSE = 29;
+  int D_STEP = 29;
   /** RegularExpression Id. */
-  int BREAK = 30;
+  int ELSE = 30;
   /** RegularExpression Id. */
-  int GOTO = 31;
+  int BREAK = 31;
   /** RegularExpression Id. */
-  int PRINT = 32;
+  int GOTO = 32;
   /** RegularExpression Id. */
-  int ASSERT = 33;
+  int PRINT = 33;
   /** RegularExpression Id. */
-  int LEN = 34;
+  int ASSERT = 34;
   /** RegularExpression Id. */
-  int TIMEOUT = 35;
+  int LEN = 35;
   /** RegularExpression Id. */
-  int NP_ = 36;
+  int TIMEOUT = 36;
   /** RegularExpression Id. */
-  int ENABLED = 37;
+  int NP_ = 37;
   /** RegularExpression Id. */
-  int PC_VALUE = 38;
+  int ENABLED = 38;
   /** RegularExpression Id. */
-  int RUN = 39;
+  int PC_VALUE = 39;
   /** RegularExpression Id. */
-  int FULL = 40;
+  int RUN = 40;
   /** RegularExpression Id. */
-  int EMPTY = 41;
+  int FULL = 41;
   /** RegularExpression Id. */
-  int NFULL = 42;
+  int EMPTY = 42;
   /** RegularExpression Id. */
-  int NEMPTY = 43;
+  int NFULL = 43;
   /** RegularExpression Id. */
-  int TRUE = 44;
+  int NEMPTY = 44;
   /** RegularExpression Id. */
-  int FALSE = 45;
+  int TRUE = 45;
   /** RegularExpression Id. */
-  int SKIP_ = 46;
+  int FALSE = 46;
   /** RegularExpression Id. */
-  int UNLESS = 47;
+  int SKIP_ = 47;
   /** RegularExpression Id. */
-  int VAR_PID = 48;
+  int UNLESS = 48;
   /** RegularExpression Id. */
-  int VAR_NR_PR = 49;
+  int VAR_PID = 49;
   /** RegularExpression Id. */
-  int LCURLY = 50;
+  int VAR_NR_PR = 50;
   /** RegularExpression Id. */
-  int RCURLY = 51;
+  int LCURLY = 51;
   /** RegularExpression Id. */
-  int ASSIGN = 52;
+  int RCURLY = 52;
   /** RegularExpression Id. */
-  int LPAREN = 53;
+  int ASSIGN = 53;
   /** RegularExpression Id. */
-  int RPAREN = 54;
+  int LPAREN = 54;
   /** RegularExpression Id. */
-  int LBRACK = 55;
+  int RPAREN = 55;
   /** RegularExpression Id. */
-  int RBRACK = 56;
+  int LBRACK = 56;
   /** RegularExpression Id. */
-  int OPTION = 57;
+  int RBRACK = 57;
   /** RegularExpression Id. */
-  int COLON = 58;
+  int OPTION = 58;
   /** RegularExpression Id. */
-  int SEMICOLON = 59;
+  int COLON = 59;
   /** RegularExpression Id. */
-  int COMMA = 60;
+  int SEMICOLON = 60;
   /** RegularExpression Id. */
-  int RARROW = 61;
+  int COMMA = 61;
   /** RegularExpression Id. */
-  int CH_SEND_SORTED = 62;
+  int RARROW = 62;
   /** RegularExpression Id. */
-  int CH_READ = 63;
+  int CH_SEND_SORTED = 63;
   /** RegularExpression Id. */
-  int CH_READ_RAND = 64;
+  int CH_READ = 64;
   /** RegularExpression Id. */
-  int AT = 65;
+  int CH_READ_RAND = 65;
   /** RegularExpression Id. */
-  int BNOT = 66;
+  int AT = 66;
   /** RegularExpression Id. */
-  int LNOT = 67;
+  int BNOT = 67;
   /** RegularExpression Id. */
-  int MINUS = 68;
+  int LNOT = 68;
   /** RegularExpression Id. */
-  int TIMES = 69;
+  int MINUS = 69;
   /** RegularExpression Id. */
-  int DIVIDE = 70;
+  int TIMES = 70;
   /** RegularExpression Id. */
-  int MODULO = 71;
+  int DIVIDE = 71;
   /** RegularExpression Id. */
-  int PLUS = 72;
+  int MODULO = 72;
   /** RegularExpression Id. */
-  int LSHIFT = 73;
+  int PLUS = 73;
   /** RegularExpression Id. */
-  int RSHIFT = 74;
+  int LSHIFT = 74;
   /** RegularExpression Id. */
-  int LT = 75;
+  int RSHIFT = 75;
   /** RegularExpression Id. */
-  int LTE = 76;
+  int LT = 76;
   /** RegularExpression Id. */
-  int GT = 77;
+  int LTE = 77;
   /** RegularExpression Id. */
-  int GTE = 78;
+  int GT = 78;
   /** RegularExpression Id. */
-  int EQ = 79;
+  int GTE = 79;
   /** RegularExpression Id. */
-  int NEQ = 80;
+  int EQ = 80;
   /** RegularExpression Id. */
-  int BAND = 81;
+  int NEQ = 81;
   /** RegularExpression Id. */
-  int XOR = 82;
+  int BAND = 82;
   /** RegularExpression Id. */
-  int BOR = 83;
+  int XOR = 83;
   /** RegularExpression Id. */
-  int LAND = 84;
+  int BOR = 84;
   /** RegularExpression Id. */
-  int LOR = 85;
+  int LAND = 85;
   /** RegularExpression Id. */
-  int INCR = 86;
+  int LOR = 86;
   /** RegularExpression Id. */
-  int DECR = 87;
+  int INCR = 87;
   /** RegularExpression Id. */
-  int DOT = 88;
+  int DECR = 88;
   /** RegularExpression Id. */
-  int IDENTIFIER = 98;
+  int DOT = 89;
   /** RegularExpression Id. */
-  int NUMBER = 99;
+  int IDENTIFIER = 99;
   /** RegularExpression Id. */
-  int DEFINE = 188;
+  int NUMBER = 100;
   /** RegularExpression Id. */
-  int PARAM = 193;
+  int DEFINE = 189;
   /** RegularExpression Id. */
-  int STRING = 215;
+  int PARAM = 194;
+  /** RegularExpression Id. */
+  int STRING = 216;
 
   /** Lexical state. */
   int DEFAULT = 0;
@@ -277,6 +279,7 @@ public interface PromelaConstants {
     "\"xs\"",
     "\"of\"",
     "\"eval\"",
+    "\"for\"",
     "\"if\"",
     "\"fi\"",
     "\"do\"",
@@ -348,10 +351,10 @@ public interface PromelaConstants {
     "\"ndef\"",
     "\"(\"",
     "\" \"",
-    "<token of kind 94>",
+    "<token of kind 95>",
     "\"(\"",
     "\" \"",
-    "<token of kind 97>",
+    "<token of kind 98>",
     "<IDENTIFIER>",
     "<NUMBER>",
     "\" \"",
@@ -371,63 +374,63 @@ public interface PromelaConstants {
     "\"#define\"",
     "\"#include\"",
     "\"#\"",
-    "<token of kind 117>",
+    "<token of kind 118>",
     "\"\\\\\\n\"",
     "\"\\\\\\r\"",
     "\"\\\\\\r\\n\"",
-    "<token of kind 121>",
     "<token of kind 122>",
     "<token of kind 123>",
     "<token of kind 124>",
     "<token of kind 125>",
     "<token of kind 126>",
+    "<token of kind 127>",
     "\"#else\"",
     "\"#elif\"",
     "\"#endif\"",
-    "<token of kind 130>",
     "<token of kind 131>",
+    "<token of kind 132>",
     "\"\\\\\\n\"",
     "\"\\\\\\r\"",
     "\"\\\\\\r\\n\"",
-    "<token of kind 135>",
     "<token of kind 136>",
+    "<token of kind 137>",
     "\"\\\\\\n\"",
     "\"\\\\\\r\"",
     "\"\\\\\\r\\n\"",
-    "<token of kind 140>",
     "<token of kind 141>",
+    "<token of kind 142>",
     "\"\\\\\\n\"",
     "\"\\\\\\r\"",
     "\"\\\\\\r\\n\"",
-    "<token of kind 145>",
+    "<token of kind 146>",
     "\" \"",
     "\"\\t\"",
     "\"\\n\"",
     "\"\\r\"",
     "\"\\r\\n\"",
-    "<token of kind 151>",
+    "<token of kind 152>",
     "\" \"",
     "\"\\t\"",
     "\"\\n\"",
     "\"\\r\"",
     "\"\\r\\n\"",
     "\"(\"",
-    "<token of kind 158>",
+    "<token of kind 159>",
     "\" \"",
     "\"\\t\"",
     "\"\\n\"",
     "\"\\r\"",
     "\"\\r\\n\"",
-    "<token of kind 164>",
+    "<token of kind 165>",
     "\")\"",
-    "<token of kind 166>",
+    "<token of kind 167>",
     "\" \"",
     "\"\\t\"",
     "\"\\n\"",
     "\"\\r\"",
     "\"\\r\\n\"",
-    "<token of kind 172>",
     "<token of kind 173>",
+    "<token of kind 174>",
     "\" \"",
     "\"\\t\"",
     "\"\\n\"",
@@ -435,40 +438,40 @@ public interface PromelaConstants {
     "\"\\r\\n\"",
     "\",\"",
     "\")\"",
-    "<token of kind 181>",
     "<token of kind 182>",
+    "<token of kind 183>",
     "\"{\"",
     "\"{\"",
     "\"}\"",
-    "<token of kind 186>",
     "<token of kind 187>",
+    "<token of kind 188>",
     "<DEFINE>",
-    "<token of kind 189>",
+    "<token of kind 190>",
     "\"(\"",
-    "<token of kind 191>",
     "<token of kind 192>",
+    "<token of kind 193>",
     "<PARAM>",
-    "<token of kind 194>",
     "<token of kind 195>",
+    "<token of kind 196>",
     "\",\"",
     "\")\"",
-    "<token of kind 198>",
     "<token of kind 199>",
+    "<token of kind 200>",
     "\"\\\\\\n\"",
     "\"\\\\\\r\"",
     "\"\\\\\\r\\n\"",
-    "<token of kind 203>",
     "<token of kind 204>",
+    "<token of kind 205>",
     "\"\\\"\"",
     "\"\\\"\"",
-    "<token of kind 207>",
     "<token of kind 208>",
     "<token of kind 209>",
+    "<token of kind 210>",
     "\"/*\"",
-    "<token of kind 211>",
+    "<token of kind 212>",
     "\"*/\"",
     "\"\\\"\"",
-    "<token of kind 214>",
+    "<token of kind 215>",
     "\"\\\"\"",
   };
 

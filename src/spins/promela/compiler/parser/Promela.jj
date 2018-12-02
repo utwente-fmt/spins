@@ -28,6 +28,9 @@ import spins.promela.compiler.variable.*;
 import spins.promela.compiler.actions.*;
 import java.io.*;
 import java.util.*;
+import static spins.promela.compiler.ltsmin.util.LTSminUtil.*;
+import spins.promela.compiler.ltsmin.util.LTSminUtil;
+import static spins.promela.compiler.parser.PromelaConstants.*;
 
 public class Promela {
 	public static final String C_STATE_PROC_COUNTER = "_pc";
@@ -99,7 +102,7 @@ public class Promela {
 	public void addPC(Proctype p) {
 		Variable pc = new Variable(C_TYPE_PROC_COUNTER, C_STATE_PROC_COUNTER, -1, p);
 		int initial_pc = (p.getNrActive() == 0 && !p.getName().equals("never") ? -1 : 0);
-		try { pc.setInitExpr(new ConstantExpression(new Token(PromelaConstants.NUMBER, ""+initial_pc), initial_pc));
+		try { pc.setInitExpr(new ConstantExpression(new Token(NUMBER, ""+initial_pc), initial_pc));
 		} catch (ParseException e) { assert (false); }
 		p.addVariable(pc, false);
 	}
@@ -132,6 +135,7 @@ TOKEN : {	/* Keywords */
 |	<XS: "xs">
 |	<OF: "of">
 |	<EVAL: "eval">
+|   <FOR: "for">
 |	<IF: "if">
 |	<FI: "fi">
 |	<DO: "do">
@@ -270,7 +274,7 @@ SKIP : {
         String defined = image.toString().trim();
 		while (0 != Preprocessor.level) {
 			Preprocessor.level--;
-			if (PromelaConstants.RPAREN != getNextToken().kind)
+			if (RPAREN != getNextToken().kind)
 				throw new AssertionError("Missing closing parenthesis after defined.");
 		}
 		// reinitialize input_stream
@@ -297,7 +301,7 @@ SKIP : {
         defined = image.toString().trim();
         while (0 != Preprocessor.level) {
             Preprocessor.level--;
-            if (PromelaConstants.RPAREN != getNextToken().kind)
+            if (RPAREN != getNextToken().kind)
                 throw new AssertionError("Missing closing parenthesis after defined.");
         }
         // reinitialize input_stream
@@ -328,8 +332,8 @@ loop:           while (true) {
                     Token next = getNextToken();
                     text += next.image;
                     switch (next.kind) {
-                    case PromelaConstants.LPAREN: level++; break;
-                    case PromelaConstants.RPAREN: level--; if (0 == level) break loop;
+                    case LPAREN: level++; break;
+                    case RPAREN: level--; if (0 == level) break loop;
                     }
                 }
                 text = text.substring(1, text.length()-1); // delete parentheses
@@ -380,10 +384,10 @@ SKIP : { // Skip whitespace and comments
         if (null == b) {
             throw new AssertionError("Spurious null in #if");
         } else if (true == b.booleanValue()) {
-            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // if was true, ignore else
+            SwitchTo(PREPROCESSOR_SKIP); // if was true, ignore else
         } else {
         	throw new AssertionError("Spurious false in DEFAULT else");
-            //SwitchTo(PromelaConstants.DEFAULT); // if was false, parse else
+            //SwitchTo(DEFAULT); // if was false, parse else
         }
     }
 |   "#elif"
@@ -393,7 +397,7 @@ SKIP : { // Skip whitespace and comments
         if (null == b3) {
             throw new AssertionError("Spurious null in DEFAULT #elif");
         } else if (true == b3.booleanValue()) {
-            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // if was true, ignore else
+            SwitchTo(PREPROCESSOR_SKIP); // if was true, ignore else
         } else {
         	throw new AssertionError("Unexpected false else in DEFAULT");
         }
@@ -403,7 +407,7 @@ SKIP : { // Skip whitespace and comments
         if (null == Preprocessor.ifs.pop()) { // pop last if
             throw new AssertionError("Spurious null in #if");
         } else {
-            SwitchTo(PromelaConstants.DEFAULT); // end ITE
+            SwitchTo(DEFAULT); // end ITE
         }
     }
 |   "#line" : PREPROCESSOR_FILE
@@ -423,13 +427,18 @@ SKIP : { // Skip whitespace and comments
         Promela prom = new Promela(parser, is); // start new parser for condition
         try {
             Expression expr = prom.expr();
-            int num = expr.getConstantValue();
+            int num;
+            try {
+                num = expr.getConstantValue();
+            } catch (Exception e) {
+                throw new ParseException("The template expression '"+ expr +"' is not a constant");
+            }
             if (0 != num) { // true
                 Preprocessor.ifs.push(true);
-                SwitchTo(PromelaConstants.DEFAULT); // parse if until else/endif
+                SwitchTo(DEFAULT); // parse if until else/endif
             } else { // false
                 Preprocessor.ifs.push(false);
-                SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore if until else/enfi
+                SwitchTo(PREPROCESSOR_SKIP); // ignore if until else/enfi
             }
         } catch (Exception e) {
             throw new AssertionError("Failed to parse #if "+ image.toString()+ e);
@@ -452,10 +461,10 @@ SKIP : { // Skip whitespace and comments
         String def = image.toString().trim();
         if (null != Preprocessor.defines(def)) { // true
             Preprocessor.ifs.push(true);
-            SwitchTo(PromelaConstants.DEFAULT); // parse if until else/endif
+            SwitchTo(DEFAULT); // parse if until else/endif
         } else { // false
             Preprocessor.ifs.push(false);
-            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore if until else/enfi
+            SwitchTo(PREPROCESSOR_SKIP); // ignore if until else/enfi
         }
     }
 }
@@ -472,10 +481,10 @@ SKIP : { // Skip whitespace and comments
         def = image.toString().trim();
         if (null == Preprocessor.defines(def)) { // true
             Preprocessor.ifs.push(true);
-            SwitchTo(PromelaConstants.DEFAULT); // parse if until else/endif
+            SwitchTo(DEFAULT); // parse if until else/endif
         } else { // false
             Preprocessor.ifs.push(false);
-            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore if until else/enfi
+            SwitchTo(PREPROCESSOR_SKIP); // ignore if until else/enfi
         }
     }
 }
@@ -493,20 +502,20 @@ SKIP : { // Skip whitespace and comments
     {
         Boolean b2 = Preprocessor.ifs.peek();
         if (null == b2) {
-            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // ignore else
+            SwitchTo(PREPROCESSOR_SKIP); // ignore else
         } else if (true == b2.booleanValue()) {
-        	SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // (elif was true) ignore else
+        	SwitchTo(PREPROCESSOR_SKIP); // (elif was true) ignore else
         } else {
-            SwitchTo(PromelaConstants.DEFAULT);
+            SwitchTo(DEFAULT);
         }
     }
 |   "#elif" : PREPROCESSOR_ELIF_SKIP
 |   "#endif"
     {
         if (null == Preprocessor.ifs.pop()) { // pop last if
-            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // keep ignoring input
+            SwitchTo(PREPROCESSOR_SKIP); // keep ignoring input
         } else { // maybe false of true:
-            SwitchTo(PromelaConstants.DEFAULT); // end ITE
+            SwitchTo(DEFAULT); // end ITE
         }
     }
 |   < ~[] > : PREPROCESSOR_SKIP
@@ -518,22 +527,27 @@ SKIP : { // Skip whitespace and comments
     < "\n"|"\r"|"\r\n" > { // constant expression is read
     	Boolean b1 = Preprocessor.ifs.peek();
         if (null == b1) { // bogus if
-        	SwitchTo(PromelaConstants.PREPROCESSOR_SKIP);
+        	SwitchTo(PREPROCESSOR_SKIP);
         } else if (true == b1.booleanValue()) { // another if condition was true already
-            SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // parse if until endif
+            SwitchTo(PREPROCESSOR_SKIP); // parse if until endif
         } else { // current if statement has thusfar not been true
 	        Preprocessor.preprocessing.push(null);
         	InputStream is3 = new ByteArrayInputStream(image.toString().getBytes());
 	        Promela prom2 = new Promela(parser, is3); // start new parser for condition
 	        try {
 	            Expression expr = prom2.expr();
-	            int num = expr.getConstantValue(); // check condition
+                int num;
+                try {
+                    num = expr.getConstantValue();
+                } catch (Exception e) {
+                    throw new ParseException("The template expression '"+ expr +"' is not a constant");
+                }
             	if (0 != num) { // true
         			Preprocessor.ifs.pop();
             	   	Preprocessor.ifs.push(true);
-            	   	SwitchTo(PromelaConstants.DEFAULT); // parse elif until else/endif
+            	   	SwitchTo(DEFAULT); // parse elif until else/endif
             	} else { //false
-            		SwitchTo(PromelaConstants.PREPROCESSOR_SKIP); // skip until elif/endif
+            		SwitchTo(PREPROCESSOR_SKIP); // skip until elif/endif
             	}
 	        } catch (Exception e) {
                 int line1 = input_stream.getEndLine();
@@ -663,9 +677,9 @@ SKIP : { // Skip whitespace and comments
 	        image.setLength(image.length() - 1); // remove '}'
 	        // add inline to preprocessor defines
 	        Preprocessor.addDefine(image.toString(), true);
-            SwitchTo(PromelaConstants.DEFAULT);
+            SwitchTo(DEFAULT);
         } else {
-            SwitchTo(PromelaConstants.PREPROCESSOR_INLINE_REST);
+            SwitchTo(PREPROCESSOR_INLINE_REST);
         }
     }
 |   < ~[] >
@@ -794,9 +808,9 @@ SKIP : { // Skip whitespace and comments
 	"*/" {
 		Preprocessor.level--;
 		if (0 == Preprocessor.level) {
-			SwitchTo(PromelaConstants.DEFAULT);
+			SwitchTo(DEFAULT);
 		} else {
-			SwitchTo(PromelaConstants.IN_COMMENT);
+			SwitchTo(IN_COMMENT);
 		}
 	}
 }
@@ -1054,8 +1068,12 @@ void ch_init(Token as, VariableContainer store, ChannelVariable var): {
 		store.addVariable(var);    }
   |
 	<LBRACK> size=constant() <RBRACK> <OF> 
-	{ 
-		ctype = new ChannelType(size.getConstantValue());
+	{
+       try {
+            ctype = new ChannelType(size.getConstantValue());
+        } catch (Exception e) {
+            throw new ParseException("The channel size expression '"+ size +"' is not a constant");
+        }
 		var.setType(ctype); 
 	}
 	<LCURLY> type=typename() 
@@ -1107,6 +1125,25 @@ State sequence(State start, State breakNode, boolean inAtomic): {
 	{ currentProc.addXS((Identifier)expr); } 
 	(<COMMA> expr=varref() { currentProc.addXS((Identifier)expr); })*
 	(delim() (end=sequence(end, breakNode, inAtomic))?)?
+ |  <FOR> {
+        ConstantExpression b, e;
+    }
+    <LPAREN> expr=varref() <COLON> b=onlyconstant() <DOT><DOT> e=onlyconstant() <RPAREN>
+    {
+        end = new State(automaton, inAtomic);
+        start.newTransition(LTSminUtil.assign((Identifier)expr, b), end);
+        start1 = end;
+    }
+    <LCURLY> end=sequence(end, breakNode, inAtomic) <RCURLY>
+    {
+        trans = end.newTransition(new ExprAction(compare(LT, expr, e)), start1);
+        trans.addAction( incr((Identifier)expr) );
+
+        end1 = end;
+        end = new State(automaton, inAtomic);
+        end1.newTransition(new ExprAction(compare(GTE, expr, e)), end);
+    }
+    (end=sequence(end, breakNode, inAtomic))?
  |	<IF> 
 	{ end = new State(automaton, inAtomic); }
 	(option(start, end, breakNode, inAtomic))+
@@ -1150,7 +1187,7 @@ State sequence(State start, State breakNode, boolean inAtomic): {
  |	t=<GOTO> id=<IDENTIFIER>
 	{
         String label = id.image +"_"+ Preprocessor.getLevel();
-        Token tok = new Token(PromelaConstants.IDENTIFIER, label);
+        Token tok = new Token(IDENTIFIER, label);
         tok.beginLine = id.beginLine;
         tok.endLine = id.endLine;
         tok.beginColumn = id.beginColumn;
