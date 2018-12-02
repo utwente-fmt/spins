@@ -76,7 +76,7 @@ public class LTSminTypeNative extends LTSminTypeImpl {
 				case 8:
 					return C_TYPE_UINT8; // BYTE
 				case 16:
-					return C_TYPE_UINT16; // PC
+					return C_TYPE_UINT32; // PC
 				default:
 					throw new AssertionError("ERROR: Unable to handle: " + var.getName() +" ("+ var.getType().getJavaName() + ").");
 			}
