@@ -412,13 +412,14 @@ public class LTSminPrinter {
             if (model.hasAtomicCycles) {
 		w.appendLine("extern inline int spins_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg, int pid, int *cpy);");
             }
-		w.appendLine("extern inline int spins_simple_reach (void* model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg, int pid, int *cpy);");
-		w.appendLine("extern int spins_get_successor_all (void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
-		w.appendLine("extern int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
-		w.appendLine("extern int spins_get_actions (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
-        w.appendLine("extern void spins_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy);");
-        w.appendLine("extern void spins_simple_atomic_cb (void* arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy);");
+		w.appendLine("extern inline int spins_simple_reach (void *model, transition_info_t *transition_info, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg, int pid, int *cpy);");
+		w.appendLine("extern int spins_get_successor_all (void *model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
+		w.appendLine("extern int spins_get_successor (void *model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
+		w.appendLine("extern int spins_get_actions (void *model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg);");
+        w.appendLine("extern void spins_atomic_cb (void *arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy);");
+        w.appendLine("extern void spins_simple_atomic_cb (void *arg, transition_info_t *transition_info, state_t *out, int atomic, int *cpy);");
         w.appendLine("extern int *spins_get_guards (state_t *in);");
+        w.appendLine("extern int spins_get_label (void *model, int g, state_t *in);");
 		w.appendLine("");
 	}
 
@@ -472,20 +473,10 @@ public class LTSminPrinter {
 		w.appendLine("");
 	}
 
-	private static void generateACallback(StringWriter w, LTSminModel model,
-	                                      LTSminTransition t) {
-        printEdgeLabels(w, model, t);
-        w.appendLine("transition_info.group = "+ t.getGroup() +";");
-		w.appendLine("callback(arg,&transition_info,"+ OUT_VAR +",cpy);");
-		w.appendLine("++states_emitted;");
-	}
-
     private static void printEdgeLabels(StringWriter w, LTSminModel model,
                                         LTSminTransition t) {
-        int index = model.getEdgeIndex(STATEMENT_EDGE_LABEL_NAME);
-        w.appendLine("transition_labels["+ index +"] = "+ t.getGroup() +";"); // index
         if (t.isProgress()) {
-            index = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
+            int index = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
             int value = model.getTypeValueIndex(ACTION_TYPE_NAME, PROGRESS_ACTION_NAME);
             w.appendLine("transition_labels["+ index +"] = "+ value +";"); // index
         }
@@ -524,7 +515,10 @@ public class LTSminPrinter {
 		if (guards == 0) w.append("true");	w.append(") {").appendPostfix();
 		w.indent();
 		w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
-		w.appendLine("int cpy[" + model.sv.size() + "]; memcpy(cpy, cpy_src, sizeof(int[" + model.sv.size() + "]));");
+		if (!w.options.no_cpy)
+			w.appendLine("int cpy[" + model.sv.size() + "]; memcpy(cpy, cpy_src, sizeof(int[" + model.sv.size() + "]));");
+		else 
+			w.appendLine("int *cpy = NULL;");
 		w.appendPostfix();
 		
 		List<Action> actions = t.getActions();
@@ -595,18 +589,8 @@ public class LTSminPrinter {
 
 		w.appendLine("int spins_get_successor_all( void* model, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg) {");
 		w.indent();
-		String edge_array = "";
-        for (int i = 0; i < model.getEdges().size(); i++)
-            edge_array += "0, ";
-        w.appendLine("int transition_labels["+ model.getEdges().size() +"] = {"+ edge_array +"};");
-		w.appendLine("transition_info_t transition_info = { transition_labels, -1 };");
 		w.appendLine("int states_emitted = 0;");
-	    w.appendLine("int *__guards = spins_get_guards(in);");
-		w.appendLine("state_t tmp;");
-		w.appendLine("state_t *"+ OUT_VAR +" = &tmp;");
-		for (Variable local : model.getLocals()) {
-			w.appendLine("int "+ local.getName() +";");
-		}
+		w.appendLine("int *__guards = spins_get_guards(in);");
         generateAssertions(w, model);
 		w.appendLine();
 		List<LTSminTransition> transitions = model.getTransitions();
@@ -647,10 +631,17 @@ public class LTSminPrinter {
                 }
             }
         } else {
-	           LTSminGuardBase last = t.getGuards().get(t.getGuards().size() - 1);
-            for (LTSminGuardBase g : t.getGuards()) {
-    			guards += generateGuard(w, model, g, in(model));
-                if (g != last) {
+//        	LTSminGuardBase last = t.getGuards().get(t.getGuards().size() - 1);
+//            for (LTSminGuardBase g : t.getGuards()) {
+//            	guards += generateGuard(w, model, g, in(model));
+//                if (g != last) {
+//                    w.append(" &&").appendPostfix().appendPrefix();
+//                }
+//    		}
+        	List<Integer> gs = model.getGuardInfo().getTransMatrix().get(t.getIndex());
+			for (int g : gs) {
+    			 w.append("spins_get_label(NULL, "+ g +", "+ IN_VAR +")");
+                if (++guards != gs.size()) {
                     w.append(" &&").appendPostfix().appendPrefix();
                 }
     		}
@@ -658,21 +649,17 @@ public class LTSminPrinter {
 
 		if (guards == 0) w.append("true");
 		w.outdent();
+
 		w.append(") {").appendPostfix();
 		w.indent();
 		//generateActions(w, t, model);
 		w.appendLine("states_emitted += spins_get_actions (model, "+ t.getGroup() +", in, callback, arg);");
-	    if (many && (hasAssert(t.getActions()) || t.isProgress())) {
-		    int index = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
-		    w.appendLine("transition_labels["+ index +"] = "+ 0 +";");
-	    }
 		w.outdent();
 		w.appendLine("}");
 	}
 
     private static void generateActions(StringWriter w, LTSminTransition t,
                                         LTSminModel model) {
-        w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
 		List<Action> actions = t.getActions();
 		if (w.options.total)
 			w.appendLine("while (1) {").indent();
@@ -687,17 +674,17 @@ public class LTSminPrinter {
 			w.appendLine("break;").outdent();
 			w.appendLine("}");
 		}
+	    printEdgeLabels (w, model, t);
 		if (t.isAtomic()) {
-		    printEdgeLabels (w, model, t);
 			w.appendLine("transition_info.group = "+ t.getGroup() +";");
 			if (t.getEnd().liesOnCycle()) {
 			    w.appendLine("int count = spins_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +", cpy);");
 			} else {
 			    w.appendLine("int count = spins_simple_reach (model, &transition_info, "+ OUT_VAR +", callback, arg, "+ t.getEndId() +", cpy);");
 			}
-			w.appendLine("states_emitted += count;"); // non-deterministic atomic sequences emit multiple states
+            w.appendLine("return count;");
 		} else {
-			generateACallback(w, model, t);
+			w.appendLine("break;");
 		}
     }
 
@@ -718,19 +705,7 @@ public class LTSminPrinter {
 	private static void generateGetNext(StringWriter w, LTSminModel model) {
 		w.appendLine("int spins_get_successor (void* model, int t, state_t *in, void (*callback)(void* arg, transition_info_t *transition_info, state_t *out, int *cpy), void *arg) {");
 		w.indent();
-		String edge_array = "";
-        for (int i = 0; i < model.getEdges().size(); i++)
-            edge_array += "0, ";
-        w.appendLine("int transition_labels["+ model.getEdges().size() +"] = {"+ edge_array +"};");
-		w.appendLine("transition_info_t transition_info = { transition_labels, t };");
 		w.appendLine("int states_emitted = 0;");
-		w.appendLine("int minus_one = -1;");
-		w.appendLine("int *atomic = &minus_one;");
-		w.appendLine(C_STATE," local_state;");
-		w.appendLine(C_STATE,"* ",OUT_VAR," = &local_state;");
-		for (Variable local : model.getLocals()) {
-			w.appendLine("int "+ local.getName() +";");
-		}
         generateAssertions(w, model);
 		w.appendLine();
 		w.appendLine("switch(t) {");
@@ -759,18 +734,25 @@ public class LTSminPrinter {
         for (int i = 0; i < model.getEdges().size(); i++)
             edge_array += "0, ";
         w.appendLine("int transition_labels["+ model.getEdges().size() +"] = {"+ edge_array +"};");
+        int index = model.getEdgeIndex(STATEMENT_EDGE_LABEL_NAME);
+        w.appendLine("transition_labels["+ index +"] = t;"); // index
         w.appendLine("transition_info_t transition_info = { transition_labels, t };");
-        w.appendLine("int states_emitted = 0;");
+        w.appendLine("transition_info.group = t;");
         w.appendLine("int minus_one = -1;");
         w.appendLine("int *atomic = &minus_one;");
         w.appendLine(C_STATE," local_state;");
         w.appendLine(C_STATE,"* ",OUT_VAR," = &local_state;");
+        w.appendLine("memcpy(", OUT_VAR,", ", IN_VAR , ", sizeof(", C_STATE,"));");
         
-        w.appendPrefix();
-        w.append("int cpy[" + model.sv.size() + "] = { ");      
-        for (int i = 0; i < model.sv.size(); i++) w.append("1,");       
-        w.append(" };");
-        w.appendPostfix();
+        if (!w.options.no_cpy) {
+	        w.appendPrefix();
+	        w.append("int cpy[" + model.sv.size() + "] = { ");      
+	        for (int i = 0; i < model.sv.size(); i++) w.append("1,");       
+	        w.append(" };");
+	        w.appendPostfix();
+        } else {
+			w.appendLine("int *cpy = NULL;");
+        }
         
         for (Variable local : model.getLocals()) {
             w.appendLine("int "+ local.getName() +";"); 
@@ -785,13 +767,17 @@ public class LTSminPrinter {
             w.indent();
             w.appendLine("// "+ t.getName());
             generateActions (w, t, model);
-            w.appendLine("return states_emitted;");
             w.outdent();
             w.appendLine("}");
             ++trans;
         }
         w.appendLine("}");
-        w.appendLine("return 0;");
+
+		w.appendLine("callback(arg,&transition_info,"+ OUT_VAR +",cpy);");
+	    int aindex = model.getEdgeIndex(ACTION_EDGE_LABEL_NAME);
+	    w.appendLine("transition_labels["+ aindex +"] = "+ 0 +";");
+        w.appendLine("return 1;");
+        
         w.outdent();
         w.appendLine("}");
         w.appendLine();
@@ -871,12 +857,15 @@ public class LTSminPrinter {
 			String struct_t = model.sv.getMember(rpa.getProcess()).getType().getName();
 			w.appendLine("#ifndef NORESETPROCESS");
 			w.appendLine("memcpy(&",OUT_VAR,"->"+ name +", (char*)&(",INITIAL_VAR,".",name,"), sizeof("+ struct_t +"));");
-            w.appendLine("memset(&((state_t *)cpy)->"+ name +", 0, sizeof("+ struct_t +"));");
+            if (!w.options.no_cpy)
+            	w.appendLine("memset(&((state_t *)cpy)->"+ name +", 0, sizeof("+ struct_t +"));");
 			LTSminSubVector sub = model.sv.sub(rpa.getProcess());
-			for (LTSminSlot slot : sub) {
-		        w.appendPrefix();
-		        w.append("cpy["+ slot.getIndex() +"] = 0;");
-		        w.appendPostfix();
+			if (!w.options.no_cpy) {
+				for (LTSminSlot slot : sub) {
+			        w.appendPrefix();
+			        w.append("cpy["+ slot.getIndex() +"] = 0;");
+			        w.appendPostfix();
+				}
 			}
             w.appendLine("#endif");
 			
@@ -1212,6 +1201,7 @@ public class LTSminPrinter {
     private static void copyAccess(LTSminModel model, StringWriter w, Identifier id) {
 		if (id.getVariable().isHidden() || id instanceof LTSminIdentifier) return;
 		if (id.isConstant()) return;
+		if (w.options.no_cpy) return;
 
 		String var = print(id, out(model));
     	
@@ -1924,7 +1914,7 @@ public class LTSminPrinter {
 		w.appendLine("}");
 		w.appendLine("");
 
-        w.appendLine("int spins_get_label(void* model, int g, ",C_STATE,"* ",IN_VAR,") {");
+        w.appendLine("int spins_get_label(void *model, int g, ",C_STATE,"* ",IN_VAR,") {");
         w.indent();
         w.appendLine("(void)model;");
         w.appendLine("assert(g < ",gm.getNumberOfLabels(),", \"spins_get_label: invalid state label index %d\", g);");
@@ -1956,10 +1946,14 @@ public class LTSminPrinter {
         w.appendLine("switch(g) {");
         w.indent();
         for (int g = 0; g < gm.getNumberOfLabels(); ++g) {
+            if (gm.getLabelName(g).startsWith("guard_")) {
+            	continue;
+            }
             w.appendPrefix();
             w.append("case "+ g +": return \""+ gm.getLabelName(g) +"\";");
             w.appendPostfix();
         }
+        w.append("default: { static char c[100]; snprintf(c, 100, \"guard_%d\", g); return c; }");
         w.outdent();
         w.appendLine("}");
         w.appendLine("return \"\";");

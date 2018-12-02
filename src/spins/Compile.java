@@ -193,6 +193,10 @@ public class Compile {
 			"make next-state a total function\n");
 		parser.addOption(total);
 
+		final BooleanOption no_cpy = new BooleanOption('A',
+				"do not initialize copy _A_rrays\n");
+			parser.addOption(no_cpy);
+		
 		final BooleanOption useNever = new BooleanOption('N',
 			"Force use of never claim (slow; it is preferable to supply the LTL formula to LTSmin).\n");
 		parser.addOption(useNever);
@@ -274,7 +278,8 @@ public class Compile {
 
         Options opts = new Options(verbose.isSet(), no_guards.isSet(),
                 					  must_write.isSet(), !no_cnf.isSet(),
-                					  java.isSet(), no_atomic.isSet(), total.isSet());
+                					  java.isSet(), no_atomic.isSet(),
+                					  total.isSet(), no_cpy.isSet());
 
 		final Specification spec = 
 			Compile.compile(file, !optimalizations.isSet("3"), opts);
