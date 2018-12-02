@@ -101,8 +101,7 @@ public class LTSminGMWalker {
 
         if (opts.no_gm) {
             debug.say_indent--;
-            debug.say("Generating guard dependency matrices done (%s sec)",
-                      report.stopTimer().sec()).say("");
+            debug.say("Skipping guard dependency matrices").say("");
             return;
         }
 
